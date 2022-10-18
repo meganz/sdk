@@ -886,7 +886,11 @@ void ScheduledFlags::setEmailsDisabled(bool enabled)
 unsigned long ScheduledFlags::getNumericValue()             { return mFlags.to_ulong(); }
 bool ScheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool ScheduledFlags::isEmpty() const                        { return mFlags.none(); }
-bool ScheduledFlags::equalTo(const ScheduledFlags* f) const { return mFlags.to_ulong() == f->mFlags.to_ulong();}
+bool ScheduledFlags::equalTo(const ScheduledFlags* f) const
+{
+    if (!f) { return false; }
+    return mFlags.to_ulong() == f->mFlags.to_ulong();
+}
 
 bool ScheduledFlags::serialize(string* out)
 {
@@ -971,29 +975,20 @@ bool ScheduledRules::equalTo(mega::ScheduledRules *r) const
 
     if (mByWeekDay || r->byWeekDay())
     {
-        if (!mByWeekDay || !r->byWeekDay())
-        {
-            return false;
-        }
-        return (*mByWeekDay == *r->byWeekDay());
+        if (!mByWeekDay || !r->byWeekDay()) { return false; }
+        if (*mByWeekDay != *r->byWeekDay()) { return false; }
     }
 
     if (mByMonthDay || r->byMonthDay())
     {
-        if (!mByMonthDay || !r->byMonthDay())
-        {
-            return false;
-        }
-        return (*mByMonthDay == *r->byMonthDay());
+        if (!mByMonthDay || !r->byMonthDay()) { return false; }
+        if (*mByMonthDay != *r->byMonthDay()) { return false; }
     }
 
     if (mByMonthWeekDay || r->byMonthWeekDay())
     {
-        if (!mByMonthWeekDay || !r->byMonthWeekDay())
-        {
-            return false;
-        }
-        return (*mByMonthWeekDay == *r->byMonthWeekDay());
+        if (!mByMonthWeekDay || !r->byMonthWeekDay()) { return false; }
+        if (*mByMonthWeekDay != *r->byMonthWeekDay()) { return false; }
     }
 
     return true;
@@ -1248,18 +1243,30 @@ bool ScheduledMeeting::isValid() const
 
 bool ScheduledMeeting::equalTo(ScheduledMeeting* sm) const
 {
-    // scheduled meeting Handle and chatroom can't change
-    return parentCallid() == sm->parentCallid()
-            && !strcmp(timezone(), sm->timezone())
-            && !strcmp(startDateTime(), sm->startDateTime())
-            && !strcmp(endDateTime(), sm->endDateTime())
-            && !strcmp(title(), sm->title())
-            && !strcmp(description(), sm->description())
-            && !strcmp(attributes(), sm->attributes())
-            && !strcmp(overrides(), sm->overrides())
-            && cancelled() == sm->cancelled()
-            && flags()->equalTo(sm->flags())
-            && rules()->equalTo(sm->rules());
+    if (!sm)                                            { return false; }
+    if (parentCallid() != sm->parentCallid())           { return false; }
+    if (mTimezone.compare(sm->timezone()))              { return false; }
+    if (mStartDateTime.compare(sm->startDateTime()))	{ return false; }
+    if (mEndDateTime.compare(sm->endDateTime()))		{ return false; }
+    if (mTitle.compare(sm->title()))                    { return false; }
+    if (mDescription.compare(sm->description()))		{ return false; }
+    if (mAttributes.compare(sm->attributes()))          { return false; }
+    if (mOverrides.compare(sm->overrides()))            { return false; }
+    if (mCancelled != sm->cancelled())                  { return false; }
+
+    if (mFlags || sm->flags())
+    {
+        if (mFlags && !mFlags->equalTo(sm->flags()))            { return false; }
+        if (sm->flags() && !sm->flags()->equalTo(mFlags.get())) { return false; }
+    }
+
+    if (mRules || sm->rules())
+    {
+        if (mRules && !mRules->equalTo(sm->rules()))            { return false; }
+        if (sm->rules() && !sm->rules()->equalTo(mRules.get())) { return false; }
+    }
+
+    return true;
 }
 
 bool ScheduledMeeting::serialize(string* out)
