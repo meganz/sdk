@@ -1333,7 +1333,7 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
     set<UserAlert::Base*> alertsToRelease;
     handle nodeHandleToRemove = nodeToRemoveAlert->nodehandle;
     std::string debug_msg = "Suppressed alert for node with handle |"
-        + std::to_string(nodeHandleToRemove) + "| found as a ";
+        + toNodeHandle(nodeHandleToRemove) + "| found as a ";
     for (UserAlert::Base* alertToCheck : alerts)
     {
         if (auto pNewSN = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToRemove, alertToCheck))
