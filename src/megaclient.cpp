@@ -5238,8 +5238,8 @@ bool MegaClient::procsc()
 
 size_t MegaClient::procreqstat()
 {
-    // <num_users.2>[<userhandle.8>]<num_ops.2>[<ops.1>]<start.4><current.4><end.8>
-
+    // reqstat packet format:
+    // <num_users.2>[<userhandle.8>]<num_ops.2>[<ops.1>]<start.4><current.4><end.4>
 
     // data input enough for reading 2 bytes (number of users)?
     if (!mReqStatCS || mReqStatCS->in.size() < sizeof(uint16_t))
