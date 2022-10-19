@@ -11042,17 +11042,14 @@ public class MegaApiJava {
         return result;
     }
 
-    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
-        if (recentActionList == null) {
-            return null;
-        }
-
-        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
-        for (int i = 0; i < recentActionList.size(); i++) {
-            result.add(recentActionList.get(i).copy());
-        }
-
-        return result;
+    /**
+     * Creates a copy of MegaRecentActionBucket required for its usage in the app.
+     *
+     * @param bucket The MegaRecentActionBucket received.
+     * @return A copy of MegaRecentActionBucket.
+     */
+    public MegaRecentActionBucket copyBucket(MegaRecentActionBucket bucket) {
+        return bucket.copy();
     }
 
     /**
