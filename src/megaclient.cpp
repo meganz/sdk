@@ -8498,6 +8498,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     }
 }
 
+#ifdef ENABLE_SYNC
 void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
 {
     // Try and deregister this sync's backup ID first.
@@ -8590,6 +8591,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         }
     }
 }
+#endif // ENABLE_SYNC
 
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)

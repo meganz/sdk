@@ -10426,6 +10426,7 @@ void exec_syncxable(autocomplete::ACState& s)
         cout << "disablement complete." << endl;
     }
 }
+#endif // ENABLE_SYNC
 
 void printSet(const Set* s)
 {
@@ -10667,4 +10668,4 @@ void exec_setsandelements(autocomplete::ACState& s)
     }
 }
 
-#endif // ENABLE_SYNC
+
