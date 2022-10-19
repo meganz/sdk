@@ -8506,7 +8506,12 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
 
     reqs.add(new CommandBackupRemove(this, backupId,
-            [backupId, completion, this](Error){
+            [backupId, completion, this](Error e){
+                if (e)
+                {
+                    // de-registering is not critical - we continue anyway
+                    LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
 
@@ -8522,7 +8527,12 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
             attr_map m;
             m[AttrMap::string2nameid("dev-id")] = "";
             m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), 0, nullptr, nullptr, true);
+            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
+                if (e)
+                {
+                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
+                }
+            }, true);
         }
     }
 }
