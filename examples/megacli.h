@@ -149,6 +149,8 @@ struct DemoApp : public MegaApp
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
 
+    void sequencetag_update(const string&) override;
+
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
     void chatinvite_result(error) override;

@@ -2828,6 +2828,5 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     return std::min(1.0, progress);
 }
 
-
 } // namespace mega
 

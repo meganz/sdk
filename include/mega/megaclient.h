@@ -224,6 +224,16 @@ struct SyncdownContext
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
+class ScDbStateRecord : public Cacheable
+{
+public:
+    string seqTag;
+
+    bool serialize(string* data) override;
+
+    static ScDbStateRecord unserialize(const std::string& data);
+};
+
 // Class to help with upload of file attributes
 struct UploadWaitingForFileAttributes
 {
@@ -255,7 +265,6 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
         entry.transfer = t;
     }
 };
-
 
 class MEGA_API MegaClient
 {
@@ -1299,7 +1308,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1325,11 +1334,17 @@ public:
     // MegaClient-Server response JSON
     JSON json;
 
-    // actionpacket sequence tags
+    // actionpacket sequence tags (current refers to the one expected by the Requests)
     string mCurrentSeqtag;
     string mPriorSeqTag;
     bool mCurrentSeqtagSeen = false;
     int mCurrentSeqtagCmdtag = 0;
+
+    // sc received seqtags to report to app (not tied to requests in this client)
+    string mLastReceivedScSeqTag;
+
+    // records last seqTag, with allowance for future fields also
+    ScDbStateRecord mScDbStateRecord;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;

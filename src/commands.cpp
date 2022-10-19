@@ -5854,6 +5854,15 @@ bool CommandFetchNodes::procresult(Result r)
                 }
                 break;
 
+            case MAKENAMEID2('s', 't'):
+                {
+                    string st;
+                    if (!client->json.storeobject(&st)) return false;
+                    client->app->sequencetag_update(st);
+                    client->mScDbStateRecord.seqTag = st;
+                }
+                break;
+
             case MAKENAMEID3('i', 'p', 'c'):
                 // Incoming pending contact
                 client->readipc(&client->json);

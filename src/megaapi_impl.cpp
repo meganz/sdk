@@ -6181,6 +6181,14 @@ char *MegaApiImpl::getSequenceNumber()
     return MegaApi::strdup(client->scsn.text());
 }
 
+char *MegaApiImpl::getSequenceTag()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    //Note: we rely on mScDbStateRecord.seqTag, since mLastReceivedScSeqTag is cleared after notified
+    return MegaApi::strdup(client->mScDbStateRecord.seqTag.c_str());
+}
+
 char *MegaApiImpl::getAccountAuth()
 {
     SdkMutexGuard g(sdkMutex);
@@ -13351,6 +13359,17 @@ void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
         fireOnContactRequestsUpdate(NULL);
     }
     delete requestList;
+}
+
+void MegaApiImpl::sequencetag_update(const string& seqTag)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    // no need for a separate MegaApiImpl::fireOnSeqTagUpdate (but mentioning it here for search purposes)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onSeqTagUpdate(api, &seqTag);
+    }
 }
 
 void MegaApiImpl::unlink_result(handle h, error e)

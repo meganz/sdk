@@ -1239,6 +1239,9 @@ void MegaClient::init()
     mPriorSeqTag.clear();
     mCurrentSeqtagSeen = false;
     mCurrentSeqtagCmdtag = 0;
+
+    mScDbStateRecord = ScDbStateRecord();
+    mLastReceivedScSeqTag.clear();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -4456,6 +4459,12 @@ void MegaClient::initsc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
+        if (complete && !mScDbStateRecord.seqTag.empty())
+        {
+            complete = sctable->put(CACHEDDBSTATE, &mScDbStateRecord, &key);
+            LOG_debug << "saving seqtag in db: " << mScDbStateRecord.seqTag;
+        }
+
         if (complete)
         {
             // 2. write all users
@@ -4576,6 +4585,12 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+
+        if (complete && !mScDbStateRecord.seqTag.empty())
+        {
+            complete = sctable->put(CACHEDDBSTATE, &mScDbStateRecord, &key);
+            LOG_debug << "saving seqtag in db: " << mScDbStateRecord.seqTag;
+        }
 
         if (complete)
         {
@@ -4965,10 +4980,23 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             LOG_verbose << clientname << "st tag exhausted for " << mCurrentSeqtag;
             reqs.continueProcessing(this);
         }
+
+        if (!mLastReceivedScSeqTag.empty())
+        {
+            // we've reached the end of a set of actionpackets, with a latest st to report
+            app->sequencetag_update(mLastReceivedScSeqTag);
+            LOG_debug << "updated seqtag: " << mLastReceivedScSeqTag;
+            mLastReceivedScSeqTag.clear();
+        }
         return true;
     }
     else
     {
+        mLastReceivedScSeqTag = tag;
+
+        // Also prep this one to be committed to db (if we delay until time to notify the app, we're too late for the commit)
+        mScDbStateRecord.seqTag = mLastReceivedScSeqTag;
+
         for (;;)
         {
             if (mCurrentSeqtag.empty())
@@ -11694,6 +11722,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
 #endif
                 break;
 
+            case CACHEDDBSTATE:
+                {
+                    mScDbStateRecord = ScDbStateRecord::unserialize(data);
+                    mScDbStateRecord.dbid = id;
+                    LOG_debug << "reloaded seqtag from db: " << mScDbStateRecord.seqTag;
+                }
+                break;
             case CACHEDSET:
             {
                 if (!fetchscset(&data, id))
@@ -11728,6 +11763,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
     }
 
     mergenewshares(0);
+
+    if (!mScDbStateRecord.seqTag.empty())
+    {
+        app->sequencetag_update(mScDbStateRecord.seqTag);
+    }
 
     return true;
 }
@@ -17344,5 +17384,28 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
 }
+
+bool ScDbStateRecord::serialize(string* s)
+{
+    CacheableWriter w(*s);
+    w.serializestring(seqTag);
+    w.serializeexpansionflags();
+    return s;
+}
+
+ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
+{
+    unsigned char ef[8] = {0, };
+    ScDbStateRecord result;
+    CacheableReader reader(data);
+    if (reader.unserializestring(result.seqTag) &&
+        reader.unserializeexpansionflags(ef, 0))
+    {
+        // future fields processed here
+    }
+
+    return result;
+}
+
 
 } // namespace
