@@ -3704,7 +3704,8 @@ autocomplete::ACN autocompleteSyntax()
                            sequence(flag("-by-local-path"),
                                     localFSFolder()),
                            sequence(flag("-by-remote-path"),
-                                    remoteFSFolder(client, &cwd)))));
+                                    remoteFSFolder(client, &cwd))),
+                    opt(param("backupdestinationfolder"))));
 
     p->Add(exec_syncstatus,
            sequence(text("sync"),
@@ -9999,35 +10000,109 @@ void exec_syncremove(autocomplete::ACState& s)
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
     {
-        cerr << "You must be logged in to manipulate backup syncs."
+        cerr << "You must be logged in to manipulate syncs."
              << endl;
         return;
     }
 
-    // sync remove id
-    handle backupId = 0;
-    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+    string localPath;
+    string remotePath;
+    bool byLocal = s.extractflagparam("-by-local-path", localPath);
+    bool byRemote = s.extractflagparam("-by-remote-path", remotePath);
 
-    // Try and remove the config.
-    bool found = false;
-
-    client->syncs.removeSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          auto matched = config.mBackupId == backupId;
-
-          found |= matched;
-
-          return matched;
-      }, true, true);
-
-    if (!found)
+    // Get move destination
+    size_t bkpDestPos = (byLocal || byRemote) ? 5 : 4;
+    handle bkpDest = UNDEF;
+    if (s.words.size() > bkpDestPos)
     {
-        cerr << "No sync config exists with the backupId "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
+        // get final destination
+        Node* destination = nodebypath(s.words[bkpDestPos].s.c_str());
+        if (destination)
+        {
+            bkpDest = destination->nodehandle;
+        }
+        else
+        {
+            cout << "Wrong backup remove destination: " << s.words[bkpDestPos].s << endl;
+            return;
+        }
+    }
+
+    std::function<bool(SyncConfig&, Sync*)> predicate;
+    bool found = false;
+    bool isBackup = false;
+
+    if (byLocal)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mLocalPath.toPath(false) == localPath;
+
+            found = found || matched;
+            isBackup |= config.isBackup();
+
+            return matched;
+        };
+    }
+    else if (byRemote)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mOriginalPathOfRemoteRootNode == remotePath;
+
+            found = found || matched;
+            isBackup |= config.isBackup();
+
+            return matched;
+        };
+    }
+    else
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto id = toHandle(config.mBackupId);
+            auto matched = id == s.words[2].s;
+
+            found = found || matched;
+            isBackup |= config.isBackup();
+
+            return matched;
+        };
+    }
+
+    auto v = client->syncs.selectedSyncConfigs(predicate);
+
+    if (v.size() != 1)
+    {
+        cerr << "Found " << v.size() << " matching syncs." << endl;
         return;
     }
+
+    std::function<void(Error e)> completion = [=](Error e)
+        {
+            if (e == API_OK)
+            {
+                cout << "Sync - removed" << endl;
+            }
+            else if (e == API_ENOENT)
+            {
+                cout << "Sync - no config exists for "
+                    << (byLocal ? localPath : (byRemote ? remotePath : s.words[2].s));
+            }
+            else
+            {
+                cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
+            }
+        };
+
+    if (v[0].isBackup())
+    {
+        // unlink the backup's Vault nodes after deregistering it
+        NodeHandle source = v[0].mRemoteNode;
+        NodeHandle destination = NodeHandle().set6byte(bkpDest);
+        completion = [completion, source, destination](Error e){
+            client->unlinkOrMoveBackupNodes(source, destination, completion);
+        };
+    }
+
+    client->deregisterThenRemoveSync(v[0].mBackupId, completion);
 }
 
 void exec_syncstatus(autocomplete::ACState& s)

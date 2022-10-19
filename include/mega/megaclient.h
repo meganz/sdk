@@ -533,6 +533,10 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
+    void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+
     // delete all versions
     void unlinkversions();
 
@@ -680,6 +684,7 @@ public:
      * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
+     * @exludedPath: in sync rework, use this to specify a folder within the sync to exclude (eg, working folder with sync db in it)
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */

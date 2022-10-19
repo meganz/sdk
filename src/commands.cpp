@@ -9160,7 +9160,7 @@ bool CommandPutSet::procresult(Result r)
             s = client->addSet(move(*mSet));
         }
         else // update existing
-        {            
+        {
             assert(mSet->id() == sId);
 
             if (!client->updateSet(move(*mSet)))

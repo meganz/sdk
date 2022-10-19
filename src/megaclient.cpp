@@ -7787,6 +7787,89 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     }
 }
 
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+{
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    reqs.add(new CommandBackupRemove(this, backupId,
+            [backupId, completion, this](Error){
+                syncs.removeSyncAfterDeregistration(backupId, completion);
+            }));
+
+    // while we are on the client thread, also tidy up dev-id, drv-id
+    SyncConfig sc;
+    if (syncs.configById(backupId, sc) &&
+        sc.isBackup())
+    {
+        if (auto n = nodeByHandle(sc.mRemoteNode))
+        {
+            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
+
+            attr_map m;
+            m[AttrMap::string2nameid("dev-id")] = "";
+            m[AttrMap::string2nameid("drv-id")] = "";
+            setattr(n, move(m), nullptr, true);
+        }
+    }
+}
+
+void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
+{
+    Node* n = nodeByHandle(backupRootNode);
+    if (!n)
+    {
+        if (destination.isUndef())
+        {
+            // we were going to delete these anyway, so no problem
+            completion(API_OK);
+        }
+        else
+        {
+            // we can't move them if they don't exist
+            completion(API_EARGS);
+        }
+        return;
+    }
+
+    if (n->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        // backup nodes are supposed to be in the vault - if not, something is wrong
+        completion(API_EARGS);
+        return;
+    }
+
+    if (destination.isUndef())
+    {
+        error e = unlink(n, false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+    else
+    {
+        // moving to target node
+
+        Node* p = nodeByHandle(destination);
+        if (!p || p->firstancestor()->nodeHandle() != rootnodes.files)
+        {
+            completion(API_EARGS);
+            return;
+        }
+
+        error e = rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+}
+
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {

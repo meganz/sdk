@@ -603,6 +603,14 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         }
 
         type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+
+        if (fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            if (WinFileSystemAccess::checkForSymlink(namePath))
+            {
+                mIsSymLink = true;
+            }
+        }
     }
 
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
@@ -1628,7 +1636,7 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
-bool  WinFileSystemAccess::CheckForSymlink(const LocalPath& lp)
+bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
 {
 
     ScopedFileHandle rightTypeHandle = CreateFileW(lp.localpath.c_str(),
@@ -1772,7 +1780,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fsid = (handle)info->FileId.QuadPart;
                     result.type = TYPE_SPECIAL;
 
-                    if (CheckForSymlink(filePath))
+                    if (checkForSymlink(filePath))
                     {
                         result.isSymlink = true;
                     }

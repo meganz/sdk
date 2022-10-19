@@ -7313,18 +7313,18 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     fs::path fileDownloadPath = fs::current_path() / fs::u8path(fileNameStr.c_str());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
-#ifndef WIN32
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
-#endif
     deleteFile(fileDownloadPath.u8string());
 
     // Create local directories
+
+    std::error_code ignoredEc;
+    fs::remove_all(localPath, ignoredEc);
+
     fs::create_directory(localPath);
-#ifndef WIN32
     fs::create_directory(localPath / "level_1A");
     fs::create_directory_symlink(localPath / "level_1A", localPath / "symlink_1A");
     fs::create_directory_symlink(localPath / "level_1A", fs::current_path() / "symlink_1A");
-#endif
 
     LOG_verbose << "SyncPaths :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -7358,22 +7358,26 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-#if !defined(WIN32) && !defined(__APPLE__)
+#if !defined(__APPLE__)
     LOG_verbose << "SyncPersistence :  Check that symlinks are not synced.";
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(("/" + string(remoteBaseNode->getName()) + "/symlink_1A").c_str()));
     ASSERT_EQ(remoteNodeSym.get(), nullptr);
 
+    nh = createFolder(0, "symlink_1A", remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteNodeSym.get(), nullptr);
+
+#ifndef WIN32
     {
         TestingWithLogErrorAllowanceGuard g;
 
         LOG_verbose << "SyncPersistence :  Check that symlinks are considered when creating a sync.";
-        nh = createFolder(0, "symlink_1A", remoteRootNode.get());
-        ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-        remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
-        ASSERT_NE(remoteNodeSym.get(), nullptr);
         ASSERT_EQ(API_EARGS, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
+
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
     auto tagID = sync->getBackupId();
     ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_DISABLED)) << "API Error disabling sync";
@@ -7402,17 +7406,19 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-    {
+#ifndef WIN32
+{
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(API_EARGS, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
 
-    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 #endif
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 }
 
 /**
