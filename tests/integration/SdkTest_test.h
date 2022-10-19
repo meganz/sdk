@@ -224,6 +224,9 @@ public:
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
 
+        bool userAlertsUpdated;
+        std::unique_ptr<MegaUserAlertList> userAlertList;
+
         // unique_ptr to custom functions that will be called upon reception of MegaApi callbacks
         onNodesUpdateCompletion_t mOnNodesUpdateCompletion;
 
@@ -303,6 +306,9 @@ protected:
     void onSetElementsUpdate(MegaApi *api, MegaSetElementList *elements) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
     void onReloadNeeded(MegaApi *api) override {}
+
+    void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
+
 #ifdef ENABLE_SYNC
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
@@ -399,6 +405,7 @@ public:
     template<typename ... requestArgs> int doGetPreviewUploadURL(unsigned apiIndex, std::string& url, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getPreviewUploadURL(args..., &rt); rt.waitForResult(); url = rt.request->getName(); return rt.result; }
     template<typename ... requestArgs> int doPutThumbnail(unsigned apiIndex, MegaBackgroundMediaUpload* mbmu, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putThumbnail(mbmu, args..., &rt); rt.waitForResult(); mbmu->setThumbnail(rt.getNodeHandle()); return rt.result; }
     template<typename ... requestArgs> int doPutPreview(unsigned apiIndex, MegaBackgroundMediaUpload* mbmu, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putPreview(mbmu, args..., &rt); rt.waitForResult(); mbmu->setPreview(rt.getNodeHandle()); return rt.result; }
+    template<typename ... requestArgs> int doAckUserAlerts(unsigned apiIndex) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->acknowledgeUserAlerts(&rt); rt.waitForResult(); return rt.result; }
 #ifdef ENABLE_SYNC
     template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
