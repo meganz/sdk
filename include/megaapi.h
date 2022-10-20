@@ -1874,6 +1874,7 @@ public:
     static MegaIntegerList* createInstanceFromBytesList(const std::vector<int8_t>& bytesList);
     static MegaIntegerList* createInstance(const std::vector<int64_t>& integerList);
     virtual MegaIntegerList *copy() const;
+    virtual MegaSmallIntVector* toByteList() const;
 
     /**
      * @brief Returns the integer at the position i in the MegaIntegerList
@@ -2800,6 +2801,7 @@ public:
     static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
+    virtual MegaSmallIntMap* toByteMap() const;
 
     /**
      * @brief Returns true, if the key is found in the MegaIntegerMap, otherwise returns false.

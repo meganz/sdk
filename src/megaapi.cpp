@@ -6667,6 +6667,11 @@ MegaIntegerMap::~MegaIntegerMap()
 {
 }
 
+MegaSmallIntMap* MegaIntegerMap::toByteMap() const
+{
+    return NULL;
+}
+
 MegaIntegerMap* MegaIntegerMap::copy() const
 {
     return NULL;
@@ -7302,6 +7307,11 @@ MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t>& int
 MegaIntegerList *MegaIntegerList::copy() const
 {
     return nullptr;
+}
+
+MegaSmallIntVector* MegaIntegerList::toByteList() const
+{
+    return NULL;
 }
 
 int64_t MegaIntegerList::get(int /*i*/) const

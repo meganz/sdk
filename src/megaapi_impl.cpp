@@ -4303,6 +4303,14 @@ MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
 {
 }
 
+
+MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
+{
+    MegaSmallIntMap* byteMap= new MegaSmallIntMap();
+    byteMap->insert(mIntegerMap.begin(), mIntegerMap.end());
+    return byteMap;
+}
+
 MegaIntegerMap* MegaIntegerMapPrivate::copy() const
 {
     return new MegaIntegerMapPrivate(this);
@@ -33415,32 +33423,9 @@ const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay()       
 
 ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {
-    std::unique_ptr <MegaSmallIntVector> auxByWeekDay;
-    if (mByWeekDay)
-    {
-        const vector<int64_t>* inByWeekDay = static_cast<const MegaIntegerListPrivate *>(mByWeekDay.get())->getList();
-        auxByWeekDay.reset(new MegaSmallIntVector());
-        auxByWeekDay->reserve(inByWeekDay->size());
-        std::transform(inByWeekDay->begin(), inByWeekDay->end(), std::back_inserter(*auxByWeekDay), [](int64_t x) { return static_cast<uint8_t>(x);});
-    }
-
-    std::unique_ptr <MegaSmallIntVector> auxByMonthDay;
-    if (mByMonthDay)
-    {
-        const vector<int64_t>* inByMonthDay = static_cast<const MegaIntegerListPrivate *>(mByMonthDay.get())->getList();
-        auxByMonthDay.reset(new MegaSmallIntVector());
-        auxByMonthDay->reserve(inByMonthDay->size());
-        std::transform(inByMonthDay->begin(), inByMonthDay->end(), std::back_inserter(*auxByMonthDay), [](int64_t x) { return static_cast<uint8_t>(x);});
-    }
-
-    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay;
-    if (mByMonthWeekDay)
-    {
-        auxByMonthWeekDay.reset(new MegaSmallIntMap());
-        const multimap<int64_t, int64_t>* inaux = static_cast<const MegaIntegerMapPrivate *>(mByMonthWeekDay.get())->getMap();
-        auxByMonthWeekDay->insert(inaux->begin(), inaux->end());
-    }
-
+    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? mByWeekDay->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByWeekDay? mByWeekDay->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? mByMonthWeekDay->toByteMap() : nullptr);
     return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
 }
 
@@ -33911,6 +33896,14 @@ MegaIntegerListPrivate::MegaIntegerListPrivate()
 MegaIntegerListPrivate::~MegaIntegerListPrivate()
 {
 
+}
+
+MegaSmallIntVector* MegaIntegerListPrivate::toByteList() const
+{
+    MegaSmallIntVector* bytesList= new MegaSmallIntVector();
+    bytesList->reserve(mIntegers.size());
+    std::transform(mIntegers.begin(), mIntegers.end(), std::back_inserter(*bytesList), [](int64_t x) { return static_cast<int8_t>(x);});
+    return bytesList;
 }
 
 MegaIntegerList* MegaIntegerListPrivate::copy() const
