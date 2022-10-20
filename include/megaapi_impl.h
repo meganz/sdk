@@ -1375,8 +1375,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
-        MegaScheduledMeeting *getScheduledMeetings() const override;
-        void setScheduledMeetings(MegaScheduledMeeting* scheduledMeeting);
+        MegaScheduledMeeting *getScheduledMeeting() const override;
+        void setScheduledMeeting(MegaScheduledMeeting* scheduledMeeting);
 
 protected:
         std::shared_ptr<AccountDetails> accountDetails;

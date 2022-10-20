@@ -1071,7 +1071,7 @@ MegaRecentActionBucketList *MegaRequest::getRecentActions() const
     return nullptr;
 }
 
-MegaScheduledMeeting* MegaRequest::getScheduledMeetings() const
+MegaScheduledMeeting* MegaRequest::getScheduledMeeting() const
 {
     return NULL;
 }

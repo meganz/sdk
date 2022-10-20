@@ -4536,7 +4536,7 @@ class MegaRequest
          *
          * @return MegaScheduledMeeting
          */
-        virtual MegaScheduledMeeting* getScheduledMeetings() const;
+        virtual MegaScheduledMeeting* getScheduledMeeting() const;
 };
 
 /**

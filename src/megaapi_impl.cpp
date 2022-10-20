@@ -3930,12 +3930,12 @@ void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucket
     mRecentActions.reset(recentActionBucketList.release());
 }
 
-MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeetings() const
+MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
 {
     return mScheduledMeeting.get();
 }
 
-void MegaRequestPrivate::setScheduledMeetings(MegaScheduledMeeting* scheduledMeeting)
+void MegaRequestPrivate::setScheduledMeeting(MegaScheduledMeeting* scheduledMeeting)
 {
     mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
 }
@@ -10737,7 +10737,7 @@ void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone
     }
     std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, callid, parentCallid, INVALID_HANDLE, cancelled, timezone, startDate,
                                                                                        endDate, title, description, attributes, overrides, flags.get(), rules.get()));
-    request->setScheduledMeetings(schedMeeting.get());
+    request->setScheduledMeeting(schedMeeting.get());
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23444,7 +23444,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
         {
-            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeetings());
+            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeeting());
             if (!schedMeeting)
             {
                 e = API_EARGS;
@@ -23465,7 +23465,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (sm)
                 {
                     std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
-                    request->setScheduledMeetings(auxsm.get());
+                    request->setScheduledMeeting(auxsm.get());
                 }
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
