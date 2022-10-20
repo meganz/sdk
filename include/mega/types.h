@@ -352,12 +352,12 @@ typedef enum {
 } nodetype_t;
 
 
-// MimeType_t maps to file extensionse declared at action_bucket_compare
+// MimeType_t maps to file extensionse declared at Node
 typedef enum { MIME_TYPE_UNKNOWN    = 0,
-               MIME_TYPE_PHOTO      = 1,    // webclient_mime_photo_extensions, webclient_is_image_def, webclient_is_image_raw
-               MIME_TYPE_AUDIO      = 2,    // webclient_mime_audio_extensions
-               MIME_TYPE_VIDEO      = 3,    // webclient_mime_video_extensions
-               MIME_TYPE_DOCUMENT   = 4     // webclient_mime_document_extensions
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
              } MimeType_t;
 
 

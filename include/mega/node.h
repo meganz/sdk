@@ -304,6 +304,8 @@ private:
     bool isVideo(const std::string& ext) const;
     bool isAudio(const std::string& ext) const;
     bool isDocument(const std::string& ext) const;
+
+    static nameid getNameid(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const
