@@ -9670,35 +9670,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     *
-     * @param days     Age of actions since added/modified nodes will be considered (in days)
-     * @param maxnodes Maximum amount of nodes to be considered
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions(long days, long maxnodes) {
-        return recentActionsToArray(megaApi.getRecentActions(days, maxnodes));
-    }
-
-    /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     * <p>
-     * This function uses the default parameters for the MEGA apps, which consider (currently)
-     * interactions during the last 30 days and max 10.000 nodes.
-     * <p>
-     * You take the ownership of the returned value.
-     *
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions() {
-        return recentActionsToArray(megaApi.getRecentActions());
-    }
-
-    /**
      * Get a list of buckets, each bucket containing a list of recently added/modified nodes
      *
      * Each bucket contains files that were added/modified in a set, by a single user.
@@ -11071,17 +11042,14 @@ public class MegaApiJava {
         return result;
     }
 
-    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
-        if (recentActionList == null) {
-            return null;
-        }
-
-        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
-        for (int i = 0; i < recentActionList.size(); i++) {
-            result.add(recentActionList.get(i).copy());
-        }
-
-        return result;
+    /**
+     * Creates a copy of MegaRecentActionBucket required for its usage in the app.
+     *
+     * @param bucket The MegaRecentActionBucket received.
+     * @return A copy of MegaRecentActionBucket.
+     */
+    public MegaRecentActionBucket copyBucket(MegaRecentActionBucket bucket) {
+        return bucket.copy();
     }
 
     /**
