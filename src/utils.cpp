@@ -1161,7 +1161,7 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, c
 {
 }
 
-ScheduledMeeting::ScheduledMeeting(ScheduledMeeting* scheduledMeeting)
+ScheduledMeeting::ScheduledMeeting(const ScheduledMeeting* scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
       mOrganizerUserId(scheduledMeeting->organizerUserid()),
       mCallid(scheduledMeeting->callid()),
@@ -1179,7 +1179,7 @@ ScheduledMeeting::ScheduledMeeting(ScheduledMeeting* scheduledMeeting)
 {
 }
 
-ScheduledMeeting* ScheduledMeeting::copy()
+ScheduledMeeting* ScheduledMeeting::copy() const
 {
    return new ScheduledMeeting(this);
 }

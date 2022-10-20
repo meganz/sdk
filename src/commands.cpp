@@ -9180,7 +9180,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] should not exist";
     }
 
-    bool res = chat->addOrUpdateSchedMeeting(std::move(mScheduledMeeting)); // add or update scheduled meeting if already exists
+    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);

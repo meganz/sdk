@@ -481,7 +481,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
         if (auxMeet)
         {
-            chat->addSchedMeeting(std::move(auxMeet), false /*notify*/);
+            chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
         }
     }
 
@@ -581,7 +581,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool notify)
+bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
 {
     if (!sm)
     {
@@ -596,7 +596,7 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool noti
         return false;
     }
 
-    mScheduledMeetings.emplace(h, std::move(sm));
+    mScheduledMeetings.emplace(h, std::unique_ptr<ScheduledMeeting>(sm->copy()));
     if (notify)
     {
         mSchedMeetingsChanged.emplace_back(h);
@@ -634,7 +634,7 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentCallid)
     return count;
 }
 
-bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
 {
     assert(sm);
     auto it = mScheduledMeetings.find(sm->callid());
@@ -648,13 +648,13 @@ bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
     if (!sm->equalTo(it->second.get()))
     {
         mSchedMeetingsChanged.emplace_back(sm->callid());
-        it->second = std::move(sm);
+        it->second.reset(sm->copy());
     }
 
     return true;
 }
 
-bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm)
 {
     if (!sm)
     {
@@ -664,8 +664,8 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
     }
 
     return mScheduledMeetings.find(sm->callid()) == mScheduledMeetings.end()
-            ? addSchedMeeting(std::move(sm))
-            : updateSchedMeeting(std::move(sm));
+            ? addSchedMeeting(sm)
+            : updateSchedMeeting(sm);
 }
 
 bool TextChat::setMode(bool publicchat)

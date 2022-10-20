@@ -110,11 +110,11 @@ public:
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
-    bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
-    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool notify = true);
+    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm);
+    bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool removeSchedMeeting(handle callid);
     unsigned int removeChildSchedMeetings(handle parentCallid);
-    bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    bool updateSchedMeeting(const ScheduledMeeting *sm);
     ScheduledMeeting* getSchedMeetingById(handle id);
 };
 

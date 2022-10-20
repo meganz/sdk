@@ -848,8 +848,8 @@ public:
                      handle parentCallid = UNDEF, int cancelled = -1, const string& attributes = std::string(),
                      const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
-    ScheduledMeeting(ScheduledMeeting* scheduledMeeting);
-    ScheduledMeeting* copy();
+    ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
+    ScheduledMeeting* copy() const;
     ~ScheduledMeeting();
 
     // setters

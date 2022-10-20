@@ -7213,7 +7213,7 @@ void MegaClient::sc_scheduledmeetings()
 
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(std::move(sm));
+        chat->addOrUpdateSchedMeeting(sm.get());
         notifychat(chat);
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
@@ -11827,7 +11827,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(std::move(sm));
+        chat->addOrUpdateSchedMeeting(sm.get());
         notifychat(chat);
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
