@@ -1397,7 +1397,7 @@ bool DirectReadSlot::waitForPartsInFlight() const
 unsigned DirectReadSlot::usedConnections() const
 {
     assert(mDr->drbuf.isRaid() || (mReqs.size() > 1));
-    if (!mDr->drbuf.isRaid() || mReqs.size() == 0)
+    if (!mDr->drbuf.isRaid() || mReqs.empty())
     {
         LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't";
     }
@@ -1441,13 +1441,14 @@ m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) cons
 bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
 {
     assert(connectionNum < mReqs.size());
-    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-    if (!req || !mDr->drbuf.isRaid())
+    if (!mDr->drbuf.isRaid() ||
+        mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
+        mNumReqsInflight > usedConnections()) // If there is any used connection inflight we don't switch (we only switch when their status is REQ_READY to avoid disconnections)
     {
         return false;
     }
-    if ((mNumSlowConnectionsSwitches < DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES) ||
-        (connectionNum == mUnusedRaidConnection))
+    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+    if (!req || (connectionNum == mUnusedRaidConnection))
     {
         return false;
     }
@@ -1574,7 +1575,7 @@ bool DirectReadSlot::detectSlowestStartConnection(size_t connectionNum)
 
 bool DirectReadSlot::decreaseReqsInflight()
 {
-    if (mReqs.size() > 1)
+    if (mDr->drbuf.isRaid())
     {
         LOG_verbose << "Decreasing counter of total requests inflight: " << mNumReqsInflight << " - 1";
         assert(mNumReqsInflight > 0);
@@ -1587,6 +1588,7 @@ bool DirectReadSlot::decreaseReqsInflight()
         }
         if (mNumReqsInflight == 0)
         {
+            LOG_verbose << "Wait for parts set to false";
             // waitForParts could be true at this point if there were connections with REQ_DONE status which didn't increase the inflight counter
             mWaitForParts = false;
             mMaxChunkSubmitted = 0;
@@ -1598,14 +1600,15 @@ bool DirectReadSlot::decreaseReqsInflight()
 
 bool DirectReadSlot::increaseReqsInflight()
 {
-    if (mReqs.size() > 1)
+    if (mDr->drbuf.isRaid())
     {
-        LOG_verbose << "Increasing counter of total requests inflight: " << mNumReqsInflight << " + 1";
+        LOG_verbose << "Increasing counter of total requests inflight: " << mNumReqsInflight << " + 1 = " << (mNumReqsInflight + 1);
         assert(mNumReqsInflight < mReqs.size());
         ++mNumReqsInflight;
         if (mNumReqsInflight == static_cast<unsigned>(mReqs.size()))
         {
             assert(!mWaitForParts);
+            LOG_verbose << "Wait for parts set to true";
             mWaitForParts = true;
         }
         return true;
@@ -1643,6 +1646,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 
 bool DirectReadSlot::doio()
 {
+    bool isRaid = mDr->drbuf.isRaid();
     for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
     {
         if (detectSlowestStartConnection(connectionNum))
@@ -1651,116 +1655,138 @@ bool DirectReadSlot::doio()
         }
 
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-        if (req && (static_cast<unsigned>(connectionNum) != mUnusedRaidConnection))
-        {
-            if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+        bool submitCondition = req && (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
+        if (submitCondition)
+         {
+            if (isRaid)
             {
-                if (req->in.size())
+                submitCondition = static_cast<unsigned>(connectionNum) != mUnusedRaidConnection;
+            }
+            else
+            {
+                unsigned previousConnectionNum = static_cast<unsigned>((connectionNum + 1)) % static_cast<unsigned>(mReqs.size());
+                bool nonraidSubmitCondition = (previousConnectionNum == static_cast<unsigned>(connectionNum)) ||
+                                                    !mReqs[previousConnectionNum] ||
+                                                    mReqs[previousConnectionNum]->status == REQ_READY ||
+                                                    req->pos < mReqs[previousConnectionNum]->pos;
+                submitCondition = nonraidSubmitCondition;
+            }
+        }
+
+        if (submitCondition)
+        {
+            if (req->in.size())
+            {
+                unsigned n = static_cast<unsigned>(req->in.size());
+                auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - req->postStartTime).count();
+                m_off_t chunkTime = static_cast<m_off_t>(lastDataTime) - mThroughput[connectionNum].second;
+
+                unsigned minmin = 16 * 1024;
+                m_off_t updatedThroughput = calcThroughput(mThroughput[connectionNum].first + n, mThroughput[connectionNum].second + chunkTime) * 1000;
+                m_off_t chunkThroughput = calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000;
+                m_off_t aggregatedThroughput = (chunkThroughput + updatedThroughput) / 2;
+                m_off_t maxChunkSize = aggregatedThroughput;
+                if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
                 {
-                    unsigned n = static_cast<unsigned>(req->in.size());
-                    auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - req->postStartTime).count();
-                    m_off_t chunkTime = static_cast<m_off_t>(lastDataTime) - mThroughput[connectionNum].second;
+                    // Avoid small chunks due to fragmentation caused by similar (but different) chunk sizes (compared to max submitted chunk size)
+                    maxChunkSize = mMaxChunkSubmitted;
+                }
+                unsigned minChunkSize = std::max(static_cast<unsigned>(maxChunkSize), minmin);
+                if (req->status == REQ_INFLIGHT)
+                {
+                    n = (n >= minChunkSize) ?
+                          (n / minmin) * minmin :
+                          0;
+                }
 
-                    unsigned minmin = 16 * 1024;
-                    m_off_t updatedThroughput = calcThroughput(mThroughput[connectionNum].first + n, mThroughput[connectionNum].second + chunkTime) * 1000;
-                    m_off_t chunkThroughput = calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000;
-                    m_off_t aggregatedThroughput = (chunkThroughput + updatedThroughput) / 2;
-                    if (mMaxChunkSubmitted && aggregatedThroughput && ((std::max(static_cast<unsigned>(aggregatedThroughput), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(aggregatedThroughput), mMaxChunkSubmitted)) == 1))
-                    {
-                        // Avoid small chunks due to fragmentation caused by similar (but different) chunk sizes (compared to max submitted chunk size)
-                        aggregatedThroughput = mMaxChunkSubmitted;
-                    }
-                    unsigned minChunkSize = std::max(static_cast<unsigned>(aggregatedThroughput), minmin);
-                    unsigned bytesLeftForMaxChunkSize = mMaxChunkSize - static_cast<unsigned>(mThroughput[connectionNum].first % mMaxChunkSize);
-                    if (req->status == REQ_INFLIGHT)
-                    {
-                        if (n >= bytesLeftForMaxChunkSize)
-                        {
-                            n = bytesLeftForMaxChunkSize;
-                        }
-                        else if (n >= minChunkSize)
-                        {
-                            n = (n / minmin) * minmin;
-                        }
-                        else
-                        {
-                            n = 0;
-                        }
-                    }
+                assert(!mDr->drbuf.isRaid() || (req->status == REQ_SUCCESS) || ((n % RAIDSECTOR) == 0));
+                if ((mDr->drbuf.isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)))
+                {
+                    LOG_err << "DirectReadSlot [conn " << connectionNum << "] ERROR: (isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)"
+                            << " n = " << n
+                            << ", req->in.size = " << req->in.size()
+                            << ", req->status = " << req->status
+                            << ", adapted maxChunkSize = " << maxChunkSize
+                            << ", mMaxChunkSize = " << mMaxChunkSize
+                            << ", submitted = " << mThroughput[connectionNum].first;
+                }
 
-                    assert(!mDr->drbuf.isRaid() || (req->status == REQ_SUCCESS) || ((n % RAIDSECTOR) == 0));
-                    if ((mDr->drbuf.isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)))
-                    {
-                        LOG_err << "DirectReadSlot [conn " << connectionNum << "] ERROR: (mDr->drbuf.isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)"
-                                << " n = " << n
-                                << ", req->in.size = " << req->in.size()
-                                << ", req->status = " << req->status
-                                << ", bytesLeftForMaxChunkSize = " << bytesLeftForMaxChunkSize
+                if (n)
+                {
+                    mThroughput[connectionNum].first += static_cast<m_off_t>(n);
+                    mThroughput[connectionNum].second += chunkTime;
+                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] ->"
+                                << " FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity()
+                                << " [minChunkSize = " << minChunkSize
                                 << ", mMaxChunkSize = " << mMaxChunkSize
-                                << ", submitted = " << mThroughput[connectionNum].first;
-                    }
+                                << ", reqs.size = " << mReqs.size()
+                                << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT"
+                                                                                                          : req->status == REQ_SUCCESS    ? "REQ_SUCCESS"
+                                                                                                                                          : "REQ_SOMETHING")
+                                << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength
+                                << ", numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
+                                << " [chunk throughput = " << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) / 1024) << " KB/s"
+                                << ", average throughput = " << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
+                                << ", aggregated throughput = " << (aggregatedThroughput / 1024) << " KB/s"
+                                << ", maxChunkSize = " << (maxChunkSize / 1024) << " KB/s]"
+                                << ", [req->pos_pre = " << (req->pos) << ", req->pos_now = " << (req->pos + n) << "]";
+                    RaidBufferManager::FilePiece *np = new RaidBufferManager::FilePiece(req->pos, n);
+                    memcpy(np->buf.datastart(), req->in.c_str(), n);
 
-                    if (n)
+                    req->in.erase(0, n);
+                    req->contentlength -= n;
+                    req->bufpos = 0;
+                    req->pos += n;
+
+                    unsigned submittingConnection = isRaid ? connectionNum : 0;
+                    mDr->drbuf.submitBuffer(submittingConnection, np);
+
+                    if (n > mMaxChunkSubmitted)
                     {
-                        mThroughput[connectionNum].first += static_cast<m_off_t>(n);
-                        mThroughput[connectionNum].second += chunkTime;
-                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] ->"
-                                    << " FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity()
-                                    << " [minChunkSize = " << minChunkSize
-                                    << ", bytesLeftForMaxChunkSize = " << bytesLeftForMaxChunkSize
-                                    << ", mMaxChunkSize = " << mMaxChunkSize
-                                    << ", reqs.size = " << mReqs.size()
-                                    << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCESS" : "REQ_SOMETHING")
-                                    << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength
-                                    << ", numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
-                                    << " [chunk throughput = " << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) / 1024) << " KB/s"
-                                    << ", average throughput = " << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
-                                    << ", aggregated throughput = " << (aggregatedThroughput / 1024) << " KB/s]"
-                                    << ", [req->pos_pre = " << (req->pos) << ", req->pos_now = " << (req->pos + n) << "]";
-                        RaidBufferManager::FilePiece *np = new RaidBufferManager::FilePiece(req->pos, n);
-                        memcpy(np->buf.datastart(), req->in.c_str(), n);
-
-                        req->in.erase(0, n);
-                        req->contentlength -= n;
-                        req->bufpos = 0;
-                        req->pos += n;
-
-                        mDr->drbuf.submitBuffer(connectionNum, np);
-
-                        if (n > mMaxChunkSubmitted)
-                        {
-                            mMaxChunkSubmitted = n;
-                        }
-                    }
-
-                    if (req->httpio)
-                    {
-                        req->httpio->lastdata = Waiter::ds;
-                    }
-                    req->lastdata = Waiter::ds;
-
-                    mDr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
-
-                    // we might have a raid-reassembled block to write now, or this very block in non-raid
-                    if (n && !processAnyOutputPieces())
-                    {
-                        // app-requested abort
-                        delete mDr;
-                        return true;
+                        mMaxChunkSubmitted = n;
                     }
                 }
 
-                if (req->status == REQ_SUCCESS && !req->in.size())
+                if (req->httpio)
                 {
-                    decreaseReqsInflight();
-                    req->status = REQ_READY;
+                    req->httpio->lastdata = Waiter::ds;
                 }
+                req->lastdata = Waiter::ds;
+
+                mDr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
+
+                // we might have a raid-reassembled block to write now, or this very block in non-raid
+                if (n && !processAnyOutputPieces())
+                {
+                    // app-requested abort
+                    delete mDr;
+                    return true;
+                }
+            }
+
+            if (req->status == REQ_SUCCESS && !req->in.size())
+            {
+                decreaseReqsInflight();
+                req->status = REQ_READY;
             }
         }
 
         if (!req || req->status == REQ_READY)
         {
-            if (!waitForPartsInFlight())
+            bool waitForOthers = false;
+            if (isRaid)
+            {
+                waitForOthers = waitForPartsInFlight();
+            }
+            else
+            {
+                unsigned previousConnectionNum = static_cast<unsigned>((connectionNum + 1)) % static_cast<unsigned>(mReqs.size());
+                bool nonraidWaitCondition = (previousConnectionNum == static_cast<unsigned>(connectionNum)) &&                               // Not the same connection (true when mReqs.size() > 1)
+                                            mReqs[previousConnectionNum] && (mReqs[previousConnectionNum]->status == REQ_INFLIGHT) &&       // Previous request is still inflight
+                                            (mThroughput[previousConnectionNum].first < (mMaxChunkSize / 2));                               // Previous request hasn't reached half mMaxChunkSize
+                waitForOthers = nonraidWaitCondition;
+            }
+            if (!waitForOthers)
             {
                 if (searchAndDisconnectSlowestConnection(connectionNum))
                 {
@@ -1811,6 +1837,11 @@ bool DirectReadSlot::doio()
                         if (!req)
                         {
                             mReqs[connectionNum] = make_unique<HttpReq>(true);
+                        }
+
+                        if (!isRaid)
+                        {
+                            posrange.second = std::min(posrange.second, posrange.first + mMaxChunkSize);
                         }
 
                         char buf[128];
@@ -1970,7 +2001,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mSpeed = mMeanSpeed = 0;
 
     assert(mReqs.empty());
-    for (int i = static_cast<int>(mDr->drbuf.tempUrlVector().size()); i--; )
+    int numReqs = mDr->drbuf.isRaid() ? static_cast<int>(mDr->drbuf.tempUrlVector().size()) : 2;
+    for (int i = numReqs; i--; )
     {
         mReqs.push_back(make_unique<HttpReq>(true));
         mReqs.back()->status = REQ_READY;

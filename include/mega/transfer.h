@@ -277,7 +277,7 @@ public:
     *
     *   @see DirectReadSlot::mMaxChunkSize
     */
-    static constexpr unsigned MAX_DELIVERY_CHUNK = 6 * 1024 * 1024;
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 33 * 1024 * 1024;
 
     /**
     *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.
@@ -291,7 +291,7 @@ public:
     *
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
-    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 3;
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 6;
 
     /**
     *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
