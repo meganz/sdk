@@ -3740,10 +3740,13 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         out() << "removeSelectedSyncs failed";
     }
 
+    assert(client.syncs.getConfigs(false, false).empty());
+    mStallDetected = false;
+    mConflictsDetected = false;
+
     // Remove any established anomaly reporter.
     // TODO: Might need some kind of synchronization?
     client.mFilenameAnomalyReporter = nullptr;
-
 
     // Nuke any custom exclusion rules.
     client.syncs.mLegacyUpgradeFilterChain.reset();
