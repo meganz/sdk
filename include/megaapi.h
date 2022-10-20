@@ -1905,6 +1905,13 @@ public:
      * @return True if all the elements in provided vector (as param) are equal to all elements in the list
      */
     virtual bool equalTo(const std::vector<int64_t>*) const;
+
+    /**
+     * @brief Returns true if all the elements in provided vector <int8_t> (as param) are equal to all elements in the list
+     *
+     * @return True if all the elements in provided vector (as param) are equal to all elements in the list
+     */
+    virtual bool equalTo(const std::vector<int8_t>*) const;
 };
 
 /**
@@ -2838,7 +2845,14 @@ public:
      *
      * @return True if all the elements in provided map (as param) are equal to all elements in this map
      */
-    virtual bool equalTo(const std::multimap<int64_t, int64_t>* aux) const;
+    virtual bool equalTo(const std::multimap<int64_t, int64_t>*) const;
+
+    /**
+     * @brief Returns true if all the elements in provided map <int8_t, int8_t> (as param) are equal to all elements in the list
+     *
+     * @return True if all the elements in provided map (as param) are equal to all elements in this map
+     */
+    virtual bool equalTo(const std::multimap<int8_t, int8_t>*) const;
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map

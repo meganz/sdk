@@ -6697,6 +6697,11 @@ bool MegaIntegerMap::equalTo(const std::multimap<int64_t, int64_t>*) const
     return false;
 }
 
+bool MegaIntegerMap::equalTo(const std::multimap<int8_t, int8_t>*) const
+{
+    return false;
+}
+
 unsigned long long MegaIntegerMap::size() const
 {
     return 0;
@@ -7330,6 +7335,11 @@ int MegaIntegerList::size() const
 }
 
 bool MegaIntegerList::equalTo(const std::vector<int64_t>*) const
+{
+    return false;
+}
+
+bool MegaIntegerList::equalTo(const std::vector<int8_t>*) const
 {
     return false;
 }

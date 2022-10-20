@@ -4362,6 +4362,16 @@ bool MegaIntegerMapPrivate::equalTo(const std::multimap<int64_t, int64_t>* aux) 
     return mIntegerMap == *aux;
 }
 
+bool MegaIntegerMapPrivate::equalTo(const std::multimap<int8_t, int8_t>* aux) const
+{
+    if (!aux) return false;
+    return std::equal(aux->begin(), aux->end(), mIntegerMap.begin(),
+                      [](std::pair<int8_t, int8_t> i, std::pair<int8_t, int8_t> j)
+                      {
+                        return (i.first == j.first && i.second == j.second);
+                      });
+}
+
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
     : mList(move(v))
 {
@@ -33945,6 +33955,15 @@ bool MegaIntegerListPrivate::equalTo(const std::vector<int64_t>* aux) const
 {
     if (!aux) return false;
     return *aux == mIntegers;
+}
+
+bool MegaIntegerListPrivate::equalTo(const std::vector<int8_t>* aux) const
+{
+    return std::equal(aux->begin(), aux->end(), mIntegers.begin(),
+                      [](int8_t i, int64_t j)
+                      {
+                        return (i==j);
+                      });
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
