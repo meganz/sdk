@@ -18511,6 +18511,9 @@ public:
         // Wait for the initial sync to complete.
         waitonsyncs(DEFAULTWAIT, c);
 
+        ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+        out() << "sync set up and we are not stalled";
+
         // Make sure everything made it safely to the cloud.
         ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id));
 
@@ -18557,7 +18560,7 @@ public:
 
 TEST_F(ContradictoryMoveFixture, MoveLocally)
 {
-    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving da back to the sync root remotely";
+    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving db back to the sync root locally";
 
     // undo the local side of the clash
     std::error_code err;
