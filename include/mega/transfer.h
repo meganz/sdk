@@ -316,6 +316,18 @@ public:
     */
     static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
+    /**
+    *   @brief We can use up to 2 connections for non-raid files.
+    *
+    *   As we ask for fixed chunk sizes for non-raid files,
+    *   our second connection asks for the next contigous chunk
+    *   when the first connection is about to finish its transfer.
+    *   This way we avoid the problem with the low throughput
+    *   for the beginning (and end) of the transfer.
+    *
+    */
+    static constexpr size_t MAX_CONNECTIONS_FOR_NON_RAID = 2;
+
 
     /* ===================*\
      *      Methods       *
