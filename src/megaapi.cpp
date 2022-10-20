@@ -6652,9 +6652,15 @@ MegaIntegerMap* MegaIntegerMap::createInstance()
     return new MegaIntegerMapPrivate();
 }
 
-MegaIntegerMap* MegaIntegerMap::createInstance(const std::multimap<int64_t, int64_t>& integer_map)
+
+MegaIntegerMap* MegaIntegerMap::createInstanceFromBytesMap(const std::multimap<int8_t, int8_t>& bytesMap)
 {
-    return new MegaIntegerMapPrivate(integer_map);
+    return new MegaIntegerMapPrivate(bytesMap);
+}
+
+MegaIntegerMap* MegaIntegerMap::createInstance(const std::multimap<int64_t, int64_t>& integerMap)
+{
+    return new MegaIntegerMapPrivate(integerMap);
 }
 
 MegaIntegerMap::~MegaIntegerMap()
@@ -7283,9 +7289,14 @@ MegaIntegerList* MegaIntegerList::createInstance()
     return new MegaIntegerListPrivate();
 }
 
-MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t> &integers)
+MegaIntegerList* MegaIntegerList::createInstanceFromBytesList(const std::vector<int8_t>& bytesList)
 {
-    return new MegaIntegerListPrivate(integers);
+    return new MegaIntegerListPrivate(bytesList);
+}
+
+MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t>& integerList)
+{
+    return new MegaIntegerListPrivate(integerList);
 }
 
 MegaIntegerList *MegaIntegerList::copy() const

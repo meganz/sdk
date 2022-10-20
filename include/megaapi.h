@@ -1871,7 +1871,8 @@ class MegaIntegerList
 public:
     virtual ~MegaIntegerList();
     static MegaIntegerList* createInstance();
-    static MegaIntegerList* createInstance(const std::vector<int64_t> &integers);
+    static MegaIntegerList* createInstanceFromBytesList(const std::vector<int8_t>& bytesList);
+    static MegaIntegerList* createInstance(const std::vector<int64_t>& integerList);
     virtual MegaIntegerList *copy() const;
 
     /**
@@ -2795,7 +2796,8 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaIntegerMap* createInstance();
-    static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t> &integer_map);
+    static MegaIntegerMap* createInstanceFromBytesMap(const std::multimap<int8_t, int8_t>& bytesMap);
+    static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
 

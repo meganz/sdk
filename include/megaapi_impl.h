@@ -772,7 +772,8 @@ class MegaIntegerListPrivate : public MegaIntegerList
 {
 public:
     MegaIntegerListPrivate();
-    MegaIntegerListPrivate(const vector<int64_t> &integers);
+    MegaIntegerListPrivate(const vector<int8_t>& bytesList);
+    MegaIntegerListPrivate(const vector<int64_t>& integerList);
     virtual ~MegaIntegerListPrivate();
 
     MegaIntegerList *copy() const override;
@@ -1843,7 +1844,8 @@ class MegaIntegerMapPrivate : public MegaIntegerMap
 {
 public:
     MegaIntegerMapPrivate();
-    MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t> &integers);
+    MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap);
+    MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMapPrivate();
     MegaIntegerMap* copy() const override;
     bool at(size_t index, long long& key, long long& value) const override;

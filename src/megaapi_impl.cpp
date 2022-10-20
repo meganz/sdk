@@ -4289,8 +4289,13 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIn
 {
 }
 
-MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t> &integers)
-    :mIntegerMap(integers)
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap)
+{
+     mIntegerMap.insert(bytesMap.begin(), bytesMap.end());
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap)
+    :mIntegerMap(integerMap)
 {
 }
 
@@ -33382,40 +33387,14 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(MegaScheduledRulesPrivate* 
 {
 }
 
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules)
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules):
+    mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
+    mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
+    mUntil(rules->until()),
+    mByWeekDay(rules->byWeekDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byWeekDay()) : nullptr),
+    mByMonthDay(rules->byMonthDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byMonthDay()) : nullptr),
+    mByMonthWeekDay(rules->byMonthWeekDay() ? MegaIntegerMap::createInstanceFromBytesMap(*rules->byMonthWeekDay()) : nullptr)
 {
-    mFreq = isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID;
-    mInterval = isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID;
-    mUntil = rules->until();
-
-    std::unique_ptr<std::vector<int64_t>> auxByWeekDay;
-    if (rules->byWeekDay())
-    {
-        const mega::MegaSmallIntVector* inByWeekDay = rules->byWeekDay();
-        auxByWeekDay.reset(new std::vector<int64_t>());
-        auxByWeekDay->reserve(inByWeekDay->size());
-        std::transform(inByWeekDay->begin(), inByWeekDay->end(), std::back_inserter(*auxByWeekDay), [](uint8_t x) { return static_cast<int64_t>(x);});
-        mByWeekDay.reset(MegaIntegerList::createInstance(*auxByWeekDay));
-    }
-
-    std::unique_ptr<std::vector<int64_t>> auxByMonthDay = nullptr;
-    if (rules->byMonthDay())
-    {
-        const mega::MegaSmallIntVector* inByMonthDay = rules->byMonthDay();
-        auxByMonthDay.reset(new std::vector<int64_t>());
-        auxByMonthDay->reserve(inByMonthDay->size());
-        std::transform(inByMonthDay->begin(), inByMonthDay->end(), std::back_inserter(*auxByMonthDay), [](uint8_t x) { return static_cast<int64_t>(x);});
-        mByMonthDay.reset(MegaIntegerList::createInstance(*auxByMonthDay));
-    }
-
-    std::unique_ptr<std::multimap<int64_t, int64_t>> auxByMonthWeekDay;
-    if (rules->byMonthWeekDay())
-    {
-        auxByMonthWeekDay.reset(new std::multimap<int64_t, int64_t>());
-        const mega::MegaSmallIntMap* inaux = rules->byMonthWeekDay();
-        auxByMonthWeekDay->insert(inaux->begin(), inaux->end());
-        mByMonthWeekDay.reset(MegaIntegerMap::createInstance(*auxByMonthWeekDay));
-    }
 }
 
 MegaScheduledRulesPrivate::~MegaScheduledRulesPrivate()
@@ -33912,8 +33891,14 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
     mList.push_back(h);
 }
 
-MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
-    : mIntegers(integers)
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int8_t>& bytesList)
+{
+    mIntegers.reserve(bytesList.size());
+    std::transform(bytesList.begin(), bytesList.end(), std::back_inserter(mIntegers), [](int8_t x) { return static_cast<int64_t>(x);});
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t>& integerList)
+    : mIntegers(integerList)
 {
 
 }
