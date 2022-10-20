@@ -4109,7 +4109,7 @@ public:
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
 
     MegaScheduledRulesPrivate(MegaScheduledRulesPrivate* rules);
-    MegaScheduledRulesPrivate(ScheduledRules* rules);
+    MegaScheduledRulesPrivate(const ScheduledRules* rules);
     virtual ~MegaScheduledRulesPrivate();
 
     MegaScheduledRulesPrivate* copy() override;
@@ -4162,7 +4162,7 @@ public:
                                     MegaScheduledRules* rules = nullptr);
 
     MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate *scheduledMeeting);
-    MegaScheduledMeetingPrivate(ScheduledMeeting* scheduledMeeting);
+    MegaScheduledMeetingPrivate(const ScheduledMeeting* scheduledMeeting);
 
     virtual ~MegaScheduledMeetingPrivate();
     MegaScheduledMeetingPrivate* copy() const;

@@ -944,12 +944,12 @@ ScheduledRules::~ScheduledRules()
 {
 }
 
-int ScheduledRules::freq() const                                     { return mFreq; }
-int ScheduledRules::interval() const                                 { return mInterval; }
-const std::string& ScheduledRules::until() const                     { return mUntil;}
-const ScheduledRules::rules_vector* ScheduledRules::byWeekDay()      { return mByWeekDay.get(); }
-const ScheduledRules::rules_vector* ScheduledRules::byMonthDay()     { return mByMonthDay.get(); }
-const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay()    { return mByMonthWeekDay.get(); }
+int ScheduledRules::freq() const                                            { return mFreq; }
+int ScheduledRules::interval() const                                        { return mInterval; }
+const std::string& ScheduledRules::until() const                            { return mUntil;}
+const ScheduledRules::rules_vector* ScheduledRules::byWeekDay() const       { return mByWeekDay.get(); }
+const ScheduledRules::rules_vector* ScheduledRules::byMonthDay() const      { return mByMonthDay.get(); }
+const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay() const     { return mByMonthWeekDay.get(); }
 bool ScheduledRules::isValid() const
 {
     return isValidFreq(mFreq);

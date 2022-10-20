@@ -9156,7 +9156,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK()) // if succeded, mError is API_OK but mOutcome is CmdItem (containing ScheduledMeetingHandle)
     {
-        if (mCompletion) { mCompletion(r.errorOrOK()); }
+        if (mCompletion) { mCompletion(r.errorOrOK(), nullptr); }
         return false;
     }
 
@@ -9164,7 +9164,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     auto it = client->chats.find(mScheduledMeeting->chatid());
     if (it == client->chats.end() || !r.hasJsonItem())
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
 
@@ -9187,7 +9187,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         client->notifychat(chat);
     }
 
-    if (mCompletion) { mCompletion(res ? API_OK : API_EINTERNAL); }
+    if (mCompletion) { mCompletion(res ? API_OK : API_EINTERNAL, mScheduledMeeting.get()); }
     return res;
 }
 

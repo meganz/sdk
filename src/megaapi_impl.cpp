@@ -23460,8 +23460,13 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             unique_ptr<ScheduledMeeting>aux_sched(schedMeeting->getSdkScheduledMeeting());
-            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, aux_sched.get(), [chatid, request, this] (Error e)
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, aux_sched.get(), [chatid, request, this] (Error e, const ScheduledMeeting* sm)
             {
+                if (sm)
+                {
+                    std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
+                    request->setScheduledMeetings(auxsm.get());
+                }
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
@@ -33395,7 +33400,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(MegaScheduledRulesPrivate* 
 {
 }
 
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules):
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules):
     mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
     mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
     mUntil(rules->until()),
@@ -33469,7 +33474,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaScheduledMeet
 {
 }
 
-MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(mega::ScheduledMeeting* scheduledMeeting)
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const ScheduledMeeting *scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
       mCallid(scheduledMeeting->callid()),
       mParentCallid(scheduledMeeting->parentCallid()),

@@ -805,9 +805,9 @@ class ScheduledRules
         int freq() const;
         int interval() const;
         const std::string &until() const;
-        const rules_vector* byWeekDay();
-        const rules_vector* byMonthDay();
-        const rules_map* byMonthWeekDay();
+        const rules_vector* byWeekDay() const;
+        const rules_vector* byMonthDay() const;
+        const rules_map* byMonthWeekDay() const;
         bool isValid() const;
         const char* freqToString() const;
         bool equalTo(ScheduledRules*) const;

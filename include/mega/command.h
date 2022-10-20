@@ -1523,7 +1523,7 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
-typedef std::function<void(Error)> CommandScheduledMeetingAddOrUpdateCompletion;
+typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
