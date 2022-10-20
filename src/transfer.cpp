@@ -1668,6 +1668,7 @@ bool DirectReadSlot::doio()
                 bool nonraidSubmitCondition = (previousConnectionNum == static_cast<unsigned>(connectionNum)) ||
                                                     !mReqs[previousConnectionNum] ||
                                                     mReqs[previousConnectionNum]->status == REQ_READY ||
+                                                    mReqs[previousConnectionNum]->status == REQ_DONE ||
                                                     req->pos < mReqs[previousConnectionNum]->pos;
                 submitCondition = nonraidSubmitCondition;
             }
