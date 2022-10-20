@@ -3392,7 +3392,7 @@ protected:
         MegaClient *client;
         MegaHttpIO *httpio;
         MegaWaiter *waiter;
-        MegaFileSystemAccess *fsAccess;
+        unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
