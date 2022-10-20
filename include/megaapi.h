@@ -2637,7 +2637,7 @@ public:
      *
      * @return Copy of the MegaScheduledRules object
      */
-    virtual MegaScheduledRules* copy();
+    virtual MegaScheduledRules* copy() const;
 
     /**
      * @brief Returns the frequency of the scheduled meeting: (DAILY | WEEKLY | MONTHLY)
@@ -2664,21 +2664,21 @@ public:
      *
      * @return A MegaIntegerList with the week days when the event will occur
      */
-    virtual const mega::MegaIntegerList* byWeekDay();
+    virtual const mega::MegaIntegerList* byWeekDay() const;
 
     /**
      * @brief Returns a MegaIntegerList with the days of the month when the event will occur
      *
      * @return A MegaIntegerList with the days of the month when the event will occur
      */
-    virtual const mega::MegaIntegerList* byMonthDay();
+    virtual const mega::MegaIntegerList* byMonthDay() const;
 
     /**
      * @brief Returns a MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset (ie: [5,4] event will occur every 5th Thursday of each month)
      *
      * @return A MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset
      */
-    virtual const mega::MegaIntegerMap* byMonthWeekDay();
+    virtual const mega::MegaIntegerMap* byMonthWeekDay() const;
 
     /**
      * @brief Returns if a given frequency is valid or not

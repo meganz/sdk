@@ -33390,7 +33390,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
 {
 }
 
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(MegaScheduledRulesPrivate* rules) :
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
         mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
         mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
         mUntil(rules->until() ? rules->until() : std::string()),
@@ -33414,7 +33414,7 @@ MegaScheduledRulesPrivate::~MegaScheduledRulesPrivate()
 {
 }
 
-MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy()
+MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy() const
 {
     return new MegaScheduledRulesPrivate(this);
 }
@@ -33422,9 +33422,9 @@ MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy()
 int MegaScheduledRulesPrivate::freq() const                                     { return mFreq; }
 int MegaScheduledRulesPrivate::interval() const                                 { return mInterval; }
 const char* MegaScheduledRulesPrivate::until() const                            { return !mUntil.empty() ? mUntil.c_str() : nullptr; }
-const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay()           { return mByWeekDay.get(); }
-const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay()          { return mByMonthDay.get(); }
-const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay()       { return mByMonthWeekDay.get(); }
+const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const     { return mByWeekDay.get(); }
+const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const    { return mByMonthDay.get(); }
+const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const { return mByMonthWeekDay.get(); }
 
 ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {

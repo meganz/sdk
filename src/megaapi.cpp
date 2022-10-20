@@ -7016,13 +7016,13 @@ MegaScheduledRules* MegaScheduledRules::createInstance(int freq,
 }
 
 MegaScheduledRules::~MegaScheduledRules()                               {}
-MegaScheduledRules* MegaScheduledRules::copy()                          { return NULL; }
+MegaScheduledRules* MegaScheduledRules::copy() const                    { return NULL; }
 int MegaScheduledRules::freq() const                                    { return 0; }
 int MegaScheduledRules::interval() const                                { return 0; }
 const char* MegaScheduledRules::until() const                           { return nullptr; }
-const mega::MegaIntegerList* MegaScheduledRules::byWeekDay()            { return nullptr; }
-const mega::MegaIntegerList* MegaScheduledRules::byMonthDay()           { return nullptr; }
-const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay()        { return nullptr; }
+const mega::MegaIntegerList* MegaScheduledRules::byWeekDay() const      { return nullptr; }
+const mega::MegaIntegerList* MegaScheduledRules::byMonthDay() const     { return nullptr; }
+const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay() const  { return nullptr; }
 bool MegaScheduledRules::isValidFreq(int freq)                          { return MegaScheduledRulesPrivate::isValidFreq(freq);}
 bool MegaScheduledRules::isValidInterval(int interval)                  { return MegaScheduledRulesPrivate::isValidInterval(interval);}
 

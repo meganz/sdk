@@ -4108,17 +4108,17 @@ public:
                                   const mega::MegaIntegerList* byMonthDay = nullptr,
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
 
-    MegaScheduledRulesPrivate(MegaScheduledRulesPrivate* rules);
+    MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate* rules);
     MegaScheduledRulesPrivate(const ScheduledRules* rules);
     virtual ~MegaScheduledRulesPrivate();
 
-    MegaScheduledRulesPrivate* copy() override;
+    MegaScheduledRulesPrivate* copy() const override;
     int freq() const override;
     int interval() const override;
     const char* until() const override;
-    const mega::MegaIntegerList* byWeekDay() override;
-    const mega::MegaIntegerList* byMonthDay() override;
-    const mega::MegaIntegerMap* byMonthWeekDay() override;
+    const mega::MegaIntegerList* byWeekDay() const override;
+    const mega::MegaIntegerList* byMonthDay() const override;
+    const mega::MegaIntegerMap* byMonthWeekDay() const override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
     ScheduledRules* getSdkScheduledRules() const;
