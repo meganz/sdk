@@ -219,10 +219,11 @@ bool Node::getExtension(std::string& ext) const
     {
         if (*--ptr == '.')
         {
-            ext.reserve(i+1);
+            ptr++; // Avoid add dot
+            ext.reserve(i);
 
             unsigned j = 0;
-            for (; j <= i; j++)
+            for (; j <= i - 1; j++)
             {
                 if (*ptr < '.' || *ptr > 'z') return false;
 
