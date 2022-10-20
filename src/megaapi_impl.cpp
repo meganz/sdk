@@ -33340,12 +33340,12 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(unsigned long numericValue)
 {
 }
 
-MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(MegaScheduledFlagsPrivate* flags)
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
     : mFlags(flags ? flags->getNumericValue() : 0)
 {
 }
 
-MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(ScheduledFlags* flags)
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
     : mFlags(flags ? flags->getNumericValue() : 0)
 {
 }
@@ -33354,7 +33354,7 @@ MegaScheduledFlagsPrivate::~MegaScheduledFlagsPrivate()
 {
 }
 
-MegaScheduledFlagsPrivate* MegaScheduledFlagsPrivate::copy()
+MegaScheduledFlagsPrivate* MegaScheduledFlagsPrivate::copy() const
 {
     return new MegaScheduledFlagsPrivate(this);
 }

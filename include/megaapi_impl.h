@@ -4079,10 +4079,10 @@ class MegaScheduledFlagsPrivate: public MegaScheduledFlags
 public:
     MegaScheduledFlagsPrivate();
     MegaScheduledFlagsPrivate(unsigned long numericValue);
-    MegaScheduledFlagsPrivate(MegaScheduledFlagsPrivate* flags);
+    MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate* flags);
     virtual ~MegaScheduledFlagsPrivate();
-    MegaScheduledFlagsPrivate(ScheduledFlags* flags);
-    MegaScheduledFlagsPrivate* copy() override;
+    MegaScheduledFlagsPrivate(const ScheduledFlags* flags);
+    MegaScheduledFlagsPrivate* copy() const override;
 
     // setters
     void reset() override;

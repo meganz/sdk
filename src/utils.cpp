@@ -883,7 +883,7 @@ void ScheduledFlags::setEmailsDisabled(bool enabled)
     mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
 }
 
-unsigned long ScheduledFlags::getNumericValue()             { return mFlags.to_ulong(); }
+unsigned long ScheduledFlags::getNumericValue() const       { return mFlags.to_ulong(); }
 bool ScheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool ScheduledFlags::isEmpty() const                        { return mFlags.none(); }
 bool ScheduledFlags::equalTo(const ScheduledFlags* f) const

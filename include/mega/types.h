@@ -761,7 +761,7 @@ class ScheduledFlags
         void setEmailsDisabled(bool enabled);
 
         // getters
-        unsigned long getNumericValue();
+        unsigned long getNumericValue() const;
         bool EmailsDisabled() const;
         bool isEmpty() const;
         bool equalTo(const ScheduledFlags*) const;

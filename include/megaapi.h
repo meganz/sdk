@@ -2555,7 +2555,7 @@ public:
      *
      * @return Copy of the MegaScheduledFlags object
      */
-    virtual MegaScheduledFlags* copy();
+    virtual MegaScheduledFlags* copy() const;
 
     /**
      * @brief Reset the value of all options (to disabled)

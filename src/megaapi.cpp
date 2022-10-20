@@ -6989,7 +6989,7 @@ MegaScheduledFlags* MegaScheduledFlags::createInstance(bool emailsDisabled)
     return flags;
 }
 
-MegaScheduledFlags* MegaScheduledFlags::copy()
+MegaScheduledFlags* MegaScheduledFlags::copy() const
 {
     return NULL;
 }
