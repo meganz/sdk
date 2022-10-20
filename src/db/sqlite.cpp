@@ -1140,6 +1140,41 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
     return result;
 }
 
+bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized> >& children)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    int sqlResult = SQLITE_OK;
+    sqlite3_stmt* stmt;
+    sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND type = ?", -1, &stmt, NULL);
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int(stmt, 2, nodeType)) == SQLITE_OK)
+            {
+                result = processSqlQueryNodes(stmt, children);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get children from database from type: " << dbfile << err;
+        assert(!"Unable to get children from database from type.");
+    }
+
+    return result;
+}
+
 uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 {
     if (!db)

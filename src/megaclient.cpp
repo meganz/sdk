@@ -18585,35 +18585,30 @@ node_list NodeManager::getChildren(const Node *parent)
     return childrenList;
 }
 
-node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type)
 {
-    node_vector nodes;
     if (!mTable)
     {
-        return nodes;
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable);
+
+    return processUnserializedNodes(nodesFromTable);
+}
+
+node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+{
+    if (!mTable)
+    {
+        return node_vector();
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getRecentNodes(maxcount, since, nodesFromTable);
 
-    for (const auto& nHandleSerialized : nodesFromTable)
-    {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
-        if (!n)
-        {
-            const NodeSerialized& ns = nHandleSerialized.second;
-            n = getNodeFromNodeSerialized(ns);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        nodes.push_back(n);
-    }
-
-    return nodes;
+    return processUnserializedNodes(nodesFromTable);
 }
 
 uint64_t NodeManager::getNodeCount()
@@ -18662,7 +18657,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
-    nodes = filterByAncestor(nodesFromTable, nodeHandle, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
 
     return nodes;
 }
@@ -18733,7 +18728,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    nodes = filterByAncestor(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle(), CancelToken());
+    nodes = processUnserializedNodes(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle(), CancelToken());
     return nodes;
 }
 
@@ -18903,37 +18898,21 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
 
-    return filterByAncestor(nodesFromTable, ancestorHandle, cancelFlag);
+    return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
 
 node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
-    node_vector nodes;
     if (!mTable)
     {
         assert(false);
-        return nodes;
+        return node_vector();
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
-    for (const auto& nHandleSerialized : nodesFromTable)
-    {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(nHandleSerialized.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
 
-        nodes.push_back(n);
-    }
-
-    return nodes;
+    return processUnserializedNodes(nodesFromTable);;
 }
 
 Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
@@ -20042,7 +20021,7 @@ node_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
+node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized> >& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
     node_vector nodes;
 

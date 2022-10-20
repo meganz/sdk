@@ -17715,6 +17715,35 @@ void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
+MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order)
+{
+    if (!p || p->getType() == MegaNode::TYPE_FILE || type < nodetype_t::FILENODE || type > nodetype_t::FOLDERNODE)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard guard(sdkMutex);
+
+    node_vector childrenNodes;
+    Node *parent = client->nodebyhandle(p->getHandle());
+    if (parent && parent->type != FILENODE)
+    {
+        childrenNodes = client->mNodeManager.getChildrenFromType(parent, static_cast<nodetype_t>(type));
+
+        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+        {
+            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
+        }
+    }
+
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    {
+        std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
+    }
+
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
+}
+
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *, int )
 {
     return new MegaChildrenListsPrivate();

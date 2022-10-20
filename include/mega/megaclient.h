@@ -295,6 +295,9 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(const Node *parent);
 
+    // read children from type (folder or file) from DB and load them in memory
+    node_vector getChildrenFromType(const Node *parent, nodetype_t type);
+
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     // Note: nodes are read from DB and loaded in memory
     node_vector getRecentNodes(unsigned maxcount, m_time_t since);
@@ -510,7 +513,7 @@ private:
     //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
     // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
     // If a valid object is passed, it must be kept alive until this method returns.
-    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag);
+    node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
