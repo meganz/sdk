@@ -9096,7 +9096,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
     if (schedMeeting->rules())
     {
-        ScheduledRules* rules = schedMeeting->rules();
+        const ScheduledRules* rules = schedMeeting->rules();
         beginobject("r");
 
         if (rules->isValidFreq(rules->freq()))

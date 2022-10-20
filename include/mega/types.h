@@ -752,13 +752,9 @@ class ScheduledFlags
 
         ScheduledFlags() = default;
         ScheduledFlags (unsigned long numericValue);
-        ScheduledFlags (ScheduledFlags* flags);
-        ScheduledFlags* copy();
+        ScheduledFlags (const ScheduledFlags* flags);
+        ScheduledFlags* copy() const;
         ~ScheduledFlags();
-
-        // setters
-        void reset();
-        void setEmailsDisabled(bool enabled);
 
         // getters
         unsigned long getNumericValue() const;
@@ -767,7 +763,7 @@ class ScheduledFlags
         bool equalTo(const ScheduledFlags*) const;
 
         // serialization
-        bool serialize(string* out);
+        bool serialize(string* out) const;
         static ScheduledFlags* unserialize(string* in);
 
     private:
@@ -797,8 +793,8 @@ class ScheduledRules
                        const rules_vector* byMonthDay = nullptr,
                        const rules_map* byMonthWeekDay = nullptr);
 
-        ScheduledRules(ScheduledRules* rules);
-        ScheduledRules* copy();
+        ScheduledRules(const ScheduledRules* rules);
+        ScheduledRules* copy() const;
         ~ScheduledRules();
 
         // getters
@@ -810,13 +806,13 @@ class ScheduledRules
         const rules_map* byMonthWeekDay() const;
         bool isValid() const;
         const char* freqToString() const;
-        bool equalTo(ScheduledRules*) const;
+        bool equalTo(const ScheduledRules*) const;
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
 
         // serialization
-        bool serialize(string* out);
+        bool serialize(string* out) const;
         static ScheduledRules* unserialize(string* in);
 
     private:
@@ -853,8 +849,8 @@ public:
     ~ScheduledMeeting();
 
     // setters
-    void setRules(ScheduledRules* rules);
-    void setFlags(ScheduledFlags* flags);
+    void setRules(const ScheduledRules* rules);
+    void setFlags(const ScheduledFlags* flags);
     void setCancelled(int cancelled);
     void setOverrides(const string& overrides);
     void setAttributes(const string& attributes);
@@ -881,15 +877,15 @@ public:
     const std::string &attributes() const;
     const std::string &overrides() const;
     int cancelled() const;
-    ScheduledFlags* flags() const;
-    ScheduledRules* rules() const;
+    const ScheduledFlags* flags() const;
+    const ScheduledRules* rules() const;
     bool isValid() const;
 
     // check if 2 scheduled meetings objects are equal or not
-    bool equalTo(ScheduledMeeting* sm) const;
+    bool equalTo(const ScheduledMeeting* sm) const;
 
     // serialization
-    bool serialize(string* out);
+    bool serialize(string* out) const;
     static ScheduledMeeting* unserialize(string* in);
 
 private:

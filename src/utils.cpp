@@ -859,7 +859,7 @@ ScheduledFlags::ScheduledFlags (unsigned long numericValue)
 {
 }
 
-ScheduledFlags::ScheduledFlags(ScheduledFlags *flags)
+ScheduledFlags::ScheduledFlags(const mega::ScheduledFlags *flags)
     : mFlags(flags ? flags->getNumericValue() : 0)
 {
 }
@@ -868,19 +868,9 @@ ScheduledFlags::~ScheduledFlags()
 {
 }
 
-ScheduledFlags* ScheduledFlags::copy()
+ScheduledFlags* ScheduledFlags::copy() const
 {
     return new ScheduledFlags(this);
-}
-
-void ScheduledFlags::reset()
-{
-    mFlags.reset();
-}
-
-void ScheduledFlags::setEmailsDisabled(bool enabled)
-{
-    mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
 }
 
 unsigned long ScheduledFlags::getNumericValue() const       { return mFlags.to_ulong(); }
@@ -892,7 +882,7 @@ bool ScheduledFlags::equalTo(const ScheduledFlags* f) const
     return mFlags.to_ulong() == f->mFlags.to_ulong();
 }
 
-bool ScheduledFlags::serialize(string* out)
+bool ScheduledFlags::serialize(string* out) const
 {
     if (!out) { return false; }
     CacheableWriter w(*out);
@@ -925,7 +915,7 @@ ScheduledRules::ScheduledRules(int freq,
 {
 }
 
-ScheduledRules::ScheduledRules(ScheduledRules* rules)
+ScheduledRules::ScheduledRules(const ScheduledRules* rules)
     : mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
       mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
       mUntil(rules->until()),
@@ -935,7 +925,7 @@ ScheduledRules::ScheduledRules(ScheduledRules* rules)
 {
 }
 
-ScheduledRules* ScheduledRules::copy()
+ScheduledRules* ScheduledRules::copy() const
 {
     return new ScheduledRules(this);
 }
@@ -966,7 +956,7 @@ const char* ScheduledRules::freqToString () const
     }
 }
 
-bool ScheduledRules::equalTo(mega::ScheduledRules *r) const
+bool ScheduledRules::equalTo(const mega::ScheduledRules *r) const
 {
     if (!r)                            { return false; }
     if (mFreq != r->freq())            { return false; }
@@ -1002,7 +992,7 @@ int ScheduledRules::stringToFreq (const char* freq)
     return FREQ_INVALID;
 }
 
-bool ScheduledRules::serialize(string* out)
+bool ScheduledRules::serialize(string* out) const
 {
     //assert(out && !out->empty());
     if (!out) { return false; }
@@ -1188,13 +1178,13 @@ ScheduledMeeting::~ScheduledMeeting()
 {
 }
 
-void ScheduledMeeting::setRules(ScheduledRules* rules)
+void ScheduledMeeting::setRules(const ScheduledRules* rules)
 {
     mRules.reset();
     if (rules) { mRules.reset(rules->copy()); }
 }
 
-void ScheduledMeeting::setFlags(ScheduledFlags* flags)
+void ScheduledMeeting::setFlags(const mega::ScheduledFlags *flags)
 {
     mFlags.reset();
     if (flags) { mFlags.reset(flags->copy()); }
@@ -1225,8 +1215,8 @@ const string& ScheduledMeeting::description() const                     { return
 const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
 const string& ScheduledMeeting::overrides() const                       { return mOverrides; }
 int ScheduledMeeting::cancelled() const                                 { return mCancelled; }
-ScheduledFlags* ScheduledMeeting::flags() const                         { return mFlags.get(); }
-ScheduledRules* ScheduledMeeting::rules() const                         { return mRules.get(); }
+const ScheduledFlags* ScheduledMeeting::flags() const                         { return mFlags.get(); }
+const mega::ScheduledRules *ScheduledMeeting::rules() const                         { return mRules.get(); }
 
 bool ScheduledMeeting::isValid() const
 {
@@ -1241,7 +1231,7 @@ bool ScheduledMeeting::isValid() const
             && (!mRules || mRules->isValid());
 }
 
-bool ScheduledMeeting::equalTo(ScheduledMeeting* sm) const
+bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
 {
     if (!sm)                                            { return false; }
     if (parentCallid() != sm->parentCallid())           { return false; }
@@ -1269,7 +1259,7 @@ bool ScheduledMeeting::equalTo(ScheduledMeeting* sm) const
     return true;
 }
 
-bool ScheduledMeeting::serialize(string* out)
+bool ScheduledMeeting::serialize(string* out) const
 {
     //assert(out && !out->empty());
     if (!out) { return false; }
