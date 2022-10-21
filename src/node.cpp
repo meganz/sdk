@@ -1103,7 +1103,7 @@ string Node::displaypath() const
     return path;
 }
 
-MimeType_t Node::getMimetype(bool checkPreview) const
+MimeType_t Node::getMimeType(bool checkPreview) const
 {
     if (type != FILENODE)
     {

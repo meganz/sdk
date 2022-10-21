@@ -168,7 +168,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     string displaypath() const;
 
     // return mimetype type
-    MimeType_t getMimetype(bool checkPreview = false) const;
+    MimeType_t getMimeType(bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;

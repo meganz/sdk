@@ -16958,7 +16958,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
         return false;
     }
 
-    MimeType_t mimeType = n->getMimetype(true); // In case of photo type, check if it has preview
+    MimeType_t mimeType = n->getMimeType(true); // In case of photo type, check if it has preview
 
     bool a = mimeType == MimeType_t::MIME_TYPE_PHOTO;
     if (isphoto)
@@ -16980,22 +16980,22 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    return n->getMimetype() == MimeType_t::MIME_TYPE_VIDEO;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_VIDEO;
 }
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    return n->getMimetype(checkPreview) == MimeType_t::MIME_TYPE_PHOTO;
+    return n->getMimeType(checkPreview) == MimeType_t::MIME_TYPE_PHOTO;
 }
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    return n->getMimetype() == MimeType_t::MIME_TYPE_AUDIO;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_AUDIO;
 }
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    return n->getMimetype() == MimeType_t::MIME_TYPE_DOCUMENT;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
 }
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
