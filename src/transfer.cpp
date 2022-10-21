@@ -2002,8 +2002,9 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mSpeed = mMeanSpeed = 0;
 
     assert(mReqs.empty());
-    int numReqs = mDr->drbuf.isRaid() ? static_cast<int>(mDr->drbuf.tempUrlVector().size()) : 2;
-    for (int i = numReqs; i--; )
+    size_t numReqs = mDr->drbuf.isRaid() ? mDr->drbuf.tempUrlVector().size() : MAX_CONNECTIONS_FOR_NON_RAID;
+    assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : (numReqs <= MAX_CONNECTIONS_FOR_NON_RAID));
+    for (size_t i = numReqs; i--; )
     {
         mReqs.push_back(make_unique<HttpReq>(true));
         mReqs.back()->status = REQ_READY;
