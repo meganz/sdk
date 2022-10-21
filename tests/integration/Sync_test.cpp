@@ -3729,7 +3729,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
         sc.client.syncs.prepareForLogout(false, [this, pb](){
-            
+
             // 3rd param true to "load" (zero) syncs again so store is ready for the test
             client.syncs.locallogout(true, false, true);
             pb->set_value(true);
@@ -3740,10 +3740,13 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         out() << "removeSelectedSyncs failed";
     }
 
+    assert(client.syncs.getConfigs(false, false).empty());
+    mStallDetected = false;
+    mConflictsDetected = false;
+
     // Remove any established anomaly reporter.
     // TODO: Might need some kind of synchronization?
     client.mFilenameAnomalyReporter = nullptr;
-
 
     // Nuke any custom exclusion rules.
     client.syncs.mLegacyUpgradeFilterChain.reset();
@@ -18511,6 +18514,9 @@ public:
         // Wait for the initial sync to complete.
         waitonsyncs(DEFAULTWAIT, c);
 
+        ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+        out() << "sync set up and we are not stalled";
+
         // Make sure everything made it safely to the cloud.
         ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id));
 
@@ -18540,6 +18546,8 @@ public:
         ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
         ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id, true, StandardClient::CONFIRM_REMOTE));
         ASSERT_TRUE(c->confirmModel_mainthread(mf.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+
+        out() << "ContradictoryMoveFixture is SetUp, with da in db remotely, db in da locally, and sync c stalled";
     }
 
     // Client we're using to perform the tests.
@@ -18555,6 +18563,8 @@ public:
 
 TEST_F(ContradictoryMoveFixture, MoveLocally)
 {
+    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving db back to the sync root locally";
+
     // undo the local side of the clash
     std::error_code err;
     fs::rename(c->fsBasePath / "s" / "da" / "db",
@@ -18587,6 +18597,8 @@ TEST_F(ContradictoryMoveFixture, MoveLocally)
 
 TEST_F(ContradictoryMoveFixture, MoveRemotely)
 {
+    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving da back to the sync root remotely";
+
     // undo the cloud side of the clash
     ASSERT_TRUE(c->movenode("s/db/da", "s"));
 
@@ -18616,6 +18628,8 @@ TEST_F(ContradictoryMoveFixture, MoveRemotely)
 
 TEST_F(ContradictoryMoveFixture, ResolveLocally)
 {
+    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving db back and da into it, locally";
+
     // Manually make the disk look like the cloud.
     {
         ScopedSyncPauser pauser(*c, id);
@@ -18655,6 +18669,8 @@ TEST_F(ContradictoryMoveFixture, ResolveLocally)
 
 TEST_F(ContradictoryMoveFixture, ResolveRemotely)
 {
+    out() << "ContradictoryMoveFixture MoveRemotely resolving by moving da back and db into it, remotely";
+
     // Manually make the cloud look like the disk.
     {
         ScopedSyncPauser pauser(*c, id);
