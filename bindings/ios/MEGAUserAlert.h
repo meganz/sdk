@@ -37,6 +37,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
     MEGAUserAlertTypeDeletedShare,
     MEGAUserAlertTypeNewShareNodes,
     MEGAUserAlertTypeRemovedSharesNodes,
+    MEGAUserAlertTypeUpdatedSharedNodes,
     MEGAUserAlertTypePaymentSucceeded,
     MEGAUserAlertTypePaymentFailed,
     MEGAUserAlertTypePaymentReminder,
