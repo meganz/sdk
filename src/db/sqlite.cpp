@@ -640,6 +640,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
     sqlite3_finalize(mStmtChildren);
+    sqlite3_finalize(mStmtChildrenFromType);
     sqlite3_finalize(mStmtNumChildren);
     sqlite3_finalize(mStmtNodeByName);
     sqlite3_finalize(mStmtNodeByMimeType);
@@ -851,6 +852,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtChildren);
     mStmtChildren = nullptr;
+
+    sqlite3_finalize(mStmtChildrenFromType);
+    mStmtChildrenFromType = nullptr;
 
     sqlite3_finalize(mStmtNumChildren);
     mStmtNumChildren = nullptr;
@@ -1148,22 +1152,25 @@ bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t
     }
 
     int sqlResult = SQLITE_OK;
-    sqlite3_stmt* stmt;
-    sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND type = ?", -1, &stmt, NULL);
+
+    if (!mStmtChildrenFromType)
+    {
+        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND type = ?", -1, &mStmtChildrenFromType, NULL);
+    }
 
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtChildrenFromType, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int(stmt, 2, nodeType)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int(mStmtChildrenFromType, 2, nodeType)) == SQLITE_OK)
             {
-                result = processSqlQueryNodes(stmt, children);
+                result = processSqlQueryNodes(mStmtChildrenFromType, children);
             }
         }
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtChildrenFromType);
 
     if (sqlResult != SQLITE_OK)
     {

@@ -107,6 +107,7 @@ private:
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
     sqlite3_stmt* mStmtChildren = nullptr;
+    sqlite3_stmt* mStmtChildrenFromType = nullptr;
     sqlite3_stmt* mStmtNumChildren = nullptr;
     sqlite3_stmt* mStmtNodeByName = nullptr;
     sqlite3_stmt* mStmtNodeByMimeType = nullptr;
