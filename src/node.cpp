@@ -293,7 +293,7 @@ static const std::set<nameid> photoExtensions = {MAKENAMEID3('3','d','s'), MAKEN
 static const std::set<nameid> photoRawExtensions = {MAKENAMEID3('3','f','r'), MAKENAMEID3('a','r','w'), MAKENAMEID3('c','r','2'), MAKENAMEID3('c','r','w'), MAKENAMEID4('c','i','f','f'), MAKENAMEID3('c','s','1'), MAKENAMEID3('d','c','r'), MAKENAMEID3('d','n','g'), MAKENAMEID3('e','r','f'), MAKENAMEID3('i','i','q'), MAKENAMEID3('k','2','5'), MAKENAMEID3('k','d','c'), MAKENAMEID3('m','e','f'), MAKENAMEID3('m','o','s'), MAKENAMEID3('m','r','w'), MAKENAMEID3('n','e','f'), MAKENAMEID3('n','r','w'),
                                           MAKENAMEID3('o','r','f'), MAKENAMEID3('p','e','f'), MAKENAMEID3('r','a','f'), MAKENAMEID3('r','a','w'), MAKENAMEID3('r','w','2'), MAKENAMEID3('r','w','l'), MAKENAMEID3('s','r','2'), MAKENAMEID3('s','r','f'), MAKENAMEID3('s','r','w'), MAKENAMEID3('x','3','f')};
 
-static std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('g','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID3('p','n','g')};
+static const std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('g','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID3('p','n','g')};
 
 bool Node::isPhoto(const std::string& ext, bool checkPreview) const
 {
