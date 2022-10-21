@@ -316,7 +316,7 @@ private:
     bool isAudio(const std::string& ext) const;
     bool isDocument(const std::string& ext) const;
 
-    static nameid getNameid(const std::string& ext);
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const

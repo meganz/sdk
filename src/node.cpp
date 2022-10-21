@@ -297,7 +297,7 @@ static std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKE
 
 bool Node::isPhoto(const std::string& ext, bool checkPreview) const
 {
-    nameid extNameid = getNameid(ext);
+    nameid extNameid = getExtensionNameId(ext);
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return photoImageDefExtension.find(extNameid) != photoImageDefExtension.end() ||
         photoRawExtensions.find(extNameid) != photoRawExtensions.end() ||
@@ -331,12 +331,12 @@ bool Node::isVideo(const std::string& ext) const
 #endif
     }
 
-    return videoExtensions.find(getNameid(ext)) != videoExtensions.end();
+    return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
 bool Node::isAudio(const std::string& ext) const
 {
-    nameid extNameid = getNameid(ext);
+    nameid extNameid = getExtensionNameId(ext);
     if (extNameid != 0)
     {
         return audioExtensions.find(extNameid) != audioExtensions.end();
@@ -348,10 +348,10 @@ bool Node::isAudio(const std::string& ext) const
 
 bool Node::isDocument(const std::string& ext) const
 {
-    return documentExtensions.find(getNameid(ext)) != documentExtensions.end();
+    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
 }
 
-nameid Node::getNameid(const std::string& ext)
+nameid Node::getExtensionNameId(const std::string& ext)
 {
     if (ext.length() > 8)
     {
