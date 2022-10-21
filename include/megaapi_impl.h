@@ -1367,7 +1367,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
-        void setMegaScheduledMeetingList(MegaScheduledMeetingList* schedMeetingList);
+        void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
 
         MegaScheduledCopyListener *getBackupListener() const;
         void setBackupListener(MegaScheduledCopyListener *value);

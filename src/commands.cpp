@@ -9317,7 +9317,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     for (auto& schedMeeting: schedMeetings)
     {
         // add received scheduled meetings occurrences
-        chat->addSchedMeetingOccurrence(std::move(schedMeeting));
+        chat->addSchedMeetingOccurrence(schedMeeting.get());
     }
 
     // just notify once, for all ocurrences received for the same chat

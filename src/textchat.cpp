@@ -490,7 +490,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i));
         if (auxMeet)
         {
-            chat->addSchedMeetingOccurrence(std::move(auxMeet));
+            chat->addSchedMeetingOccurrence(auxMeet.get());
         }
     }
 
@@ -561,9 +561,9 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>&& sm)
+void TextChat::addSchedMeetingOccurrence(const ScheduledMeeting* sm)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->callid(), std::move(sm));
+    mScheduledMeetingsOcurrences.emplace(sm->callid(), std::unique_ptr<ScheduledMeeting>(sm->copy()));
 }
 
 void TextChat::clearSchedMeetingOccurrences()

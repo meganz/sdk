@@ -3538,7 +3538,7 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     }
 }
 
-void MegaRequestPrivate::setMegaScheduledMeetingList(MegaScheduledMeetingList* schedMeetingList)
+void MegaRequestPrivate::setMegaScheduledMeetingList(const MegaScheduledMeetingList* schedMeetingList)
 {
     mScheduledMeetingList.reset();
 
@@ -23536,6 +23536,16 @@ void MegaApiImpl::sendPendingRequests()
 
             client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedMeetingId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
+                if (result && !result->empty())
+                {
+                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                    for (auto const& sm: *result)
+                    {
+                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                    }
+                    request->setMegaScheduledMeetingList(l.get());
+                }
+
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
             break;
@@ -23556,6 +23566,15 @@ void MegaApiImpl::sendPendingRequests()
 
             client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
+                if (result && !result->empty())
+                {
+                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                    for (auto const& sm: *result)
+                    {
+                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                    }
+                    request->setMegaScheduledMeetingList(l.get());
+                }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
             break;

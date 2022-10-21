@@ -106,7 +106,7 @@ public:
     bool setMode(bool publicchat);
 
     // scheduled meetings ocurrences
-    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>&& sm);
+    void addSchedMeetingOccurrence(const ScheduledMeeting* sm);
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
