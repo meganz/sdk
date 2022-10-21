@@ -5897,26 +5897,6 @@ bool CommandFetchNodes::procresult(Result r)
     }
 }
 
-// report event to server logging facility
-CommandReportEvent::CommandReportEvent(MegaClient *client, const char *event, const char *details)
-{
-    cmd("cds");
-    arg("c", event);
-
-    if (details)
-    {
-        arg("v", details);
-    }
-
-    tag = client->reqtag;
-}
-
-bool CommandReportEvent::procresult(Result r)
-{
-    client->app->reportevent_result(r.errorOrOK());
-    return r.wasErrorOrOK();
-}
-
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");
@@ -6142,7 +6122,7 @@ bool CommandGetPaymentMethods::procresult(Result r)
     return true;
 }
 
-CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
+CommandSendReport::CommandSendReport(MegaClient *client, const char *type, const char *blob, const char *uid)
 {
     cmd("clog");
 
@@ -6161,7 +6141,7 @@ CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const cha
     tag = client->reqtag;
 }
 
-bool CommandUserFeedbackStore::procresult(Result r)
+bool CommandSendReport::procresult(Result r)
 {
     client->app->userfeedbackstore_result(r.errorOrOK());
     return r.wasErrorOrOK();

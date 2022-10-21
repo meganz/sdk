@@ -9670,35 +9670,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     *
-     * @param days     Age of actions since added/modified nodes will be considered (in days)
-     * @param maxnodes Maximum amount of nodes to be considered
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions(long days, long maxnodes) {
-        return recentActionsToArray(megaApi.getRecentActions(days, maxnodes));
-    }
-
-    /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     * <p>
-     * This function uses the default parameters for the MEGA apps, which consider (currently)
-     * interactions during the last 30 days and max 10.000 nodes.
-     * <p>
-     * You take the ownership of the returned value.
-     *
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions() {
-        return recentActionsToArray(megaApi.getRecentActions());
-    }
-
-    /**
      * Get a list of buckets, each bucket containing a list of recently added/modified nodes
      *
      * Each bucket contains files that were added/modified in a set, by a single user.
@@ -11071,17 +11042,14 @@ public class MegaApiJava {
         return result;
     }
 
-    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
-        if (recentActionList == null) {
-            return null;
-        }
-
-        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
-        for (int i = 0; i < recentActionList.size(); i++) {
-            result.add(recentActionList.get(i).copy());
-        }
-
-        return result;
+    /**
+     * Creates a copy of MegaRecentActionBucket required for its usage in the app.
+     *
+     * @param bucket The MegaRecentActionBucket received.
+     * @return A copy of MegaRecentActionBucket.
+     */
+    public MegaRecentActionBucket copyBucket(MegaRecentActionBucket bucket) {
+        return bucket.copy();
     }
 
     /**
@@ -11514,8 +11482,8 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Set
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(String name, MegaRequestListener listener) {
-        megaApi.createSet(name, listener);
+    public void createSet(String name, MegaRequestListenerInterface listener) {
+        megaApi.createSet(name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11560,8 +11528,8 @@ public class MegaApiJava {
      * @param name     the new name that should be given to the Set
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetName(long sid, String name, MegaRequestListener listener) {
-        megaApi.updateSetName(sid, name, listener);
+    public void updateSetName(long sid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetName(sid, name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11605,8 +11573,8 @@ public class MegaApiJava {
      * @param eid      the id of the Element to be set as cover
      * @param listener MegaRequestListener to track this request
      */
-    public void putSetCover(long sid, long eid, MegaRequestListener listener) {
-        megaApi.putSetCover(sid, eid, listener);
+    public void putSetCover(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.putSetCover(sid, eid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11647,8 +11615,8 @@ public class MegaApiJava {
      * @param sid      the id of the Set to be removed
      * @param listener MegaRequestListener to track this request
      */
-    public void removeSet(long sid, MegaRequestListener listener) {
-        megaApi.removeSet(sid, listener);
+    public void removeSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.removeSet(sid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11691,8 +11659,8 @@ public class MegaApiJava {
      * @param sid      the id of the Set to be fetched
      * @param listener MegaRequestListener to track this request
      */
-    public void fetchSet(long sid, MegaRequestListener listener) {
-        megaApi.fetchSet(sid, listener);
+    public void fetchSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.fetchSet(sid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11745,8 +11713,8 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Element
      * @param listener MegaRequestListener to track this request
      */
-    public void createSetElement(long sid, long node, String name, MegaRequestListener listener) {
-        megaApi.createSetElement(sid, node,name, listener);
+    public void createSetElement(long sid, long node, String name, MegaRequestListenerInterface listener) {
+        megaApi.createSetElement(sid, node,name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11827,8 +11795,8 @@ public class MegaApiJava {
      * @param name     the new name that should be given to the Element
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetElementName(long sid, long eid, String name, MegaRequestListener listener) {
-        megaApi.updateSetElementName(sid, eid, name, listener);
+    public void updateSetElementName(long sid, long eid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementName(sid, eid, name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11876,8 +11844,8 @@ public class MegaApiJava {
      * @param order    the new order of the Element
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListener listener) {
-        megaApi.updateSetElementOrder(sid, eid, order, listener);
+    public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementOrder(sid, eid, order, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11922,8 +11890,8 @@ public class MegaApiJava {
      * @param eid      the id of the Element to be removed
      * @param listener MegaRequestListener to track this request
      */
-    public void removeSetElement(long sid, long eid, MegaRequestListener listener) {
-        megaApi.removeSetElement(sid, eid, listener);
+    public void removeSetElement(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.removeSetElement(sid, eid, createDelegateRequestListener(listener));
     }
 
     /**

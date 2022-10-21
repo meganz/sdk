@@ -660,6 +660,15 @@ void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requ
     mApi[apiIndex].contactRequestUpdated = true;
 }
 
+void SdkTest::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts)
+{
+    int apiIndex = getApiIndex(api);
+    if (apiIndex < 0) return;
+
+    mApi[apiIndex].userAlertsUpdated = true;
+    mApi[apiIndex].userAlertList.reset(alerts ? alerts->copy() : nullptr);
+}
+
 #ifdef ENABLE_CHAT
 void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 {
@@ -1868,14 +1877,13 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandSendSignupLink2::procresult(Result r)
     bool CommandConfirmSignupLink2::procresult(Result r)
     bool CommandSetKeyPair::procresult(Result r)
-    bool CommandReportEvent::procresult(Result r)
     bool CommandSubmitPurchaseReceipt::procresult(Result r)
     bool CommandCreditCardStore::procresult(Result r)
     bool CommandCreditCardQuerySubscriptions::procresult(Result r)
     bool CommandCreditCardCancelSubscriptions::procresult(Result r)
     bool CommandCopySession::procresult(Result r)
     bool CommandGetPaymentMethods::procresult(Result r)
-    bool CommandUserFeedbackStore::procresult(Result r)
+    bool CommandSendReport::procresult(Result r)
     bool CommandSupportTicket::procresult(Result r)
     bool CommandCleanRubbishBin::procresult(Result r)
     bool CommandGetRecoveryLink::procresult(Result r)
@@ -6537,7 +6545,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
         ASSERT_EQ(API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
         ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
-        ASSERT_EQ(API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
+        ASSERT_EQ(API_OK, synchronousEnableSync(0, sync2.get())); // Currently enabled, already running.
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);  // since the sync is active, we should see its real state, and it should not have had any error code stored in it
     }
 
@@ -7330,18 +7338,18 @@ TEST_F(SdkTest, SyncPaths)
     fs::path fileDownloadPath = fs::current_path() / fs::u8path(fileNameStr.c_str());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
-#ifndef WIN32
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
-#endif
     deleteFile(fileDownloadPath.u8string());
 
     // Create local directories
+
+    std::error_code ignoredEc;
+    fs::remove_all(localPath, ignoredEc);
+
     fs::create_directory(localPath);
-#ifndef WIN32
     fs::create_directory(localPath / "level_1A");
     fs::create_directory_symlink(localPath / "level_1A", localPath / "symlink_1A");
     fs::create_directory_symlink(localPath / "level_1A", fs::current_path() / "symlink_1A");
-#endif
 
     LOG_verbose << "SyncPaths :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -7375,22 +7383,26 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-#if !defined(WIN32) && !defined(__APPLE__)
+#if !defined(__APPLE__)
     LOG_verbose << "SyncPersistence :  Check that symlinks are not synced.";
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(("/" + string(remoteBaseNode->getName()) + "/symlink_1A").c_str()));
     ASSERT_EQ(remoteNodeSym.get(), nullptr);
 
+    nh = createFolder(0, "symlink_1A", remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteNodeSym.get(), nullptr);
+
+#ifndef WIN32
     {
         TestingWithLogErrorAllowanceGuard g;
 
         LOG_verbose << "SyncPersistence :  Check that symlinks are considered when creating a sync.";
-        nh = createFolder(0, "symlink_1A", remoteRootNode.get());
-        ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-        remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
-        ASSERT_NE(remoteNodeSym.get(), nullptr);
         ASSERT_EQ(API_EARGS, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
+
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
     auto tagID = sync->getBackupId();
     ASSERT_EQ(API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
@@ -7419,17 +7431,19 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-    {
+#ifndef WIN32
+{
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(API_EARGS, synchronousEnableSync(0, tagID)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
 
-    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 #endif
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 }
 
 /**
@@ -8432,6 +8446,544 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     sets2.reset(differentApi.getSets());
     ASSERT_EQ(sets2->size(), 0u);
+}
+
+
+/**
+ * @brief TEST_F SdkUserAlerts
+ *
+ * Generate User Alerts and check that they are received as expected.
+ *
+ * Generated so far:
+ *      IncomingPendingContact  --  request created
+ *      ContactChange  --  contact request accepted
+ *      NewShare
+ *      RemovedSharedNode
+ *      NewSharedNodes
+ *      UpdatedSharedNode
+ *      UpdatedSharedNode (combined with previous one)
+ *      DeletedShare
+ *      ContactChange  --  contact deleted
+ *
+ * Not generated:
+ *      UpdatedPendingContactIncoming   skipped (requires a 2 week wait)
+ *      UpdatedPendingContactOutgoing   skipped (requires a 2 week wait)
+ *      Payment                         skipped (out of user control)
+ *      PaymentReminder                 skipped (out of user control)
+ *      Takedown                        skipped (out of user control)
+ */
+TEST_F(SdkTest, SdkUserAlerts)
+{
+    LOG_info << "___TEST SdkUserAlerts___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    int A1idx = 0;
+    int B1idx = 1;
+
+    // Alerts generated by the actions in this test should be compared with the ones received through sc50 request.
+    // However, for now we kept code dealing with sc50 disabled because sc50 request times out very often in Jenkins.
+#define MEGA_TEST_SC50_ALERTS 0
+
+#if MEGA_TEST_SC50_ALERTS
+    // B2 (uses the same credentials as B1)
+    // Create this here, in order to keep valid references to the others throughout the entire test
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(B1idx).c_str(), "JenkinsCanSpamSC50", unsigned(THREADS_PER_MEGACLIENT)));
+    auto& B2 = *megaApi.back();
+    B2.addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(move(pa));
+    auto& B2dtls = mApi.back();
+    B2dtls.megaApi = &B2;
+#endif
+
+    // A1
+    auto& A1dtls = mApi[A1idx];
+    auto& A1 = *megaApi[A1idx];
+    ASSERT_EQ(API_OK, doAckUserAlerts(A1idx)) << " Failed to acknowledge user alerts for A1";
+
+    // B1
+    auto& B1dtls = mApi[B1idx];
+    auto& B1 = *megaApi[B1idx];
+    ASSERT_EQ(API_OK, doAckUserAlerts(B1idx)) << " Failed to acknowledge user alerts for B1";
+
+#if MEGA_TEST_SC50_ALERTS
+    // B2
+    B2dtls.userAlertsUpdated = false;
+    B2dtls.userAlertList.reset();
+
+    int B2idx = int(megaApi.size() - 1);
+    auto loginTracker = asyncRequestLogin(B2idx, B2dtls.email.c_str(), B2dtls.pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << B2idx << " (B2)";
+    loginTracker = asyncRequestFetchnodes(B2idx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << B2idx << " (B2)";
+    // test sc50 after login
+    unsigned sc50Timeout = 120; // seconds
+    ASSERT_TRUE(waitForResponse(&B2dtls.userAlertsUpdated, sc50Timeout))
+        << "sc50 alerts after login not received by B2 after " << sc50Timeout << " seconds";
+    ASSERT_EQ(B2dtls.userAlertList, nullptr) << "sc50";
+    unique_ptr<MegaUserAlertList> sc50List(B2.getUserAlerts());
+    ASSERT_TRUE(sc50List);
+    ASSERT_NE(sc50List->size(), 0);
+    // save session
+    unique_ptr<char[]> B2session(B2.dumpSession());
+    auto logoutErr = doRequestLocalLogout(B2idx);
+    ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ") for account " << B2idx << " (B2)";
+#endif
+
+    vector<unique_ptr<MegaUserAlert>> bkpList; // used for comparing existing alerts with ones received through sc50
+
+    // IncomingPendingContact  --  request created
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Send a contact request ---
+    A1dtls.contactRequestUpdated = B1dtls.contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(A1idx, B1dtls.email, "test: A1 invited B1", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&A1dtls.contactRequestUpdated))
+        << "Contact request creation not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&B1dtls.contactRequestUpdated))
+        << "Contact request creation not received by B1 after " << maxTimeout << " seconds";
+    B1dtls.cr.reset();
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(B1idx, false));
+    ASSERT_NE(B1dtls.cr, nullptr);
+
+    // IncomingPendingContact  --  request created
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact request creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "IncomingPendingContact  --  request created";
+    const auto* a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
+    ASSERT_STRCASEEQ(a->getTitle(), "Sent you a contact request") << "IncomingPendingContact  --  request created";
+    ASSERT_GT(a->getId(), 0u) << "IncomingPendingContact  --  request created";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_INCOMINGPENDINGCONTACT_REQUEST) << "IncomingPendingContact  --  request created";
+    ASSERT_STREQ(a->getTypeString(), "NEW_CONTACT_REQUEST") << "IncomingPendingContact  --  request created";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
+    ASSERT_NE(a->getTimestamp(0), 0) << "IncomingPendingContact  --  request created";
+    ASSERT_FALSE(a->isOwnChange()) << "IncomingPendingContact  --  request created";
+    ASSERT_EQ(a->getPcrHandle(), B1dtls.cr->getHandle()) << "IncomingPendingContact  --  request created";
+    bkpList.emplace_back(a->copy());
+
+
+    // ContactChange  --  contact request accepted
+    //--------------------------------------------
+
+    // reset User Alerts for A1
+    A1dtls.userAlertsUpdated = false;
+    A1dtls.userAlertList.reset();
+
+    // --- Accept contact request ---
+    A1dtls.contactRequestUpdated = B1dtls.contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(B1dtls.cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&A1dtls.contactRequestUpdated))
+        << "Contact request accept not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&B1dtls.contactRequestUpdated))
+        << "Contact request accept not received by B1 after " << maxTimeout << " seconds";
+    B1dtls.cr.reset();
+
+    // ContactChange  --  contact request accepted
+    ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
+        << "Alert about contact request accepted not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_NE(A1dtls.userAlertList, nullptr) << "ContactChange  --  contact request accepted";
+    ASSERT_EQ(A1dtls.userAlertList->size(), 1) << "ContactChange  --  contact request accepted";
+    a = A1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
+    ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact request accepted";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_CONTACTESTABLISHED) << "ContactChange  --  contact request accepted";
+    ASSERT_STREQ(a->getTypeString(), "CONTACT_ESTABLISHED") << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getHeading(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact request accepted";
+    ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
+    ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
+    // received by A1, do not keep it for comparing with B2's sc50
+
+
+    // create some folders / files to share
+
+        // Create some nodes to share
+        //  |--Shared-folder
+        //    |--subfolder
+        //    |--file.txt       // PUBLICFILE
+        //  |--file1.txt        // UPFILE
+
+    std::unique_ptr<MegaNode> rootnode{ A1.getRootNode() };
+    char sharedFolder[] = "Shared-folder";
+    MegaHandle hSharedFolder = createFolder(A1idx, sharedFolder, rootnode.get());
+    ASSERT_NE(hSharedFolder, UNDEF);
+
+    std::unique_ptr<MegaNode> nSharedFolder(A1.getNodeByHandle(hSharedFolder));
+    ASSERT_NE(nSharedFolder, nullptr);
+
+    char subfolder[] = "subfolder";
+    MegaHandle hSubfolder = createFolder(A1idx, subfolder, nSharedFolder.get());
+    ASSERT_NE(hSubfolder, UNDEF);
+
+
+    // not a large file since don't need to test transfers here
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    MegaHandle hPublicfile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hPublicfile, PUBLICFILE.c_str(), nSharedFolder.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> nSubfolder(A1.getNodeByHandle(hSubfolder));
+    ASSERT_NE(nSubfolder, nullptr);
+    std::unique_ptr<MegaNode> rootA1(A1.getRootNode());
+    ASSERT_NE(rootA1, nullptr);
+    ASSERT_TRUE(createFile(UPFILE.c_str(), false)) << "Couldn't create " << UPFILE.c_str();
+    MegaHandle hUpfile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hUpfile, UPFILE.c_str(), rootA1.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+
+
+    // NewShare
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Create a new outgoing share ---
+    A1dtls.nodeUpdated = B1dtls.nodeUpdated = false; // reset flags expected to be true in asserts below
+    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*) { if (A1idx == int(apiIndex)) A1dtls.nodeUpdated = true; };
+    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*) { if (B1idx == int(apiIndex)) B1dtls.nodeUpdated = true; };
+
+    ASSERT_NO_FATAL_FAILURE(shareFolder(nSharedFolder.get(), B1dtls.email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&A1dtls.nodeUpdated))   // at the target side (main account)
+        << "Node update not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&B1dtls.nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received by B1 after " << maxTimeout << " seconds";
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+
+    // NewShare
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about new share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewShare";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewShare";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewShare";
+    string title = "New shared folder from " + A1dtls.email;
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewShare";
+    ASSERT_GT(a->getId(), 0u) << "NewShare";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_NEWSHARE) << "NewShare";
+    ASSERT_STREQ(a->getTypeString(), "NEW_SHARE") << "NewShare";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "NewShare";
+    ASSERT_NE(a->getTimestamp(0), 0) << "NewShare";
+    ASSERT_FALSE(a->isOwnChange()) << "NewShare";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "NewShare";
+    ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "NewShare";
+    string path = A1dtls.email + ':' + sharedFolder;
+    ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "NewShare";
+    ASSERT_STREQ(a->getName(), sharedFolder) << "NewShare";
+    bkpList.emplace_back(a->copy());
+
+
+    // RemovedSharedNode
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Move shared sub-folder (owned) to Root ---
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), rootA1.get())) << "Moving subfolder out of (owned) share failed";
+
+    // RemovedSharedNode
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about removed shared node not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "RemovedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "RemovedSharedNode";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "RemovedSharedNode";
+    title = "Removed item from shared folder";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "RemovedSharedNode";
+    ASSERT_GT(a->getId(), 0u) << "RemovedSharedNode";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_REMOVEDSHAREDNODES) << "RemovedSharedNode";
+    ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_REMOVED") << "RemovedSharedNode";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "RemovedSharedNode";
+    ASSERT_NE(a->getTimestamp(0), 0) << "RemovedSharedNode";
+    ASSERT_FALSE(a->isOwnChange()) << "RemovedSharedNode";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "RemovedSharedNode";
+    ASSERT_EQ(a->getNumber(0), 1) << "RemovedSharedNode";
+    //bkpList.emplace_back(a->copy());  // this wasa not received in sc50 response
+
+
+    // NewSharedNodes
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+    A1dtls.userAlertsUpdated = false;
+    A1dtls.userAlertList.reset();
+
+    // --- Move sub-folder from Root (owned) back to share ---
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get())) << "Moving sub-folder from Root (owned) to share failed";
+    // NOTE: This did not create a NewSharedNodes alert (even when it contained files). Notified as a potential bug.
+
+    // --- Move file from Root (owned) to share ---
+    std::unique_ptr<MegaNode> nfile2(A1.getNodeByHandle(hUpfile));
+    ASSERT_NE(nfile2, nullptr);
+    ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get())) << "Moving file from Root (owned) to shared folder failed";
+
+    // NewSharedNodes
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about node added to share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewSharedNodes";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewSharedNodes";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewSharedNodes";
+    title = A1dtls.email + " added 1 file";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewSharedNodes";
+    ASSERT_GT(a->getId(), 0u) << "NewSharedNodes";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_NEWSHAREDNODES) << "NewSharedNodes";
+    ASSERT_STREQ(a->getTypeString(), "NEW_NODES_IN_SHARE") << "NewSharedNodes";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "NewSharedNodes";
+    ASSERT_NE(a->getTimestamp(0), 0) << "NewSharedNodes";
+    ASSERT_FALSE(a->isOwnChange()) << "NewSharedNodes";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "NewSharedNodes";
+    ASSERT_EQ(a->getNumber(0), 0) << "NewSharedNodes"; // folder count
+    ASSERT_EQ(a->getNumber(1), 1) << "NewSharedNodes"; // file count
+    ASSERT_EQ(a->getNodeHandle(), hSubfolder) << "NewSharedNodes"; // parent handle
+    ASSERT_EQ(a->getHandle(0), hUpfile) << "NewSharedNodes";
+    //bkpList.emplace_back(a->copy());  // this was not received in sc50 response
+
+
+    // UpdatedSharedNode
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Modify shared file ---
+    {
+        ofstream f(UPFILE);
+        f << "edited";
+    }
+    // Upload a file over an existing one to update
+    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, UPFILE.c_str(), nSubfolder.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/));
+
+    // UpdatedSharedNode
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about node updated in share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode";
+    ASSERT_STRCASEEQ(a->getTitle(), "Updated 1 item in shared folder") << "UpdatedSharedNode";
+    ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_UPDATEDSHAREDNODES) << "UpdatedSharedNode";
+    ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_UPDATED") << "UpdatedSharedNode";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode";
+    ASSERT_NE(a->getTimestamp(0), 0) << "UpdatedSharedNode";
+    ASSERT_FALSE(a->isOwnChange()) << "UpdatedSharedNode";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode";
+    ASSERT_EQ(a->getNumber(0), 1) << "UpdatedSharedNode"; // item count
+    // this will be combined with the next one, do not keep it for comparing with B2's sc50
+
+
+    // UpdatedSharedNode  --  combined with the previous one
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Modify shared file ---
+    {
+        ofstream f(UPFILE);
+        f << " AND edited again";
+    }
+    // Upload a file over an existing one to update
+    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, UPFILE.c_str(), nSubfolder.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/));
+
+    // UpdatedSharedNode (combined)
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about node updated, again, in share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode (combined)";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode (combined)";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
+    ASSERT_STRCASEEQ(a->getTitle(), "Updated 2 items in shared folder") << "UpdatedSharedNode (combined)";
+    ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode (combined)";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_UPDATEDSHAREDNODES) << "UpdatedSharedNode (combined)";
+    ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_UPDATED") << "UpdatedSharedNode (combined)";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
+    ASSERT_NE(a->getTimestamp(0), 0) << "UpdatedSharedNode (combined)";
+    ASSERT_FALSE(a->isOwnChange()) << "UpdatedSharedNode (combined)";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode (combined)";
+    ASSERT_EQ(a->getNumber(0), 2) << "UpdatedSharedNode (combined)"; // item count
+    //bkpList.emplace_back(a->copy());  // this was not received in sc50 response
+
+
+    // DeletedShare
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Revoke access to an outgoing share ---
+    A1dtls.nodeUpdated = B1dtls.nodeUpdated = false; // reset flags expected to be true in asserts below
+    A1dtls.mOnNodesUpdateCompletion = [&A1dtls, A1idx](size_t apiIndex, MegaNodeList*) { if (A1idx == int(apiIndex)) A1dtls.nodeUpdated = true; };
+    B1dtls.mOnNodesUpdateCompletion = [&B1dtls, B1idx](size_t apiIndex, MegaNodeList*) { if (B1idx == int(apiIndex)) B1dtls.nodeUpdated = true; };
+    ASSERT_NO_FATAL_FAILURE(shareFolder(nSharedFolder.get(), B1dtls.email.c_str(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&A1dtls.nodeUpdated))   // at the target side (main account)
+        << "Node update not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&B1dtls.nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received by B1 after " << maxTimeout << " seconds";
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+
+    // DeletedShare
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about deleted share not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "DeletedShare";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "DeletedShare";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "DeletedShare";
+    title = "Access to folders shared by " + A1dtls.email + " was removed";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "DeletedShare";
+    ASSERT_GT(a->getId(), 0u) << "DeletedShare";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_DELETEDSHARE) << "DeletedShare";
+    ASSERT_STREQ(a->getTypeString(), "SHARE_UNSHARED") << "DeletedShare";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "DeletedShare";
+    ASSERT_NE(a->getTimestamp(0), 0) << "DeletedShare";
+    ASSERT_FALSE(a->isOwnChange()) << "DeletedShare";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "DeletedShare";
+    ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "DeletedShare";
+    path = A1dtls.email + ':' + sharedFolder;
+    ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "DeletedShare";
+    ASSERT_STREQ(a->getName(), sharedFolder) << "DeletedShare";
+    ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
+    bkpList.emplace_back(a->copy());
+
+
+    // ContactChange  --  contact deleted
+    //--------------------------------------------
+
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    // --- Delete an existing contact ---
+    A1dtls.userUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(removeContact(B1dtls.email));
+    ASSERT_TRUE(waitForResponse(&A1dtls.userUpdated))   // at the target side (main account)
+        << "Delete contact update not received by A1 after " << maxTimeout << " seconds";
+
+    // ContactChange  --  contact deleted
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about contact removal not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "ContactChange  --  contact deleted";
+    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "ContactChange  --  contact deleted";
+    a = B1dtls.userAlertList->get(0);
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
+    ASSERT_STRCASEEQ(a->getTitle(), "Deleted you as a contact") << "ContactChange  --  contact deleted";
+    ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact deleted";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_DELETEDYOU) << "ContactChange  --  contact deleted";
+    ASSERT_STREQ(a->getTypeString(), "CONTACT_DISCONNECTED") << "ContactChange  --  contact deleted";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
+    ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact deleted";
+    ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact deleted";
+    ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
+    bkpList.emplace_back(a->copy());
+
+
+#if MEGA_TEST_SC50_ALERTS
+    // reset User Alerts for B2
+    B2dtls.userAlertsUpdated = false;
+    B2dtls.userAlertList.reset();
+
+    // resume session for B2
+    ASSERT_EQ(API_OK, synchronousFastLogin(B2idx, B2session.get(), this)) << "Resume session failed for B2 (error: " << B2dtls.lastError << ")";
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(B2idx));
+    // test sc50 after session resume
+    ASSERT_TRUE(waitForResponse(&B2dtls.userAlertsUpdated, sc50Timeout))
+        << "sc50 alerts after resumeSession() not received by B2 after " << sc50Timeout << " seconds";
+    ASSERT_EQ(B2dtls.userAlertList, nullptr) << "sc50";
+    sc50List.reset(B2.getUserAlerts());
+    ASSERT_TRUE(sc50List);
+    ASSERT_NE(sc50List->size(), 0);
+    ASSERT_GE(sc50List->size(), (int)bkpList.size());
+
+    // sort sc50 alerts by timestamp
+    // this shoud not be needed, but is here to show that not all alerts have been received
+    map<int64_t, const MegaUserAlert*> sc50alerts;
+    for (int i = 0; i < sc50List->size(); ++i)
+    {
+        const auto* sc50a = sc50List->get(i);
+        sc50alerts[sc50a->getTimestamp(0)] = sc50a;
+    }
+
+    // compare last sc50 alerts with the ones generated by the actions above
+    // WARNING: At least in this scenario (resume session after the share has been removed), sc50 returned only the following alerts:
+    //  - TYPE_INCOMINGPENDINGCONTACT_REQUEST (0),
+    //  - TYPE_NEWSHARE (12),
+    //  - TYPE_DELETEDSHARE (13)
+    //  - TYPE_CONTACTCHANGE_DELETEDYOU (3),
+
+    size_t count = 0;
+    for (auto it = sc50alerts.rbegin(); it != sc50alerts.rend() && count < bkpList.size(); ++it)
+    {
+        const auto* sc50a = it->second;
+        const auto* bkp = (bkpList.rbegin() + count)->get();
+
+        ASSERT_EQ(bkp->getType(), sc50a->getType()) << "sc50";
+        ASSERT_STREQ(bkp->getTypeString(), sc50a->getTypeString()) << "sc50";
+        ASSERT_EQ(bkp->getUserHandle(), sc50a->getUserHandle()) << "sc50";
+        ASSERT_EQ(bkp->getNodeHandle(), sc50a->getNodeHandle()) << "sc50";
+        ASSERT_EQ(bkp->getPcrHandle(), sc50a->getPcrHandle()) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getEmail(), sc50a->getEmail()) << "sc50";
+        if (sc50a->getPath()) // the node might not be there when sc50 alerts arrive
+        {
+            ASSERT_STRCASEEQ(bkp->getPath(), sc50a->getPath()) << "sc50";
+        }
+        if (sc50a->getName()) // the node might not be there when sc50 alerts arrive
+        {
+            ASSERT_STREQ(bkp->getName(), sc50a->getName()) << "sc50";
+        }
+        ASSERT_STRCASEEQ(bkp->getHeading(), sc50a->getHeading()) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getTitle(), sc50a->getTitle()) << "sc50";
+        ASSERT_EQ(bkp->getNumber(0), sc50a->getNumber(0)) << "sc50";
+        ASSERT_EQ(bkp->getNumber(1), sc50a->getNumber(1)) << "sc50";
+        // ASSERT_EQ(bkp->getTimestamp(0), sc50a->getTimestamp(0)) << "sc50"; // timestamp will differ, because for sc50 alerts it gets calculated
+        ASSERT_STRCASEEQ(bkp->getString(0), sc50a->getString(0)) << "sc50";
+        ASSERT_EQ(bkp->getHandle(0), sc50a->getHandle(0)) << "sc50";
+        ASSERT_EQ(bkp->getHandle(1), sc50a->getHandle(1)) << "sc50";
+
+        ++count;
+    }
+#endif
 }
 
 /*

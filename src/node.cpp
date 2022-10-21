@@ -209,6 +209,29 @@ void Node::detach(const bool recreate)
 
 #endif // ENABLE_SYNC
 
+
+Node* Node::childbyname(const string& name)
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return child;
+    }
+
+    return nullptr;
+}
+
+bool Node::hasChildWithName(const string& name) const
+{
+    for (auto* child : children)
+    {
+        if (child->hasName(name))
+            return true;
+    }
+
+    return false;
+}
+
 bool Node::getExtension(std::string& ext) const
 {
     const char* name = displayname();
@@ -348,7 +371,6 @@ nameid Node::getNameid(const std::string& ext)
     return id;
 }
 
-
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -375,6 +397,22 @@ void Node::setkey(const byte* newkey)
 // mismatch vector
 Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
+    // Makes sure the node's properly unlinked when we delete it.
+    auto node_deleter = [client, dp](Node* node) {
+        // Make sure the client has no dangling references.
+        client->nodes.erase(node->nodeHandle());
+
+        // Make sure the node vector has no dangling references.
+        if (!dp->empty() && dp->back() == node)
+            dp->pop_back();
+
+        // Destroy the node.
+        delete node;
+    };
+
+    // For convenience.
+    using node_pointer = unique_ptr<Node, decltype(node_deleter)>;
+
     handle h, ph;
     nodetype_t t;
     m_off_t s;
@@ -386,7 +424,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
+    node_pointer n(nullptr, std::move(node_deleter));
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
@@ -514,7 +552,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    n.reset(new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
     if (k)
     {
@@ -545,10 +583,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     ptr = n->attrs.unserialize(ptr, end);
     if (!ptr)
-    {
-        delete n;
         return NULL;
-    }
 
     // It's needed to re-normalize node names because
     // the updated version of utf8proc doesn't provide
@@ -564,10 +599,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            delete n;
             return NULL;
-        }
 
         handle ph = 0;
         memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
@@ -593,12 +625,11 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     if (ptr == end)
     {
-        return n;
+        return n.release();
     }
     else
     {
-        delete n;
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -975,6 +1006,13 @@ bool Node::hasName(const string& name) const
     return it != attrs.map.end() && it->second == name;
 }
 
+bool Node::hasName() const
+{
+    auto i = attrs.map.find('n');
+
+    return i != attrs.map.end() && !i->second.empty();
+}
+
 // return file/folder name or special status strings
 const char* Node::displayname() const
 {
@@ -1338,6 +1376,17 @@ const Node* Node::latestFileVersion() const
         }
     }
     return n;
+}
+
+unsigned Node::depth() const
+{
+    auto* node = latestFileVersion();
+    unsigned depth = 0u;
+
+    for ( ; node->parent; node = node->parent)
+        ++depth;
+
+    return depth;
 }
 
 // returns 1 if n is under p, 0 otherwise
@@ -1921,13 +1970,6 @@ LocalPath LocalNode::getLocalPath() const
 
 void LocalNode::getlocalpath(LocalPath& path) const
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
     path.clear();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
@@ -2116,7 +2158,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     return l;
 }
 
-#endif
+#endif // ENABLE_SYNC
 
 void Fingerprints::newnode(Node* n)
 {
@@ -2128,6 +2170,7 @@ void Fingerprints::newnode(Node* n)
 
 void Fingerprints::add(Node* n)
 {
+    assert(n->fingerprint_it == mFingerprints.end());
     if (n->type == FILENODE)
     {
         n->fingerprint_it = mFingerprints.insert(n);
