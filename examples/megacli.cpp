@@ -3903,6 +3903,8 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("removeelement"), param("sid"), param("eid"))
                         )));
 
+    p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -10548,3 +10550,24 @@ void exec_setsandelements(autocomplete::ACState& s)
     }
 }
 
+void exec_reqstat(autocomplete::ACState &s)
+{
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        client->startRequestStatusMonitor();
+    }
+    else if (turnoff)
+    {
+        client->stopRequestStatusMonitor();
+    }
+
+    cout << "Request status monitor: " << (client->requestStatusMonitorEnabled() ? "on" : "off") << endl;
+}
+
+void DemoApp::reqstat_progress(int permilprogress)
+{
+    cout << "Progress (per mille) of request: " << permilprogress << endl;
+}

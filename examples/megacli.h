@@ -264,6 +264,8 @@ struct DemoApp : public MegaApp
 
     void dismissbanner_result(error) override;
 
+    void reqstat_progress(int) override;
+
     void reload(const char*) override;
     void clearing() override;
 
@@ -413,3 +415,4 @@ void exec_syncxable(autocomplete::ACState& s);
 #endif // ENABLE_SYNC
 
 void exec_setsandelements(autocomplete::ACState& s);
+void exec_reqstat(autocomplete::ACState& s);

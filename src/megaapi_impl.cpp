@@ -15683,6 +15683,13 @@ void MegaApiImpl::dismissbanner_result(error e)
     }
 }
 
+void MegaApiImpl::reqstat_progress(int permilprogress)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_REQSTAT_PROGRESS);
+    event->setNumber(permilprogress);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::addListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -23422,6 +23429,18 @@ bool MegaApiImpl::driveMonitorEnabled()
 {
     SdkMutexGuard g(sdkMutex);
     return client->driveMonitorEnabled();
+}
+
+void MegaApiImpl::enableRequestStatusMonitor(bool enable)
+{
+    SdkMutexGuard g(sdkMutex);
+    enable ? client->startRequestStatusMonitor() : client->stopRequestStatusMonitor();
+}
+
+bool MegaApiImpl::requestStatusMonitorEnabled()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->requestStatusMonitorEnabled();
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -33207,6 +33226,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_SYNCS_DISABLED: return "SYNCS_DISABLED";
         case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
 #endif
+        case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
     }
 
     return "UNKNOWN";

@@ -976,6 +976,14 @@ public:
     // retry API_ESSL errors
     bool retryessl;
 
+private:
+    // flag to start / stop the request status monitor
+    bool mReqStatEnabled = false;
+public:
+    bool requestStatusMonitorEnabled() { return mReqStatEnabled; }
+    void startRequestStatusMonitor() { mReqStatEnabled = true; }
+    void stopRequestStatusMonitor() { mReqStatEnabled = false; }
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -1022,6 +1030,9 @@ public:
 
     // root URL for chat stats
     static const string SFUSTATSURL;
+
+    // root URL for reqstat requests
+    static const string REQSTATURL;
 
     // root URL for Website
     static const string MEGAURL;
@@ -1078,6 +1089,7 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+    BackoffTimer btreqstat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1098,6 +1110,11 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+private:
+    // Request status monitor
+    unique_ptr<HttpReq> mReqStatCS;
+
+public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
@@ -1676,6 +1693,7 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procreqstat();
 
     // API warnings
     void warn(const char*);
