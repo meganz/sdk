@@ -358,18 +358,8 @@ nameid Node::getNameid(const std::string& ext)
         return 0;
     }
 
-    const char* pos = ext.data();
-    const char* ptr = pos;
-    size_t evaluateCharacters = 0;
-    nameid id = 0;
-
-    while (*ptr && evaluateCharacters < ext.length())
-    {
-        id = (id << 8) + *ptr++;
-        evaluateCharacters++;
-    }
-
-    return id;
+    JSON json;
+    return json.getnameid(ext.c_str());
 }
 
 void Node::setkeyfromjson(const char* k)
