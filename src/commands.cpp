@@ -6852,7 +6852,7 @@ bool CommandSetChatOptions::procresult(Result r)
         if (it == client->chats.end())
         {
             mCompletion(API_EINTERNAL);
-            return true;
+            return false;
         }
 
         // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
