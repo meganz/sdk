@@ -2253,7 +2253,7 @@ class SearchTreeProcessor : public TreeProcessor
         vector<Node *> &getResults();
 
     protected:
-        MimeType_t mFileType;
+        MimeType_t mMimeType;
         const char *mSearch;
         vector<Node *> mResults;
         MegaClient *mClient;
