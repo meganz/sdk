@@ -2081,12 +2081,20 @@ public:
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
+    // return true if Set with given sid is exported (has a public link)
+    bool isExportedSet(handle sid) const;
+
+    void exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion);
+
+    string getPublicLinkSet(handle sid, bool isExportSet) const;
+
 private:
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
@@ -2097,6 +2105,7 @@ private:
     void sc_asr(); // AP after removed Set
     void sc_aep(); // AP after new or updated Set Element
     void sc_aer(); // AP after removed Set Element
+    void sc_ass(); // AP after exported set update
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);

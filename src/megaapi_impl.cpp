@@ -4025,6 +4025,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
+        case TYPE_EXPORT_SET: return "TYPE_EXPORT_SET";
     }
     return "UNKNOWN";
 }
@@ -19021,6 +19022,28 @@ void MegaApiImpl::sendPendingRequests()
                 });
             break;
 
+        case MegaRequest::TYPE_EXPORT_SET:
+            client->exportSet(request->getTotalBytes(), request->getFlag(),
+                [this, request](Error e)
+                {
+                    auto sid = request->getTotalBytes();
+                    bool isExportSet = request->getFlag();
+                    if (e == API_OK)
+                    {
+                        const Set* updatedSet = client->getSet(sid);
+                        assert(updatedSet);
+                        assert(updatedSet->publicId() != UNDEF);
+
+                        request->setLink(client->getPublicLinkSet(updatedSet->publicId(), isExportSet).c_str());
+
+                        auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
+                        fireOnSetsUpdate(updatedSetList);
+                        delete updatedSetList;
+                    }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute->exec();
             //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
@@ -23923,6 +23946,31 @@ void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
     mElements.emplace_back(move(el));
 }
 
+bool MegaApiImpl::isExportedSet(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return client->isExportedSet(sid);
+}
+
+void MegaApiImpl::auxExSet(MegaHandle sid, bool create, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
+    request->setTotalBytes(sid);
+    request->setFlag(create);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::exportSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    auxExSet(sid, true, listener);
+}
+
+void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    auxExSet(sid, false, listener);
+}
 
 void TreeProcCopy::allocnodes()
 {

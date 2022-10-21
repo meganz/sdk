@@ -46,7 +46,7 @@ bool g_disablepkp_default = false;
 // MegaClient statics must be const or we get threading problems.  And this one is edited so it can't be const.
 // Instead, we require a mutex to be locked before editing/reading it.  MegaClient's HttpIO takes a copy on construction
 std::mutex g_APIURL_default_mutex;
-string g_APIURL_default = "https://g.api.mega.co.nz/";
+string g_APIURL_default = "https://staging.api.mega.co.nz/";
 
 // user handle for customer support user
 const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
@@ -18436,6 +18436,102 @@ void MegaClient::sc_aer()
     }
 }
 
+error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved)
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID1('s'):
+            s.setId(j.gethandle(MegaClient::SETHANDLE));
+            break;
+
+        case MAKENAMEID2('p', 'h'):
+            s.setPublicId(j.gethandle(MegaClient::SETHANDLE)); // overwrite if existed
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            s.setTs(j.getint());
+            break;
+
+        case MAKENAMEID1('r'):
+        {
+            bool& isExportRemoved = exportRemoved.first;
+            isExportRemoved = j.getint() == 1;
+            s.setPublicId(UNDEF);
+            break;
+        }
+        case MAKENAMEID1('c'):
+        {
+            auto& exportRemovalReason = exportRemoved.second;
+            exportRemovalReason = j.getint();
+            /* 0     => deleted by user
+             * Other => ETD / ATD / dispute */
+            break;
+        }
+        case EOO:
+            return API_OK;
+
+        default:
+            LOG_err << "Sets: Unknown member received in 'ass' action packet";
+            return API_EINTERNAL;
+        }
+    }
+}
+void MegaClient::sc_ass()
+{
+    Set s;
+    auto exportRemoved = std::make_pair(false, 0l);
+    error e = readExportSet(jsonsc, s, exportRemoved);
+
+    if (e != API_OK)
+    {
+        LOG_err << "Sets: Failed to parse `ass` action packet";
+        return;
+    }
+
+    if (!updateSet(move(s)))
+    {
+        LOG_debug << "Sets: Received action packet for Set |" << toNodeHandle(s.id())
+                  << "| which is unrelated to current user";
+    }
+}
+
+bool MegaClient::isExportedSet(handle sid) const
+{
+    auto s = getSet(sid);
+    return s && (s->publicId() != UNDEF);
+}
+
+void MegaClient::exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion)
+{
+    if (getSet(sid))
+    {
+        Set s;
+        s.setId(sid);
+        reqs.add(new CommandExportSet(this, move(s), isExportSet, completion));
+    }
+    else if (completion)
+    {
+        LOG_warn << "Sets: export requested for non-retreived Set |" << toNodeHandle(sid) << "|";
+        completion(API_ENOENT);
+    }
+}
+
+string MegaClient::getPublicLinkSet(handle publicId, bool isExportSet) const
+{
+    string ret{""};
+    if (isExportSet)
+    {
+        // create URL and save it at ret
+        ret = publicLinkURL(false /*newLinkFormat*/,
+                            FILENODE /*nodetype_t type*/,
+                            publicId /*handle ph*/,
+                            nullptr /*const char *key*/);
+    }
+    return ret;
+}
+
 bool MegaClient::initscsets()
 {
     for (auto& i : mSets)
@@ -18523,7 +18619,7 @@ bool MegaClient::updatescsets()
         }
 
         char base64[12];
-        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
+        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace / exported / exported disabled
         {
             LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSET, s, &key))

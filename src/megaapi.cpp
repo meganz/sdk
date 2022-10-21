@@ -5639,6 +5639,21 @@ MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
     return pImpl->getSetElement(sid, eid);
 }
 
+bool MegaApi::isExportedSet(MegaHandle sid)
+{
+    return pImpl->isExportedSet(sid);
+}
+
+void MegaApi::exportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->exportSet(sid, listener);
+}
+
+void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->disableExportSet(sid, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

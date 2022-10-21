@@ -4267,7 +4267,8 @@ autocomplete::ACN autocompleteSyntax()
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("removeelement"), param("sid"), param("eid"))
+                        sequence(text("removeelement"), param("sid"), param("eid")),
+                        sequence(text("export"), param("id"), opt(flag("-disable")))
                         )));
 
     return autocompleteTemplate = std::move(p);
@@ -8903,7 +8904,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-// set addition/update/removal
+// set addition/update/removal/export {en|dis}able/
 void DemoApp::sets_updated(Set** s, int count)
 {
     cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
@@ -8917,6 +8918,10 @@ void DemoApp::sets_updated(Set** s, int count)
         if (set->hasChanged(Set::CH_NEW))
         {
             cout << " has been added";
+        }
+        if (set->hasChanged(Set::CH_EXPORTED))
+        {
+            cout << " export has been " << (set->publicId() == UNDEF ? "dis" : "en") << "abled";
         }
         else if (set->hasChanged(Set::CH_REMOVED))
         {
@@ -10439,6 +10444,7 @@ void printSet(const Set* s)
     }
 
     cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;
@@ -10602,6 +10608,25 @@ void exec_setsandelements(autocomplete::ACState& s)
                     cout << "Removed Element " << toHandle(eid) << " from Set " << toHandle(sid) << endl;
                 else
                     cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
+            });
+    }
+
+    else if (command == "export")
+    {
+        handle sid = 0;
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+
+        string buf;
+        bool isExportSet = !(s.extractflagparam("-disable", buf) || s.extractflag("-disable"));
+        buf.clear();
+
+        client->exportSet(sid, isExportSet, [sid, isExportSet](Error e)
+            {
+                string msg = (isExportSet ? "en" : "dis") + string("able");
+                if (e == API_OK)
+                    cout << "Set " << toHandle(sid) << " export " << msg << " successfully\n";
+                else
+                    cout << "Error " << msg << " export for Set " << toHandle(sid) << endl;
             });
     }
 

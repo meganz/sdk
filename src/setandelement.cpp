@@ -178,6 +178,7 @@ namespace mega {
         CacheableWriter r(*d);
 
         r.serializehandle(mId);
+        r.serializehandle(mPublicId);
         r.serializehandle(mUser);
         r.serializecompressedi64(mTs);
         r.serializestring(mKey);
@@ -200,13 +201,14 @@ namespace mega {
 
     unique_ptr<Set> Set::unserialize(string* d)
     {
-        handle id = 0, u = 0;
+        handle id = 0, publicId = 0, u = 0;
         m_time_t ts = 0;
         string k;
         uint32_t attrCount = 0;
 
         CacheableReader r(*d);
         if (!r.unserializehandle(id) ||
+            !r.unserializehandle(publicId) ||
             !r.unserializehandle(u) ||
             !r.unserializecompressedi64(ts) ||
             !r.unserializestring(k) ||
@@ -234,7 +236,7 @@ namespace mega {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, move(k), u, move(attrs));
+        auto s = ::mega::make_unique<Set>(id, publicId, move(k), u, move(attrs));
         s->setTs(ts);
 
         return s;
@@ -244,9 +246,17 @@ namespace mega {
     {
         setTs(s.ts());
 
-        if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
-        if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
-        mAttrs.swap(s.mAttrs);
+        if (s.publicId() != mPublicId)
+        {
+            setChanged(CH_EXPORTED);
+            setPublicId(s.publicId());
+        }
+        else
+        {
+            if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+            if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
+            mAttrs.swap(s.mAttrs);
+        }
 
         return changes();
     }

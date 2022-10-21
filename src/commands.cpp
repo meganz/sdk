@@ -8998,7 +8998,7 @@ bool CommandDismissBanner::procresult(Result r)
 // Sets and Elements
 //
 
-bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o, handle* ph) const
 {
     if (r.hasJsonObject())
     {
@@ -9047,6 +9047,16 @@ bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* 
                 }
                 break;
 
+            case MAKENAMEID2('p', 'h'):
+                if (ph)
+                {
+                    *ph = client->json.gethandle(MegaClient::SETHANDLE);
+                }
+                else if(!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
             default:
                 if (!client->json.storeobject())
                 {
@@ -9312,6 +9322,42 @@ bool CommandRemoveSetElement::procresult(Result r)
     {
         mCompletion(e);
     }
+
+    return parsedOk;
+}
+
+CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool isExportSet, std::function<void(Error)> completion)
+    : mSet(new Set(move(s))), mCompletion(completion)
+{
+    cmd("ass");
+    arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
+    if (!isExportSet) arg("r", 1);
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandExportSet::procresult(Result r)
+{
+    handle sid = mSet->id();
+    handle publicId = UNDEF;
+    m_time_t ts = 0;
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
+    assert(sid == mSet->id());
+//    assert(publicId != UNDEF);
+
+    if (parsedOk && e == API_OK)
+    {
+        mSet->setPublicId(publicId);
+        mSet->setChanged(Set::CH_EXPORTED);
+        if (!client->updateSet(move(*mSet)))
+        {
+            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+            e = API_ENOENT;
+        }
+    }
+
+    if (mCompletion) mCompletion(e);
 
     return parsedOk;
 }

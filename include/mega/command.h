@@ -1503,7 +1503,7 @@ public:
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
-    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
 
@@ -1567,6 +1567,17 @@ public:
 private:
     handle mSetId = UNDEF;
     handle mElementId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+class MEGA_API CommandExportSet : public CommandSE
+{
+public:
+    CommandExportSet(MegaClient*, Set&& s, bool isExportSet, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<Set> mSet;
     std::function<void(Error)> mCompletion;
 };
 

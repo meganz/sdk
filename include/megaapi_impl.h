@@ -703,9 +703,12 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+    MegaSetPrivate(const Set& s)
+        : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mName(s.name()),
+          mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
+    MegaHandle publicId() const override { return mPublicId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
@@ -717,6 +720,7 @@ public:
 
 private:
     MegaHandle mId;
+    MegaHandle mPublicId;
     MegaHandle mUser;
     m_time_t mTs;
     string mName;
@@ -2685,6 +2689,10 @@ class MegaApiImpl : public MegaApp
         MegaHandle getSetCover(MegaHandle sid);
         MegaSetElementList* getSetElements(MegaHandle sid);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+        bool isExportedSet(MegaHandle sid);
+        void auxExSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+        void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
 #ifdef ENABLE_SYNC
         //Sync

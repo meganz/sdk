@@ -1227,6 +1227,13 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
 
     /**
+     * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
+     *
+     * @return Set id.
+     */
+    virtual MegaHandle publicId() const { return INVALID_HANDLE; }
+
+    /**
      * @brief Returns id of user that owns current Set.
      *
      * @return user id.
@@ -1282,6 +1289,9 @@ public:
      * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
      * Check if the Set was removed
      *
+     * - MegaSet::CHANGE_TYPE_EXPORTED              = 0x04
+     * Check if the Set was exported (or disabled)
+     *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
@@ -1295,6 +1305,7 @@ public:
         CHANGE_TYPE_NAME,
         CHANGE_TYPE_COVER,
         CHANGE_TYPE_REMOVED,
+        CHANGE_TYPE_EXPORT,
 
         CHANGE_TYPE_SIZE
     };
@@ -3510,7 +3521,8 @@ class MegaRequest
             TYPE_FETCH_SET                                                  = 153,
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
-            TOTAL_OF_REQUEST_TYPES                                          = 156,
+            TYPE_EXPORT_SET                                                 = 156,
+            TOTAL_OF_REQUEST_TYPES                                          = 157,
         };
 
         virtual ~MegaRequest();
@@ -3640,6 +3652,7 @@ class MegaRequest
          * - MegaApi::getThumbnailUploadURL - Returns the upload IPv4
          * - MegaApi::getPreviewUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
+         * - MegaApi::exportSet - Returns the public link
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -19688,6 +19701,53 @@ class MegaApi
          * @return requested Element, or null if not found
          */
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+
+        /**
+         * @brief Returns true if the Set has been exported (has a public link)
+         *
+         * Public links are created by calling MegaApi::exportSet
+         *
+         * @param sid the id of the Set to check
+         *
+         * @return true if param sid is an exported Set
+         */
+        bool isExportedSet(MegaHandle sid);
+
+        /**
+         * @brief Generate a public link of a Set in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param Set MegaHandle to get the public link
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Stop sharing a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param Set MegaHandle to stop sharing
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;
