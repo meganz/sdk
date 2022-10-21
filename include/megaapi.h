@@ -15136,7 +15136,7 @@ class MegaApi
          *
          * @return List with all child MegaNode objects
          */
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = ORDER_DEFAULT_ASC);
 
         /**
          * @brief Get file and folder children of a MegaNode separatedly
