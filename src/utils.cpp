@@ -889,7 +889,7 @@ bool ScheduledFlags::serialize(string& out) const
     return true;
 }
 
-ScheduledFlags* ScheduledFlags::unserialize(string& in)
+ScheduledFlags* ScheduledFlags::unserialize(const std::string &in)
 {
     if (in.empty())  { return nullptr; }
     uint32_t flagsNum = 0;
@@ -1036,7 +1036,7 @@ bool ScheduledRules::serialize(string& out) const
     return true;
 }
 
-ScheduledRules* ScheduledRules::unserialize(string& in)
+ScheduledRules* ScheduledRules::unserialize(const string& in)
 {
     if (in.empty())  { return nullptr; }
     int freq = FREQ_INVALID;
@@ -1294,7 +1294,7 @@ bool ScheduledMeeting::serialize(string& out) const
     return true;
 }
 
-ScheduledMeeting* ScheduledMeeting::unserialize(string& in)
+ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
 {
     if (in.empty())  { return nullptr; }
     handle chatid = UNDEF;

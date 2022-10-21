@@ -764,7 +764,7 @@ class ScheduledFlags
 
         // serialization
         bool serialize(string& out) const;
-        static ScheduledFlags* unserialize(string& in);
+        static ScheduledFlags* unserialize(const string& in);
 
     private:
         scheduledFlagsBitSet mFlags = 0;
@@ -813,7 +813,7 @@ class ScheduledRules
 
         // serialization
         bool serialize(string& out) const;
-        static ScheduledRules* unserialize(string& in);
+        static ScheduledRules* unserialize(const string& in);
 
     private:
         // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
@@ -886,7 +886,7 @@ public:
 
     // serialization
     bool serialize(string& out) const;
-    static ScheduledMeeting* unserialize(string& in);
+    static ScheduledMeeting* unserialize(const std::string &in);
 
 private:
     // chat handle
