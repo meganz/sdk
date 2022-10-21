@@ -5644,6 +5644,16 @@ MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
     return pImpl->getSetElement(sid, eid);
 }
 
+void MegaApi::enableRequestStatusMonitor(bool enable)
+{
+    return pImpl->enableRequestStatusMonitor(enable);
+}
+
+bool MegaApi::requestStatusMonitorEnabled()
+{
+    return pImpl->requestStatusMonitorEnabled();
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
