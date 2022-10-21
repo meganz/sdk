@@ -207,6 +207,8 @@ void Node::detach(const bool recreate)
     }
 }
 
+#endif // ENABLE_SYNC
+
 bool Node::getExtension(std::string& ext) const
 {
     const char* name = displayname();
@@ -346,7 +348,6 @@ nameid Node::getNameid(const std::string& ext)
     return id;
 }
 
-#endif // ENABLE_SYNC
 
 void Node::setkeyfromjson(const char* k)
 {
