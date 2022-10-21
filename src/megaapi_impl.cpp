@@ -17736,11 +17736,6 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order)
         }
     }
 
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-    {
-        std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
-    }
-
     return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
