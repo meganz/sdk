@@ -4516,6 +4516,16 @@ class MegaRequest
         virtual MegaStringList* getMegaStringList() const;
 
         /**
+         * @brief Returns the scheduled meeting list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return scheduled meeting list
+         */
+        virtual MegaScheduledMeetingList* getMegaScheduledMeetingList() const;
+
+        /**
          * @brief Returns the MegaHandle list
          *
          * The SDK retains the ownership of the returned value. It will be valid until

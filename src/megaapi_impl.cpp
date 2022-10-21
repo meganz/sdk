@@ -3405,6 +3405,11 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
+MegaScheduledMeetingList* MegaRequestPrivate::getMegaScheduledMeetingList() const
+{
+    return mScheduledMeetingList.get();
+}
+
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
     return mHandleList.get();
@@ -3530,6 +3535,16 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     if (stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
+}
+
+void MegaRequestPrivate::setMegaScheduledMeetingList(MegaScheduledMeetingList* schedMeetingList)
+{
+    mScheduledMeetingList.reset();
+
+    if (schedMeetingList)
+    {
+       mScheduledMeetingList = unique_ptr<MegaScheduledMeetingList>(schedMeetingList->copy());
     }
 }
 

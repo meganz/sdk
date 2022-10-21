@@ -1061,6 +1061,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+MegaScheduledMeetingList* MegaRequest::getMegaScheduledMeetingList() const
+{
+    return nullptr;
+}
+
 MegaHandleList* MegaRequest::getMegaHandleList() const
 {
     return nullptr;

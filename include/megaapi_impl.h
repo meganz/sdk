@@ -1345,6 +1345,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
+        MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1366,6 +1367,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
+        void setMegaScheduledMeetingList(MegaScheduledMeetingList* schedMeetingList);
 
         MegaScheduledCopyListener *getBackupListener() const;
         void setBackupListener(MegaScheduledCopyListener *value);
@@ -1427,6 +1429,7 @@ protected:
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
         unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
+        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
