@@ -145,7 +145,7 @@ bool TextChat::serialize(string *d)
         for (auto i = mScheduledMeetings.begin(); i != mScheduledMeetings.end(); i++)
         {
             std::string schedMeetingStr;
-            if (i->second->serialize(&schedMeetingStr))
+            if (i->second->serialize(schedMeetingStr))
             {
                 ll = (unsigned short) schedMeetingStr.size();
                 d->append((char *)&ll, sizeof ll);
@@ -159,7 +159,7 @@ bool TextChat::serialize(string *d)
         for (auto i = mScheduledMeetingsOcurrences.begin(); i != mScheduledMeetingsOcurrences.end(); i++)
         {
             std::string schedMeetingStr;
-            if (i->second->serialize(&schedMeetingStr))
+            if (i->second->serialize(schedMeetingStr))
             {
                 ll = (unsigned short) schedMeetingStr.size();
                 d->append((char *)&ll, sizeof ll);
@@ -478,7 +478,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     for (auto i: scheduledMeetingsStr)
     {
-        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
+        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i));
         if (auxMeet)
         {
             chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
@@ -487,7 +487,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     for (auto i: scheduledMeetingsOccurrStr)
     {
-        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
+        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i));
         if (auxMeet)
         {
             chat->addSchedMeetingOccurrence(std::move(auxMeet));

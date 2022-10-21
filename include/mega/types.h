@@ -763,8 +763,8 @@ class ScheduledFlags
         bool equalTo(const ScheduledFlags*) const;
 
         // serialization
-        bool serialize(string* out) const;
-        static ScheduledFlags* unserialize(string* in);
+        bool serialize(string& out) const;
+        static ScheduledFlags* unserialize(string& in);
 
     private:
         scheduledFlagsBitSet mFlags = 0;
@@ -812,8 +812,8 @@ class ScheduledRules
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
 
         // serialization
-        bool serialize(string* out) const;
-        static ScheduledRules* unserialize(string* in);
+        bool serialize(string& out) const;
+        static ScheduledRules* unserialize(string& in);
 
     private:
         // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
@@ -885,8 +885,8 @@ public:
     bool equalTo(const ScheduledMeeting* sm) const;
 
     // serialization
-    bool serialize(string* out) const;
-    static ScheduledMeeting* unserialize(string* in);
+    bool serialize(string& out) const;
+    static ScheduledMeeting* unserialize(string& in);
 
 private:
     // chat handle

@@ -882,19 +882,18 @@ bool ScheduledFlags::equalTo(const ScheduledFlags* f) const
     return mFlags.to_ulong() == f->mFlags.to_ulong();
 }
 
-bool ScheduledFlags::serialize(string* out) const
+bool ScheduledFlags::serialize(string& out) const
 {
-    if (!out) { return false; }
-    CacheableWriter w(*out);
+    CacheableWriter w(out);
     w.serializeu32(static_cast<uint32_t>(mFlags.to_ulong()));
     return true;
 }
 
-ScheduledFlags* ScheduledFlags::unserialize(string* in)
+ScheduledFlags* ScheduledFlags::unserialize(string& in)
 {
-    if (!in || in->empty())  { return nullptr; }
+    if (in.empty())  { return nullptr; }
     uint32_t flagsNum = 0;
-    CacheableReader w(*in);
+    CacheableReader w(in);
     w.unserializeu32(flagsNum);
     return new ScheduledFlags(flagsNum);
 }
@@ -992,10 +991,8 @@ int ScheduledRules::stringToFreq (const char* freq)
     return FREQ_INVALID;
 }
 
-bool ScheduledRules::serialize(string* out) const
+bool ScheduledRules::serialize(string& out) const
 {
-    //assert(out && !out->empty());
-    if (!out) { return false; }
     assert(isValidFreq(mFreq));
     bool hasInterval = isValidInterval(mInterval);
     bool hasUntil = !mUntil.empty();
@@ -1003,7 +1000,7 @@ bool ScheduledRules::serialize(string* out) const
     bool hasByMonthDay = mByMonthDay.get() && !mByMonthDay->empty();
     bool hasByMonthWeekDay = mByMonthWeekDay.get() && !mByMonthWeekDay->empty();
 
-    CacheableWriter w(*out);
+    CacheableWriter w(out);
     w.serializei32(mFreq);
     w.serializeexpansionflags(hasInterval, hasUntil, hasByWeekDay, hasByMonthDay, hasByMonthWeekDay);
 
@@ -1039,9 +1036,9 @@ bool ScheduledRules::serialize(string* out) const
     return true;
 }
 
-ScheduledRules* ScheduledRules::unserialize(string* in)
+ScheduledRules* ScheduledRules::unserialize(string& in)
 {
-    if (!in || in->empty())  { return nullptr; }
+    if (in.empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
     std::string until;
@@ -1050,7 +1047,7 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
     rules_map byMonthWeekDay;
     unsigned char expansions[8];
 
-    CacheableReader w(*in);
+    CacheableReader w(in);
     w.unserializei32(freq);
     w.unserializeexpansionflags(expansions, 5);
 
@@ -1259,10 +1256,8 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
     return true;
 }
 
-bool ScheduledMeeting::serialize(string* out) const
+bool ScheduledMeeting::serialize(string& out) const
 {
-    //assert(out && !out->empty());
-    if (!out) { return false; }
     bool hasCallid = callid() != UNDEF;
     bool hasParentCallid = parentCallid() != UNDEF;
     bool hasAttributes = !attributes().empty();
@@ -1271,7 +1266,7 @@ bool ScheduledMeeting::serialize(string* out) const
     bool hasflags = flags();
     bool hasRules = rules();
 
-    CacheableWriter w(*out);
+    CacheableWriter w(out);
     w.serializehandle(chatid());
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
@@ -1289,19 +1284,19 @@ bool ScheduledMeeting::serialize(string* out) const
     if (hasflags)
     {
         std::string flagsStr;
-        if (flags()->serialize(&flagsStr)) { w.serializestring(flagsStr); }
+        if (flags()->serialize(flagsStr)) { w.serializestring(flagsStr); }
     }
     if (hasRules)
     {
         std::string rulesStr;
-        if (rules()->serialize(&rulesStr)) { w.serializestring(rulesStr); }
+        if (rules()->serialize(rulesStr)) { w.serializestring(rulesStr); }
     }
     return true;
 }
 
-ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
+ScheduledMeeting* ScheduledMeeting::unserialize(string& in)
 {
-    if (!in || in->empty())  { return nullptr; }
+    if (in.empty())  { return nullptr; }
     handle chatid = UNDEF;
     handle organizerUserid = UNDEF;
     handle callid = UNDEF;
@@ -1320,7 +1315,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
     std::unique_ptr<ScheduledRules> rules;
     unsigned char expansions[8];
 
-    CacheableReader w(*in);
+    CacheableReader w(in);
     w.unserializehandle(chatid);
     w.unserializehandle(organizerUserid);
     w.unserializestring(timezone);
@@ -1347,7 +1342,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
     {
         if (w.unserializestring(flagsStr))
         {
-           flags.reset(ScheduledFlags::unserialize(&flagsStr));
+           flags.reset(ScheduledFlags::unserialize(flagsStr));
         }
     }
 
@@ -1355,7 +1350,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
     {
         if (w.unserializestring(rulesStr))
         {
-           rules.reset(ScheduledRules::unserialize(&rulesStr));
+           rules.reset(ScheduledRules::unserialize(rulesStr));
         }
     }
 
