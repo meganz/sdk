@@ -16953,6 +16953,11 @@ namespace action_bucket_compare
 
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
+    if (n->type != FILENODE)
+    {
+        return false;
+    }
+
     MimeType_t mimeType = n->getMimetype(true); // In case of photo type, check if it has preview
 
     bool a = mimeType == MimeType_t::MIME_TYPE_PHOTO;
