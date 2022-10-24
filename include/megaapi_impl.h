@@ -4256,9 +4256,9 @@ public:
     unsigned long size() const override;
     MegaScheduledMeeting* at(unsigned long i) const override;
 
-    // returns the first MegaScheduledMeeting, whose SchedMeetingId matches with h
-    // note that SchedMeetingId is globally unique for all chats (in case of scheduled meetings), but this class
-    // can be used to store scheduled meetings occurrences (it can contains multiple items with the same SchedMeetingId)
+    // returns the first MegaScheduledMeeting, whose schedId matches with h
+    // note that schedId is globally unique for all chats (in case of scheduled meetings), but this class
+    // can be used to store scheduled meetings occurrences (it can contains multiple items with the same schedId)
     MegaScheduledMeeting* getBySchedId(MegaHandle h) const override;
 
     // setters
