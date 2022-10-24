@@ -151,6 +151,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // If this is a file, and has a file for a parent, it's not the latest version
     const Node* latestFileVersion() const;
 
+    // Node's depth, counting from the cloud root.
+    unsigned depth() const;
+
     // try to resolve node key string
     bool applykey();
 
@@ -166,8 +169,14 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
 
+    // check if this node has a name.
+    bool hasName() const;
+
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
+
+    // return mimetype type
+    MimeType_t getMimeType(bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;
@@ -306,6 +315,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
 
+    Node* childbyname(const string& name);
+
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -314,6 +328,14 @@ private:
 
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
+
+    bool getExtension(std::string& ext) const;
+    bool isPhoto(const std::string& ext, bool checkPreview) const;
+    bool isVideo(const std::string& ext) const;
+    bool isAudio(const std::string& ext) const;
+    bool isDocument(const std::string& ext) const;
+
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const

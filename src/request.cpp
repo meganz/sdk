@@ -61,27 +61,23 @@ void Request::get(string* req, bool& suppressSID) const
 
 bool Request::processCmdJSON(Command* cmd)
 {
-    if (cmd->client->json.enterobject())
+    Error e;
+    if (cmd->checkError(e, cmd->client->json))
     {
-        if (!cmd->procresult(Command::CmdObject) || !cmd->client->json.leaveobject())
-        {
-            LOG_err << "Invalid object";
-            return false;
-        }
+        return cmd->procresult(Command::Result(Command::CmdError, e));
+    }
+    else if (cmd->client->json.enterobject())
+    {
+        return cmd->procresult(Command::CmdObject) && cmd->client->json.leaveobject();
     }
     else if (cmd->client->json.enterarray())
     {
-        if (!cmd->procresult(Command::CmdArray) || !cmd->client->json.leavearray())
-        {
-            LOG_err << "Invalid array";
-            return false;
-        }
+        return cmd->procresult(Command::CmdArray) && cmd->client->json.leavearray();
     }
     else
     {
         return cmd->procresult(Command::CmdItem);
     }
-    return true;
 }
 
 void Request::process(MegaClient* client)
@@ -101,6 +97,8 @@ void Request::process(MegaClient* client)
         auto cmdJSON = client->json;
         bool parsedOk = true;
 
+        if (*client->json.pos == ',') ++client->json.pos;
+
         Error e;
         if (cmd->checkError(e, client->json))
         {
@@ -108,9 +106,6 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            if (*client->json.pos == ',') ++client->json.pos;
-
-
             // straightforward case - plain JSON response, no seqtag, no error
             parsedOk = processCmdJSON(cmd);
         }
@@ -141,6 +136,12 @@ void Request::process(MegaClient* client)
         clear();
     }
     client->mTctableRequestCommitter = nullptr;
+}
+
+Command* Request::getCurrentCommand()
+{
+    assert(processindex < cmds.size());
+    return cmds[processindex];
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -193,6 +194,9 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
+
+    // Although swap would usually swap all fields, these must be empty anyway
+    // If swap was used when these were active, we would be moving needed info out of the request-in-progress
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
@@ -245,6 +249,11 @@ void RequestDispatcher::add(Command *c)
 bool RequestDispatcher::cmdspending() const
 {
     return !nextreqs.front().empty();
+}
+
+bool RequestDispatcher::cmdsInflight() const
+{
+    return !inflightreq.empty();
 }
 
 void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes)

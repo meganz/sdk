@@ -765,6 +765,8 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
+    void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
     // delete all versions
     void unlinkversions();
 
@@ -904,7 +906,7 @@ public:
      * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
      *         Otherwise, API_OK
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
@@ -912,10 +914,11 @@ public:
      * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
+     * @exludedPath: in sync rework, use this to specify a folder within the sync to exclude (eg, working folder with sync db in it)
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
-    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
 
     /**
      * @brief
@@ -1214,6 +1217,14 @@ public:
     // flag to request an extra loop of the SDK to finish something pending
     bool looprequested;
 
+private:
+    // flag to start / stop the request status monitor
+    bool mReqStatEnabled = false;
+public:
+    bool requestStatusMonitorEnabled() { return mReqStatEnabled; }
+    void startRequestStatusMonitor() { mReqStatEnabled = true; }
+    void stopRequestStatusMonitor() { mReqStatEnabled = false; }
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -1260,6 +1271,9 @@ public:
 
     // root URL for chat stats
     static const string SFUSTATSURL;
+
+    // root URL for reqstat requests
+    static const string REQSTATURL;
 
     // root URL for Website
     static const string MEGAURL;
@@ -1319,6 +1333,7 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+    BackoffTimer btreqstat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1339,6 +1354,11 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+private:
+    // Request status monitor
+    unique_ptr<HttpReq> mReqStatCS;
+
+public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
@@ -1441,7 +1461,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1556,7 +1576,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1948,6 +1968,7 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procreqstat();
 
     // API warnings
     void warn(const char*);

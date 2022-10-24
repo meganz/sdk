@@ -2009,6 +2009,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -4370,6 +4371,8 @@ public:
         EVENT_SYNCS_DISABLED            = 13, // Syncs were bulk-disabled due to a situation encountered, eg storage overquota
         EVENT_SYNCS_RESTORED            = 14, // Indicate to the app that the process of starting existing syncs after login+fetchnodes is complete.
 #endif
+        EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
+                                              // or -1 if there isn't any operation in progress.
     };
 
     virtual ~MegaEvent();
@@ -4407,6 +4410,9 @@ public:
      * @brief Returns a number relative to this event
      *
      * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
+     *
+     * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
+     * a long-running API operation, or -1 if there isn't any operation in progress.
      *
      * @return Number relative to this event
      */
@@ -5660,6 +5666,16 @@ public:
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
         ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+        COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+        COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+        SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+        UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+        INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+        NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+        UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+        UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+        UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+        INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
     };
 
     enum Warning
@@ -6520,7 +6536,7 @@ protected:
         // MegaError::Errors enum/ErrorCodes
         int errorCode;
 
-        // SyncError/MegaSync::Error 
+        // SyncError/MegaSync::Error
         int syncError;
 
         friend class MegaTransfer;
@@ -10348,6 +10364,19 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
 
         /**
          * @brief Set the limit of size to requests payload
@@ -14520,12 +14549,12 @@ class MegaApi
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
-         * 
+         *
          * Possible return values for this function are:
          * - MegaError::API_OK if the folder is syncable
          * - MegaError::API_ENOENT if the node doesn't exist in the account
          * - MegaError::API_EARGS if the node is NULL or is not a folder
-         * 
+         *
          * - MegaError::API_EACCESS:
          *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
          *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
@@ -19755,6 +19784,23 @@ class MegaApi
          * @return requested Element, or null if not found
          */
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+
+        /**
+         * @brief Enable or disable the request status monitor
+         *
+         * When it's enabled, the request status monitor generates events of type
+         * MegaEvent::EVENT_REQSTAT_PROGRESS with the per mille progress in
+         * the field MegaEvent::getNumber(), or -1 if there isn't any operation in progress.
+         *
+         * @param enable True to enable the request status monitor, or false to disable it
+         */
+        void enableRequestStatusMonitor(bool enable);
+
+        /**
+         * @brief Get the status of the request status monitor
+         * @return True when the request status monitor is enabled, or false if it's disabled
+         */
+        bool requestStatusMonitorEnabled();
 
  private:
         MegaApiImpl *pImpl = nullptr;

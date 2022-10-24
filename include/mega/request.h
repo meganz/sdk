@@ -56,6 +56,8 @@ public:
 
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
+
+    Command* getCurrentCommand();
 };
 
 
@@ -80,6 +82,9 @@ public:
     void add(Command*);
 
     bool cmdspending() const;
+    bool cmdsInflight() const;
+
+    Command* getCurrentCommand(bool currSeqtagSeen);
 
     bool cmdsinflight() const { return inflightreq.size(); }
 
