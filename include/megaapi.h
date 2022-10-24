@@ -18446,16 +18446,7 @@ class MegaApi
          */
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
-        /**
-         * @brief Creates a scheduled meeting
-         *
-         * TODO complete documentation
-         */
-        void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
-                                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+        void createScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Removes a scheduled meeting

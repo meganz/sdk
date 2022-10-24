@@ -3950,7 +3950,7 @@ MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
     return mScheduledMeeting.get();
 }
 
-void MegaRequestPrivate::setScheduledMeeting(MegaScheduledMeeting* scheduledMeeting)
+void MegaRequestPrivate::setScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting)
 {
     mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
 }
@@ -10746,23 +10746,11 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
     waiter->notify();
 }
 
-void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                         const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
-                                         int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
+
+void MegaApiImpl::createScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
-
-    std::unique_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance(emailsDisabled));
-    std::unique_ptr<MegaScheduledRules> rules;
-    if (MegaScheduledRules::isValidFreq(freq))
-    {
-        rules.reset(MegaScheduledRules::createInstance(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay));
-    }
-    std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, callid, parentCallid, INVALID_HANDLE, cancelled, timezone, startDate,
-                                                                                       endDate, title, description, attributes, overrides, flags.get(), rules.get()));
-    request->setScheduledMeeting(schedMeeting.get());
+    request->setScheduledMeeting(scheduledMeeting);
     requestQueue.push(request);
     waiter->notify();
 }
