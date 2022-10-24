@@ -9069,7 +9069,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     assert(schedMeeting);
     handle chatid = schedMeeting->chatid();
     handle schedId = schedMeeting->schedId();
-    handle parentCallid = schedMeeting->parentCallid();
+    handle parentSchedId = schedMeeting->parentSchedId();
 
     cmd("mcsmp");
 
@@ -9083,7 +9083,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 
     // optional params
     if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
-    if (!ISUNDEF(parentCallid))                     { arg("p", (byte*)&parentCallid, MegaClient::CHATHANDLE); } // parent meeting ID
+    if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
     if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
     if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
     if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
@@ -9172,7 +9172,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setSchedId(schedId);
 
-    if ((mScheduledMeeting->parentCallid() == UNDEF || mScheduledMeeting->overrides().empty())
+    if ((mScheduledMeeting->parentSchedId() == UNDEF || mScheduledMeeting->overrides().empty())
             && chat->getSchedMeetingById(mScheduledMeeting->schedId()))
     {
         // if we are not overwritting an existing scheduled meeting, it should not exist

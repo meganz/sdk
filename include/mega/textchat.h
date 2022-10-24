@@ -113,7 +113,7 @@ public:
     bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm);
     bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool removeSchedMeeting(handle schedId);
-    unsigned int removeChildSchedMeetings(handle parentCallid);
+    unsigned int removeChildSchedMeetings(handle parentSchedId);
     bool updateSchedMeeting(const ScheduledMeeting *sm);
     ScheduledMeeting* getSchedMeetingById(handle id);
 };

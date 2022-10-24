@@ -4154,7 +4154,7 @@ public:
                                     const char* title,
                                     const char* description,
                                     MegaHandle schedId = INVALID_HANDLE,
-                                    MegaHandle parentCallid = INVALID_HANDLE,
+                                    MegaHandle parentSchedId = INVALID_HANDLE,
                                     MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
@@ -4178,14 +4178,14 @@ public:
     void setEndDateTime(const char* endDateTime);
     void setStartDateTime(const char* startDateTime);
     void setTimezone(const char* timezone);
-    void setParentCallid(MegaHandle parentCallid);
+    void setParentSchedId(MegaHandle parentSchedId);
     void setSchedId(MegaHandle schedId);
     void setChatid(MegaHandle chatid);
     void setOrganizerUserid(MegaHandle userid);
 
     MegaHandle chatid() const;
     MegaHandle schedId() const;
-    MegaHandle parentCallid() const;
+    MegaHandle parentSchedId() const;
     MegaHandle organizerUserid() const;
     const char* timezone() const;
     const char* startDateTime() const;
@@ -4207,7 +4207,7 @@ private:
     MegaHandle mSchedId;
 
     // parent scheduled meeting handle
-    MegaHandle mParentCallid;
+    MegaHandle mParentSchedid;
 
     // organizer user handle
     handle mOrganizerUserId;

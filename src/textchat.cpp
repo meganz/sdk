@@ -618,13 +618,13 @@ bool TextChat::removeSchedMeeting(handle schedId)
     return true;
 }
 
-unsigned int TextChat::removeChildSchedMeetings(handle parentCallid)
+unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
-    // remove all scheduled meeting whose parent is parentCallid
+    // remove all scheduled meeting whose parent is parentSchedId
     unsigned int count = 0;
     for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
     {
-        if (it->second->parentCallid() == parentCallid)
+        if (it->second->parentSchedId() == parentSchedId)
         {
             removeSchedMeeting(it->second->schedId());
             count++;

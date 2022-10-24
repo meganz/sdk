@@ -841,7 +841,7 @@ public:
     ScheduledMeeting();
     ScheduledMeeting(handle chatid, const string& timezone, const string& startDateTime, const string& endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
-                     handle parentCallid = UNDEF, int cancelled = -1, const string& attributes = std::string(),
+                     handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
                      const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
@@ -859,7 +859,7 @@ public:
     void setEndDateTime(const string& endDateTime);
     void setStartDateTime(const string& startDateTime);
     void setTimezone(const string& timezone);
-    void setParentCallid(handle parentCallid);
+    void setParentSchedId(handle parentSchedId);
     void setSchedId(handle schedId);
     void setChatid(handle chatid);
     void setOrganizerUserid(handle userid);
@@ -868,7 +868,7 @@ public:
     handle chatid() const;
     handle organizerUserid() const;
     handle schedId() const;
-    handle parentCallid() const;
+    handle parentSchedId() const;
     const std::string &timezone() const;
     const std::string &startDateTime() const;
     const std::string &endDateTime() const;
@@ -899,7 +899,7 @@ private:
     handle mSchedId;
 
     // parent scheduled meeting handle
-    handle mParentCallid;
+    handle mParentSchedid;
 
     // timeZone (B64 encoded)
     std::string mTimezone;

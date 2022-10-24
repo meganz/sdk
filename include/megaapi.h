@@ -2386,8 +2386,8 @@ public:
      * @brief Creates a new instance of MegaScheduledMeeting
      *
      * @param chatid        : chat handle
-     * @param schedId        : scheduled meeting handle
-     * @param parentCallid  : parent scheduled meeting handle
+     * @param schedId       : scheduled meeting handle
+     * @param parentSchedId : parent scheduled meeting handle
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
      * @param startDateTime : start dateTime (format: 20220726T133000)
@@ -2401,7 +2401,7 @@ public:
      *
      * @return A pointer to the superclass of the private object
      */
-    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle schedId, MegaHandle parentCallid, MegaHandle organizerUserId,
+    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
                                                      int cancelled, const char* timezone, const char* startDateTime,
                                                      const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                      const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
@@ -2452,7 +2452,7 @@ public:
      *
      * @return MegaHandle that identifies the parent scheduled meeting
      */
-    virtual MegaHandle parentCallid() const;
+    virtual MegaHandle parentSchedId() const;
 
     /**
      * @brief Returns the time zone B64 encoded
