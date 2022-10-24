@@ -23496,7 +23496,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
         {
             handle chatid = request->getNodeHandle();
-            handle schedMeetingId = request->getParentHandle();
+            handle schedId = request->getParentHandle();
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -23505,7 +23505,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedMeetingId, [request, this] (Error e)
+            client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedId, [request, this] (Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
@@ -23514,7 +23514,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING:
         {
             handle chatid = request->getNodeHandle();
-            handle schedMeetingId = request->getParentHandle();
+            handle schedId = request->getParentHandle();
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -23523,7 +23523,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedMeetingId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
                 if (result && !result->empty())
                 {

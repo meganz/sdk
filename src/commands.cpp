@@ -9192,7 +9192,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 }
 
 CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingRemoveCompletion completion)
-    : mChatId(chatid), mSchedMeetingId(schedMeeting), mCompletion(completion)
+    : mChatId(chatid), mSchedId(schedMeeting), mCompletion(completion)
 {
     cmd("mcsmr");
     arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); // scheduled meeting handle
@@ -9219,9 +9219,9 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 
         // remove scheduled meeting and all it's children
         TextChat* chat = it->second;
-        if (chat->removeSchedMeeting(mSchedMeetingId))
+        if (chat->removeSchedMeeting(mSchedId))
         {
-            chat->removeChildSchedMeetings(mSchedMeetingId);
+            chat->removeChildSchedMeetings(mSchedId);
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
@@ -9235,7 +9235,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 }
 
 CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
-    : mChatId(chatid), mSchedMeetingId(schedMeeting), mCompletion(completion)
+    : mChatId(chatid), mSchedId(schedMeeting), mCompletion(completion)
 {
     cmd("mcsmf");
     if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
