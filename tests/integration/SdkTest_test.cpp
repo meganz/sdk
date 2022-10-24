@@ -404,10 +404,12 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 attributeValue = request->getName() ? request->getName() : "";
             }
+#ifdef ENABLE_SYNC
             else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
             {
                 mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
             }
+#endif // ENABLE_SYNC
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 attributeValue = request->getText() ? request->getText() : "";
@@ -5771,7 +5773,6 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
-#endif
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
@@ -5798,6 +5799,7 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
     EXPECT_NE(n, nullptr);
 }
+#endif
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()
 {

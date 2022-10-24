@@ -1070,7 +1070,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     string ext;
     if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
-        mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
+        mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess.get());
 
         // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
         uint32_t dummykey[4];
@@ -5286,7 +5286,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
-    fsAccess = new MegaFileSystemAccess();
+    fsAccess.reset(new MegaFileSystemAccess());
 
     dbAccess = nullptr;
     if (basePath)
