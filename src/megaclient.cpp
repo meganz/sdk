@@ -4777,6 +4777,14 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+                            if (!loggedinfolderlink())
+                            {
+                                // historic user alerts are not supported for public folders
+                                // now that we have fetched everything and caught up actionpackets since that state,
+                                // our next sc request can be for useralerts
+                                useralerts.begincatchup = true;
+                            }
                         }
                         else
                         {
@@ -4839,14 +4847,6 @@ bool MegaClient::procsc()
                         for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
                         {
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
-                        }
-
-                        if (!loggedinfolderlink())
-                        {
-                            // historic user alerts are not supported for public folders
-                            // now that we have loaded cached state, and caught up actionpackets since that state
-                            // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                            useralerts.begincatchup = true;
                         }
                     }
 
