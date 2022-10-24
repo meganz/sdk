@@ -18603,7 +18603,7 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
     return childrenList;
 }
 
-node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type)
+node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
 {
     if (!mTable)
     {
@@ -18611,9 +18611,14 @@ node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable);
+    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable, cancelToken);
 
-    return processUnserializedNodes(nodesFromTable);
+    if (cancelToken.isCancelled())
+    {
+        return  node_vector();
+    }
+
+    return processUnserializedNodes(nodesFromTable, NodeHandle(), cancelToken);
 }
 
 node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)

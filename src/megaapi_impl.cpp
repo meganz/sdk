@@ -17715,7 +17715,7 @@ void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order)
+MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE || type < nodetype_t::FILENODE || type > nodetype_t::FOLDERNODE)
     {
@@ -17728,7 +17728,7 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order)
     Node *parent = client->nodebyhandle(p->getHandle());
     if (parent && parent->type != FILENODE)
     {
-        childrenNodes = client->mNodeManager.getChildrenFromType(parent, static_cast<nodetype_t>(type));
+        childrenNodes = client->mNodeManager.getChildrenFromType(parent, static_cast<nodetype_t>(type), cancelToken);
 
         if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
         {

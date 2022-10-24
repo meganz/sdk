@@ -296,7 +296,7 @@ public:
     node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     // read children from type (folder or file) from DB and load them in memory
-    node_vector getChildrenFromType(const Node *parent, nodetype_t type);
+    node_vector getChildrenFromType(const Node *parent, nodetype_t type, CancelToken cancelToken);
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     // Note: nodes are read from DB and loaded in memory

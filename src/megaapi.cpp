@@ -4219,9 +4219,9 @@ void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     pImpl->getFolderInfo(node, listener);
 }
 
-MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order)
+MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
 {
-    return pImpl->getChildrenFromType(p, type, order);
+    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)

@@ -2674,7 +2674,7 @@ class MegaApiImpl : public MegaApp
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
