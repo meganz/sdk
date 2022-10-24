@@ -9101,22 +9101,22 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 
         if (rules->isValidFreq(rules->freq()))
         {
-            arg("FREQ", rules->freqToString()); // required
+            arg("f", rules->freqToString()); // required
         }
 
         if (rules->isValidInterval(rules->interval()))
         {
-            arg("INTERVAL", rules->interval());
+            arg("i", rules->interval());
         }
 
         if (!rules->until().empty())
         {
-            arg("UNTIL", rules->until().c_str());
+            arg("u", rules->until().c_str());
         }
 
         if (rules->byWeekDay() && !rules->byWeekDay()->empty())
         {
-            beginarray("BYWEEKDAY");
+            beginarray("wd");
             for (auto i: *rules->byWeekDay())
             {
                 element(static_cast<int>(i));
@@ -9126,7 +9126,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 
         if (rules->byMonthDay() && !rules->byMonthDay()->empty())
         {
-            beginarray("BYMONTHDAY");
+            beginarray("md");
             for (auto i: *rules->byMonthDay())
             {
                 element(static_cast<int>(i));
@@ -9136,7 +9136,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 
         if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
         {
-            beginarray("BYMONTHWEEKDAY");
+            beginarray("mwd");
             for (auto i: *rules->byMonthWeekDay())
             {
                 beginarray();

@@ -9811,19 +9811,19 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                         for (;;)
                         {
                             nameid id = auxJson->getnameid();
-                            if (matchid("FREQ", id))
+                            if (matchid("f", id))
                             {
                                 auxJson->storeobject(&freq);
                             }
-                            else if (matchid("INTERVAL", id))
+                            else if (matchid("i", id))
                             {
                                 interval = static_cast<int>(auxJson->getint());
                             }
-                            else if (matchid("UNTIL", id))
+                            else if (matchid("u", id))
                             {
                                 auxJson->storeobject(&until);
                             }
-                            else if (matchid("BYWEEKDAY", id))
+                            else if (matchid("wd", id))
                             {
                                 if (auxJson->enterarray())
                                 {
@@ -9834,7 +9834,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     auxJson->leavearray();
                                 }
                             }
-                            else if (matchid("BYMONTHDAY", id))
+                            else if (matchid("md", id))
                             {
                                 if (auxJson->enterarray())
                                 {
@@ -9845,7 +9845,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     auxJson->leavearray();
                                 }
                             }
-                            else if (matchid("BYMONTHWEEKDAY", id))
+                            else if (matchid("mwd", id))
                             {
                                 if (auxJson->enterarray())
                                 {
