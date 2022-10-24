@@ -4259,7 +4259,7 @@ public:
     // returns the first MegaScheduledMeeting, whose SchedMeetingId matches with h
     // note that SchedMeetingId is globally unique for all chats (in case of scheduled meetings), but this class
     // can be used to store scheduled meetings occurrences (it can contains multiple items with the same SchedMeetingId)
-    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) const override;
+    MegaScheduledMeeting* getBySchedId(MegaHandle h) const override;
 
     // setters
     void insert(MegaScheduledMeeting *sm) override;

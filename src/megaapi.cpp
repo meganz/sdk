@@ -7042,7 +7042,7 @@ MegaScheduledMeetingList::~MegaScheduledMeetingList()
 MegaScheduledMeetingList* MegaScheduledMeetingList::copy() const                        { return NULL; }
 unsigned long MegaScheduledMeetingList::size() const                                    { return 0; }
 MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const                 { return NULL; }
-MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) const   { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedId(MegaHandle) const          { return NULL; }
 void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                            {}
 void MegaScheduledMeetingList::clear()                                                  {}
 

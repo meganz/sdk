@@ -2712,7 +2712,7 @@ public:
     // getters
     virtual unsigned long size() const;
     virtual MegaScheduledMeeting* at(unsigned long i) const;
-    virtual MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) const;
+    virtual MegaScheduledMeeting* getBySchedId(MegaHandle h) const;
 
     // setters
     virtual void insert(MegaScheduledMeeting* sm);

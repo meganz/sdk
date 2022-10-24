@@ -33620,7 +33620,7 @@ MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i) const
     return mList.at(i).get();
 }
 
-MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedMeetingId(handle h) const
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedId(handle h) const
 {
     auto it = std::find_if(mList.begin(),
                    mList.end(),
