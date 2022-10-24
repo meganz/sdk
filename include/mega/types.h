@@ -348,6 +348,16 @@ typedef enum {
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
+
+// MimeType_t maps to file extensionse declared at Node
+typedef enum { MIME_TYPE_UNKNOWN    = 0,
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+             } MimeType_t;
+
+
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
