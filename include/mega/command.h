@@ -1538,7 +1538,7 @@ typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
 class MEGA_API CommandScheduledMeetingRemove : public Command
 {
     handle mChatId;
-    handle mSchedMeetingId;
+    handle mSchedId;
     CommandScheduledMeetingRemoveCompletion mCompletion;
 
 public:
@@ -1550,7 +1550,7 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetch : public Command
 {
     handle mChatId;
-    handle mSchedMeetingId;
+    handle mSchedId;
     CommandScheduledMeetingFetchCompletion mCompletion;
 
 public:

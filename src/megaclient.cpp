@@ -7144,7 +7144,7 @@ void MegaClient::sc_chatflags()
 void MegaClient::sc_delscheduledmeetings()
 {
     bool done = false;
-    handle schedMeetingId = UNDEF;
+    handle schedId = UNDEF;
     handle i = UNDEF;
     handle ou = UNDEF;
 
@@ -7153,7 +7153,7 @@ void MegaClient::sc_delscheduledmeetings()
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i','d'):
-                schedMeetingId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
             case 'i':
@@ -7170,16 +7170,16 @@ void MegaClient::sc_delscheduledmeetings()
                 for (auto auxit = chats.begin(); auxit != chats.end(); auxit++)
                 {
                     TextChat* chat = auxit->second;
-                    if (chat->removeSchedMeeting(schedMeetingId))
+                    if (chat->removeSchedMeeting(schedId))
                     {
-                        chat->removeChildSchedMeetings(schedMeetingId);
+                        chat->removeChildSchedMeetings(schedId);
                         notifychat(chat);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
                                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
                     }
                     else
                     {
-                        LOG_warn << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] didn't exists";
+                        LOG_warn << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "] didn't exists";
                     }
                     break;
                 }
@@ -9701,14 +9701,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxMeet->setChatid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
-                case MAKENAMEID2('i', 'd'):  // scheduled meeting id (callid)
+                case MAKENAMEID2('i', 'd'):  // scheduled meeting id
                 {
-                    auxMeet->setCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setSchedId(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID1('p'):  // parent callid
                 {
-                    auxMeet->setParentCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setParentSchedId(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID1('u'): // organizer user Handle

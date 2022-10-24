@@ -1112,8 +1112,8 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 ScheduledMeeting::ScheduledMeeting()
     : mChatid(UNDEF),
       mOrganizerUserId(UNDEF),
-      mCallid(UNDEF),
-      mParentCallid(UNDEF),
+      mSchedId(UNDEF),
+      mParentSchedid(UNDEF),
       mTimezone(std::string()),
       mStartDateTime(std::string()),
       mEndDateTime(std::string()),
@@ -1128,13 +1128,13 @@ ScheduledMeeting::ScheduledMeeting()
 }
 
 ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, const std::string &startDateTime, const std::string &endDateTime,
-                                const std::string &title, const std::string &description, handle organizerUserId, handle callid,
-                                handle parentCallid, int cancelled, const std::string &attributes,
+                                const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
+                                handle parentSchedId, int cancelled, const std::string &attributes,
                                 const std::string &overrides, ScheduledFlags* flags, ScheduledRules* rules)
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
-      mCallid(callid),
-      mParentCallid(parentCallid),
+      mSchedId(schedId),
+      mParentSchedid(parentSchedId),
       mTimezone(timezone),
       mStartDateTime(startDateTime ),
       mEndDateTime(endDateTime),
@@ -1151,8 +1151,8 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, c
 ScheduledMeeting::ScheduledMeeting(const ScheduledMeeting* scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
       mOrganizerUserId(scheduledMeeting->organizerUserid()),
-      mCallid(scheduledMeeting->callid()),
-      mParentCallid(scheduledMeeting->parentCallid()),
+      mSchedId(scheduledMeeting->schedId()),
+      mParentSchedid(scheduledMeeting->parentSchedId()),
       mTimezone(scheduledMeeting->timezone()),
       mStartDateTime(scheduledMeeting->startDateTime()),
       mEndDateTime(scheduledMeeting->endDateTime()),
@@ -1189,8 +1189,8 @@ void ScheduledMeeting::setFlags(const mega::ScheduledFlags *flags)
 
 void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
 void ScheduledMeeting::setOrganizerUserid(handle userid)                { mOrganizerUserId = userid; }
-void ScheduledMeeting::setCallid(handle callid)                         { mCallid = callid; }
-void ScheduledMeeting::setParentCallid(handle parentCallid)             { mParentCallid = parentCallid; }
+void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
+void ScheduledMeeting::setParentSchedId(handle parentSchedId)           { mParentSchedid = parentSchedId; }
 void ScheduledMeeting::setTimezone(const string& timezone)              { mTimezone = timezone; }
 void ScheduledMeeting::setStartDateTime(const string& startDateTime)    { mStartDateTime = startDateTime; }
 void ScheduledMeeting::setEndDateTime(const string& endDateTime)        { mEndDateTime = endDateTime; }
@@ -1202,8 +1202,8 @@ void ScheduledMeeting::setCancelled(int cancelled)                      { mCance
 
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
-handle ScheduledMeeting::callid() const                                 { return mCallid; }
-handle ScheduledMeeting::parentCallid() const                           { return mParentCallid; }
+handle ScheduledMeeting::schedId() const                                { return mSchedId; }
+handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedid; }
 const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
 const string& ScheduledMeeting::startDateTime() const                   { return mStartDateTime; }
 const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }
@@ -1219,7 +1219,7 @@ bool ScheduledMeeting::isValid() const
 {
     return mChatid != UNDEF
             && mOrganizerUserId != UNDEF
-            && mCallid  != UNDEF
+            && mSchedId != UNDEF
             && !mTimezone.empty()
             && !mStartDateTime.empty()
             && !mEndDateTime.empty()
@@ -1231,7 +1231,7 @@ bool ScheduledMeeting::isValid() const
 bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
 {
     if (!sm)                                            { return false; }
-    if (parentCallid() != sm->parentCallid())           { return false; }
+    if (parentSchedId() != sm->parentSchedId())         { return false; }
     if (mTimezone.compare(sm->timezone()))              { return false; }
     if (mStartDateTime.compare(sm->startDateTime()))	{ return false; }
     if (mEndDateTime.compare(sm->endDateTime()))		{ return false; }
@@ -1258,8 +1258,8 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
 
 bool ScheduledMeeting::serialize(string& out) const
 {
-    bool hasCallid = callid() != UNDEF;
-    bool hasParentCallid = parentCallid() != UNDEF;
+    bool hasSchedId = schedId() != UNDEF;
+    bool hasParentSchedId = parentSchedId() != UNDEF;
     bool hasAttributes = !attributes().empty();
     bool hasOverrides = !overrides().empty();
     bool hasCancelled = cancelled() >= 0;
@@ -1274,13 +1274,13 @@ bool ScheduledMeeting::serialize(string& out) const
     w.serializestring(mEndDateTime);
     w.serializestring(mTitle);
     w.serializestring(mDescription);
-    w.serializeexpansionflags(hasCallid, hasParentCallid, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
+    w.serializeexpansionflags(hasSchedId, hasParentSchedId, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
 
-    if (hasCallid)       { w.serializehandle(callid());}
-    if (hasParentCallid) { w.serializehandle(parentCallid());}
-    if (hasAttributes)   { w.serializestring(mAttributes); }
-    if (hasOverrides)    { w.serializestring(mOverrides); }
-    if (hasCancelled)    { w.serializei32(cancelled()); }
+    if (hasSchedId)       { w.serializehandle(schedId());}
+    if (hasParentSchedId) { w.serializehandle(parentSchedId());}
+    if (hasAttributes)    { w.serializestring(mAttributes); }
+    if (hasOverrides)     { w.serializestring(mOverrides); }
+    if (hasCancelled)     { w.serializei32(cancelled()); }
     if (hasflags)
     {
         std::string flagsStr;
@@ -1299,8 +1299,8 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
     if (in.empty())  { return nullptr; }
     handle chatid = UNDEF;
     handle organizerUserid = UNDEF;
-    handle callid = UNDEF;
-    handle parentCallid = UNDEF;
+    handle schedId = UNDEF;
+    handle parentSchedId = UNDEF;
     std::string timezone;
     std::string startDateTime;
     std::string endDateTime;
@@ -1325,16 +1325,16 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
     w.unserializestring(description);
     w.unserializeexpansionflags(expansions, 7);
 
-    bool hasCallid          = expansions[0];
-    bool hasParentCallid    = expansions[1];
+    bool hasSchedId         = expansions[0];
+    bool hasParentSchedId   = expansions[1];
     bool hasAttributes      = expansions[2];
     bool hasOverrides       = expansions[3];
     bool hasCancelled       = expansions[4];
     bool hasflags           = expansions[5];
     bool hasRules           = expansions[6];
 
-    if (hasCallid)          { w.unserializehandle(callid); }
-    if (hasParentCallid)    { w.unserializehandle(parentCallid); }
+    if (hasSchedId)         { w.unserializehandle(schedId); }
+    if (hasParentSchedId)   { w.unserializehandle(parentSchedId); }
     if (hasAttributes)      { w.unserializestring(attributes); }
     if (hasOverrides)       { w.unserializestring(overrides); }
     if (hasCancelled)       { w.unserializei32(cancelled); }
@@ -1356,8 +1356,8 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
 
     return new ScheduledMeeting(chatid, timezone, startDateTime, endDateTime,
                                 title, description, organizerUserid,
-                                hasCallid ? callid : UNDEF,
-                                hasParentCallid ? parentCallid : UNDEF,
+                                hasSchedId ? schedId : UNDEF,
+                                hasParentSchedId ? parentSchedId : UNDEF,
                                 hasCancelled ? cancelled : -1,
                                 attributes,
                                 overrides,

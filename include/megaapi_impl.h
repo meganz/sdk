@@ -2962,8 +2962,8 @@ class MegaApiImpl : public MegaApp
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
         void createScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
-        void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
-        void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
+        void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, int count, MegaRequestListener* listener = NULL);
 #endif
 
@@ -4153,8 +4153,8 @@ public:
                                     const char* endDateTime,
                                     const char* title,
                                     const char* description,
-                                    MegaHandle callid = INVALID_HANDLE,
-                                    MegaHandle parentCallid = INVALID_HANDLE,
+                                    MegaHandle schedId = INVALID_HANDLE,
+                                    MegaHandle parentSchedId = INVALID_HANDLE,
                                     MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
@@ -4178,14 +4178,14 @@ public:
     void setEndDateTime(const char* endDateTime);
     void setStartDateTime(const char* startDateTime);
     void setTimezone(const char* timezone);
-    void setParentCallid(MegaHandle parentCallid);
-    void setCallid(MegaHandle callid);
+    void setParentSchedId(MegaHandle parentSchedId);
+    void setSchedId(MegaHandle schedId);
     void setChatid(MegaHandle chatid);
     void setOrganizerUserid(MegaHandle userid);
 
     MegaHandle chatid() const;
-    MegaHandle callid() const;
-    MegaHandle parentCallid() const;
+    MegaHandle schedId() const;
+    MegaHandle parentSchedId() const;
     MegaHandle organizerUserid() const;
     const char* timezone() const;
     const char* startDateTime() const;
@@ -4204,10 +4204,10 @@ private:
     MegaHandle mChatid;
 
     // scheduled meeting handle
-    MegaHandle mCallid;
+    MegaHandle mSchedId;
 
     // parent scheduled meeting handle
-    MegaHandle mParentCallid;
+    MegaHandle mParentSchedid;
 
     // organizer user handle
     handle mOrganizerUserId;
@@ -4256,10 +4256,10 @@ public:
     unsigned long size() const override;
     MegaScheduledMeeting* at(unsigned long i) const override;
 
-    // returns the first MegaScheduledMeeting, whose SchedMeetingId matches with h
-    // note that SchedMeetingId is globally unique for all chats (in case of scheduled meetings), but this class
-    // can be used to store scheduled meetings occurrences (it can contains multiple items with the same SchedMeetingId)
-    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) const override;
+    // returns the first MegaScheduledMeeting, whose schedId matches with h
+    // note that schedId is globally unique for all chats (in case of scheduled meetings), but this class
+    // can be used to store scheduled meetings occurrences (it can contains multiple items with the same schedId)
+    MegaScheduledMeeting* getBySchedId(MegaHandle h) const override;
 
     // setters
     void insert(MegaScheduledMeeting *sm) override;

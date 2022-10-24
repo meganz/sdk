@@ -563,7 +563,7 @@ bool TextChat::isFlagSet(uint8_t offset) const
 
 void TextChat::addSchedMeetingOccurrence(const ScheduledMeeting* sm)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->callid(), std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::unique_ptr<ScheduledMeeting>(sm->copy()));
 }
 
 void TextChat::clearSchedMeetingOccurrences()
@@ -589,44 +589,44 @@ bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
         return false;
     }
 
-    handle h = sm->callid();
-    if (mScheduledMeetings.find(h) != mScheduledMeetings.end())
+    handle schedId = sm->schedId();
+    if (mScheduledMeetings.find(schedId) != mScheduledMeetings.end())
     {
-        LOG_err << "addSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(h) << " already exits";
+        LOG_err << "addSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(schedId) << " already exits";
         return false;
     }
 
-    mScheduledMeetings.emplace(h, std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetings.emplace(schedId, std::unique_ptr<ScheduledMeeting>(sm->copy()));
     if (notify)
     {
-        mSchedMeetingsChanged.emplace_back(h);
+        mSchedMeetingsChanged.emplace_back(schedId);
     }
     return true;
 }
 
-bool TextChat::removeSchedMeeting(handle callid)
+bool TextChat::removeSchedMeeting(handle schedId)
 {
-    assert(callid != UNDEF);
-    if (mScheduledMeetings.find(callid) == mScheduledMeetings.end())
+    assert(schedId != UNDEF);
+    if (mScheduledMeetings.find(schedId) == mScheduledMeetings.end())
     {
-        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(callid) << " no longer exists";
+        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(schedId) << " no longer exists";
         return false;
     }
 
-    mScheduledMeetings.erase(callid);
-    mSchedMeetingsChanged.emplace_back(callid);
+    mScheduledMeetings.erase(schedId);
+    mSchedMeetingsChanged.emplace_back(schedId);
     return true;
 }
 
-unsigned int TextChat::removeChildSchedMeetings(handle parentCallid)
+unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
-    // remove all scheduled meeting whose parent is parentCallid
+    // remove all scheduled meeting whose parent is parentSchedId
     unsigned int count = 0;
     for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
     {
-        if (it->second->parentCallid() == parentCallid)
+        if (it->second->parentSchedId() == parentSchedId)
         {
-            removeSchedMeeting(it->second->callid());
+            removeSchedMeeting(it->second->schedId());
             count++;
         }
     }
@@ -637,17 +637,17 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentCallid)
 bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
 {
     assert(sm);
-    auto it = mScheduledMeetings.find(sm->callid());
+    auto it = mScheduledMeetings.find(sm->schedId());
     if (it == mScheduledMeetings.end())
     {
-        LOG_err << "updateSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " no longer exists";
+        LOG_err << "updateSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->schedId()) << " no longer exists";
         return false;
     }
 
     // compare current scheduled meeting with received from API
     if (!sm->equalTo(it->second.get()))
     {
-        mSchedMeetingsChanged.emplace_back(sm->callid());
+        mSchedMeetingsChanged.emplace_back(sm->schedId());
         it->second.reset(sm->copy());
     }
 
@@ -663,7 +663,7 @@ bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm)
         return false;
     }
 
-    return mScheduledMeetings.find(sm->callid()) == mScheduledMeetings.end()
+    return mScheduledMeetings.find(sm->schedId()) == mScheduledMeetings.end()
             ? addSchedMeeting(sm)
             : updateSchedMeeting(sm);
 }

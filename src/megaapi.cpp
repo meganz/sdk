@@ -5179,14 +5179,14 @@ void MegaApi::createScheduledMeeting(const MegaScheduledMeeting* scheduledMeetin
    pImpl->createScheduledMeeting(scheduledMeeting, listener);
 }
 
-void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener)
+void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
 {
-    pImpl->removeScheduledMeeting(chatid, schedMeetingId, listener);
+    pImpl->removeScheduledMeeting(chatid, schedId, listener);
 }
 
-void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener)
+void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
 {
-    pImpl->fetchScheduledMeeting(chatid, schedMeetingId, listener);
+    pImpl->fetchScheduledMeeting(chatid, schedId, listener);
 }
 
 void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
@@ -6951,22 +6951,22 @@ long long MegaAchievementsDetails::currentTransferReferrals()
 }
 
 /* Class MegaScheduledMeeting */
-MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid, MegaHandle organizerUserId,
+MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
                                                                    int cancelled, const char* timezone, const char* startDateTime,
                                                                    const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                                    const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
 {
     return new MegaScheduledMeetingPrivate(chatid, timezone, startDateTime, endDateTime, title,
-                                               description, callid, parentCallid, organizerUserId, cancelled,
+                                               description, schedId, parentSchedId, organizerUserId, cancelled,
                                                attributes, overrides, flags, rules);
 }
 
 MegaScheduledMeeting::~MegaScheduledMeeting()                           {}
 int MegaScheduledMeeting::cancelled() const                             { return 0; }
 MegaHandle MegaScheduledMeeting::chatid() const                         { return INVALID_HANDLE; }
-MegaHandle MegaScheduledMeeting::callid() const                         { return INVALID_HANDLE; }
+MegaHandle MegaScheduledMeeting::schedId() const                        { return INVALID_HANDLE; }
 MegaHandle MegaScheduledMeeting::organizerUserid() const                { return INVALID_HANDLE; }
-MegaHandle MegaScheduledMeeting::parentCallid() const                   { return INVALID_HANDLE; }
+MegaHandle MegaScheduledMeeting::parentSchedId() const                  { return INVALID_HANDLE; }
 MegaScheduledMeeting* MegaScheduledMeeting::copy() const                { return NULL; }
 const char* MegaScheduledMeeting::timezone() const                      { return NULL; }
 const char* MegaScheduledMeeting::startDateTime() const                 { return NULL; }
@@ -7042,7 +7042,7 @@ MegaScheduledMeetingList::~MegaScheduledMeetingList()
 MegaScheduledMeetingList* MegaScheduledMeetingList::copy() const                        { return NULL; }
 unsigned long MegaScheduledMeetingList::size() const                                    { return 0; }
 MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const                 { return NULL; }
-MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) const   { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedId(MegaHandle) const          { return NULL; }
 void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                            {}
 void MegaScheduledMeetingList::clear()                                                  {}
 
