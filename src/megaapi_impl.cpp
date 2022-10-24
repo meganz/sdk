@@ -10779,6 +10779,7 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* sin
     request->setNodeHandle(chatid);
     request->setName(since);
     request->setEmail(until);
+    request->setAccess(count);
     requestQueue.push(request);
     waiter->notify();
 }
