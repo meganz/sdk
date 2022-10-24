@@ -1402,18 +1402,14 @@ void UserAlerts::add(UserAlert::Base* unb)
                                              begin(np->folderNodeHandles), end(np->folderNodeHandles));
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->ts();
 
-                if (catchupdone)
+                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != op))
                 {
-                    persistAlert(op, CH_ALERT::PERSIST_PUT);
-
-                    if (useralertnotify.empty() || useralertnotify.back() != op)
-                    {
-                        op->setSeen(false);
-                        op->tag = 0;
-                        useralertnotify.push_back(op);
-                        LOG_debug << "Updated user alert added to notify queue";
-                    }
+                    op->setSeen(false);
+                    op->tag = 0;
+                    useralertnotify.push_back(op);
+                    LOG_debug << "Updated user alert added to notify queue";
                 }
+                persistAlert(op, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }
@@ -1433,18 +1429,14 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone)
+                if (catchupdone && useralertnotify.empty() || useralertnotify.back() != od)
                 {
-                    persistAlert(od, CH_ALERT::PERSIST_PUT);
-
-                    if (useralertnotify.empty() || useralertnotify.back() != od)
-                    {
-                        od->setSeen(false);
-                        od->tag = 0;
-                        useralertnotify.push_back(od);
-                        LOG_debug << "Updated user alert added to notify queue";
-                    }
+                    od->setSeen(false);
+                    od->tag = 0;
+                    useralertnotify.push_back(od);
+                    LOG_debug << "Updated user alert added to notify queue";
                 }
+                persistAlert(od, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }
@@ -1464,18 +1456,14 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone)
+                if (catchupdone && useralertnotify.empty() || useralertnotify.back() != od)
                 {
-                    persistAlert(od, CH_ALERT::PERSIST_PUT);
-
-                    if (useralertnotify.empty() || useralertnotify.back() != od)
-                    {
-                        od->setSeen(false);
-                        od->tag = 0;
-                        useralertnotify.push_back(od);
-                        LOG_debug << "Updated user alert added to notify queue";
-                    }
+                    od->setSeen(false);
+                    od->tag = 0;
+                    useralertnotify.push_back(od);
+                    LOG_debug << "Updated user alert added to notify queue";
                 }
+                persistAlert(od, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }
@@ -1493,9 +1481,9 @@ void UserAlerts::add(UserAlert::Base* unb)
                 (*i)->setRelevant(false);
                 if (catchupdone)
                 {
-                    persistAlert(*i, CH_ALERT::PERSIST_PUT);
                     useralertnotify.push_back(*i);
                 }
+                persistAlert(*i, CH_ALERT::PERSIST_PUT);
             }
         }
     }
@@ -1506,10 +1494,20 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     if (catchupdone)
     {
-        persistAlert(unb, CH_ALERT::PERSIST_PUT);
         unb->tag = 0;
         useralertnotify.push_back(unb);
         LOG_debug << "New user alert added to notify queue";
+    }
+
+    if (unb->notified)
+    {
+        // do not persist this alerts
+        // (currently only unserialized alerts have this flag set)
+        unb->notified = false;
+    }
+    else // new alerts, or received via sc50 request
+    {
+        persistAlert(unb, CH_ALERT::PERSIST_PUT);
     }
 }
 
@@ -2259,6 +2257,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
     if (a)
     {
         a->dbid = dbid;
+        a->notified = true; // mark this to _not_ be persisted (because it already is)
         add(a); // takes ownership of a
         return true;
     }
