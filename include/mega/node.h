@@ -309,8 +309,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     bool isAncestor(NodeHandle ancestorHandle) const;
 
-    MimeType_t getMimeType();
-
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
