@@ -58,18 +58,18 @@ struct TextChat : public Cacheable
     bool meeting;     // chat is meeting room
     byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
 
-    // maps a scheduled meeting id (callid) to a scheduled meeting
+    // maps a scheduled meeting id to a scheduled meeting
     // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
-    map<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
+    map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
     // list of scheduled meetings changed
     std::vector<handle> mSchedMeetingsChanged;
 
-    // maps a scheduled meeting id (callid) to a scheduled meeting occurrence
+    // maps a scheduled meeting id to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
-    // a scheduled meeting could have one or multiple ocurrences (unique key: <callid, startdatetime>)
+    // a scheduled meeting could have one or multiple ocurrences (unique key: <schedId, startdatetime>)
     // (check ScheduledMeeting class documentation)
-    multimap<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
+    multimap<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
 
 
 private:        // use setter to modify these members
@@ -112,7 +112,7 @@ public:
     // scheduled meetings
     bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm);
     bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
-    bool removeSchedMeeting(handle callid);
+    bool removeSchedMeeting(handle schedId);
     unsigned int removeChildSchedMeetings(handle parentCallid);
     bool updateSchedMeeting(const ScheduledMeeting *sm);
     ScheduledMeeting* getSchedMeetingById(handle id);

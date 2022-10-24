@@ -9068,7 +9068,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 {
     assert(schedMeeting);
     handle chatid = schedMeeting->chatid();
-    handle callid = schedMeeting->callid();
+    handle schedId = schedMeeting->schedId();
     handle parentCallid = schedMeeting->parentCallid();
 
     cmd("mcsmp");
@@ -9082,7 +9082,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     arg("d", Base64::btoa(schedMeeting->description()).c_str());
 
     // optional params
-    if (!ISUNDEF(callid))                           { arg("id", (byte*)&callid, MegaClient::CHATHANDLE); } // scheduled meeting ID
+    if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
     if (!ISUNDEF(parentCallid))                     { arg("p", (byte*)&parentCallid, MegaClient::CHATHANDLE); } // parent meeting ID
     if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
     if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
@@ -9169,15 +9169,15 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     }
 
     TextChat* chat = it->second;
-    handle schedMeetingId = client->json.gethandle(MegaClient::CHATHANDLE);
-    mScheduledMeeting->setCallid(schedMeetingId);
+    handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
+    mScheduledMeeting->setSchedId(schedId);
 
     if ((mScheduledMeeting->parentCallid() == UNDEF || mScheduledMeeting->overrides().empty())
-            && chat->getSchedMeetingById(mScheduledMeeting->callid()))
+            && chat->getSchedMeetingById(mScheduledMeeting->schedId()))
     {
         // if we are not overwritting an existing scheduled meeting, it should not exist
         assert(false);
-        LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] should not exist";
+        LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "] should not exist";
     }
 
     bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists

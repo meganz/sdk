@@ -9701,9 +9701,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxMeet->setChatid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
-                case MAKENAMEID2('i', 'd'):  // scheduled meeting id (callid)
+                case MAKENAMEID2('i', 'd'):  // scheduled meeting id
                 {
-                    auxMeet->setCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setSchedId(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID1('p'):  // parent callid
