@@ -2668,7 +2668,7 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
         int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order);
+        MegaNodeList* getChildren(MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);

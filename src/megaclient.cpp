@@ -16902,9 +16902,9 @@ Node* MegaClient::getovnode(Node *parent, string *name)
     return nullptr;
 }
 
-node_list MegaClient::getChildren(const Node* parent)
+node_list MegaClient::getChildren(const Node* parent, CancelToken cancelToken)
 {
-    return mNodeManager.getChildren(parent);
+    return mNodeManager.getChildren(parent, cancelToken);
 }
 
 size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
@@ -18515,7 +18515,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
     return node;
 }
 
-node_list NodeManager::getChildren(const Node *parent)
+node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 {
     node_list childrenList;
     if (!parent)
@@ -18528,6 +18528,12 @@ node_list NodeManager::getChildren(const Node *parent)
     {
         for (const auto &child : parent->mNodePosition->second.mChildren)
         {
+            if (cancelToken.isCancelled())
+            {
+                childrenList.clear();
+                return childrenList;
+            }
+
             if (child.second)
             {
                 childrenList.push_back(child.second);
@@ -18554,9 +18560,21 @@ node_list NodeManager::getChildren(const Node *parent)
         }
 
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-        mTable->getChildren(parent->nodeHandle(), nodesFromTable);
+        mTable->getChildren(parent->nodeHandle(), nodesFromTable, cancelToken);
+        if (cancelToken.isCancelled())
+        {
+            childrenList.clear();
+            return  childrenList;
+        }
+
         for (auto nodeSerializedIt : nodesFromTable)
         {
+            if (cancelToken.isCancelled())
+            {
+                childrenList.clear();
+                return  childrenList;
+            }
+
             auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
             if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
             {

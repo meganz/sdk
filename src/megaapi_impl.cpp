@@ -17580,7 +17580,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
-MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
+MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
     {
@@ -17594,7 +17594,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     Node *parent = client->nodebyhandle(p->getHandle());
     if (parent && parent->type != FILENODE)
     {
-        node_list nodeList = client->getChildren(parent);
+        node_list nodeList = client->getChildren(parent, cancelToken);
         childrenNodes.reserve(nodeList.size());
         for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {

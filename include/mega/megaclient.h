@@ -293,7 +293,7 @@ public:
     Node *getNodeByHandle(NodeHandle handle);
 
     // read children from DB and load them in memory
-    node_list getChildren(const Node *parent);
+    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     // read children from type (folder or file) from DB and load them in memory
     node_vector getChildrenFromType(const Node *parent, nodetype_t type);
@@ -1185,7 +1185,7 @@ public:
     Node* getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    node_list getChildren(const Node *parent);
+    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
