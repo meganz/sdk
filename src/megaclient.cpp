@@ -17095,62 +17095,6 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
-    // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
-    const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
-    const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
-    const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
-    const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
-    const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
-    const static string webclient_mime_audio_extensions = ".ac3.ec3.3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
-    const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
-
-    bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)
-    {
-        if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
-        {
-#ifdef USE_MEDIAINFO
-            if (mc.mediaFileInfo.mediaCodecsReceived)
-            {
-                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey().data() + FILENODEKEYLENGTH / 2));
-                unsigned videocodec = mp.videocodecid;
-                if (!videocodec && mp.shortformat)
-                {
-                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
-                    if (mp.shortformat < v.size())
-                    {
-                        videocodec = v[mp.shortformat].videocodecid;
-                    }
-                }
-                // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-                if (!videocodec)
-                {
-                    return false; // otherwise double-check by extension
-                }
-            }
-#endif
-        }
-        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
-    }
-
-    bool nodeIsAudio(const Node *n, const string& ext)
-    {
-         return action_bucket_compare::webclient_mime_audio_extensions.find(ext) != string::npos;
-    }
-
-    bool nodeIsDocument(const Node *n, const string& ext)
-    {
-         return action_bucket_compare::webclient_mime_document_extensions.find(ext) != string::npos;
-    }
-
-    bool nodeIsPhoto(const Node *n, const string& ext, bool checkPreview)
-    {
-        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-        return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
-            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
-            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos
-                && (!checkPreview || n->hasfileattribute(GfxProc::PREVIEW)));
-    }
-
     static bool compare(const Node* a, const Node* b, MegaClient* mc)
     {
         if (a->owner != b->owner) return a->owner > b->owner;
@@ -17172,106 +17116,54 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, std::string& ext)
-    {
-        const char* name = n->displayname();
-        const size_t size = strlen(name);
-
-        const char* ptr = name + size;
-        char c;
-
-        for (unsigned i = 0; i < size; ++i)
-        {
-            if (*--ptr == '.')
-            {
-                ext.reserve(i+1);
-
-                unsigned j = 0;
-                for (; j <= i; j++)
-                {
-                    if (*ptr < '.' || *ptr > 'z') return false;
-
-                    c = *(ptr++);
-
-                    // tolower()
-                    if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                    ext.push_back(c);
-                }
-
-                ext.push_back('.');
-                return true;
-            }
-        }
-
-        return false;
-    }
-
 }   // end namespace action_bucket_compare
 
 
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
-    string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
+    if (n->type != FILENODE)
     {
-        bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
-        if (isphoto)
-        {
-            *isphoto = a;
-        }
-        if (a && !isvideo)
-        {
-            return true;
-        }
-        bool b = action_bucket_compare::nodeIsVideo(n, ext, *this);
-        if (isvideo)
-        {
-            *isvideo = b;
-        }
-        return a || b;
+        return false;
     }
-    return false;
+
+    MimeType_t mimeType = n->getMimeType(true); // In case of photo type, check if it has preview
+
+    bool a = mimeType == MimeType_t::MIME_TYPE_PHOTO;
+    if (isphoto)
+    {
+        *isphoto = a;
+    }
+    if (a && !isvideo)
+    {
+        return true;
+    }
+    bool b = mimeType == MimeType_t::MIME_TYPE_VIDEO;
+    if (isvideo)
+    {
+        *isvideo = b;
+    }
+
+    return a || b;
 }
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
-    {
-        return action_bucket_compare::nodeIsVideo(n, ext, *this);
-    }
-    return false;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_VIDEO;
 }
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
-    {
-        return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
-    }
-    return false;
+    return n->getMimeType(checkPreview) == MimeType_t::MIME_TYPE_PHOTO;
 }
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
-    {
-        return action_bucket_compare::nodeIsAudio(n, ext);
-    }
-    return false;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_AUDIO;
 }
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
-    {
-        return action_bucket_compare::nodeIsDocument(n, ext);
-    }
-    return false;
+    return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
 }
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)

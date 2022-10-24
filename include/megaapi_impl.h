@@ -2249,12 +2249,11 @@ class SearchTreeProcessor : public TreeProcessor
     public:
         SearchTreeProcessor(MegaClient *client, const char *search, int type);
         virtual bool processNode(Node* node);
-        bool isValidTypeNode(Node *node);
         virtual ~SearchTreeProcessor() {}
         vector<Node *> &getResults();
 
     protected:
-        int mFileType;
+        MimeType_t mMimeType;
         const char *mSearch;
         vector<Node *> mResults;
         MegaClient *mClient;
