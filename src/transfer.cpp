@@ -1366,7 +1366,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         mDr->drn->client->httpio->updatedownloadspeed(len);
 
         mSlotThroughput.first += static_cast<m_off_t>(len);
-        auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - mSlotStartTime).count();
+        auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - mSlotStartTime).count();
         mSlotThroughput.second = static_cast<m_off_t>(lastDataTime);
         LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
                     << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
@@ -1679,7 +1679,7 @@ bool DirectReadSlot::doio()
             if (req->in.size())
             {
                 unsigned n = static_cast<unsigned>(req->in.size());
-                auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - req->postStartTime).count();
+                auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - req->postStartTime).count();
                 m_off_t chunkTime = static_cast<m_off_t>(lastDataTime) - mThroughput[connectionNum].second;
 
                 unsigned minmin = 16 * 1024;
@@ -2027,7 +2027,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
         mMaxChunkSize -= mMaxChunkSize % RAIDSECTOR;
     }
     mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
-    mSlotStartTime = std::chrono::system_clock::now();
+    mSlotStartTime = std::chrono::steady_clock::now();
 }
 
 DirectReadSlot::~DirectReadSlot()

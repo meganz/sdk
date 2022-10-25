@@ -515,7 +515,7 @@ private:
     /**
     *   @brief Timestamp for DirectReadSlot start. Defined in DirectReadSlot constructor.
     */
-    std::chrono::system_clock::time_point mSlotStartTime;
+    std::chrono::steady_clock::time_point mSlotStartTime;
 
     /**
     *   @brief Unused connection due to slowness.
