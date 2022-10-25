@@ -54,16 +54,6 @@ namespace mega {
 #define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
-static bool matchid(std::string str, nameid id)
-{
-    nameid auxid = 0;
-    for (auto &c: str)
-    {
-        auxid = (auxid << 8) + static_cast<uint64_t>(c);
-    }
-    return id == auxid;
-}
-
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
