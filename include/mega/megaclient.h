@@ -2086,7 +2086,11 @@ public:
 
     void exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion);
 
-    string getPublicLinkSet(handle sid, bool isExportSet) const;
+    string getPublicSetLink(handle sid, bool isExportSet) const;
+
+    error startSetPreview(const char* publicSetLink);
+
+    bool inSetPreviewMode() const { return !!mPreviewSet; }
 
 private:
 
@@ -2123,6 +2127,8 @@ private:
     void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
     map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+
+    unique_ptr<pair<Set, map<handle, SetElement>>> mPreviewSet;
 
 // -------- end of Sets and Elements
 

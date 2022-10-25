@@ -4268,7 +4268,9 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("removeelement"), param("sid"), param("eid")),
-                        sequence(text("export"), param("id"), opt(flag("-disable")))
+                        sequence(text("export"), param("id"), opt(flag("-disable"))),
+                        sequence(text("previewmode"), param("publicsetlink"), opt(flag("-on")), opt(flag("-status"))),
+                        sequence(text("getpubliclink"), param("id"))
                         )));
 
     return autocompleteTemplate = std::move(p);
@@ -10628,6 +10630,36 @@ void exec_setsandelements(autocomplete::ACState& s)
                 else
                     cout << "Error " << msg << " export for Set " << toHandle(sid) << endl;
             });
+    }
+
+    else if (command == "previewmode")
+    {
+        std::cout << s.words.size() << "\n";
+        if (s.words.size() > 2)
+        {
+            string publicSetLink = s.words[2].s.c_str();
+            string buf;
+            bool setPreviewMode = !(s.extractflagparam("-on", buf) || s.extractflag("-on"));
+            buf.clear();
+            bool showActiveMode = !(s.extractflagparam("-status", buf) || s.extractflag("-status"));
+            buf.clear();
+
+            if (!publicSetLink.empty()) std::cout << "Using URL " << publicSetLink << " for request\n";
+            if (setPreviewMode) std::cout << "\tSet preview mode requested\n";
+            if (showActiveMode) std::cout << "\tCurrent mode requested\n";
+        }
+    }
+
+    else if (command == "getpubliclink")
+    {
+        if (s.words.size() == 3)
+        {
+            handle id = 0; // must have remaining bits set to 0
+            Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+            auto url = client->publicLinkURL(false, FILENODE, id, nullptr);
+            std::cout << url << std::endl;
+        }
     }
 
     else // create or update element

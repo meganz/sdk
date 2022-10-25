@@ -5654,6 +5654,16 @@ void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
     return pImpl->disableExportSet(sid, listener);
 }
 
+void MegaApi::startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener)
+{
+    return pImpl->startPublicSetPreview(publicSetLink, listener);
+}
+
+void MegaApi::stopPublicSetPreview(MegaRequestListener* listener)
+{
+    return pImpl->stopPublicSetPreview(listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

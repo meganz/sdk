@@ -9186,7 +9186,7 @@ CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
     : mCompletion(completion)
 {
     cmd("aft");
-    arg("id", (byte*)&id, MegaClient::SETHANDLE);
+    arg("id", (byte*)&id, MegaClient::SETHANDLE); // unrequired while inSetPreviewMode
 }
 
 bool CommandFetchSet::procresult(Result r)

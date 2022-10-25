@@ -19749,6 +19749,9 @@ class MegaApi
          */
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
 
+        void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        void stopPublicSetPreview(MegaRequestListener* listener = nullptr);
+
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;

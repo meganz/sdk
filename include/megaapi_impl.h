@@ -2690,9 +2690,11 @@ class MegaApiImpl : public MegaApp
         MegaSetElementList* getSetElements(MegaHandle sid);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
         bool isExportedSet(MegaHandle sid);
-        void auxExSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        void stopPublicSetPreview(MegaRequestListener* listener = nullptr);
+
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -3574,6 +3576,10 @@ protected:
         void abortPendingActions(error preverror = API_OK);
 
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
+
+        void exportSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+
+        static const string SET_PREVIEW_LOGIN;
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;

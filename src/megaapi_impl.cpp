@@ -19034,7 +19034,7 @@ void MegaApiImpl::sendPendingRequests()
                         assert(updatedSet);
                         assert(updatedSet->publicId() != UNDEF);
 
-                        request->setLink(client->getPublicLinkSet(updatedSet->publicId(), isExportSet).c_str());
+                        request->setLink(client->getPublicSetLink(updatedSet->publicId(), isExportSet).c_str());
 
                         auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
                         fireOnSetsUpdate(updatedSetList);
@@ -19092,7 +19092,15 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->folderaccess(megaFolderLink, password);
+                if (string(login) == SET_PREVIEW_LOGIN)
+                {
+                    auto& megaPublicSetLink = megaFolderLink;
+                    e = client->startSetPreview(megaPublicSetLink);
+                }
+                else
+                {
+                    e = client->folderaccess(megaFolderLink, password);
+                }
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -23953,7 +23961,7 @@ bool MegaApiImpl::isExportedSet(MegaHandle sid)
     return client->isExportedSet(sid);
 }
 
-void MegaApiImpl::auxExSet(MegaHandle sid, bool create, MegaRequestListener* listener)
+void MegaApiImpl::exportSet(MegaHandle sid, bool create, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
     request->setTotalBytes(sid);
@@ -23964,12 +23972,27 @@ void MegaApiImpl::auxExSet(MegaHandle sid, bool create, MegaRequestListener* lis
 
 void MegaApiImpl::exportSet(MegaHandle sid, MegaRequestListener* listener)
 {
-    auxExSet(sid, true, listener);
+    exportSet(sid, true, listener);
 }
 
 void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener)
 {
-    auxExSet(sid, false, listener);
+    exportSet(sid, false, listener);
+}
+
+const string MegaApiImpl::SET_PREVIEW_LOGIN = "SET";
+void MegaApiImpl::startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setLink(publicSetLink);
+    request->setEmail(SET_PREVIEW_LOGIN.c_str());
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::stopPublicSetPreview(MegaRequestListener* listener)
+{
+    throw std::domain_error{"Work In Progress"};
 }
 
 void TreeProcCopy::allocnodes()
