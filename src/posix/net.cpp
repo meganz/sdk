@@ -1965,7 +1965,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
-    req->postStartTime = std::chrono::system_clock::now();
+    req->postStartTime = std::chrono::steady_clock::now();
 
     if (proxyip.size() && req->method != METHOD_NONE)
     {
