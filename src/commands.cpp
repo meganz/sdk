@@ -9311,6 +9311,8 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
 
     // if we have requested scheduled meetings occurrences for a chatid, we need to clear current occurrences cache for that chat, and replace by received ones from API
     // this approach is an API requirement
+
+    // we will clear old sched meetings although there's any malformed sched meeting during the json parse
     LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
     chat->clearSchedMeetingOccurrences();
 

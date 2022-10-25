@@ -7196,7 +7196,7 @@ void MegaClient::sc_delscheduledmeetings()
     }
 }
 
-// process mcsmp action packet
+// process mcsmp action packet (parse just 1 scheduled meeting per AP)
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
@@ -11836,8 +11836,9 @@ void MegaClient::procmcsm(JSON *j)
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     if (j && j->enterarray())
     {
-        if (parseScheduledMeetings(&schedMeetings, false, j) != API_OK) { return; }
+        error err = parseScheduledMeetings(&schedMeetings, false, j);
         j->leavearray();
+        if (err || schedMeetings.empty()) { return; }
     }
 
     for (auto &sm: schedMeetings)
