@@ -83,6 +83,11 @@ namespace mega {
     protected:
         CommonSE() = default;
         CommonSE(handle id, std::string&& key, string_map&& attrs) : mId(id), mKey(move(key)), mAttrs(new string_map(move(attrs))) {}
+        CommonSE(const CommonSE& src) { updateCurrent(src); }
+        CommonSE& operator=(const CommonSE& src) { updateCurrent(src); return *this; }
+        CommonSE(CommonSE&&) = default;
+        CommonSE& operator=(CommonSE&&) = default;
+        ~CommonSE() = default;
 
         handle mId = UNDEF;
         std::string mKey;
@@ -99,6 +104,16 @@ namespace mega {
         std::unique_ptr<std::string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
         static const std::string nameTag; // "n", used for 'name' attribute
+
+    private:
+        void updateCurrent(const CommonSE& src)
+        {
+            this->mId = src.mId;
+            this->mKey = src.mKey;
+            if (src.mAttrs) this->mAttrs.reset(new string_map(*src.mAttrs));
+            this->mTs = src.mTs;
+            if (src.mEncryptedAttrs) this->mEncryptedAttrs.reset(new std::string(*src.mEncryptedAttrs));
+        }
     };
 
     /**
@@ -110,6 +125,11 @@ namespace mega {
         SetElement() = default;
         SetElement(handle sid, handle node, handle elemId, std::string&& key, string_map&& attrs)
             : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
+        SetElement(const SetElement& src) : CommonSE(src) { updateCurrent(src); }
+        SetElement& operator=(const SetElement& src) { CommonSE::operator=(src); updateCurrent(src); return *this; }
+        SetElement(SetElement&&) = default;
+        SetElement& operator=(SetElement&&) = default;
+        ~SetElement() = default;
 
         // return id of the set that owns this Element
         const handle& set() const { return mSetId; }
@@ -179,6 +199,15 @@ namespace mega {
         bool mAttrsClearedByLastUpdate = false;
 
         std::bitset<CH_EL_SIZE> mChanges;
+
+        void updateCurrent(const SetElement& src)
+        {
+            this->mSetId = src.mSetId;
+            this->mNodeHandle = src.mNodeHandle;
+            if (mOrder) this->mOrder.reset(new int64_t(*src.mOrder));
+            this->mAttrsClearedByLastUpdate = src.mAttrsClearedByLastUpdate;
+            this->mChanges = src.mChanges;
+        }
     };
 
     /**
