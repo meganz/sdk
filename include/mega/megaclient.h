@@ -521,7 +521,11 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
+#ifdef ENABLE_SYNC
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+#endif
 
     // delete all versions
     void unlinkversions();

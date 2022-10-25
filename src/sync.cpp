@@ -684,7 +684,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case SHARE_NON_FULL_ACCESS:
         return "Share without full access";
     case LOCAL_FILESYSTEM_MISMATCH:
-        return "Local fingerprint mismatch";
+        return "Local filesystem mismatch";
     case PUT_NODES_ERROR:
         return "Put nodes error";
     case ACTIVE_SYNC_BELOW_PATH:
@@ -2735,11 +2735,17 @@ error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
     auto result = store->write(drivePath, configsForDrive(drivePath));
     store->removeDrive(drivePath);
 
-    unloadSelectedSyncs(
+    auto syncsOnDrive = selectedSyncConfigs(
       [&](SyncConfig& config, Sync*)
       {
           return config.mExternalDrivePath == drivePath;
       });
+
+    for (auto& sc : syncsOnDrive)
+    {
+        SyncConfig removed;
+        unloadSyncByBackupID(sc.mBackupId, removed);
+    }
 
     return result;
 }
@@ -4030,56 +4036,39 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
+{
+    //assert(!onSyncThread());
+
+    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
+}
+
+void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
 {
     assert(onSyncThread());
 
-    for (auto i = mSyncVec.size(); i--; )
+    Error e = API_OK;
+    SyncConfig configCopy;
+    if (unloadSyncByBackupID(backupId, configCopy))
     {
-        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
-        {
-            unloadSyncByIndex(i);
-        }
+        mClient.app->sync_removed(configCopy);
+        mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
     }
-}
+    else
+    {
+        e = API_EEXIST;
+    }
 
-void Syncs::removeSync(handle backupId, std::function<void(Error)> completion)
-{
-    LOG_debug << "Attempting to deregister backup ID: "
-                << toHandle(backupId);
-
-
-    auto removeAfterDeregister = [backupId, completion, this](Error e){
-
-        // Try and remove the sync from memory.
-        SyncConfig configCopy;
-        if (unloadSyncByBackupID(backupId, configCopy))
-        {
-            // Let the app know we've removed a sync.
-            mClient.app->sync_removed(configCopy);
-            e = API_OK;
-
-            // Make sure any config changes are flushed to disk.
-            mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
-        }
-        else
-        {
-            e = API_EEXIST;
-        }
-
-        if (completion) completion(e);
-    };
-
-    // Try and deregister this sync's backup ID first.
-    // If we fail later on, the heartbeat record will auto-restore
-    mClient.reqs.add(
-        new CommandBackupRemove(&mClient,
-                                backupId,
-                                std::move(removeAfterDeregister)));
+    if (clientCompletion)
+    {
+        // this case for if we didn't need to deregister anything
+        queueClient([clientCompletion, e](MegaClient&, TransferDbCommitter&){ clientCompletion(e); });
+    }
 }
 
 bool Syncs::unloadSyncByBackupID(handle id, SyncConfig& configCopy)
 {
+    assert(onSyncThread());
     LOG_debug << "Unloading sync: " << toHandle(id);
 
     for (auto i = mSyncVec.size(); i--; )
@@ -4087,41 +4076,29 @@ bool Syncs::unloadSyncByBackupID(handle id, SyncConfig& configCopy)
         if (mSyncVec[i]->mConfig.mBackupId == id)
         {
             configCopy = mSyncVec[i]->mConfig;
-            unloadSyncByIndex(i);
+
+            if (auto& syncPtr = mSyncVec[i]->mSync)
+            {
+                // if it was running, the app gets a callback saying it's no longer active
+                // SYNC_CANCELED is a special value that means we are shutting it down without changing config
+                syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
+                assert(!syncPtr->statecachetable);
+                syncPtr.reset(); // deletes sync
+            }
+
+            // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
+            // we don't call sync_removed back since the sync is not deleted
+            // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
+
+            lock_guard<mutex> g(mSyncVecMutex);
+            mSyncVec.erase(mSyncVec.begin() + i);
+            mSyncVecIsEmpty = mSyncVec.empty();
             return true;
         }
     }
 
     return false;
 }
-
-void Syncs::unloadSyncByIndex(size_t index)
-{
-    assert(onSyncThread());
-    assert(index < mSyncVec.size());
-
-    if (index < mSyncVec.size())
-    {
-        if (auto& syncPtr = mSyncVec[index]->mSync)
-        {
-            // if it was running, the app gets a callback saying it's no longer active
-            // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-            assert(!syncPtr->statecachetable);
-            syncPtr.reset(); // deletes sync
-        }
-
-        // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
-        // we don't call sync_removed back since the sync is not deleted
-        // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
-
-        mClient.syncactivity = true;
-        lock_guard<mutex> g(mSyncVecMutex);
-        mSyncVec.erase(mSyncVec.begin() + index);
-        mSyncVecIsEmpty = mSyncVec.empty();
-    }
-}
-
 
 void Syncs::prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
 {
@@ -4214,7 +4191,11 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     mSyncConfigStore.reset();
 
     // Remove all syncs from RAM.
-    unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+    for (auto& sc : getConfigs(false))
+    {
+        SyncConfig removed;
+        unloadSyncByBackupID(sc.mBackupId, removed);
+    }
     assert(mSyncVec.empty());
 
     // make sure we didn't resurrect the store, singleton style

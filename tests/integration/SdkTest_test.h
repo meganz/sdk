@@ -230,10 +230,9 @@ public:
         // unique_ptr to custom functions that will be called upon reception of MegaApi callbacks
         onNodesUpdateCompletion_t mOnNodesUpdateCompletion;
 
-#ifdef ENABLE_SYNC
         int lastSyncError;
         handle lastSyncBackupId = 0;
-#endif
+
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
