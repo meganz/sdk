@@ -303,17 +303,6 @@ struct MEGA_API MegaApp
                                         const Notification& notification) { };
 #endif // DEBUG
 
-    //// sync filename filter
-    //virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
-    //{
-    //    return true;
-    //}
-
-    //virtual bool sync_syncable(Sync*, const char*, LocalPath&)
-    //{
-    //    return true;
-    //}
-
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 

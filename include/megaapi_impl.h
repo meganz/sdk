@@ -2935,7 +2935,6 @@ class MegaApiImpl : public MegaApp
         void rescanSync(MegaHandle backupId);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaRequestListener *listener=NULL);
         void setLegacyExcludedNames(vector<string> *excludedNames);
         void setLegacyExcludedPaths(vector<string> *excludedPaths);
         void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
@@ -3717,8 +3716,6 @@ protected:
         void syncupdate_stalled(bool stalled) override;
         void syncupdate_conflicts(bool conflicts) override;
         void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
-        //bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
-        //bool sync_syncable(Sync *, const char*, LocalPath&) override;
 
         void syncupdate_local_lockretry(bool) override;
 

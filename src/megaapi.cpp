@@ -3438,11 +3438,6 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener)
-{
-   pImpl->stopSyncs(listener);
-}
-
 MegaSyncList* MegaApi::getSyncs()
 {
    return pImpl->getSyncs();

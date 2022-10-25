@@ -235,9 +235,6 @@ struct DemoApp : public MegaApp
     void syncupdate_conflicts(bool conflicts) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
-
-    //bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
-    //bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void changepw_result(error) override;
