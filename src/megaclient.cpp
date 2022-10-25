@@ -13258,12 +13258,19 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         {
             // We cannot use this function re-test an existing sync
             // This is just for testing whether we can create a new one with `remotenode`
-            if (syncRoot->isbelow(remotenode))
+            bool above = remotenode->isbelow(syncRoot);
+            bool below = syncRoot->isbelow(remotenode);
+            if (above && below)
+            {
+                if (syncError) *syncError = ACTIVE_SYNC_SAME_PATH;
+                return API_EEXIST;
+            }
+            else if (below)
             {
                 if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
                 return API_EEXIST;
             }
-            else if (remotenode->isbelow(syncRoot))
+            else if (above)
             {
                 if (syncError) *syncError = ACTIVE_SYNC_ABOVE_PATH;
                 return API_EEXIST;
