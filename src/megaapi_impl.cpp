@@ -8781,6 +8781,7 @@ void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
+    request->setNodeHandle(UNDEF);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8856,13 +8857,6 @@ MegaSyncList *MegaApiImpl::getSyncs()
     for (auto p : vMegaSyncs) delete p;
 
     return syncList;
-}
-
-void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::setLegacyExcludedNames(vector<string> *excludedNames)
@@ -13157,48 +13151,10 @@ void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath
     {
         string s = lp.platformEncoded();
 
-        //LOG_verbose << "Notifying treestate change for path " << lp << " (" << ts << ")";
-
         fireOnFileSyncStateChanged(megaSync, &s, (int)ts);
     }
 }
 
-// todo: sync_syncable to be converted to the .megaignore system, or maybe provide a std::function,
-// but it must be self-contained and be owned by and run on the sync thread.
-
-//bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
-//{
-//    if (!sync || (node->type == FILENODE && !is_syncable(node->size)))
-//    {
-//        return false;
-//    }
-//
-//    sdkMutex.unlock();
-//    bool result = is_syncable(sync, name, localpath);
-//    sdkMutex.lock();
-//    return result;
-//}
-//
-//bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath)
-//{
-//    {
-//        std::lock_guard<std::mutex> g(mSyncable_fa_mutex);
-//        if (!mSyncable_fa)
-//        {
-//            mSyncable_fa = fsAccess->newfileaccess();
-//        }
-//        if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
-//                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
-//        {
-//            return false;
-//        }
-//    }
-//
-//    sdkMutex.unlock();
-//    bool result = is_syncable(sync, name, localpath);
-//    sdkMutex.lock();
-//    return result;
-//}
 
 void MegaApiImpl::sync_removed(const SyncConfig& config)
 {
@@ -24690,8 +24646,6 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     : mRunState(sync->mRunState)
     , mType(sync->mType)
-//    , mActive(sync->mActive)
-//    , mEnabled(sync->mEnabled)
 {
     this->setBackupId(sync->mBackupId);
     this->localFolder = NULL;
@@ -24824,28 +24778,6 @@ int MegaSyncPrivate::getRunState() const
 {
     return mRunState;
 }
-
-//void MegaSyncPrivate::disable(int error)
-//{
-//    mEnabled = false;
-//    setError(error);
-//}
-//
-//bool MegaSyncPrivate::isEnabled() const
-//{
-//    return mEnabled;;
-//}
-//
-//bool MegaSyncPrivate::isActive() const
-//{
-//    return mActive;
-//}
-//
-//bool MegaSyncPrivate::isTemporaryDisabled() const
-//{
-//    return mEnabled && !mActive;
-//}
-//
 
 MegaSyncListPrivate::MegaSyncListPrivate()
 {

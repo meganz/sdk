@@ -287,6 +287,7 @@ struct StandardClient : public MegaApp
     std::thread clientthread;
 
     string ensureDir(const fs::path& p);
+
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();

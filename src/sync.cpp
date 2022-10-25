@@ -3272,10 +3272,8 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
 {
     assert(onSyncThread());
 
-    problems.mConflictsDetected = conflictsFlagged();
     problems.mStallsDetected = syncStallState;
-
-    conflictsDetected(problems.mConflicts);
+    problems.mConflictsDetected = conflictsDetected(&problems.mConflicts);
 
     // if we're not actually in stall state then don't report things
     // that we are waiting on that migtht come right, only report definites.
@@ -5194,7 +5192,7 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
     if (mSyncsLoaded) return;
     mSyncsLoaded = true;
 
-    syncThreadActions.pushBack([this, resetSyncConfigStore]()
+    queueSync([this, resetSyncConfigStore]()
         {
             loadSyncConfigsOnFetchnodesComplete_inThread(resetSyncConfigStore);
         });
@@ -10267,7 +10265,7 @@ void Syncs::syncLoop()
                 ++mSyncFlags->noProgressCount;
             }
 
-            bool conflictsNow = conflictsFlagged();
+            bool conflictsNow = conflictsDetected(nullptr);
             if (conflictsNow != syncConflictState)
             {
                 assert(onSyncThread());
@@ -10471,35 +10469,28 @@ bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
     return false;
 }
 
-bool Syncs::conflictsDetected(list<NameConflict>& conflicts) const
+bool Syncs::conflictsDetected(list<NameConflict>* conflicts) const
 {
     assert(onSyncThread());
+
+    bool anyDetected = false;
 
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
         {
-            sync->recursiveCollectNameConflicts(conflicts);
-        }
-    }
-    return !conflicts.empty();
-}
-
-bool Syncs::conflictsFlagged() const
-{
-    assert(onSyncThread());
-
-    for (auto& us : mSyncVec)
-    {
-        if (Sync* sync = us->mSync.get())
-        {
-            if (sync->localroot->conflictsDetected())
+            if (!us->mConfig.mTemporarilyPaused &&
+                sync->localroot->conflictsDetected())
             {
-                return true;
+                anyDetected = true;
+                if (conflicts)
+                {
+                    sync->recursiveCollectNameConflicts(*conflicts);
+                }
             }
         }
     }
-    return false;
+    return anyDetected;
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const

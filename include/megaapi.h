@@ -14406,7 +14406,7 @@ class MegaApi
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
 
         /**
-         * @brief De-configure the sync of a folder
+         * @brief De-configure the sync/backup of a folder
          *
          * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
@@ -14477,19 +14477,6 @@ class MegaApi
          * @see importSyncConfigs
          */
         const char* exportSyncConfigs();
-
-        /**
-         * @brief Remove all active synced folders
-         *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
 
         /**
          * @brief Get all configured syncs

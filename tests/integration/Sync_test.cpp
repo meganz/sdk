@@ -3564,7 +3564,7 @@ bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
     bool result = false;
 
     client.syncs.syncRun([&](){
-        result = client.syncs.conflictsDetected(conflicts);
+        result = client.syncs.conflictsDetected(&conflicts);
         pb->set_value(true);
     });
 
@@ -10914,6 +10914,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Were the changes propagated?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
+
 TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
     const auto TESTROOT = makeNewTestRoot();

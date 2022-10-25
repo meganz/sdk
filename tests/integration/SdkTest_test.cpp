@@ -5807,7 +5807,7 @@ void SdkTest::resetOnNodeUpdateCompletionCBs()
              [](PerApi& api) { if (api.mOnNodesUpdateCompletion) api.mOnNodesUpdateCompletion = nullptr; });
 }
 
-onNodesUpdateCompletion_t SdkTest::createOnNodesUpdateLambda(MegaHandle& hfolder, int change)
+onNodesUpdateCompletion_t SdkTest::createOnNodesUpdateLambda(const MegaHandle& hfolder, int change)
 {
     return [this, hfolder, change](size_t apiIndex, MegaNodeList* nodes)
            { onNodesUpdateCheck(apiIndex, hfolder, nodes, change); };
@@ -5909,7 +5909,6 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
@@ -6422,10 +6421,15 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
-
-    RequestTracker removeTracker(megaApi);
-    megaApi->removeSyncs(&removeTracker);
-    ASSERT_EQ(API_OK, removeTracker.waitForResult());
+    unique_ptr<MegaSyncList> syncPtrs(megaApi->getSyncs());
+    for (int i = 0; i < syncPtrs->size(); ++i)
+    {
+        RequestTracker removeTracker(megaApi);
+        megaApi->removeSync(syncPtrs->get(i)->getBackupId(), &removeTracker);
+        ASSERT_EQ(API_OK, removeTracker.waitForResult());
+    }
+    syncPtrs.reset(megaApi->getSyncs());
+    ASSERT_EQ(syncPtrs->size(), 0);
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -6580,9 +6584,9 @@ TEST_F(SdkTest, SyncBasicOperations)
         TestingWithLogErrorAllowanceGuard g;
         const auto& lp3 = localPath3.u8string();
         ASSERT_EQ(API_EEXIST, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
-        ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
+        ASSERT_EQ(MegaSync::ACTIVE_SYNC_SAME_PATH, mApi[0].lastSyncError);
         ASSERT_EQ(API_EEXIST, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)); // Remote node is currently synced.
-        ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
+        ASSERT_EQ(MegaSync::ACTIVE_SYNC_SAME_PATH, mApi[0].lastSyncError);
         const auto& lp4 = (localPath3 / fs::path("xxxyyyzzz")).u8string();
         ASSERT_EQ(API_ENOENT, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp4.c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr)); // Local resource doesn't exists.
         ASSERT_EQ(MegaSync::LOCAL_PATH_UNAVAILABLE, mApi[0].lastSyncError);
@@ -6967,9 +6971,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : removing syncs";
-    resumeSyncByBackupId(backupId1);
-    resumeSyncByBackupId(backupId2);
-    resumeSyncByBackupId(backupId4);
+    removeSyncByBackupId(backupId1);
+    removeSyncByBackupId(backupId2);
+    removeSyncByBackupId(backupId4);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{5});
@@ -7033,17 +7037,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
         ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
-
-        //WaitMillisec(1000);
-
-        //ASSERT_NE(remoteBaseNode.get(), nullptr);
-        //sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_SUSPENDED, MegaSync::REMOTE_PATH_HAS_CHANGED);
-        //ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_SUSPENDED);
-        //ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
     }
-
-    // put the name back so the sync can run again
-   //ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, backupId, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling the sync";

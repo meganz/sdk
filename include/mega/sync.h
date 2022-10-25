@@ -1050,7 +1050,7 @@ public:
     void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
 
     // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>& conflicts) const;
+    bool conflictsDetected(list<NameConflict>* conflicts) const;
 
     bool syncStallDetected(SyncStallInfo& si) const;
 
@@ -1134,9 +1134,6 @@ private:
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
     bool isAnySyncSyncing(bool includePausedSyncs);
     bool isAnySyncScanning_inThread(bool includePausedSyncs);
-
-    bool conflictsFlagged() const;
-
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
