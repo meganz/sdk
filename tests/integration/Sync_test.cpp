@@ -5640,6 +5640,67 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
+
+TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
+{
+    fs::path localtestroot = makeNewTestRoot();
+    StandardClientInUse c = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    ASSERT_TRUE(c->resetBaseFolderMulticlient());
+
+    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+
+    Model m;
+    m.addfolder("a");
+    m.addfolder("b");
+    m.addfolder("c");
+    m.generate(c->fsBasePath / "s");
+
+    handle backupId = c->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(backupId, UNDEF);
+
+    waitonsyncs(std::chrono::seconds(4), c);
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), backupId));
+    c->logcb = true;
+
+    fs::path path1 = c->syncSet(backupId).localpath;
+
+    LOG_info << "Preventing move reqs being sent, then making local move for sync code to upsync";
+
+    c->client.reqs.deferRequests = [](Command* c)
+        {
+            return !!dynamic_cast<CommandMoveNode*>(c);
+        };
+
+    error_code fs_error;
+    fs::rename(path1 / "a", path1 / "b" / "a", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+
+    WaitMillisec(3000);
+
+    fs::create_directory(path1 / "new", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+
+    LOG_info << "Moving folder `a` a second time, into a new folder, while the first move has not yet completed";
+    fs::rename(path1 / "b" / "a", path1 / "new" / "a", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+
+    WaitMillisec(3000);
+
+    LOG_info << "Allowing move reqs to continue";
+
+    c->client.reqs.deferRequests = nullptr;
+    c->client.reqs.sendDeferred();
+
+    waitonsyncs(std::chrono::seconds(4), c);
+
+    m.addfolder("new");
+    m.addfolder("new/a");
+    m.removenode("a");
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), backupId));
+
+}
+
+
 /* not expected to work yet
 TEST_F(SyncTest, BasicSync_SyncDuplicateNames)
 {
