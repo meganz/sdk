@@ -1137,6 +1137,9 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
         }
     }
 
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
     sqlite3_reset(mStmtChildren);
 
     if (sqlResult != SQLITE_OK)
@@ -1179,6 +1182,9 @@ bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t
             }
         }
     }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     sqlite3_reset(mStmtChildrenFromType);
 
