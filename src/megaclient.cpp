@@ -9920,7 +9920,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                         auxJson->leaveobject();
                     }
 
-                    if (!auxMeet->isValid() || !schedParseErr)
+                    if (!auxMeet->isValid() || schedParseErr)
                     {
                         // this object is malformed, so we don't want to store it
                         assert(false);
