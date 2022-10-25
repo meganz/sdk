@@ -354,12 +354,12 @@ typedef enum {
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
-// MimeType_t maps to file extensionse declared at action_bucket_compare
+// MimeType_t maps to file extensionse declared at Node
 typedef enum { MIME_TYPE_UNKNOWN    = 0,
-               MIME_TYPE_PHOTO      = 1,    // webclient_mime_photo_extensions, webclient_is_image_def, webclient_is_image_raw
-               MIME_TYPE_AUDIO      = 2,    // webclient_mime_audio_extensions
-               MIME_TYPE_VIDEO      = 3,    // webclient_mime_video_extensions
-               MIME_TYPE_DOCUMENT   = 4     // webclient_mime_document_extensions
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
@@ -491,6 +491,16 @@ enum SyncError {
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
     ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+    COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+    COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+    SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+    UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+    NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+    INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
 };
 
 enum SyncWarning {
@@ -1020,7 +1030,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
+    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:
