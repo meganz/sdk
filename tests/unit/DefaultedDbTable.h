@@ -73,11 +73,11 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildren(mega::NodeHandle parentHandle, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children) override
+    bool getChildren(mega::NodeHandle parentHandle, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
     {
         return false;
     }
-    bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children) override
+    bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
     {
         return false;
     }

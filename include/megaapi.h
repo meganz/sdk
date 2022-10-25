@@ -14930,6 +14930,9 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
          * @param parent Parent node
          * @param order Order for the returned list
          * Valid values for this parameter are:
@@ -14994,9 +14997,10 @@ class MegaApi
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
-        MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+        MegaNodeList* getChildren(MegaNode *parent, int order = 1, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes
@@ -15108,6 +15112,9 @@ class MegaApi
          *
          * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
          *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
          * @param parent Parent node
          * @param type Type of the node.
          * @param order Order for the returned list
@@ -15163,9 +15170,10 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
-        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = ORDER_DEFAULT_ASC);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = ORDER_DEFAULT_ASC, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Get file and folder children of a MegaNode separatedly

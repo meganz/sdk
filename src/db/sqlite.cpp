@@ -1110,11 +1110,16 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children)
+bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
 {
     if (!db)
     {
         return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
     int sqlResult = SQLITE_OK;
@@ -1132,6 +1137,9 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
         }
     }
 
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
     sqlite3_reset(mStmtChildren);
 
     if (sqlResult != SQLITE_OK)
@@ -1144,11 +1152,16 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
     return result;
 }
 
-bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized> >& children)
+bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized> >& children, CancelToken cancelFlag)
 {
     if (!db)
     {
         return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
     int sqlResult = SQLITE_OK;
@@ -1169,6 +1182,9 @@ bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t
             }
         }
     }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     sqlite3_reset(mStmtChildrenFromType);
 
