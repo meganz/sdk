@@ -186,16 +186,12 @@ struct UnifiedSync
 
     // Try to create and start the Sync
     void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
-    error enableSync(bool resetFingerprint, bool notifyApp, const string& logname);
 
     // Update remote location
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const string& debris, const LocalPath& localdebris,
-                    NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
-                    std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname);
     void changedConfigState(bool notifyApp);
 };
 
@@ -330,7 +326,7 @@ public:
     unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
-    bool movetolocaldebris(LocalPath& localpath);
+    bool movetolocaldebris(const LocalPath& localpath);
 
     // get progress for heartbeats
     m_off_t getInflightProgress();
@@ -578,13 +574,12 @@ struct Syncs
     SyncConfigVector getConfigs(bool onlyActive) const;
     bool configById(handle backupId, SyncConfig&) const;
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
+    SyncConfigVector selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector) const;
 
     // Add new sync setups
-    UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
+    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
 
     bool hasRunningSyncs();
-    unsigned numRunningSyncs();
-    unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
 
     // only for use in tests; not really thread safe
@@ -605,29 +600,13 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
-                             std::function<void(Error)> completion,
-                             bool moveOrUnlink,
-                             NodeHandle moveTarget = NodeHandle());
-
-    // remove at most one sync
-    void removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
-                            std::function<void(Error)> completion,
-                            bool moveOrUnlink,
-                            NodeHandle moveTarget = NodeHandle());
-
-    // Remove the sync described by the specified config.
-    void removeSyncByConfig(const SyncConfig& config,
-                            std::function<void(Error)> completion,
-                            bool moveOrUnlink,
-                            NodeHandle moveTarget);
+    void removeSync(handle backupId, std::function<void(Error)> completion);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -635,22 +614,16 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
-    // removes all configured backups from cache and API (BackupCenter)
-    void purgeSyncs(std::function<void(Error)> completion);
+    void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
 
-    // remove all configured backups from cache, not from API
-    void purgeSyncsLocal();
+    void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
 
     void resetSyncConfigStore();
-    void clear();
 
-    // updates in state & error
-    void saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
     ~Syncs();
 
-    unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     /**
      * @brief
@@ -663,51 +636,26 @@ struct Syncs
      *
      * @param drivePath
      * The drive containing the database to remove.
-     *
-     * @return
-     * The result of removing the backup database.
-     *
-     * API_EARGS
-     * The path is invalid.
-     *
-     * API_EFAILED
-     * There is an active sync on this device.
-     *
-     * API_EINTERNAL
-     * Encountered an internal error.
-     *
-     * API_ENOENT
-     * No such database exists in memory.
-     *
-     * API_EWRITE
-     * The database has been removed from memory but it could not
-     * be successfully flushed.
-     *
-     * API_OK
-     * The database was removed from memory.
      */
     void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
     /**
      * @brief
      * Restores backups from an external drive.
-     *
-     * @param drivePath
-     * The drive to restore external backups from.
-     *
-     * @return
-     * The result of restoring the external backups.
      */
     void backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
-    // Returns a reference to this user's internal configuration database.
-    SyncConfigStore* syncConfigStore();
 
     // Add a config directly to the internal sync config DB.
     //
     // Note that configs added in this way bypass the usual sync mechanism.
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
+
+//private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
+
+    // Returns a reference to this user's internal configuration database.
+    SyncConfigStore* syncConfigStore();
 
     // Whether the internal database has changes that need to be written to disk.
     bool syncConfigStoreDirty();
@@ -717,6 +665,12 @@ struct Syncs
 
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
+
+    // updates in state & error
+    void saveSyncConfig(const SyncConfig& config);
+
+
+public:
 
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
@@ -759,7 +713,16 @@ private:
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
+    void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
+        bool inshare, bool isNetwork, const LocalPath& rootpath,
+        std::function<void(error, SyncError, handle)> completion, std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname, bool notifyApp);
+    void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
+    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
+    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
+    void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
+    void clear_inThread();
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
 
@@ -782,15 +745,21 @@ private:
     mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
-    // Collect configs satisfying the specified selector.
-    vector<SyncConfig> selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount = 0) const;
-
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
-    bool unloadSyncByBackupID(handle id);
+    bool unloadSyncByBackupID(handle id, SyncConfig&);
     void unloadSyncByIndex(size_t index);
 
+    // shutdown safety
+    bool mExecutingLocallogout = false;
+
+    // local record of client's state for thread safety
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;
+
+    // Responsible for tracking when to send sync/backup heartbeats
+public:  // only public until SRW is merged
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
+private:
 
     // structs and classes that are private to the thread, and need access to some internals that should not be generally public
     friend struct LocalNode;
