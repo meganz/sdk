@@ -1359,11 +1359,8 @@ void UserAlerts::add(UserAlertRaw& un)
 
 void UserAlerts::add(UserAlert::Base* unb)
 {
-    // TODO: Differentiate between sc50 and loading from persistent db.
-    //
-    // Alerts received by this function should be persisted when coming from sc50,
+    // Alerts received by this function should be persisted when coming from sc50 and action packets,
     // but not when being just loaded from persistent db.
-    // Both flows get here, and `catchupdone` is false in both cases.
 
     // unb is either directly from notification json, or constructed from actionpacket.
     // We take ownership.
@@ -1407,9 +1404,9 @@ void UserAlerts::add(UserAlert::Base* unb)
                     op->setSeen(false);
                     op->tag = 0;
                     useralertnotify.push_back(op);
+                    persistAlert(op, CH_ALERT::PERSIST_PUT);
                     LOG_debug << "Updated user alert added to notify queue";
                 }
-                persistAlert(op, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }
@@ -1429,14 +1426,14 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && useralertnotify.empty() || useralertnotify.back() != od)
+                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != od))
                 {
                     od->setSeen(false);
                     od->tag = 0;
                     useralertnotify.push_back(od);
+                    persistAlert(od, CH_ALERT::PERSIST_PUT);
                     LOG_debug << "Updated user alert added to notify queue";
                 }
-                persistAlert(od, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }
@@ -1456,14 +1453,14 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && useralertnotify.empty() || useralertnotify.back() != od)
+                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != od))
                 {
                     od->setSeen(false);
                     od->tag = 0;
                     useralertnotify.push_back(od);
+                    persistAlert(od, CH_ALERT::PERSIST_PUT);
                     LOG_debug << "Updated user alert added to notify queue";
                 }
-                persistAlert(od, CH_ALERT::PERSIST_PUT);
                 delete unb;
                 return;
             }

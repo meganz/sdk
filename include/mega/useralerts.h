@@ -353,14 +353,14 @@ private:
         vector<handle> fileHandles() const
         {
             vector<handle> v;
-            std::transform(alertTypePerFileNode.begin(), alertTypePerFileNode.end(), std::back_inserter(v), [](auto& p) { return p.first; });
+            std::transform(alertTypePerFileNode.begin(), alertTypePerFileNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
             return v;
         }
 
         vector<handle> folderHandles() const
         {
             vector<handle> v;
-            std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](auto& p) { return p.first; });
+            std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
             return v;
         }
     };
