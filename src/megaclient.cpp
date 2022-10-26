@@ -12716,6 +12716,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     mergenewshares(0);
     useralerts.catchupdone = true;
+    app->useralerts_updated(NULL, int(useralerts.alerts.size()));
 
     return true;
 }
