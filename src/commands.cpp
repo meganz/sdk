@@ -9172,14 +9172,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setSchedId(schedId);
 
-    if ((mScheduledMeeting->parentSchedId() == UNDEF || mScheduledMeeting->overrides().empty())
-            && chat->getSchedMeetingById(mScheduledMeeting->schedId()))
-    {
-        // if we are not overwritting an existing scheduled meeting, it should not exist
-        assert(false);
-        LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "] should not exist";
-    }
-
     bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
