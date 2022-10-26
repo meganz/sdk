@@ -9011,7 +9011,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     {
         const auto* pal = persistedAlerts->get(i);
 
-        auto it = find_if(bkpAlerts.begin(), bkpAlerts.end(), [pal](const auto& a)
+        auto it = find_if(bkpAlerts.begin(), bkpAlerts.end(), [pal](const unique_ptr<MegaUserAlert>& a)
             {
                 return a->getTimestamp(0) == pal->getTimestamp(0) && a->getType() == pal->getType();
             });
