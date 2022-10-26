@@ -1214,8 +1214,6 @@ void MegaClient::init()
         app->syncupdate_scanning(false);
         syncscanstate = false;
     }
-
-    syncs.clear();
 #endif
 
     rootnodes.files = NodeHandle();
@@ -1979,6 +1977,7 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
+                                    assert(!sctable->inTransaction());
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
@@ -3249,7 +3248,8 @@ void MegaClient::exec()
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    if (Waiter::ds > lasttime + 30)
+    static unsigned reportFreqDs = 200;
+    if (Waiter::ds > lasttime + reportFreqDs)
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
@@ -3754,7 +3754,7 @@ void MegaClient::dispatchTransfers()
         counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
     }
 
-    std::function<bool(direction_t)> continueDirection = [&counters, this](direction_t putget) {
+    std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
 
             // hard limit on puts/gets
             if (counters[putget].total >= MAXTRANSFERS)
@@ -4375,28 +4375,33 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
     loggingout++;
 
-    auto request = new CommandLogout(this, std::move(completion), keepSyncConfigsFile);
+    auto sendFinalLogout = [keepSyncConfigsFile, completion, this](){
+        reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+    };
 
 #ifdef ENABLE_SYNC
-    // if logging out and syncs won't be kept...
-    if (!keepSyncConfigsFile)
-    {
-        // Unregister from API
-        syncs.purgeSyncs([=](Error) { reqs.add(request); });
-        return;
-    }
+    syncs.prepareForLogout(keepSyncConfigsFile, [this, keepSyncConfigsFile, sendFinalLogout](){
+        syncs.locallogout(true, keepSyncConfigsFile, false);
+        sendFinalLogout();
+    });
+#else
+    sendFinalLogout();
 #endif
-
-    reqs.add(request);
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
+    executingLocalLogout = true;
+
     mAsyncQueue.clearDiscardable();
+
+#ifdef ENABLE_SYNC
+    syncs.locallogout(removecaches, keepSyncsConfigFile, false);
+#endif
 
     if (removecaches)
     {
-        removeCaches(keepSyncsConfigFile);
+        removeCaches();
     }
 
     sctable.reset();
@@ -4431,6 +4436,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
+    mSets.clear();
+    mSetElements.clear();
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
@@ -4551,11 +4558,11 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #endif
 
     fetchingkeys = false;
-
+    executingLocalLogout = false;
     mMyAccount = MyAccountData{};
 }
 
-void MegaClient::removeCaches(bool keepSyncsConfigFile)
+void MegaClient::removeCaches()
 {
     if (sctable)
     {
@@ -4569,34 +4576,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         statusTable->remove();
         statusTable.reset();
     }
-
-#ifdef ENABLE_SYNC
-
-    // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-    syncs.forEachRunningSync([&](Sync* sync){
-
-        if (sync->statecachetable)
-        {
-            sync->statecachetable->remove();
-            sync->statecachetable.reset();
-        }
-    });
-
-    if (keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
-    }
-    else
-    {
-        // this call cannot wait for network ops, it must complete immediately, since
-        // it's called from locallogout(). In consequence, heartbeat records won't be
-        // unregistered from API, backup folders will stay in Vault... but it should
-        // still remove syncs config file(s)
-        syncs.purgeSyncsLocal();
-    }
-#endif
 
     disabletransferresumption();
 }
@@ -4852,6 +4831,8 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, int(nodes.size()));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
+                        app->sets_updated(nullptr, int(mSets.size()));
+                        app->setelements_updated(nullptr, int(mSetElements.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
@@ -5111,6 +5092,26 @@ bool MegaClient::procsc()
                                 // storage quota allowance changed
                                 sc_sqac();
                                 break;
+
+                            case MAKENAMEID3('a', 's', 'p'):
+                                // new/update of a Set
+                                sc_asp();
+                                break;
+
+                            case MAKENAMEID3('a', 's', 'r'):
+                                // removal of a Set
+                                sc_asr();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'p'):
+                                // new/update of a Set Element
+                                sc_aep();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'r'):
+                                // removal of a Set Element
+                                sc_aer();
+                                break;
                         }
                     }
                 }
@@ -5190,10 +5191,22 @@ void MegaClient::initsc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write Sets
+            complete = initscsets();
+        }
+
+        if (complete)
+        {
+            // 6. write SetElements
+            complete = initscsetelements();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 7. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
@@ -5337,10 +5350,22 @@ void MegaClient::updatesc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write new or modified Sets, purge deleted ones
+            complete = updatescsets();
+        }
+
+        if (complete)
+        {
+            // 6. write new or modified SetElements, purge deleted ones
+            complete = updatescsetelements();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
                 char base64[12];
@@ -7387,6 +7412,7 @@ void MegaClient::notifypurge(void)
     if (scsn.ready()) tscsn = scsn.getHandle();
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+            || setnotify.size() || setelementnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7540,10 +7566,8 @@ void MegaClient::notifypurge(void)
                 };
 
                 // Try and remove the sync.
-                syncs.removeSyncByConfig(us.mConfig,
-                                         std::move(completion),
-                                         false,
-                                         NodeHandle());
+                syncs.removeSync(us.mConfig.mBackupId,
+                                 move(completion));
             }
 
             //update sync root node location and trigger failing cases
@@ -7712,6 +7736,16 @@ void MegaClient::notifypurge(void)
         }
 
         useralerts.useralertnotify.clear();
+    }
+
+    if (!setelementnotify.empty())
+    {
+        notifypurgesetelements();
+    }
+
+    if (!setnotify.empty())
+    {
+        notifypurgesets();
     }
 
 #ifdef ENABLE_CHAT
@@ -8461,6 +8495,60 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     for (auto& c : n->children)
     {
         removeOutSharesFromSubtree(c, tag);
+    }
+}
+
+void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
+{
+    Node* n = nodeByHandle(backupRootNode);
+    if (!n)
+    {
+        if (destination.isUndef())
+        {
+            // we were going to delete these anyway, so no problem
+            completion(API_OK);
+        }
+        else
+        {
+            // we can't move them if they don't exist
+            completion(API_EARGS);
+        }
+        return;
+    }
+
+    if (n->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        // backup nodes are supposed to be in the vault - if not, something is wrong
+        completion(API_EARGS);
+        return;
+    }
+
+    if (destination.isUndef())
+    {
+        error e = unlink(n, false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+    else
+    {
+        // moving to target node
+
+        Node* p = nodeByHandle(destination);
+        if (!p || p->firstancestor()->nodeHandle() != rootnodes.files)
+        {
+            completion(API_EARGS);
+            return;
+        }
+
+        error e = rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
     }
 }
 
@@ -12512,6 +12600,24 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
 #endif
                 break;
+
+            case CACHEDSET:
+            {
+                if (!fetchscset(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
+
+            case CACHEDSETELEMENT:
+            {
+                if (!fetchscsetelement(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -14094,7 +14200,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork)
 {
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
@@ -14117,8 +14223,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_ENOENT;
     }
 
-    rootNodeName = remotenode->displayname();
-
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
         LOG_debug << "Node is not syncable for sync add";
@@ -14126,7 +14230,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    if (syncs.backupRestrictionsEnabled() && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
     {
         syncConfig.mError = INVALID_REMOTE_TYPE;
         syncConfig.mEnabled = false;
@@ -14173,7 +14277,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.
@@ -14380,7 +14484,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14388,9 +14492,8 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
 
     if (e)
     {
@@ -14418,30 +14521,31 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
-                                  [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
-            {
-                e = API_EFAILED;
-            }
+        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            LOG_debug << "Request for backupId failed for sync add";
+            e = API_EFAILED;
+        }
 
-            if (e)
-            {
-                completion(e, config.mError, backupId);
-            }
-            else
-            {
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.mBackupId = backupId;
+        if (e)
+        {
+            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
+            completion(e, config.mError, backupId);
+        }
+        else
+        {
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.mBackupId = backupId;
 
-                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp, logname);
-
+            auto modifedCompletion = [this, completion](error e, SyncError se, handle h){
+                completion(e, se, h);
                 syncactivity = true;
+            };
 
-                completion(e, unifiedSync->mConfig.mError, backupId);
-            }
-        }));
+            syncs.appendNewSync(config, true, notifyApp, modifedCompletion, true, logname, excludedPath);
+        }
+    }));
 }
 
 
@@ -16900,14 +17004,38 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, std::string& ext)
     {
-        auto localname = LocalPath::fromRelativePath(n->displayname());
-        if (mc.fsaccess->getextension(localname, ext))
+        const char* name = n->displayname();
+        const size_t size = strlen(name);
+
+        const char* ptr = name + size;
+        char c;
+
+        for (unsigned i = 0; i < size; ++i)
         {
-            ext.push_back('.');
-            return true;
+            if (*--ptr == '.')
+            {
+                ext.reserve(i+1);
+
+                unsigned j = 0;
+                for (; j <= i; j++)
+                {
+                    if (*ptr < '.' || *ptr > 'z') return false;
+
+                    c = *(ptr++);
+
+                    // tolower()
+                    if (c >= 'A' && c <= 'Z') c |= ' ';
+
+                    ext.push_back(c);
+                }
+
+                ext.push_back('.');
+                return true;
+            }
         }
+
         return false;
     }
 
@@ -16917,7 +17045,7 @@ namespace action_bucket_compare
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
@@ -16941,7 +17069,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
     }
@@ -16951,7 +17079,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
     }
@@ -16961,7 +17089,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
     }
@@ -16971,7 +17099,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);
     }
@@ -17095,7 +17223,7 @@ void MegaClient::setchunkfailed(string* url)
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs.add(new CommandReportEvent(this, event, details));
+    reqs.add(new CommandSendReport(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
 }
 
 void MegaClient::reportevent(const char* event, const char* details, int tag)
@@ -17183,7 +17311,7 @@ void MegaClient::userfeedbackstore(const char *message)
     Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
-    reqs.add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+    reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
 void MegaClient::sendevent(int event, const char *desc)
@@ -17517,6 +17645,1061 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 
     return backoff;
 }
+
+
+//
+// Sets and Elements
+//
+
+void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completion)
+{
+    string encrSetKey;
+    std::unique_ptr<string> encrAttrs;
+
+    // create Set
+    if (s.id() == UNDEF)
+    {
+        // generate AES-128 Set key
+        encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
+        s.setKey(encrSetKey);
+
+        // encrypt Set key with master key
+        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
+
+        if (s.hasAttrs())
+        {
+            if (s.cover() != UNDEF)
+            {
+                LOG_err << "Sets: Cover cannot be set for a newly created Set.";
+                if (completion)
+                    completion(API_EARGS, nullptr);
+                return;
+            }
+            string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+            encrAttrs.reset(new string(move(enc)));
+        }
+    }
+    // update Set
+    else
+    {
+        if (!s.hasAttrs()) // should either remove all attrs or update [some of] them
+        {
+            LOG_err << "Sets: Nothing to update.";
+            if (completion)
+                completion(API_EARGS, nullptr);
+            return;
+        }
+
+        auto it = mSets.find(s.id());
+        if (it == mSets.end())
+        {
+            LOG_err << "Sets: Failed to update Set (not found).";
+            if (completion)
+                completion(API_ENOENT, nullptr);
+            return;
+        }
+
+        if (s.cover() != UNDEF && !getSetElement(s.id(), s.cover()))
+        {
+            LOG_err << "Sets: Requested cover was not an Element of Set " << toHandle(s.id());
+            if (completion)
+                completion(API_EARGS, nullptr);
+            return;
+        }
+
+        // copy the details that won't change
+        const Set& setToBeUpdated = it->second;
+        s.setKey(setToBeUpdated.key());
+        s.setUser(setToBeUpdated.user());
+        s.rebaseAttrsOn(setToBeUpdated);
+
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
+    }
+
+    reqs.add(new CommandPutSet(this, move(s), move(encrAttrs), move(encrSetKey), completion));
+}
+
+void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
+{
+    if (getSet(sid))
+    {
+        reqs.add(new CommandRemoveSet(this, sid, completion));
+    }
+    else if (completion)
+    {
+        completion(API_ENOENT);
+    }
+}
+
+void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+{
+    reqs.add(new CommandFetchSet(this, sid, completion));
+}
+
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
+{
+    // setId is required
+    assert(el.set() != UNDEF);
+
+    // make sure Set id is valid
+    const Set* existingSet = el.set() == UNDEF ? nullptr : getSet(el.set());
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Set not found when adding or updating Element";
+        if (completion)
+            completion(API_ENOENT, nullptr);
+        return;
+    }
+
+    const SetElement* existingElement = nullptr;
+
+    // copy element.key from nodekey (only for new Element)
+    string encrKey;
+    if (el.id() == UNDEF)
+    {
+        Node* n = nodebyhandle(el.node());
+        error e = !n ? API_ENOENT
+                     : (!n->keyApplied() || !n->nodecipher() || n->attrstring ? API_EKEY
+                        : (n->type != FILENODE ? API_EARGS : API_OK));
+        if (e != API_OK)
+        {
+            LOG_err << "Sets: Invalid node for Element";
+            if (completion)
+                completion(e, nullptr);
+            return;
+        }
+
+        el.setKey(n->nodekey());
+        assert(el.key().size() == FILENODEKEYLENGTH);
+
+        // encrypt element.key with set.key
+        byte encryptBuffer[FILENODEKEYLENGTH];
+        std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
+        tmpnodecipher.setkey(&existingSet->key());
+        tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
+    }
+    // get element.key from existing element (only when updating attributes)
+    else if (el.hasAttrs())
+    {
+        existingElement = getSetElement(el.set(), el.id());
+        if (!existingElement)
+        {
+            LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
+            if (completion)
+                completion(API_ENOENT, nullptr);
+            return;
+        }
+
+        el.setKey(existingElement->key());
+    }
+
+    // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
+    std::unique_ptr<string> encrAttrs;
+    if (el.hasAttrs())
+    {
+        if (existingElement && existingElement->hasAttrs())
+        {
+            el.rebaseAttrsOn(*existingElement);
+            // the request to clear the last attribute of an existing Element must be remembered, so that
+            // after a successful update, attrs of the existing Element will be cleared
+            el.setAttrsClearedByLastUpdate(!el.hasAttrs());
+        }
+
+        string enc = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
+    }
+
+    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
+}
+
+void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
+{
+    if (!getSetElement(sid, eid))
+    {
+        if (completion)
+        {
+            completion(API_ENOENT);
+        }
+        return;
+    }
+
+    reqs.add(new CommandRemoveSetElement(this, sid, eid, completion));
+}
+
+bool MegaClient::procaesp()
+{
+    bool ok = json.enterobject();
+    if (ok)
+    {
+        map<handle, Set> newSets;
+        map<handle, map<handle, SetElement>> newElements;
+        ok &= (readSetsAndElements(json, newSets, newElements) == API_OK);
+
+        if (ok)
+        {
+            // save new data
+            mSets.swap(newSets);
+            mSetElements.swap(newElements);
+        }
+
+        ok &= json.leaveobject();
+    }
+
+    return ok;
+}
+
+error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements)
+{
+    bool loopAgain = true;
+
+    while (loopAgain)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('s'):
+        {
+            // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
+            // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
+            bool enteredSetArray = j.enterarray();
+
+            error e = readSets(j, newSets);
+            if (e != API_OK)
+            {
+                return e;
+            }
+
+            if (enteredSetArray)
+            {
+                j.leavearray();
+            }
+
+            break;
+        }
+
+        case MAKENAMEID1('e'):
+        {
+            error e = readElements(j, newElements);
+            if (e != API_OK)
+                return e;
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            loopAgain = false;
+            break;
+        }
+    }
+
+    // decrypt data
+    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
+    for (auto& s : newSets)
+    {
+        error e = decryptSetData(s.second);
+        if (e != API_OK)
+        {
+            return e;
+        }
+
+        auto itEls = newElements.find(s.first);
+        if (itEls != newElements.end())
+        {
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
+            {
+                // decrypt element key and attrs
+                e = decryptElementData(itE->second, s.second.key());
+                if (e != API_OK)
+                {
+                    return e;
+                }
+                ++elCount;
+            }
+        }
+    }
+    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
+
+    return API_OK;
+}
+
+error MegaClient::decryptSetData(Set& s)
+{
+    if (!s.id() || s.id() == UNDEF || s.key().empty())
+    {
+        LOG_err << "Sets: Missing mandatory Set data";
+        return API_EINTERNAL;
+    }
+
+    // decrypt Set key using the master key
+    s.setKey(decryptKey(s.key(), key));
+
+    // decrypt attrs
+    if (s.hasEncrAttrs())
+    {
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!s.decryptAttributes(decryptFunc))
+        {
+            LOG_err << "Sets: Unable to decrypt Set attrs";
+            return API_EINTERNAL;
+        }
+    }
+
+    return API_OK;
+}
+
+error MegaClient::decryptElementData(SetElement& el, const string& setKey)
+{
+    if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF || el.key().empty())
+    {
+        LOG_err << "Sets: Missing mandatory Element data";
+        return API_EINTERNAL;
+    }
+
+    tmpnodecipher.setkey(&setKey);
+    el.setKey(decryptKey(el.key(), tmpnodecipher));
+
+    // decrypt attrs
+    if (el.hasEncrAttrs())
+    {
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!el.decryptAttributes(decryptFunc))
+        {
+            return API_EINTERNAL;
+        }
+    }
+
+    return API_OK;
+}
+
+string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
+{
+    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    std::copy_n(k.begin(), k.size(), decrKey.get());
+    cipher.cbc_decrypt(decrKey.get(), k.size());
+    return string((char*)decrKey.get(), k.size());
+}
+
+string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptionKey)
+{
+    if (attrs.empty())
+    {
+        return string();
+    }
+
+    if (!tmpnodecipher.setkey(&encryptionKey))
+    {
+        LOG_err << "Sets: Failed to use cipher key when encrypting attrs";
+        return string();
+    }
+
+    TLVstore tlvRecords;
+    for (const auto& a : attrs)
+    {
+        tlvRecords.set(a.first, a.second);
+    }
+
+    unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
+
+    if (!encrAttrs || encrAttrs->empty())
+    {
+        LOG_err << "Sets: Failed to write name to TLV container";
+        return string();
+    }
+
+    return *encrAttrs;
+}
+
+bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string_map& output)
+{
+    if (attrs.empty())
+    {
+        output.clear();
+        return true;
+    }
+
+    assert(decrKey.size() == SymmCipher::KEYLENGTH || decrKey.size() == FILENODEKEYLENGTH);
+
+    if (!tmpnodecipher.setkey(&decrKey))
+    {
+        LOG_err << "Sets: Failed to assign key to cipher when decrypting attrs";
+        return false;
+    }
+
+    unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&attrs, &tmpnodecipher));
+    if (!sTlv)
+    {
+        LOG_err << "Sets: Failed to build TLV container of attrs";
+        return false;
+    }
+
+    output = *sTlv->getMap();
+
+    return true;
+}
+
+error MegaClient::readSets(JSON& j, map<handle, Set>& sets)
+{
+    while (j.enterobject())
+    {
+        Set s;
+        error e = readSet(j, s);
+        if (e)
+        {
+            return e;
+        }
+        sets[s.id()] = move(s);
+
+        j.leaveobject();
+    }
+
+    return API_OK;
+}
+
+error MegaClient::readSet(JSON& j, Set& s)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            s.setId(j.gethandle(MegaClient::SETHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string attrs;
+            j.copystring(&attrs, j.getvalue()); // B64 encoded
+            if (!attrs.empty())
+            {
+                attrs = Base64::atob(attrs);
+            }
+            s.setEncryptedAttrs(move(attrs)); // decrypt them after reading everything
+            break;
+        }
+
+        case MAKENAMEID1('u'):
+            s.setUser(j.gethandle(MegaClient::USERHANDLE));
+            break;
+
+        case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
+        {
+            string setKey;
+            j.copystring(&setKey, j.getvalue()); // B64 encoded
+            s.setKey(Base64::atob(setKey));
+            break;
+        }
+
+        case MAKENAMEID2('t', 's'):
+            s.setTs(j.getint());
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse Set";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+error MegaClient::readElements(JSON& j, map<handle, map<handle, SetElement>>& elements)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        SetElement el;
+        error e = readElement(j, el);
+        if (e)
+        {
+            return e;
+        }
+        handle sid = el.set();
+        handle eid = el.id();
+        elements[sid].emplace(eid, move(el));
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readElement(JSON& j, SetElement& el)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            el.setId(j.gethandle(MegaClient::SETELEMENTHANDLE));
+            break;
+
+        case MAKENAMEID1('s'):
+            el.setSet(j.gethandle(MegaClient::SETHANDLE));
+            break;
+
+        case MAKENAMEID1('h'):
+            el.setNode(j.gethandle(MegaClient::NODEHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string elementAttrs;
+            j.copystring(&elementAttrs, j.getvalue());
+            if (!elementAttrs.empty())
+            {
+                elementAttrs = Base64::atob(elementAttrs);
+            }
+            el.setEncryptedAttrs(move(elementAttrs)); // decrypt them after reading everything
+            break;
+        }
+
+        case MAKENAMEID1('o'):
+            el.setOrder(j.getint());
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            el.setTs(j.getint());
+            break;
+
+        case MAKENAMEID1('k'):
+        {
+            string elementKey;
+            j.copystring(&elementKey, j.getvalue());
+            if (!elementKey.empty())
+            {
+                elementKey = Base64::atob(elementKey);
+            }
+            el.setKey(move(elementKey));
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse Element";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+const Set* MegaClient::getSet(handle sid) const
+{
+    auto it = mSets.find(sid);
+    return it == mSets.end() ? nullptr : &it->second;
+}
+
+const Set* MegaClient::addSet(Set&& a)
+{
+    handle sid = a.id();
+    auto add = mSets.emplace(sid, move(a));
+    assert(add.second);
+
+    if (add.second) // newly inserted
+    {
+        Set& added = add.first->second;
+        added.setChanged(Set::CH_NEW);
+        notifyset(&added);
+    }
+
+    return &add.first->second;
+}
+
+bool MegaClient::updateSet(Set&& s)
+{
+    auto it = mSets.find(s.id());
+    if (it != mSets.end())
+    {
+        if (it->second.updateWith(move(s)))
+        {
+            notifyset(&it->second);
+        }
+
+        return true; // return true if found, even if nothing was updated
+    }
+
+    return false;
+}
+
+bool MegaClient::deleteSet(handle sid)
+{
+    auto it = mSets.find(sid);
+    if (it != mSets.end())
+    {
+        it->second.setChanged(Set::CH_REMOVED);
+        notifyset(&it->second);
+
+        return true;
+    }
+
+    return false;
+}
+
+const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
+{
+    auto* elements = getSetElements(sid);
+    if (elements)
+    {
+        auto ite = elements->find(eid);
+        if (ite != elements->end())
+        {
+            return &(ite->second);
+        }
+    }
+
+    return nullptr;
+}
+
+const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
+{
+    auto itS = mSetElements.find(sid);
+    return itS == mSetElements.end() ? nullptr : &itS->second;
+}
+
+bool MegaClient::deleteSetElement(handle sid, handle eid)
+{
+    auto its = mSetElements.find(sid);
+    if (its != mSetElements.end())
+    {
+        auto ite = its->second.find(eid);
+        if (ite != its->second.end())
+        {
+            ite->second.setChanged(SetElement::CH_EL_REMOVED);
+            notifysetelement(&ite->second);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
+{
+    handle sid = el.set();
+    handle eid = el.id();
+
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
+        {
+            if (ite->second.updateWith(move(el)))
+            {
+                notifysetelement(&ite->second);
+            }
+            return &ite->second;
+        }
+    }
+
+    // not found, add it
+    auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
+
+    SetElement& added = add.first->second;
+    added.setChanged(SetElement::CH_EL_NEW);
+    notifysetelement(&added);
+
+    return &added;
+}
+
+void MegaClient::sc_asp()
+{
+    Set s;
+    error e = readSet(jsonsc, s);
+    if (e != API_OK)
+    {
+        LOG_err << "Sets: Failed to parse `asp` action packet";
+        return;
+    }
+
+    // Set key is always received, let's use that
+    if (decryptSetData(s) != API_OK)
+    {
+        LOG_err << "Sets: failed to decrypt attributes from `asp`. Skipping Set: " << toHandle(s.id());
+        return;
+    }
+
+    auto it = mSets.find(s.id());
+    if (it == mSets.end()) // add new
+    {
+        addSet(move(s));
+    }
+    else // update existing Set
+    {
+        Set& existing = it->second;
+        if (s.key() != existing.key())
+        {
+            LOG_err << "Sets: key differed from existing one. Skipping Set:" << toHandle(s.id());
+            sendevent(99458, "Set key has changed");
+            assert(false);
+            return;
+        }
+
+        if (existing.updateWith(move(s)))
+        {
+            notifyset(&existing);
+        }
+    }
+}
+
+void MegaClient::sc_asr()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+        {
+            handle setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            if (!deleteSet(setId))
+            {
+                LOG_err << "Sets: Failed to remove Set in `asr` action packet";
+                return;
+            }
+            break;
+        }
+
+        case EOO:
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Sets: Failed to parse `asr` action packet";
+                return;
+            }
+        }
+    }
+}
+
+void MegaClient::sc_aep()
+{
+    SetElement el;
+    if (readElement(jsonsc, el) != API_OK)
+    {
+        LOG_err << "Sets: `aep` action packet: failed to parse data";
+        return;
+    }
+
+    // find the Set for this Element
+    Set* s = nullptr;
+    auto it = mSets.find(el.set());
+    if (it != mSets.end())
+    {
+        s = &it->second;
+    }
+    else
+    {
+        LOG_err << "Sets: `aep` action packet: failed to find Set for Element";
+        return;
+    }
+
+    if (decryptElementData(el, s->key()) != API_OK)
+    {
+        LOG_err << "Sets: `aep` action packet: failed to decrypt Element data";
+        return;
+    }
+
+    addOrUpdateSetElement(move(el));
+}
+
+void MegaClient::sc_aer()
+{
+    handle elemId = 0;
+    handle setId = 0;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            break;
+
+        case EOO:
+            if (!deleteSetElement(setId, elemId))
+            {
+                LOG_err << "Sets: Failed to remove Element in `aer` action packet";
+                return;
+            }
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Sets: Failed to parse `aer` action packet";
+                return;
+            }
+        }
+    }
+}
+
+bool MegaClient::initscsets()
+{
+    for (auto& i : mSets)
+    {
+        if (!sctable->put(CACHEDSET, &i.second, &key))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::initscsetelements()
+{
+    for (auto& s : mSetElements)
+    {
+        assert(mSets.find(s.first) != mSets.end());
+        if (mSets.find(s.first) == mSets.end())
+        {
+            LOG_err << "Sets: elements for unknown set: " << toHandle(s.first);
+            continue;
+        }
+
+        for (auto& e : s.second)
+        {
+            if (!sctable->put(CACHEDSETELEMENT, &e.second, &key))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::fetchscset(string* data, uint32_t id)
+{
+    auto s = Set::unserialize(data);
+    if (!s)
+    {
+        LOG_err << "Failed - Set record read error";
+        return false;
+    }
+
+    handle sid = s->id();
+    auto its = mSets.emplace(sid, move(*s));
+    assert(its.second); // insertion must have occurred
+    Set& addedSet = its.first->second;
+    addedSet.resetChanges();
+    addedSet.dbid = id;
+
+    return true;
+}
+
+bool MegaClient::fetchscsetelement(string* data, uint32_t id)
+{
+    auto el = SetElement::unserialize(data);
+    if (!el)
+    {
+        LOG_err << "Failed - SetElement record read error";
+        return false;
+    }
+
+    handle sid = el->set();
+    handle eid = el->id();
+    auto ite = mSetElements[sid].emplace(eid, move(*el));
+    assert(ite.second); // insertion must have occurred
+    SetElement& addedEl = ite.first->second;
+    addedEl.resetChanges();
+    addedEl.dbid = id;
+
+    return true;
+}
+
+bool MegaClient::updatescsets()
+{
+    for (Set* s : setnotify)
+    {
+        assert(s->changes());
+        if (!s->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged Set: " << toHandle(s->id());
+            continue;
+        }
+
+        char base64[12];
+        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
+        {
+            LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSET, s, &key))
+            {
+                return false;
+            }
+        }
+        else if (s->dbid) // remove
+        {
+            LOG_verbose << "Removing Set from database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+
+            // remove all elements of this set
+            auto* elements = getSetElements(s->id());
+            if (elements)
+            {
+                for (auto& e : *elements)
+                {
+                    if (!sctable->del(e.second.dbid))
+                    {
+                        return false;
+                    }
+                }
+                clearsetelementnotify(s->id());
+                mSetElements.erase(s->id());
+            }
+
+            if (!sctable->del(s->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::updatescsetelements()
+{
+    for (SetElement* e : setelementnotify)
+    {
+        assert(e->changes());
+        if (!e->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged SetElement: " << toHandle(e->id());
+            continue;
+        }
+
+        char base64[12];
+        if (!e->hasChanged(SetElement::CH_EL_REMOVED)) // add / replace
+        {
+            if (mSets.find(e->set()) == mSets.end())
+            {
+                continue;
+            }
+
+            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSETELEMENT, e, &key))
+            {
+                return false;
+            }
+        }
+        else if (e->dbid) // remove
+        {
+            LOG_verbose << "Removing SetElement from database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->del(e->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void MegaClient::notifyset(Set* s)
+{
+    if (!s->notified)
+    {
+        s->notified = true;
+        setnotify.push_back(s);
+    }
+}
+
+void MegaClient::notifysetelement(SetElement* e)
+{
+    if (!e->notified)
+    {
+        e->notified = true;
+        setelementnotify.push_back(e);
+    }
+}
+
+void MegaClient::notifypurgesets()
+{
+    if (!fetchingnodes)
+    {
+        app->sets_updated(setnotify.data(), (int)setnotify.size());
+    }
+
+    for (auto& s : setnotify)
+    {
+        if (s->hasChanged(Set::CH_REMOVED))
+        {
+            clearsetelementnotify(s->id());
+            mSetElements.erase(s->id());
+            mSets.erase(s->id());
+        }
+        else
+        {
+            s->notified = false;
+            s->resetChanges();
+        }
+    }
+
+    setnotify.clear();
+}
+
+void MegaClient::notifypurgesetelements()
+{
+    if (!fetchingnodes)
+    {
+        app->setelements_updated(setelementnotify.data(), (int)setelementnotify.size());
+    }
+
+    for (auto& e : setelementnotify)
+    {
+        if (e->hasChanged(SetElement::CH_EL_REMOVED))
+        {
+            mSetElements[e->set()].erase(e->id());
+        }
+        else
+        {
+            e->notified = false;
+            e->resetChanges();
+        }
+    }
+
+    setelementnotify.clear();
+}
+
+void MegaClient::clearsetelementnotify(handle sid)
+{
+    for (size_t i = setelementnotify.size(); i; --i)
+    {
+        if (setelementnotify[i - 1]->set() == sid)
+        {
+            setelementnotify.erase(setelementnotify.begin() + i - 1);
+        }
+    }
+}
+
 
 FetchNodesStats::FetchNodesStats()
 {

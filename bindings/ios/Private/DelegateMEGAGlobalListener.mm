@@ -24,6 +24,8 @@
 #import "MEGANodeList+init.h"
 #import "MEGAContactRequestList+init.h"
 #import "MEGAEvent+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 
 using namespace mega;
 
@@ -76,6 +78,44 @@ void DelegateMEGAGlobalListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNod
         id<MEGAGlobalDelegate> tempListener = this->listener;
         dispatch(this->queueType, ^{
             [tempListener onNodesUpdate:tempMegaSDK nodeList:(tempNodesList ? [[MEGANodeList alloc] initWithNodeList:tempNodesList cMemoryOwn:YES] : nil)];
+        });
+    }
+}
+
+void DelegateMEGAGlobalListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *setList) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onSetsUpdate:sets:)]) {
+        int size = setList->size();
+        NSMutableArray *sets = [[NSMutableArray alloc] initWithCapacity:size];
+        
+        for (int i = 0; i < size; i++) {
+            MEGASet *megaSet = [[MEGASet alloc] initWithMegaSet:setList->get(i)->copy() cMemoryOwn:YES];
+            [sets addObject:megaSet];
+        }
+        
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGAGlobalDelegate> tempListener = this->listener;
+        
+        dispatch(this->queueType, ^{
+            [tempListener onSetsUpdate:tempListener sets:[sets copy]];
+        });
+    }
+}
+
+void DelegateMEGAGlobalListener::onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList) {
+    if (listener !=nil && [listener respondsToSelector:@selector(onSetElementsUpdate:setElements:)]) {
+        int size = setElementList->size();
+        NSMutableArray *setsElements = [[NSMutableArray alloc] initWithCapacity:size];
+        
+        for (int i = 0; i < size; i++) {
+            MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
+            [setsElements addObject:megaSetElement];
+        }
+        
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGAGlobalDelegate> tempListener = this->listener;
+        
+        dispatch(this->queueType, ^{
+            [tempListener onSetElementsUpdate:tempMegaSDK setElements:[setsElements copy]];
         });
     }
 }

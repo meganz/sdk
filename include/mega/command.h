@@ -98,46 +98,46 @@ public:
         Error mError = API_OK;
         Result(Outcome o, Error e = API_OK) : mOutcome(o), mError(e) {}
 
-        bool succeeded()
+        bool succeeded() const
         {
             return mOutcome != CmdError || error(mError) == API_OK;
         }
 
-        bool hasJsonArray()
+        bool hasJsonArray() const
         {
             // true if there is JSON Array to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdArray;
         }
 
-        bool hasJsonObject()
+        bool hasJsonObject() const
         {
             // true if there is JSON Object to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdObject;
         }
 
-        bool hasJsonItem()
+        bool hasJsonItem() const
         {
             // true if there is JSON to process but it's not an object or array (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdItem;
         }
 
-        Error errorOrOK()
+        Error errorOrOK() const
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : Error(API_EINTERNAL);
         }
 
-        bool wasErrorOrOK()
+        bool wasErrorOrOK() const
         {
             return mOutcome == CmdError;
         }
 
-        bool wasError(error e)
+        bool wasError(error e) const
         {
             return mOutcome == CmdError && error(mError) == e;
         }
 
-        bool wasStrictlyError()
+        bool wasStrictlyError() const
         {
             return mOutcome == CmdError && error(mError) != API_OK;
         }
@@ -817,14 +817,6 @@ public:
     CommandEnumerateQuotaItems(MegaClient*);
 };
 
-class MEGA_API CommandReportEvent : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandReportEvent(MegaClient*, const char*, const char*);
-};
-
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
 {
 public:
@@ -883,12 +875,12 @@ public:
     CommandGetPaymentMethods(MegaClient*);
 };
 
-class MEGA_API CommandUserFeedbackStore : public Command
+class MEGA_API CommandSendReport : public Command
 {
 public:
     bool procresult(Result) override;
 
-    CommandUserFeedbackStore(MegaClient*, const char *, const char *, const char *);
+    CommandSendReport(MegaClient*, const char *, const char *, const char *);
 };
 
 class MEGA_API CommandSendEvent : public Command
@@ -1494,6 +1486,84 @@ public:
 
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
+
+
+//
+// Sets and Elements
+//
+
+class CommandSE : public Command // intermediary class to avoid code duplication
+{
+protected:
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
+    bool procerrorcode(const Result& r, Error& e) const;
+};
+
+class Set;
+
+class MEGA_API CommandPutSet : public CommandSE
+{
+public:
+    CommandPutSet(MegaClient*, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
+                  std::function<void(Error, const Set*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<Set> mSet; // use a pointer to avoid defining Set in this header
+    std::function<void(Error, const Set*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSet : public CommandSE
+{
+public:
+    CommandRemoveSet(MegaClient*, handle id, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+class SetElement;
+
+class MEGA_API CommandFetchSet : public CommandSE
+{
+public:
+    CommandFetchSet(MegaClient*, handle id, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    std::function<void(Error, Set*, map<handle, SetElement>*)> mCompletion;
+};
+
+class SetElement;
+
+class MEGA_API CommandPutSetElement : public CommandSE
+{
+public:
+    CommandPutSetElement(MegaClient*, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
+                         std::function<void(Error, const SetElement*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, const SetElement*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSetElement : public CommandSE
+{
+public:
+    CommandRemoveSetElement(MegaClient*, handle sid, handle eid, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    handle mElementId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+// -------- end of Sets and Elements
+
 
 #ifdef ENABLE_CHAT
 typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;

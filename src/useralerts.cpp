@@ -1140,49 +1140,39 @@ bool UserAlerts::containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) c
             != end(delNodeAlert->nodeHandles));
 }
 
-UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck)
+UserAlert::NewSharedNodes* UserAlerts::eraseNodeHandleFromNewShareNodeAlert(handle nh, UserAlert::Base* a)
 {
-    UserAlert::NewSharedNodes* ptrNewNodeAlert = dynamic_cast<UserAlert::NewSharedNodes*>(alertToCheck);
+    UserAlert::NewSharedNodes* nsna = dynamic_cast<UserAlert::NewSharedNodes*>(a);
 
-    bool found = false;
-    if (ptrNewNodeAlert)
+    if (nsna)
     {
-        auto it = find(begin(ptrNewNodeAlert->fileNodeHandles), end(ptrNewNodeAlert->fileNodeHandles),
-                            nodeHandleToRemove);
-        if (it != end(ptrNewNodeAlert->fileNodeHandles))
+        auto it = find(begin(nsna->fileNodeHandles), end(nsna->fileNodeHandles), nh);
+        if (it != end(nsna->fileNodeHandles))
         {
-            ptrNewNodeAlert->fileNodeHandles.erase(it);
-            found = true;
+            nsna->fileNodeHandles.erase(it);
+            return nsna;
         }
-        else
-        {
-            it = find(begin(ptrNewNodeAlert->folderNodeHandles), end(ptrNewNodeAlert->folderNodeHandles),
-                           nodeHandleToRemove);
-            if (it != end(ptrNewNodeAlert->folderNodeHandles))
-            {
-                ptrNewNodeAlert->folderNodeHandles.erase(it);
-                found = true;
-            }
-        }
+        // no need to check nsna->folderNodeHandles since folders do not support versioning
     }
 
-    return found ? ptrNewNodeAlert : nullptr;
+    return nullptr;
 }
 
-UserAlert::RemovedSharedNode* UserAlerts::eraseRemovedNodeAlert(handle nh, UserAlert::Base* a)
+UserAlert::RemovedSharedNode* UserAlerts::eraseNodeHandleFromRemovedSharedNode(handle nh, UserAlert::Base* a)
 {
-    UserAlert::RemovedSharedNode* ret = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
+    UserAlert::RemovedSharedNode* rsna = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
 
-    if (ret)
+    if (rsna)
     {
-        auto it = find(begin(ret->nodeHandles), end(ret->nodeHandles), nh);
-        if (it != end(ret->nodeHandles))
+        auto it = find(begin(rsna->nodeHandles), end(rsna->nodeHandles), nh);
+        if (it != end(rsna->nodeHandles))
         {
-            ret->nodeHandles.erase(it);
+            rsna->nodeHandles.erase(it);
+            return rsna;
         }
     }
 
-    return ret;
+    return nullptr;
 }
 
 bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const
@@ -1339,14 +1329,14 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             {
                 bool ret = false; // whether the whole user alert must be deleted or not
                 UserAlert::RemovedSharedNode* ptrDelNodeAlert;
-                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToRemove, alertToCheck);
+                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToRemove, alertToCheck);
                 if (ptrNewNodeAlert)
                 {
                     ret = ptrNewNodeAlert->fileNodeHandles.empty()
                           && ptrNewNodeAlert->folderNodeHandles.empty();
                     LOG_debug << debug_msg << "new-alert type";
                 }
-                else if ((ptrDelNodeAlert = eraseRemovedNodeAlert(nodeHandleToRemove, alertToCheck)))
+                else if ((ptrDelNodeAlert = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck)))
                 {
 
                     ret = ptrDelNodeAlert->nodeHandles.empty();
@@ -1391,7 +1381,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
         [&nodeHandleToUpdate, &debug_msg, &nodesToUpdate, this](UserAlert::Base* alertToCheck)
             {
                 bool ret = false;
-                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToUpdate, alertToCheck);
+                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToUpdate, alertToCheck);
                 if (ptrNewNodeAlert)
                 {
                     nodesToUpdate.push_back(ptrNewNodeAlert);

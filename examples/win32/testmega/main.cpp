@@ -80,7 +80,15 @@ public:
 				delete list;
 
 				std::cout << "***** Uploading the image MEGA.png" << std::endl;
-				api->startUpload("MEGA.png", root);
+				api->startUpload("MEGA.png"
+				, root		/*parent*/
+				, nullptr	/*filename*/
+				, 0     	/*mtime*/
+				, nullptr	/*appData*/
+				, false		/*isSourceTemporary*/
+				, false		/*startFirst*/
+				, nullptr);	/*cancelToken*/
+
 				delete root;
 
 				break;
@@ -144,6 +152,22 @@ public:
 		}
 
 		std::cout << "***** There are " << nodes->size() << " new or updated node/s in your account" << std::endl;
+	}
+
+	virtual void onSetsUpdate(MegaApi* api, MegaSetList *sets)
+	{
+		if (sets)
+		{
+			std::cout << "***** There are " << sets->size() << " new or updated Set/s in your account" << std::endl;
+		}
+	}
+
+	virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList *elements)
+	{
+		if (elements)
+		{
+			std::cout << "***** There are " << elements->size() << " new or updated Set-Element/s in your account" << std::endl;
+		}
 	}
 };
 
