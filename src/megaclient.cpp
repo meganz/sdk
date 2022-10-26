@@ -4499,6 +4499,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -7485,7 +7486,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
+            syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -9760,6 +9761,9 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
             mCookieBannerEnabled = bool(json->getint());
+            break;
+        case MAKENAMEID2('p', 'f'): // pro flexi plan
+            mProFlexi = bool(json->getint());
             break;
         case EOO:
             return API_OK;
@@ -14538,8 +14542,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else if (businessExpired)
     {
-        LOG_debug << "Business expired for sync add";
-        syncConfig.mError = BUSINESS_EXPIRED;
+        LOG_debug << "Account expired for sync add";
+        syncConfig.mError = ACCOUNT_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }

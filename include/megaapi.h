@@ -5637,7 +5637,7 @@ public:
         LOCAL_PATH_UNAVAILABLE = 7, //Local path is not available (can't be open)
         REMOTE_NODE_NOT_FOUND = 8, //Remote node does no longer exists
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
-        BUSINESS_EXPIRED = 10, //Business account expired
+        ACCOUNT_EXPIRED = 10, //Account expired (business or pro flexi)
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -5781,7 +5781,7 @@ public:
      *  - LOCAL_PATH_UNAVAILABLE = 7: Local path is not available (can't be open)
      *  - REMOTE_NODE_NOT_FOUND = 8: Remote node does no longer exists
      *  - STORAGE_OVERQUOTA = 9: Account reached storage overquota
-     *  - BUSINESS_EXPIRED = 10: Business account expired
+     *  - ACCOUNT_EXPIRED = 10: Account expired (business or pro flexi)
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
@@ -10177,6 +10177,8 @@ class MegaApi
 
         /**
          * @brief Check if the account is a business account.
+         *
+         * For accounts under Pro Flexi plans, this method also returns true.
          *
          * @return returns true if it's a business account, otherwise false
          */
@@ -19981,7 +19983,8 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
-        ACCOUNT_TYPE_BUSINESS = 100
+        ACCOUNT_TYPE_BUSINESS = 100,
+        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
 
     enum
@@ -20002,6 +20005,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel();
 
@@ -20399,6 +20403,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel(int productIndex);
 
@@ -20477,9 +20482,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business plan
+     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     *
+     * You can check if the plan is pure buiness or Pro Flexi by calling
+     * the method MegaApi::getProLevel
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business plan, otherwise return false
+     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
 
