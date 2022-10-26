@@ -21407,7 +21407,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (businessExpired)
             {
-                syncError = BUSINESS_EXPIRED;
+                syncError = ACCOUNT_EXPIRED;
             }
             else if (blocked)
             {

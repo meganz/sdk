@@ -325,6 +325,12 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+private:
+    // Pro Flexi plan is enabled
+    bool mProFlexi = false;
+public:
+    bool isProFlexi() const { return mProFlexi; }
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
