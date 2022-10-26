@@ -5668,14 +5668,14 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
 
     c->client.reqs.deferRequests = [](Command* c)
         {
-            return !!dynamic_cast<CommandMoveNode*>(c);
+            return true; // nothing can be sent, same as network disconnected
         };
 
     error_code fs_error;
     fs::rename(path1 / "a", path1 / "b" / "a", fs_error);
     ASSERT_TRUE(!fs_error) << fs_error;
 
-    WaitMillisec(6000);
+    WaitMillisec(2000);
 
     fs::create_directory(path1 / "new", fs_error);
     ASSERT_TRUE(!fs_error) << fs_error;
@@ -5684,7 +5684,7 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
     fs::rename(path1 / "b" / "a", path1 / "new" / "a", fs_error);
     ASSERT_TRUE(!fs_error) << fs_error;
 
-    WaitMillisec(6000);
+    WaitMillisec(2000);
 
     LOG_info << "Allowing move reqs to continue";
 
