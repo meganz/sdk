@@ -118,12 +118,6 @@ namespace mega {
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
-        // Activate/Deactivate whether a last small chunk can be requested (Activated by default: deactivate for slower throughput)
-        void setAvoidSmallLastRequest(bool value = AVOID_SMALL_SIZE_LAST_REQUEST);
-
-        // Indicate if a small last request is being avoided
-        bool getAvoidSmallLastRequest() const;
-
         // Set the unused raid connection [0 - RAIDPARTS)
         bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
 
@@ -145,7 +139,6 @@ namespace mega {
 
         bool is_raid;
         bool raidKnown;
-        bool avoidSmallLastRequest;
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
         m_off_t fullfilesize;      // end of the file
