@@ -2191,11 +2191,16 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             rowResult = false;
             return true;  // row processed (no further action) but not synced
         }
-        else if (row.fsNode && row.fsNode->fingerprint == row.cloudNode->fingerprint)
+        else if (row.fsNode && syncEqual(*row.cloudNode, *row.fsNode))
         {
             SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
             rowResult = false;
             return false;  // we need to progress to resolve_rowMatched at this node
+        }
+        else
+        {
+            // this case for chained moves (user moved the local side a second time while we were processing the first move)
+            SYNC_verbose << "Checking move when one to here already succeeded at " << logTriplet(row, fullPath);
         }
     }
 
