@@ -875,6 +875,7 @@ const SyncConfig& Sync::getConfig() const
 void Sync::statecachedel(LocalNode* l)
 {
     assert(syncs.onSyncThread());
+    assert(l->sync == this);
 
     if (!statecachetable)
     {
@@ -894,6 +895,7 @@ void Sync::statecachedel(LocalNode* l)
 void Sync::statecacheadd(LocalNode* l)
 {
     assert(syncs.onSyncThread());
+    assert(l->sync == this);
 
     if (!statecachetable)
     {
@@ -907,6 +909,8 @@ void Sync::statecacheadd(LocalNode* l)
     }
 
     insertq.insert(l);
+    assert(l != localroot.get());
+    assert(l->parent);
 }
 
 void Sync::cachenodes()
@@ -935,6 +939,8 @@ void Sync::cachenodes()
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
                 assert((*it)->type >= 0);
+                assert((*it)->sync == this);
+                assert((*it)->parent->parent || (*it)->parent == localroot.get());
                 if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     // add once we know the parent dbid so that the parent/child structure is correct in db
@@ -1676,7 +1682,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     // and also let the source LocalNode be deleted now
                     sourceSyncNode->setSyncedNodeHandle(NodeHandle());
                     sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);
-                    statecacheadd(sourceSyncNode);
+                    sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
                     // not synced and no move needed
                     return rowResult = false, false;
@@ -2235,10 +2241,10 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                 auto oldFsid = sourceSyncNodeOriginal->fsid_lastSynced;
 
-                // and also let the source LocalNode be deleted now
+                // and also let the source LocalNode be deleted now (note it could have been in a different sync)
                 sourceSyncNodeOriginal->setSyncedNodeHandle(NodeHandle());
                 sourceSyncNodeOriginal->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNodeOriginal->localname, nullptr);
-                statecacheadd(sourceSyncNodeOriginal);
+                sourceSyncNodeOriginal->sync->statecacheadd(sourceSyncNodeOriginal);
 
                 // since we caused this move, set the synced handle and fsid.
                 // this will allow us to detect chained moves
