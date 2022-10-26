@@ -145,7 +145,7 @@ namespace mega {
 
         bool is_raid;
         bool raidKnown;
-        bool avoidSmallLastRequest;
+        bool mAvoidSmallLastRequest;
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
         m_off_t fullfilesize;      // end of the file
