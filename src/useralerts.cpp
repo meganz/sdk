@@ -325,6 +325,7 @@ UserAlert::IncomingPendingContact* UserAlert::IncomingPendingContact::unserializ
         r.unserializebool(reminded))
     {
         auto* ipc = new IncomingPendingContact(0, 0, p->userHandle, p->userEmail, p->timestamp, id);
+        ipc->mPcrHandle = pcrHandle;
         ipc->requestWasDeleted = deleted;
         ipc->requestWasReminded = reminded;
         ipc->setRelevant(p->relevant);
@@ -800,9 +801,9 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
     if (r.unserializehandle(ph))
     {
         uint64_t n = 0;
-        vector<handle> vh1(n, 0);
         if (r.unserializecompressedu64(n))
         {
+            vector<handle> vh1(n, 0);
             if (n)
             {
                 for (auto& h1 : vh1)
@@ -820,7 +821,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
                 vector<handle> vh2(n, 0);
                 if (n)
                 {
-                    for (auto& h2 : vh1)
+                    for (auto& h2 : vh2)
                     {
                         if (!r.unserializehandle(h2))
                         {
