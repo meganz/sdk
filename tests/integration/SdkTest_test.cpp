@@ -8701,7 +8701,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "RemovedSharedNode";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "RemovedSharedNode";
     ASSERT_EQ(a->getNumber(0), 1) << "RemovedSharedNode";
-    //bkpAlerts.emplace_back(a->copy());  // not persisted (or removed at some point? -- is this expected?)
+    bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
 
 
@@ -8743,7 +8743,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(1), 1) << "NewSharedNodes"; // file count
     ASSERT_EQ(a->getNodeHandle(), hSubfolder) << "NewSharedNodes"; // parent handle
     ASSERT_EQ(a->getHandle(0), hUpfile) << "NewSharedNodes";
-    //bkpAlerts.emplace_back(a->copy());  // not persisted (or removed at some point? -- is this expected?)
+    bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
 
 
@@ -8844,7 +8844,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(B2dtls.userAlertList, nullptr) << "sc50";
     unique_ptr<MegaUserAlertList> sc50Alerts(B2.getUserAlerts());
     ASSERT_TRUE(sc50Alerts);
-    ASSERT_NE(sc50Alerts->size(), 0);
+    ASSERT_GT(sc50Alerts->size(), 0);
 
     // validate sc50 alerts (go backwards)
     // assumption was that sc50 alerts are ordered as they were generated

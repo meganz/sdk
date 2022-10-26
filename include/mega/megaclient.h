@@ -1309,7 +1309,7 @@ public:
     // allways add new ones at the end of the enum, otherwise it will mess up the db!
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE, CACHEDALERT } sctablerectype;
 
-    void purgescalerts();
+    void persistAlert(UserAlert::Base* a);
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };

@@ -5364,12 +5364,6 @@ void MegaClient::updatesc()
             complete = updatescsetelements();
         }
 
-        if (complete)
-        {
-            // write UserAlerts to db
-            purgescalerts();
-        }
-
 #ifdef ENABLE_CHAT
         if (complete)
         {
@@ -7421,7 +7415,7 @@ void MegaClient::notifypurge(void)
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
         || setnotify.size() || setelementnotify.size()
-        || !useralerts.alertstobepersisted.empty()
+        || !useralerts.useralertnotify.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7733,19 +7727,7 @@ void MegaClient::notifypurge(void)
         usernotify.clear();
     }
 
-    if ((t = int(useralerts.useralertnotify.size())))
-    {
-        LOG_debug << "Notifying " << t << " user alerts";
-        app->useralerts_updated(&useralerts.useralertnotify[0], t);
-
-        for (i = 0; i < t; i++)
-        {
-            UserAlert::Base *ua = useralerts.useralertnotify[i];
-            ua->tag = -1;
-        }
-
-        useralerts.useralertnotify.clear();
-    }
+    useralerts.purgescalerts();
 
     if (!setelementnotify.empty())
     {
@@ -7755,12 +7737,6 @@ void MegaClient::notifypurge(void)
     if (!setnotify.empty())
     {
         notifypurgesets();
-    }
-
-    if (!useralerts.alertstobepersisted.empty())
-    {
-        // write UserAlerts to db
-        purgescalerts();
     }
 
 #ifdef ENABLE_CHAT
@@ -7787,59 +7763,31 @@ void MegaClient::notifypurge(void)
     totalNodes = nodes.size();
 }
 
-void MegaClient::purgescalerts()
+void MegaClient::persistAlert(UserAlert::Base* a)
 {
-    auto& ualerts = useralerts.alerts;
-
-    // check alerts for overflow, then apply persistent changes
-    static constexpr size_t maxAlertCount = 200; // make this configurable?
-    if (ualerts.size() > maxAlertCount)
-    {
-        set<UserAlert::Base*> alertsToRelease;
-        // trim alerts to max count, from the beginning
-        for (auto it = ualerts.rbegin() + maxAlertCount; it != ualerts.rend(); ++it)
-        {
-            alertsToRelease.insert(*it);
-        }
-
-        if (!alertsToRelease.empty())
-        {
-            useralerts.eraseAlerts(alertsToRelease);
-        }
-    }
-
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
-    for (const auto& a : useralerts.alertstobepersisted)
+    if (a->persistRemove())
     {
-        if (a.second == UserAlerts::CH_ALERT::PERSIST_REMOVE)
+        if (sctable->del(a->dbid))
         {
-            if (sctable->del(a.first->dbid))
-            {
-                LOG_verbose << "UserAlert of type " << a.first->type << " removed from db.";
-            }
-            else
-            {
-                LOG_err << "Failed to remove UserAlert of type " << a.first->type << " from db.";
-            }
-
-            // an alert to be removed got owned by alertstobepersisted
-            assert(std::find(ualerts.begin(), ualerts.end(), a.first) == ualerts.end());
-            delete a.first;
+            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
         }
-        else if (a.second == UserAlerts::CH_ALERT::PERSIST_PUT) // insert or replace
+        else
         {
-            if (sctable->put(CACHEDALERT, a.first, &key))
-            {
-                LOG_verbose << "UserAlert of type " << a.first->type << " inserted or replaced in db.";
-            }
-            else
-            {
-                LOG_err << "Failed to insert or update UserAlert of type " << a.first->type << " in db.";
-            }
+            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
         }
     }
-
-    useralerts.alertstobepersisted.clear();
+    else if (a->persistPut()) // insert or replace
+    {
+        if (sctable->put(CACHEDALERT, a, &key))
+        {
+            LOG_verbose << "UserAlert of type " << a->type << " inserted or replaced in db.";
+        }
+        else
+        {
+            LOG_err << "Failed to insert or update UserAlert of type " << a->type << " in db.";
+        }
+    }
 }
 
 // return node pointer derived from node handle

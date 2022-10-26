@@ -22,6 +22,8 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
+#include <bitset>
+
 namespace mega {
 
 struct UserAlertRaw
@@ -78,6 +80,13 @@ namespace UserAlert
 
     using handle_alerttype_map_t = map<handle, nameid>;
 
+    enum
+    {
+        PERSIST_TYPE_PUT,       // add or update
+        PERSIST_TYPE_REMOVE,    // remove from persistence
+        PERSIST_TYPE_SIZE,
+    };
+
     struct Base : public Cacheable
     {
         // shared fields from the notification or action
@@ -113,6 +122,12 @@ namespace UserAlert
 
         virtual bool checkprovisional(handle ou, MegaClient* mc);
 
+        void setPersistPut() { persistType[PERSIST_TYPE_PUT] = true; }
+        void setPersistRemove() { persistType[PERSIST_TYPE_REMOVE] = true; }
+        bool persistPut() const { return persistType[PERSIST_TYPE_PUT]; }
+        bool persistRemove() const { return persistType[PERSIST_TYPE_REMOVE]; }
+        void resetPersistType() { persistType = 0; }
+
     protected:
         struct Persistent // variables to be persisted
         {
@@ -125,6 +140,9 @@ namespace UserAlert
 
         bool serialize(string*) override;
         static unique_ptr<Persistent> unserialize(string*);
+
+    private:
+        std::bitset<PERSIST_TYPE_SIZE> persistType;
     };
 
     struct IncomingPendingContact : public Base
@@ -320,13 +338,7 @@ public:
     typedef deque<UserAlert::Base*> Alerts;
     Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50
 
-    enum class CH_ALERT
-    {
-        PERSIST_PUT,       // mark Alert as new or updated
-        PERSIST_REMOVE,    // mark Alert to be removed
-    };
-    map<UserAlert::Base*, CH_ALERT> alertstobepersisted; // alerts, a subset of the above, that need to be added, updated or removed from db
-    void persistAlert(UserAlert::Base* a, CH_ALERT ch);
+    void purgescalerts(); // persist alerts from action packets
     bool unserializeAlert(string* d, uint32_t dbid);
 
     // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
@@ -397,11 +409,11 @@ public:
     unsigned int nextId();
 
     // process notification response from MEGA
-    bool procsc_useralert(JSON& jsonsc);
+    bool procsc_useralert(JSON& jsonsc); // sc50
 
     // add an alert - from alert reply or constructed from actionpackets
-    void add(UserAlertRaw& un);
-    void add(UserAlert::Base*);
+    void add(UserAlertRaw& un); // from sc50
+    void add(UserAlert::Base*); // from action packet or persistence
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
@@ -424,10 +436,13 @@ public:
                       [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase); })
             , end(container));
     }
-    // remove from `alerts` and `useralertnotify`, and releases memory
+    // remove from `alerts`, and releases memory if not in `useralertnotify`
     void eraseAlerts(const set<UserAlert::Base*>& alertsToRemove);
     void removeNodeAlerts(Node* n);
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
+
+    void initscalerts(); // persist alerts received from sc50
+    void trimAlertsToMaxCount();
 
     // stash removal-alert noted nodes
     void convertStashedDeletedSharedNodes();
