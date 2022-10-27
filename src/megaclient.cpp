@@ -12471,6 +12471,8 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append(MegaClient::MEGAURL);
         encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
+
+        sendevent(99458, "Public link encrypted to a password");
     }
 
     return e;
