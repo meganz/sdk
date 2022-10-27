@@ -27169,7 +27169,7 @@ m_off_t StreamingBuffer::getBytesPerSecond() const
 
 m_off_t StreamingBuffer::partialDuration(m_off_t partialSize) const
 {
-    assert(partialSize <= fileSize);
+    partialSize = std::min(partialSize, fileSize);
     m_off_t bytesPerSecond = getBytesPerSecond();
     return bytesPerSecond ? (partialSize / bytesPerSecond) : 0;
 }
