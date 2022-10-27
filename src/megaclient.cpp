@@ -6987,7 +6987,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, true);
+            syncs.disableSyncs(ACCOUNT_EXPIRED, false, true);
         }
 #endif
     }
