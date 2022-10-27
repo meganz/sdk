@@ -2382,7 +2382,8 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 3);
-    arg("b", 1);
+    arg("b", 1);    // support for Business accounts
+    arg("p", 1);    // support for Pro Flexi
     tag = client->reqtag;
 }
 
@@ -2479,6 +2480,11 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
+//                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
+//                    {
+//                        bool isProFlexi = client->json.getbool();
+//                    }
+//                    break;
                 case MAKENAMEID2('i', 'd'):
                     product = client->json.gethandle(8);
                     break;
@@ -4124,6 +4130,8 @@ bool CommandGetUserData::procresult(Result r)
             break;
 #endif
 
+        case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -4283,6 +4291,11 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(cookieSettings, versionCookieSettings);
             break;
 
+//        case MAKENAMEID1('p'):  // plan: 101 for Pro Flexi
+//            {
+//                int proPlan = client->json.getint32();
+//            }
+//            break;
         case EOO:
         {
             assert(me == client->me);
@@ -4572,7 +4585,7 @@ bool CommandGetUserData::procresult(Result r)
             {
                 // integrity checks
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN && !client->isProFlexi()))  // master flag not received or invalid (or Pro Flexi, not business)
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
@@ -6852,7 +6865,7 @@ bool CommandSetChatOptions::procresult(Result r)
         if (it == client->chats.end())
         {
             mCompletion(API_EINTERNAL);
-            return true;
+            return false;
         }
 
         // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]

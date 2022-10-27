@@ -298,6 +298,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 
+    // return mimetype type
+    MimeType_t getMimeType(bool checkPreview = false) const;
+
     // node attributes
     AttrMap attrs;
 
@@ -418,6 +421,14 @@ private:
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    bool getExtension(std::string& ext) const;
+    bool isPhoto(const std::string& ext, bool checkPreview) const;
+    bool isVideo(const std::string& ext) const;
+    bool isAudio(const std::string& ext) const;
+    bool isDocument(const std::string& ext) const;
+
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const

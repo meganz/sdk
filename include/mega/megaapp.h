@@ -402,6 +402,9 @@ struct MEGA_API MegaApp
 
     virtual void dismissbanner_result(error) { }
 
+    // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
+    virtual void reqstat_progress(int) { }
+
     virtual ~MegaApp() { }
 
     // External drive notifications

@@ -348,6 +348,16 @@ typedef enum {
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
+
+// MimeType_t maps to file extensionse declared at Node
+typedef enum { MIME_TYPE_UNKNOWN    = 0,
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+             } MimeType_t;
+
+
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
@@ -454,7 +464,7 @@ enum SyncError {
     LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
     REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
-    BUSINESS_EXPIRED = 10,                  // Business account expired
+    ACCOUNT_EXPIRED = 10,                   // Account expired (business or Pro Flexi)
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -823,6 +833,7 @@ typedef enum {
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
+    ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
 
 typedef enum

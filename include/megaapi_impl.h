@@ -2254,12 +2254,11 @@ class SearchTreeProcessor : public TreeProcessor
     public:
         SearchTreeProcessor(MegaClient *client, const char *search, int type);
         virtual bool processNode(Node* node);
-        bool isValidTypeNode(Node *node);
         virtual ~SearchTreeProcessor() {}
         vector<Node *> &getResults();
 
     protected:
-        int mFileType;
+        MimeType_t mMimeType;
         const char *mSearch;
         vector<Node *> mResults;
         MegaClient *mClient;
@@ -3317,6 +3316,9 @@ class MegaApiImpl : public MegaApp
         void stopDriveMonitor();
         bool driveMonitorEnabled();
 
+        void enableRequestStatusMonitor(bool enable);
+        bool requestStatusMonitorEnabled();
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3662,6 +3664,7 @@ protected:
         void getbanners_result(error e) override;
         void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
         void dismissbanner_result(error e) override;
+        void reqstat_progress(int permilprogress) override;
 
         // for internal use - for worker threads to run something on MegaApiImpl's thread, such as calls to onFire() functions
         void executeOnThread(shared_ptr<ExecuteOnce>);

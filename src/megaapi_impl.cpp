@@ -12088,7 +12088,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
 SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, int type)
 {
     mSearch = search;
-    mFileType = type;
+    mMimeType = static_cast<MimeType_t>(type);
     mClient = client;
 }
 
@@ -12125,7 +12125,7 @@ bool SearchTreeProcessor::processNode(Node* node)
         return true;
     }
 
-    if (!mSearch && (!mClient || (mFileType < MegaApi::FILE_TYPE_DEFAULT || mFileType > MegaApi::FILE_TYPE_DOCUMENT)))
+    if (!mSearch && (!mClient || (mMimeType < MimeType_t::MIME_TYPE_UNKNOWN || mMimeType > MimeType_t::MIME_TYPE_DOCUMENT)))
     {
         // If no search string provided, client and type must be valid, otherwise return false
         return false;
@@ -12134,37 +12134,13 @@ bool SearchTreeProcessor::processNode(Node* node)
     if (node->type <= FOLDERNODE && (!mSearch || strcasestr(node->displayname(), mSearch) != NULL))
     {
         // If no search string provided (filter by node type), or search string match with node name
-        if (isValidTypeNode(node))
+        if (node->getMimeType() == mMimeType)
         {
             mResults.push_back(node);
         }
     }
 
     return true;
-}
-
-bool SearchTreeProcessor::isValidTypeNode(Node *node)
-{
-    assert(node);
-    if (!mClient)
-    {
-        return true;
-    }
-
-    switch (mFileType)
-    {
-        case MegaApi::FILE_TYPE_PHOTO:
-            return mClient->nodeIsPhoto(node, false);
-        case MegaApi::FILE_TYPE_AUDIO:
-            return mClient->nodeIsAudio(node);
-        case MegaApi::FILE_TYPE_VIDEO:
-            return mClient->nodeIsVideo(node);
-        case MegaApi::FILE_TYPE_DOCUMENT:
-            return mClient->nodeIsDocument(node);
-        case MegaApi::FILE_TYPE_DEFAULT:
-        default:
-            return true;
-    }
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()
@@ -15681,6 +15657,13 @@ void MegaApiImpl::dismissbanner_result(error e)
     {
         fireOnRequestFinish(itReq->second, make_unique<MegaErrorPrivate>(e));
     }
+}
+
+void MegaApiImpl::reqstat_progress(int permilprogress)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_REQSTAT_PROGRESS);
+    event->setNumber(permilprogress);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::addListener(MegaListener* listener)
@@ -21424,7 +21407,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (businessExpired)
             {
-                syncError = BUSINESS_EXPIRED;
+                syncError = ACCOUNT_EXPIRED;
             }
             else if (blocked)
             {
@@ -23422,6 +23405,18 @@ bool MegaApiImpl::driveMonitorEnabled()
 {
     SdkMutexGuard g(sdkMutex);
     return client->driveMonitorEnabled();
+}
+
+void MegaApiImpl::enableRequestStatusMonitor(bool enable)
+{
+    SdkMutexGuard g(sdkMutex);
+    enable ? client->startRequestStatusMonitor() : client->stopRequestStatusMonitor();
+}
+
+bool MegaApiImpl::requestStatusMonitorEnabled()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->requestStatusMonitorEnabled();
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -27174,7 +27169,7 @@ m_off_t StreamingBuffer::getBytesPerSecond() const
 
 m_off_t StreamingBuffer::partialDuration(m_off_t partialSize) const
 {
-    assert(partialSize <= fileSize);
+    partialSize = std::min(partialSize, fileSize);
     m_off_t bytesPerSecond = getBytesPerSecond();
     return bytesPerSecond ? (partialSize / bytesPerSecond) : 0;
 }
@@ -33207,6 +33202,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_SYNCS_DISABLED: return "SYNCS_DISABLED";
         case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
 #endif
+        case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
     }
 
     return "UNKNOWN";

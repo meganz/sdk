@@ -404,8 +404,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Remote node not found";
     case STORAGE_OVERQUOTA:
         return "Reached storage quota limit";
-    case BUSINESS_EXPIRED:
-        return "Business account expired";
+    case ACCOUNT_EXPIRED:
+        return "Account expired (business or Pro Flexi)";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
     case REMOTE_PATH_HAS_CHANGED:
