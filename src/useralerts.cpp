@@ -1358,6 +1358,14 @@ void UserAlerts::add(UserAlertRaw& un)
     }
 }
 
+bool UserAlerts::canBeCombinedAs(const UserAlert::Base* a, nameid t) const
+{
+    return !alerts.empty() &&
+           !alerts.back()->persistRemove() &&
+           a->type == t &&
+           alerts.back()->type == t;
+}
+
 void UserAlerts::add(UserAlert::Base* unb)
 {
     // Alerts received by this function should be persisted when coming from sc50 and action packets,
@@ -1385,7 +1393,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous NewSharedNodes
-    if (!alerts.empty() && unb->type == UserAlert::type_put && alerts.back()->type == UserAlert::type_put)
+    if (canBeCombinedAs(unb, UserAlert::type_put))
     {
         // If it's file/folders added, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::NewSharedNodes* np = dynamic_cast<UserAlert::NewSharedNodes*>(unb);
@@ -1415,7 +1423,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous RemovedSharedNode
-    if (!alerts.empty() && unb->type == UserAlert::type_d && alerts.back()->type == UserAlert::type_d)
+    if (canBeCombinedAs(unb, UserAlert::type_d))
     {
         // If it's file/folders removed, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::RemovedSharedNode* nd = dynamic_cast<UserAlert::RemovedSharedNode*>(unb);
@@ -1442,7 +1450,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous UpdatedSharedNode
-    if (!alerts.empty() && unb->type == UserAlert::type_u && alerts.back()->type == UserAlert::type_u)
+    if (canBeCombinedAs(unb, UserAlert::type_u))
     {
         // If it's file/folders updated, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::UpdatedSharedNode* nd = dynamic_cast<UserAlert::UpdatedSharedNode*>(unb);
@@ -1468,7 +1476,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
-    // attempt to combine with previous Payment
+    // check for previous Payment-Reminder to ignore
     if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received
@@ -1805,21 +1813,10 @@ bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
 
 void UserAlerts::eraseAlerts(const set<UserAlert::Base*>& alertsToRelease)
 {
-    for_each(begin(alertsToRelease), end(alertsToRelease), [this](UserAlert::Base* a)
-        {
-            if (std::find(useralertnotify.begin(), useralertnotify.end(), a) != useralertnotify.end())
-            {
-                // alerts queued to be notified and persisted can be deleted only after persistence has been updated
-                a->setPersistRemove();
-            }
-            else
-            {
-                // we get here only if initial sc50 alerts are more than the maximum count allowed
-                delete a;
-            }
-        });
-
+    eraseAlertsFromContainer(useralertnotify, alertsToRelease);
     eraseAlertsFromContainer(alerts, alertsToRelease);
+
+    for_each(begin(alertsToRelease), end(alertsToRelease), [](UserAlert::Base* a) { delete a; });
 }
 
 void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
@@ -1831,7 +1828,6 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
     }
 
     // Remove nodehandle for NewShareNodes and/or RemovedSharedNodes, releasing the alert if gets empty
-    set<UserAlert::Base*> alertsToRelease;
     handle nodeHandleToRemove = nodeToRemoveAlert->nodehandle;
     std::string debug_msg = "Suppressed alert for node with handle |"
         + toNodeHandle(nodeHandleToRemove) + "| found as a ";
@@ -1842,7 +1838,7 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             LOG_debug << debug_msg << "new-alert type";
             if (pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty())
             {
-                alertsToRelease.emplace(pNewSN);
+                pNewSN->setPersistRemove();
             }
             else
             {
@@ -1854,7 +1850,7 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             LOG_debug << debug_msg << "removal-alert type";
             if (pRemovedSN->nodeHandles.empty())
             {
-                alertsToRelease.emplace(pRemovedSN);
+                pRemovedSN->setPersistRemove();
             }
             else
             {
@@ -1862,8 +1858,6 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             }
         }
     }
-
-    eraseAlerts(alertsToRelease);
 
     // remove from annotated changes pending to become notifications to become alerts
     if (removeNotedSharedNodeFrom(nodeToRemoveAlert, deletedSharedNodesStash))
@@ -1890,7 +1884,6 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     std::string debug_msg = "New-alert replaced by update-alert for nodehandle |"
         + std::to_string(nodeHandleToUpdate) + "|";
     vector<UserAlert::NewSharedNodes*> newSNToConvertToUpdatedSN;
-    set<UserAlert::Base*> alertsToRelease;
     for (UserAlert::Base* alertToCheck : alerts)
     {
         bool ret = false;
@@ -1899,7 +1892,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
             bool emptyAlert = pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty();
             LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
 
-            if (emptyAlert) alertsToRelease.emplace(pNewSN);
+            if (emptyAlert) pNewSN->setPersistRemove();
             newSNToConvertToUpdatedSN.push_back(pNewSN);
         }
     }
@@ -1911,8 +1904,6 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
         add(new UserAlert::UpdatedSharedNode(n->user(), n->ts(), nextId(), {nodeHandleToUpdate}));
     }
     newSNToConvertToUpdatedSN.clear();
-
-    eraseAlerts(alertsToRelease);
 
     // Remove NewSharedNode alert from noted node alerts
     if (setNotedSharedNodeToUpdate(nodeToUpdate))
@@ -2121,8 +2112,11 @@ void UserAlerts::acknowledgeAll()
             {
                 (*i)->tag = mc.reqtag;
             }
-            useralertnotify.push_back(*i);
-            (*i)->setPersistPut();
+            if (!(*i)->persistRemove() && !(*i)->persistPut())
+            {
+                useralertnotify.push_back(*i);
+                (*i)->setPersistPut();
+            }
         }
     }
 
@@ -2140,8 +2134,11 @@ void UserAlerts::onAcknowledgeReceived()
             {
                 (*i)->setSeen(true);
                 (*i)->tag = 0;
-                useralertnotify.push_back(*i);
-                (*i)->setPersistPut();
+                if (!(*i)->persistRemove() && !(*i)->persistPut())
+                {
+                    useralertnotify.push_back(*i);
+                    (*i)->setPersistPut();
+                }
             }
         }
     }
@@ -2149,13 +2146,14 @@ void UserAlerts::onAcknowledgeReceived()
 
 void UserAlerts::clear()
 {
+    useralertnotify.clear();
+
     for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
     {
         delete *i;
     }
     alerts.clear();
 
-    useralertnotify.clear();
     begincatchup = false;
     catchupdone = false;
     catchup_last_timestamp = 0;
@@ -2246,13 +2244,27 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
 void UserAlerts::initscalerts() // called after sc50 response has been received
 {
     trimAlertsToMaxCount();
+    set<UserAlert::Base*> alertsToRemove;
 
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     for (auto& a : alerts)
     {
-        a->setPersistPut();
+        a->setPersistPut(); // this will not overwrite the REMOVE mark if set above
         mc.persistAlert(a);
-        a->resetPersistType();
+
+        if (a->persistRemove())
+        {
+            alertsToRemove.insert(a);
+        }
+        else
+        {
+            a->resetPersistType();
+        }
+    }
+
+    if (!alertsToRemove.empty())
+    {
+        eraseAlerts(alertsToRemove);
     }
 }
 
@@ -2269,13 +2281,15 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
     // send notification
     mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
 
+    set<UserAlert::Base*> alertsToRemove;
+
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     for (auto& ua : useralertnotify)
     {
         mc.persistAlert(ua);
         if (ua->persistRemove())
         {
-            delete ua; // clear owning container at the end
+            alertsToRemove.insert(ua);
         }
         else
         {
@@ -2284,26 +2298,46 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
         }
     }
 
+    if (!alertsToRemove.empty())
+    {
+        eraseAlerts(alertsToRemove);
+    }
+
     useralertnotify.clear();
 }
 
 void UserAlerts::trimAlertsToMaxCount()
 {
     static constexpr size_t maxAlertCount = 200; // make this configurable?
-    if (alerts.size() > maxAlertCount)
-    {
-        set<UserAlert::Base*> alertsToRelease;
-        // trim alerts to max count, from the beginning
-        for (auto it = alerts.rbegin() + maxAlertCount; it != alerts.rend(); ++it)
-        {
-            alertsToRelease.insert(*it);
-        }
+    size_t count = 0;
 
-        if (!alertsToRelease.empty())
+    for (auto& a : alerts)
+    {
+        if (!a->persistRemove())
         {
-            eraseAlerts(alertsToRelease);
+            if (count < maxAlertCount)
+            {
+                ++count;
+            }
+            else
+            {
+                a->setPersistRemove();
+            }
         }
     }
 }
 
+size_t UserAlerts::validAlertCount() const
+{
+    size_t count = 0;
+    for (const auto& a : alerts)
+    {
+        if (!a->persistRemove())
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
 } // namespace

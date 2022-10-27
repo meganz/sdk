@@ -10782,7 +10782,10 @@ MegaUserAlertList* MegaApiImpl::getUserAlerts()
     v.reserve(client->useralerts.alerts.size());
     for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
     {
-        v.push_back(*it);
+        if (!(*it)->persistRemove())
+        {
+            v.push_back(*it);
+        }
     }
     MegaUserAlertList *alertList = new MegaUserAlertListPrivate(v.data(), int(v.size()), client);
 
@@ -10797,7 +10800,7 @@ int MegaApiImpl::getNumUnreadUserAlerts()
     sdkMutex.lock();
     for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
     {
-        if (!(*it)->seen())
+        if (!(*it)->persistRemove() && !(*it)->seen())
         {
             result++;
         }

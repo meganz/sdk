@@ -337,6 +337,7 @@ private:
 public:
     typedef deque<UserAlert::Base*> Alerts;
     Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50
+    size_t validAlertCount() const;
 
     void purgescalerts(); // persist alerts from action packets
     bool unserializeAlert(string* d, uint32_t dbid);
@@ -442,6 +443,7 @@ public:
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
 
     void initscalerts(); // persist alerts received from sc50
+    bool canBeCombinedAs(const UserAlert::Base* a, nameid t) const;
     void trimAlertsToMaxCount();
 
     // stash removal-alert noted nodes
