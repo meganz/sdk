@@ -7447,20 +7447,29 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     // We should never reach this function is pendingFrom is live.
     assert(row.syncNode->rareRO().movePendingFrom.expired());
 
-    if (row.syncNode->hasRare() &&
-        row.syncNode->rare().moveFromHere &&
-        !row.syncNode->rare().moveFromHere->syncCodeProcessedResult)
+    if (row.syncNode->hasRare())
     {
-        SYNC_verbose << syncname << "Not deleting still-moving/renaming source node yet." << logTriplet(row, fullPath);
+        if (row.syncNode->rare().moveToHere &&
+            row.syncNode->rare().moveToHere->inProgress())
+        {
+            SYNC_verbose << syncname << "Not deleting with still-moving/renaming source node to:" << logTriplet(row, fullPath);
+            return false;
+        }
 
-        monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::MoveOrRenameCannotOccur, false, false,
-            {fullPath.cloudPath},
-            {"", PathProblem::DestinationPathInUnresolvedArea},
-            {fullPath.localPath},
-            {LocalPath(), PathProblem::DestinationPathInUnresolvedArea}));
+        if (row.syncNode->rare().moveFromHere &&
+            !row.syncNode->rare().moveFromHere->syncCodeProcessedResult)
+        {
+            SYNC_verbose << syncname << "Not deleting still-moving/renaming source node from:" << logTriplet(row, fullPath);
 
-        return false;
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
+                SyncWaitReason::MoveOrRenameCannotOccur, false, false,
+                {fullPath.cloudPath},
+                {"", PathProblem::DestinationPathInUnresolvedArea},
+                {fullPath.localPath},
+                {LocalPath(), PathProblem::DestinationPathInUnresolvedArea}));
+
+            return false;
+        }
     }
 
     // We need to be sure we really can delete this node.
