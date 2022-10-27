@@ -875,6 +875,7 @@ const SyncConfig& Sync::getConfig() const
 void Sync::statecachedel(LocalNode* l)
 {
     assert(syncs.onSyncThread());
+    assert(l->sync == this);
 
     if (!statecachetable)
     {
@@ -894,6 +895,7 @@ void Sync::statecachedel(LocalNode* l)
 void Sync::statecacheadd(LocalNode* l)
 {
     assert(syncs.onSyncThread());
+    assert(l->sync == this);
 
     if (!statecachetable)
     {
@@ -907,6 +909,8 @@ void Sync::statecacheadd(LocalNode* l)
     }
 
     insertq.insert(l);
+    assert(l != localroot.get());
+    assert(l->parent);
 }
 
 void Sync::cachenodes()
@@ -935,6 +939,8 @@ void Sync::cachenodes()
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
                 assert((*it)->type >= 0);
+                assert((*it)->sync == this);
+                assert((*it)->parent->parent || (*it)->parent == localroot.get());
                 if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     // add once we know the parent dbid so that the parent/child structure is correct in db
@@ -1441,6 +1447,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     if (moveToHere->failed)
                     {
                         // Move's failed. Try again.
+                        moveToHere->syncCodeProcessedResult = true;
                         moveToHere.reset();
                     }
                     else
@@ -1675,7 +1682,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     // and also let the source LocalNode be deleted now
                     sourceSyncNode->setSyncedNodeHandle(NodeHandle());
                     sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);
-                    statecacheadd(sourceSyncNode);
+                    sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
                     // not synced and no move needed
                     return rowResult = false, false;
@@ -2177,9 +2184,24 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere &&
         !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
     {
-        SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
-        rowResult = false;
-        return false;  // we need to progress to resolve_rowMatched at this node
+        if (!row.syncNode->rare().moveToHere->succeeded &&
+            !row.syncNode->rare().moveToHere->failed)
+        {
+            SYNC_verbose << "Move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            rowResult = false;
+            return true;  // row processed (no further action) but not synced
+        }
+        else if (row.fsNode && syncEqual(*row.cloudNode, *row.fsNode))
+        {
+            SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
+            rowResult = false;
+            return false;  // we need to progress to resolve_rowMatched at this node
+        }
+        else
+        {
+            // this case for chained moves (user moved the local side a second time while we were processing the first move)
+            SYNC_verbose << "Checking move when one to here already succeeded at " << logTriplet(row, fullPath);
+        }
     }
 
     SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
@@ -2222,13 +2244,21 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                 // let the normal syncItem() matching resolve these completed moves to the same location
 
-                // and also let the source LocalNode be deleted now
+                auto oldFsid = sourceSyncNodeOriginal->fsid_lastSynced;
+
+                // and also let the source LocalNode be deleted now (note it could have been in a different sync)
                 sourceSyncNodeOriginal->setSyncedNodeHandle(NodeHandle());
                 sourceSyncNodeOriginal->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNodeOriginal->localname, nullptr);
-                statecacheadd(sourceSyncNodeOriginal);
+                sourceSyncNodeOriginal->sync->statecacheadd(sourceSyncNodeOriginal);
+
+                // since we caused this move, set the synced handle and fsid.
+                // this will allow us to detect chained moves
+                row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+                row.syncNode->setSyncedFsid(oldFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);
+                statecacheadd(row.syncNode);
 
                 rowResult = false;
-                return false;
+                return true;
             }
             else
             {
@@ -6735,7 +6765,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             // Move in progress?
             if (auto& moveFromHere = s->rare().moveFromHere)
             {
-                if (s->rare().moveToHere.get() == moveFromHere.get() &&
+                if (s->rare().moveToHere == moveFromHere &&
                     (moveFromHere->succeeded || moveFromHere->failed))
                 {
                     // rename of this node (case insensitive but case changed)?
@@ -6745,6 +6775,11 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 else if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
                 {
                     // Move's completed.
+                    moveFromHere.reset();
+                }
+                else if (moveFromHere.use_count() == 1)
+                {
+                    SYNC_verbose << "Removing orphaned moveFromHere pointer at: " << logTriplet(row, fullPath);
                     moveFromHere.reset();
                 }
                 else
@@ -7108,7 +7143,16 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
         return false;
 
     // Sanity check.
-    assert(source->rareRO().moveFromHere == movePtr);
+    if (source->rareRO().moveFromHere != movePtr)
+    {
+        // This can happen if we see the user moved local node N to node P.
+        // We start this corresponding cloud move.  But in the meantime,
+        // the user has locally moved N again
+        LOG_debug << "Move source does not match the movePtr anymore. (" << source->getLocalPath() << ") at: " << logTriplet(row, fullPath);
+        row.syncNode->rare().moveToHere->syncCodeProcessedResult = true;  // a visit to the source node with the corresponding moveFromHere ptr will now remove it
+        row.syncNode->rare().moveToHere.reset();
+        return false;
+    }
 
     // Is the source part of an ongoing download?
     auto download = std::dynamic_pointer_cast<SyncDownload_inClient>(source->transferSP);
@@ -7781,7 +7825,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere.expired())
         {
-            SYNC_verbose << syncname << "Create folder already in progress" << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Create cloud folder already in progress" << logTriplet(row, fullPath);
         }
         else
         {
