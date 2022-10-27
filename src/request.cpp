@@ -264,11 +264,12 @@ RequestDispatcher::RequestDispatcher()
     nextreqs.push_back(Request());
 }
 
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
 void RequestDispatcher::sendDeferred()
 {
     if (!nextreqs.back().empty())
     {
+        LOG_debug << "sending deferred requests";
         nextreqs.push_back(Request());
     }
     nextreqs.back().swap(deferredRequests);
@@ -277,9 +278,10 @@ void RequestDispatcher::sendDeferred()
 
 void RequestDispatcher::add(Command *c)
 {
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     if (deferRequests && deferRequests(c))
     {
+        LOG_debug << "deferring request";
         deferredRequests.add(c);
         return;
     }

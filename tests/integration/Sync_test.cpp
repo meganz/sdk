@@ -1627,6 +1627,16 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
         [pb](error e) { pb->set_value(!e);  return true; });
 }
 
+void StandardClient::sendDeferredAndReset()
+{
+    auto futureResult = thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) {
+        client.reqs.deferRequests = nullptr;
+        client.reqs.sendDeferred();
+        pb->set_value(true);
+    }, __FILE__, __LINE__);
+    futureResult.get();
+}
+
 bool StandardClient::copy(const CloudItem& source,
                           const CloudItem& target,
                           const string& name,
@@ -5641,6 +5651,7 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 }
 
 
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG) // for sendDeferred()
 TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
 {
     fs::path localtestroot = makeNewTestRoot();
@@ -5688,8 +5699,7 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
 
     LOG_info << "Allowing move reqs to continue";
 
-    c->client.reqs.deferRequests = nullptr;
-    c->client.reqs.sendDeferred();
+    c->sendDeferredAndReset();
 
     waitonsyncs(std::chrono::seconds(4), c);
 
@@ -5697,9 +5707,8 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
     m.addfolder("new/a");
     m.removenode("a");
     ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), backupId));
-
 }
-
+#endif
 
 /* not expected to work yet
 TEST_F(SyncTest, BasicSync_SyncDuplicateNames)

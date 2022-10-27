@@ -3515,8 +3515,8 @@ class MegaRequest
             TYPE_FETCH_SET                                                  = 153,
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
-            TYPE_GET_SYNC_STALL_LIST                                        = 156,
-            TYPE_SET_SYNC_RUNSTATE                                          = 157,
+            TYPE_SET_SYNC_RUNSTATE                                          = 156,
+            TYPE_GET_SYNC_STALL_LIST                                        = 157,
             TOTAL_OF_REQUEST_TYPES                                          = 158,
         };
 

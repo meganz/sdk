@@ -583,12 +583,11 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     inshare = cinshare;
     tmpfa = NULL;
     syncname = logname; // can be updated to be more specific in logs
-    //initializing = true;
 
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
-    mUnifiedSync.mConfig.mRunState = SyncRunState::Loading;
+    assert(mUnifiedSync.mConfig.mRunState == SyncRunState::Loading);
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
@@ -974,12 +973,13 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
     newEnableFlag &= mConfig.isInternal();
 
     assert(!(newSyncError == DECONFIGURING_SYNC && keepSyncDb));
+    assert(!(newEnableFlag && !keepSyncDb));
 
     if (!keepSyncDb)
     {
         if (mSync && mSync->statecachetable)
         {
-            // make sure db is up to date before we close it.
+            // flush our data structures before we close it.
             mSync->cachenodes();
 
             // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))

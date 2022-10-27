@@ -56,7 +56,7 @@ public:
     bool stopProcessing = false;
 
     bool mV3 = true;
-	
+
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
 
@@ -108,7 +108,7 @@ public:
 
     void clear();
 
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     Request deferredRequests;
     std::function<bool(Command*)> deferRequests;
     void sendDeferred();
