@@ -429,6 +429,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
@@ -457,6 +460,8 @@ enum ScanResult
 }; // ScanResult
 
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported

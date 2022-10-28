@@ -2868,7 +2868,7 @@ void MegaClient::exec()
 
                                 if (sync->state() == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
                                 {
-                                    sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
+                                    sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true, true);
 
                                     // scan for items that were deleted while the sync was stopped
                                     // FIXME: defer this until RETRY queue is processed
@@ -2964,7 +2964,7 @@ void MegaClient::exec()
                         if (!sync->localroot->node && sync->state() != SYNC_FAILED)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true, true);
                         }
                     });
 
@@ -3154,7 +3154,7 @@ void MegaClient::exec()
                             if (sync->state() != SYNC_FAILED)
                             {
                                 LOG_err << "The remote root node doesn't exist";
-                                sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                                sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true, false);
                             }
                         }
                         else
@@ -4845,7 +4845,7 @@ bool MegaClient::procsc()
 
                             enabletransferresumption();
 #ifdef ENABLE_SYNC
-                            syncs.resumeResumableSyncsOnStartup();
+                            syncs.resumeResumableSyncsOnStartup(false);
 #endif
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
@@ -13172,8 +13172,7 @@ void MegaClient::fetchnodes(bool nocache)
             enabletransferresumption();
 
 #ifdef ENABLE_SYNC
-            syncs.resetSyncConfigStore();
-            syncs.resumeResumableSyncsOnStartup();
+            syncs.resumeResumableSyncsOnStartup(true);
 #endif
             app->fetchnodes_result(API_OK);
 
@@ -16341,7 +16340,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 
         if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
         {
-            nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR, false, true);
+            nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR, false, true, false);
         }
     }
 

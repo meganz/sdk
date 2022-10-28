@@ -296,20 +296,18 @@ struct StandardClient : public MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+    std::function<void(const SyncConfig&)> onAutoResumeResult;
 
-    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+    void sync_added(const SyncConfig& config) override;
 
     bool received_syncs_restored = false;
-    void syncs_restored() override;
+    void syncs_restored(SyncError syncError) override;
 
     bool received_node_actionpackets = false;
     std::condition_variable nodes_updated_cv;
 
     void nodes_updated(Node** nodes, int numNodes) override;
-
     bool waitForNodesUpdated(unsigned numSeconds);
-
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
     bool received_user_alerts = false;

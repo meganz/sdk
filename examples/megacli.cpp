@@ -498,48 +498,58 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId)
+        << " state: " << int(config.mRunState)
+        << " error: " << config.mError
+        << endl;
 }
 
-
-void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
-{
-    conlock(cout) << "Sync is now active: " << active << endl;
-}
-
-void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    if (attempted)
-    {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(false)  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.mError
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
-            << config.getEnabled() << " syncError: " << config.mError
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
+    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState) << endl;
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)
 {
-    conlock(cout) << "Sync - about to remove " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync - removed: " << toHandle(config.mBackupId) << endl;
+
+}
+
+void DemoApp::syncs_restored(SyncError syncError)
+{
+    conlock(cout) << "Sync - restoration "
+                  << (syncError != NO_SYNC_ERROR ? "failed" : "completed")
+                  << ": "
+                  << SyncConfig::syncErrorToStr(syncError)
+                  << endl;
 }
 
 void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning local files and folders" << endl;
+        conlock(cout) << "Sync - scanning local files and folders" << endl;
     }
     else
     {
-        cout << "Sync - scan completed" << endl;
+        conlock(cout) << "Sync - scan completed" << endl;
     }
 }
+
+void DemoApp::syncupdate_syncing(bool active)
+{
+    if (active)
+    {
+        conlock(cout) << "Sync - syncs are busy" << endl;
+    }
+    else
+    {
+        conlock(cout) << "Sync - syncs are idle" << endl;
+    }
+}
+
 // flags to turn off cout output that can be too volumnous/time consuming
 bool syncout_local_change_detection = true;
 bool syncout_remote_change_detection = true;

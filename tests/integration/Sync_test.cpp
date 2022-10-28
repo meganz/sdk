@@ -931,7 +931,7 @@ string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*cli
 
 void StandardClient::onCallback() { lastcb = chrono::steady_clock::now(); };
 
-void StandardClient::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void StandardClient::sync_added(const SyncConfig& config)
 {
     onCallback();
 
@@ -940,24 +940,24 @@ void StandardClient::sync_auto_resume_result(const SyncConfig& config, bool atte
         lock_guard<mutex> guard(om);
 
         out() << clientname
-                << "sync_auto_resume_result(): id: "
-                << toHandle(config.mBackupId)
-                << ", attempted: "
-                << attempted
-                << ", hadAnError: "
-                << hadAnError;
+                << "sync_added(): id: "
+                << toHandle(config.mBackupId);
     }
 
     if (onAutoResumeResult)
     {
-        onAutoResumeResult(config, attempted, hadAnError);
+        onAutoResumeResult(config);
     }
 }
 
-void StandardClient::syncs_restored()
+void StandardClient::syncs_restored(SyncError syncError)
 {
     lock_guard<mutex> g(om);
-    out() << clientname << "sync restore complete";
+
+    out() << clientname
+            << "sync restore complete: "
+            << SyncConfig::syncErrorToStr(syncError);
+
     received_syncs_restored = true;
 }
 
@@ -5157,7 +5157,7 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     // wait for normal sync resumes to complete
     pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
 
-    waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
+    waitonsyncs(std::chrono::seconds(14), pclientA1.get(), &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2", "f"));
@@ -6129,7 +6129,6 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 
     // Update configs so they're useful for this client.
     {
-        FSACCESS_CLASS fsAccess;
         auto root0 = TESTROOT / "c1" / "s0";
         auto root1 = TESTROOT / "c1" / "s1";
 
@@ -6155,8 +6154,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     // So we can wait until the syncs are resumed.
     promise<void> notify;
 
-    // Hook onAutoResumeResult callback.
-    c1.onAutoResumeResult = ([id0, id1, &notify]() {
+    // Hook OnSyncStateConfig callback.
+    c1.mOnSyncStateConfig = ([id0, id1, &notify]() {
         auto waiting = std::make_shared<set<handle>>();
 
         // Track the syncs we're waiting for.
@@ -6164,12 +6163,17 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         waiting->emplace(id1);
 
         // Return effective callback.
-        return [&notify, waiting](const SyncConfig& config, bool, bool) {
+        return [&notify, waiting](const SyncConfig& config) {
+            // Is the sync running?
+            if (config.mRunState != SyncRunState::Run)
+                return;
+
             // This sync's been resumed.
             waiting->erase(config.mBackupId);
 
             // Are we still waiting for any syncs to resume?
-            if (!waiting->empty()) return;
+            if (!waiting->empty())
+                return;
 
             // Let the waiter know the syncs are up.
             notify.set_value();
@@ -8022,7 +8026,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         // Hook onAutoResumeResult callback.
         promise<void> notify;
 
-        c->onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+        c->onAutoResumeResult = [&](const SyncConfig&) {
             notify.set_value();
         };
 
@@ -9884,8 +9888,9 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
-        notify.set_value();
+    c.mOnSyncStateConfig = [&notify](const SyncConfig& config) {
+        if (config.mRunState == SyncRunState::Run)
+            notify.set_value();
     };
 
     // Log in client resuming prior session.
@@ -10285,10 +10290,11 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     // So we can pause execution until al the syncs are restored.
     promise<void> notifier;
 
-    // Hook the onAutoResumeResult callback.
-    cb.onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+    // Hook the OnSyncStateConfig callback.
+    cb.mOnSyncStateConfig = [&](const SyncConfig& config) {
         // Let waiters know we've restored the sync.
-        notifier.set_value();
+        if (config.mRunState == SyncRunState::Run)
+            notifier.set_value();
     };
 
     // Log in client, resuming prior session.
@@ -10440,8 +10446,16 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    cb.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+    cb.mOnSyncStateConfig = [&cb, &notify](const SyncConfig& config) {
+        // Is the sync up and running?
+        if (config.mRunState != SyncRunState::Run)
+            return;
+
+        // Then let our waiter know it can proceed.
         notify.set_value();
+
+        // We're not interested in any further callbacks.
+        cb.mOnSyncStateConfig = nullptr;
     };
 
     // Log in the client.
@@ -10796,7 +10810,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     //    client1.mOnSyncStateConfig = nullptr;
     //};
 
-    client1.onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+    client1.onAutoResumeResult = [&](const SyncConfig&) {
         notify.set_value();
         client1.onAutoResumeResult = nullptr;
     };

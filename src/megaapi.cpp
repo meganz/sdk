@@ -1763,11 +1763,7 @@ void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
-void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
-{ }
-void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncEnabled(MegaApi *, MegaSync *)
+void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
@@ -3408,39 +3404,14 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, backupDestination, listener);
-}
-
 void MegaApi::removeSync(MegaHandle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
 {
     pImpl->removeSyncById(backupId, backupDestination, listener);
 }
 
-void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApi::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener)
 {
-    pImpl->disableSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
-}
-
-void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
-{
-    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
-{
-    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->enableSyncById(backupId, listener);
-}
-
-void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->disableSyncById(backupId, listener);
+    pImpl->setSyncRunState(backupId, targetState, listener);
 }
 
 void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
@@ -3451,11 +3422,6 @@ void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listen
 const char* MegaApi::exportSyncConfigs()
 {
     return pImpl->exportSyncConfigs();
-}
-
-void MegaApi::removeSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
-{
-   pImpl->stopSyncs(backupDestination, listener);
 }
 
 MegaSyncList* MegaApi::getSyncs()
@@ -6092,19 +6058,9 @@ int MegaSync::getType() const
     return MegaSync::SyncType::TYPE_UNKNOWN;
 }
 
-bool MegaSync::isEnabled() const
+int MegaSync::getRunState() const
 {
-    return true;
-}
-
-bool MegaSync::isActive() const
-{
-    return false;
-}
-
-bool MegaSync::isTemporaryDisabled() const
-{
-    return false;
+    return 0;
 }
 
 const char* MegaSync::getMegaSyncErrorCode()
