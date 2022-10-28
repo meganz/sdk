@@ -1264,7 +1264,13 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
 
 bool ScheduledMeeting::serialize(string& out) const
 {
-    bool hasSchedId = schedId() != UNDEF;
+    if (schedId() == UNDEF)
+    {
+        assert(false);
+        LOG_warn << "ScheduledMeeting::serialize: Invalid scheduled meeting with an UNDEF schedId";
+        return false;
+    }
+
     bool hasParentSchedId = parentSchedId() != UNDEF;
     bool hasAttributes = !attributes().empty();
     bool hasOverrides = !overrides().empty();
@@ -1274,15 +1280,15 @@ bool ScheduledMeeting::serialize(string& out) const
 
     CacheableWriter w(out);
     w.serializehandle(chatid());
+    w.serializehandle(schedId());
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
     w.serializestring(mStartDateTime);
     w.serializestring(mEndDateTime);
     w.serializestring(mTitle);
     w.serializestring(mDescription);
-    w.serializeexpansionflags(hasSchedId, hasParentSchedId, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
+    w.serializeexpansionflags(hasParentSchedId, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
 
-    if (hasSchedId)       { w.serializehandle(schedId());}
     if (hasParentSchedId) { w.serializehandle(parentSchedId());}
     if (hasAttributes)    { w.serializestring(mAttributes); }
     if (hasOverrides)     { w.serializestring(mOverrides); }
@@ -1323,23 +1329,22 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
 
     CacheableReader w(in);
     w.unserializehandle(chatid);
+    w.unserializehandle(schedId);
     w.unserializehandle(organizerUserid);
     w.unserializestring(timezone);
     w.unserializestring(startDateTime);
     w.unserializestring(endDateTime);
     w.unserializestring(title);
     w.unserializestring(description);
-    w.unserializeexpansionflags(expansions, 7);
+    w.unserializeexpansionflags(expansions, 6);
 
-    bool hasSchedId         = expansions[0];
-    bool hasParentSchedId   = expansions[1];
-    bool hasAttributes      = expansions[2];
-    bool hasOverrides       = expansions[3];
-    bool hasCancelled       = expansions[4];
-    bool hasflags           = expansions[5];
-    bool hasRules           = expansions[6];
+    bool hasParentSchedId   = expansions[0];
+    bool hasAttributes      = expansions[1];
+    bool hasOverrides       = expansions[2];
+    bool hasCancelled       = expansions[3];
+    bool hasflags           = expansions[4];
+    bool hasRules           = expansions[5];
 
-    if (hasSchedId)         { w.unserializehandle(schedId); }
     if (hasParentSchedId)   { w.unserializehandle(parentSchedId); }
     if (hasAttributes)      { w.unserializestring(attributes); }
     if (hasOverrides)       { w.unserializestring(overrides); }
@@ -1361,8 +1366,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
     }
 
     return new ScheduledMeeting(chatid, timezone, startDateTime, endDateTime,
-                                title, description, organizerUserid,
-                                hasSchedId ? schedId : UNDEF,
+                                title, description, organizerUserid, schedId,
                                 hasParentSchedId ? parentSchedId : UNDEF,
                                 hasCancelled ? cancelled : -1,
                                 attributes,

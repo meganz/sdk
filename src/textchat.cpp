@@ -132,12 +132,6 @@ bool TextChat::serialize(string *d)
 
     if (hasSheduledMeetings)
     {
-        if (mScheduledMeetingsOcurrences.size() && mScheduledMeetings.empty())
-        {
-            LOG_err << "The chat to serialize [" << Base64Str<MegaClient::CHATHANDLE>(id) << "] has scheduled meetings occurrences, but not scheduled meetings";
-            assert(false);
-        }
-
         // serialize the number of scheduledMeetings
         ll = (unsigned short) mScheduledMeetings.size();
         d->append((char *)&ll, sizeof ll);
