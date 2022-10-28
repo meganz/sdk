@@ -4300,7 +4300,7 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate()
 }
 
 MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap)
-    :mIntegerMap(megaIntegerMap && megaIntegerMap->getMap() ? *megaIntegerMap->getMap() : integer_map())
+    : mIntegerMap(megaIntegerMap && megaIntegerMap->getMap() ? *megaIntegerMap->getMap() : integer_map())
 {
 }
 
@@ -4321,7 +4321,7 @@ MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
 
 MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
 {
-    MegaSmallIntMap* byteMap= new MegaSmallIntMap();
+    MegaSmallIntMap* byteMap = new MegaSmallIntMap();
     byteMap->insert(mIntegerMap.begin(), mIntegerMap.end());
     return byteMap;
 }
