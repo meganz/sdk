@@ -2693,7 +2693,8 @@ class MegaApiImpl : public MegaApp
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
-        void stopPublicSetPreview(MegaRequestListener* listener = nullptr);
+        void stopPublicSetPreview();
+        MegaNode* getNodeFromPublicSetElement(handle eid);
 
 
 #ifdef ENABLE_SYNC
@@ -3578,6 +3579,7 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         void exportSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+        std::function<void(Error, Set*, map<handle, SetElement>*)> fetchSetCompletionCB(MegaRequestPrivate*);
 
         static const string SET_PREVIEW_LOGIN;
 

@@ -2088,9 +2088,15 @@ public:
 
     string getPublicSetLink(handle sid, bool isExportSet) const;
 
-    error startSetPreview(const char* publicSetLink);
+    // returns error code and public handle for the link provided as a param
+    error startSetPreview(const char* publicSetLink, std::function<void(Error, Set*, map<handle, SetElement>*)>);
+
+    void stopSetPreview() { if (mPreviewSet) mPreviewSet.reset(); }
 
     bool inSetPreviewMode() const { return !!mPreviewSet; }
+
+    const SetElement* getPreviewSetElement(handle eid) const
+    { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
 
 private:
 
@@ -2128,8 +2134,18 @@ private:
     vector<SetElement*> setelementnotify;
     map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
 
-    unique_ptr<pair<Set, map<handle, SetElement>>> mPreviewSet;
+    struct SetLink
+    {
+        handle mPublicId = UNDEF;
+        SymmCipher mPublicKey;
+        string mPublicLink;
+        Set mSet;
+        map<handle, SetElement> mElements;
+    };
+    unique_ptr<SetLink> mPreviewSet;
 
+    bool isElementInPreviewSet(handle eid) const
+    { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
 // -------- end of Sets and Elements
 
 };

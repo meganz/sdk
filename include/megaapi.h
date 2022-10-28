@@ -19749,8 +19749,63 @@ class MegaApi
          */
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
 
+        /**
+         * @brief Starts public Set preview mode for current SDK instance
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set used for the public link (i.e. public id)
+         *
+         * In addition to setting SDK's instance to public Set preview mode, this request
+         * will fetch Set's information (including Elements) and provide it in the request result
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns the Set
+         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param publicSetLink Public link to a Set in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
         void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
-        void stopPublicSetPreview(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Stops public Set preview mode for current SDK instance
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN
+         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         */
+        void stopPublicSetPreview();
+
+        /**
+         * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
+         *
+         * You can use MegaApi::startDownload with the resulting node with any instance
+         * of MegaApi, even if it's logged into another account, a public folder, or not
+         * logged in.
+         *
+         * If the set element id does not match with any element of current public set
+         * in preview, or SDK instance is not in preview mode, this function returns nullptr.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node MegaNode to authorize
+         * @return Mega node, or nullptr if the element is unreachable
+         */
+        MegaNode* getNodeFromPublicSetElement(MegaHandle eid);
 
  private:
         MegaApiImpl *pImpl = nullptr;

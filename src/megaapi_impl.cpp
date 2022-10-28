@@ -18967,20 +18967,7 @@ void MegaApiImpl::sendPendingRequests()
             break;
 
         case MegaRequest::TYPE_FETCH_SET:
-            client->fetchSet(request->getParentHandle(),
-                [this, request](Error e, Set* s, map<handle, SetElement>* els)
-                {
-                    if (e == API_OK)
-                    {
-                        assert(s && els);
-                        if (s && els)
-                        {
-                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
-                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
-                        }
-                    }
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                });
+            client->fetchSet(request->getParentHandle(), fetchSetCompletionCB(request));
             break;
 
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
@@ -19095,7 +19082,9 @@ void MegaApiImpl::sendPendingRequests()
                 if (string(login) == SET_PREVIEW_LOGIN)
                 {
                     auto& megaPublicSetLink = megaFolderLink;
-                    e = client->startSetPreview(megaPublicSetLink);
+                    e = client->startSetPreview(megaPublicSetLink, fetchSetCompletionCB(request));
+                    if (e == API_OK) break; // fireOnRequestFinish triggered as part of the std::function passed
+                    // else megaPublicSetLink parsing failed
                 }
                 else
                 {
@@ -23826,6 +23815,24 @@ void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
+std::function<void(Error, Set*, map<handle, SetElement>*)>
+MegaApiImpl::fetchSetCompletionCB(MegaRequestPrivate* request)
+{
+    return [this, request](Error e, Set* s, map<handle, SetElement>* els)
+    {
+        if (e == API_OK)
+        {
+            assert(s && els);
+            if (s && els)
+            {
+                request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
+            }
+        }
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+    };
+}
+
 void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
@@ -23990,9 +23997,57 @@ void MegaApiImpl::startPublicSetPreview(const char* publicSetLink, MegaRequestLi
     waiter->notify();
 }
 
-void MegaApiImpl::stopPublicSetPreview(MegaRequestListener* listener)
+void MegaApiImpl::stopPublicSetPreview()
 {
-    throw std::domain_error{"Work In Progress"};
+    SdkMutexGuard g(sdkMutex);
+
+    client->stopSetPreview();
+}
+
+MegaNode* MegaApiImpl::getNodeFromPublicSetElement(handle eid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    if (!client->inSetPreviewMode())
+    {
+        LOG_warn << "Trying to reach set element while not in set preview mode";
+        return nullptr;
+    }
+
+    auto element = client->getPreviewSetElement(eid);
+    if (!element)
+    {
+        LOG_warn << "Set element with handle " << toNodeHandle(eid) << " is not in current preview set";
+        return nullptr;
+    }
+
+    // check eid is in the preview set
+    handle nodehandle = element->node();
+    string ekey = element->key();
+    string nodekey, fileattrstring;
+    nodekey.resize(ekey.size() * 3 / 4 + 3);
+    nodekey.resize(Base64::atob(ekey.c_str(), (byte*)nodekey.data(), int(nodekey.size())));
+    return new MegaNodePrivate(""/*name*/,
+                               FILENODE /*node type*/,
+                               0 /*size*/,
+                               0 /*ctime*/,
+                               0 /*mtime*/,
+                               nodehandle,
+                               &nodekey,
+                               &fileattrstring,
+                               nullptr /*fingerprint*/,
+                               nullptr /* originalFingerprint */,
+                               INVALID_HANDLE /*MegaHandle owner*/
+                               /*
+                                 , INVALID_HANDLE // MegaHandle parentHandle
+                                 , nullptr // const char* privateauth
+                                 , nullptr // const char* publicauth
+                                 , false // isPublic
+                                 , false // isForeign
+                                 , nullptr // const char* chatauth
+                                 , true // isNodeDecrypted
+                               */
+                               );
 }
 
 void TreeProcCopy::allocnodes()

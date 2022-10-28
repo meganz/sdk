@@ -5659,9 +5659,14 @@ void MegaApi::startPublicSetPreview(const char* publicSetLink, MegaRequestListen
     return pImpl->startPublicSetPreview(publicSetLink, listener);
 }
 
-void MegaApi::stopPublicSetPreview(MegaRequestListener* listener)
+void MegaApi::stopPublicSetPreview()
 {
-    return pImpl->stopPublicSetPreview(listener);
+    return pImpl->stopPublicSetPreview();
+}
+
+MegaNode* MegaApi::getNodeFromPublicSetElement(handle eid)
+{
+    return pImpl->getNodeFromPublicSetElement(eid);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
