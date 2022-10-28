@@ -1181,30 +1181,7 @@ ScheduledMeeting::~ScheduledMeeting()
 {
 }
 
-void ScheduledMeeting::setRules(const ScheduledRules* rules)
-{
-    mRules.reset();
-    if (rules) { mRules.reset(rules->copy()); }
-}
-
-void ScheduledMeeting::setFlags(const mega::ScheduledFlags *flags)
-{
-    mFlags.reset();
-    if (flags) { mFlags.reset(flags->copy()); }
-}
-
-void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
-void ScheduledMeeting::setOrganizerUserid(handle userid)                { mOrganizerUserId = userid; }
 void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
-void ScheduledMeeting::setParentSchedId(handle parentSchedId)           { mParentSchedId = parentSchedId; }
-void ScheduledMeeting::setTimezone(const string& timezone)              { mTimezone = timezone; }
-void ScheduledMeeting::setStartDateTime(const string& startDateTime)    { mStartDateTime = startDateTime; }
-void ScheduledMeeting::setEndDateTime(const string& endDateTime)        { mEndDateTime = endDateTime; }
-void ScheduledMeeting::setTitle(const string& title)                    { mTitle = title; }
-void ScheduledMeeting::setDescription(const string& description)        { mDescription = description; }
-void ScheduledMeeting::setAttributes(const string& attributes)          { mAttributes = attributes; }
-void ScheduledMeeting::setOverrides(const string& overrides)            { mOverrides = overrides; }
-void ScheduledMeeting::setCancelled(int cancelled)                      { mCancelled = cancelled; }
 
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
@@ -1218,8 +1195,8 @@ const string& ScheduledMeeting::description() const                     { return
 const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
 const string& ScheduledMeeting::overrides() const                       { return mOverrides; }
 int ScheduledMeeting::cancelled() const                                 { return mCancelled; }
-const ScheduledFlags* ScheduledMeeting::flags() const                         { return mFlags.get(); }
-const mega::ScheduledRules *ScheduledMeeting::rules() const                         { return mRules.get(); }
+const ScheduledFlags* ScheduledMeeting::flags() const                   { return mFlags.get(); }
+const mega::ScheduledRules *ScheduledMeeting::rules() const             { return mRules.get(); }
 
 bool ScheduledMeeting::isValid() const
 {

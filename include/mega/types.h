@@ -850,19 +850,6 @@ public:
 
     // setters
     void setSchedId(handle schedId);
-    void setRules(const ScheduledRules* rules);
-    void setFlags(const ScheduledFlags* flags);
-    void setCancelled(int cancelled);
-    void setOverrides(const string& overrides);
-    void setAttributes(const string& attributes);
-    void setDescription(const string& description);
-    void setTitle(const string& title);
-    void setEndDateTime(const string& endDateTime);
-    void setStartDateTime(const string& startDateTime);
-    void setTimezone(const string& timezone);
-    void setParentSchedId(handle parentSchedId);
-    void setChatid(handle chatid);
-    void setOrganizerUserid(handle userid);
 
     // getters
     handle chatid() const;

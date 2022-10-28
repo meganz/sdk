@@ -9669,8 +9669,6 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce)
 {
-    handle i = UNDEF;
-    handle organizerUser = UNDEF;
     if (!schedMeetings)
     {
         assert(false);
@@ -9689,64 +9687,70 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
     {
         bool exit = false;
         bool schedParseErr = false;
-        std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting());
+        handle i = UNDEF;
+        handle organizerUser = UNDEF;
+        handle chatid = UNDEF;
+        handle organizerUserId = UNDEF;
+        handle schedId = UNDEF;
+        handle parentSchedId = UNDEF;
+        std::string timezone;
+        std::string startDateTime;
+        std::string endDateTime;
+        std::string title;
+        std::string description;
+        std::string attributes;
+        std::string overrides;
+        int cancelled = 0;
+        std::unique_ptr<ScheduledFlags> flags;
+        std::unique_ptr<ScheduledRules> rules;
+
         while (!exit)
         {
             switch (auxJson->getnameid())
             {
                 case MAKENAMEID3('c', 'i', 'd'): // chatid
                 {
-                    auxMeet->setChatid(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    chatid = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
                 case MAKENAMEID2('i', 'd'):  // scheduled meeting id
                 {
-                    auxMeet->setSchedId(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    schedId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
                 case MAKENAMEID1('p'):  // parent callid
                 {
-                    auxMeet->setParentSchedId(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    parentSchedId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
                 case MAKENAMEID1('u'): // organizer user Handle
                 {
-                    auxMeet->setOrganizerUserid(auxJson->gethandle(MegaClient::CHATHANDLE));
+                    organizerUserId = auxJson->gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
                 case MAKENAMEID2('t', 'z'): // timezone
                 {
-                    string tz;
-                    auxJson->storeobject(&tz);
-                    auxMeet->setTimezone(Base64::atob(tz));
+                    auxJson->storeobject(&timezone);
                     break;
                 }
                 case MAKENAMEID1('s'): // start date time
                 {
-                    string startDateTime;
                     auxJson->storeobject(&startDateTime);
-                    auxMeet->setStartDateTime(startDateTime);
                     break;
                 }
                 case MAKENAMEID1('e'): // end date time
                 {
-                    string endDateTime;
                     auxJson->storeobject(&endDateTime);
-                    auxMeet->setEndDateTime(endDateTime);
                     break;
                 }
                 case MAKENAMEID1('t'):  // title
                 {
-                    string title;
                     auxJson->storeobject(&title);
-                    auxMeet->setTitle(Base64::atob(title));
                     break;
                 }
                 case MAKENAMEID1('d'): // description
                 {
-                    string description;
                     auxJson->storeobject(&description);
-                    auxMeet->setDescription(Base64::atob(description));
                     break;
                 }
                 case MAKENAMEID1('i'):
@@ -9756,32 +9760,26 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID2('a', 't'): // attributes
                 {
-                    string attributes;
                     auxJson->storeobject(&attributes);
-                    auxMeet->setAttributes(Base64::atob(attributes));
                     break;
                 }
                 case MAKENAMEID1('o'): // override
                 {
-                    string overrides;
                     auxJson->storeobject(&overrides);
-                    auxMeet->setOverrides(overrides);
                     break;
                 }
                 case MAKENAMEID1('c'): // cancelled
                 {
-                    auxMeet->setCancelled(static_cast<int>(auxJson->getint()));
+                    cancelled = static_cast<int>(auxJson->getint());
                     break;
                 }
                 case MAKENAMEID1('f'): // flags
                 {
-                    ScheduledFlags auxFlags(static_cast<unsigned long>(auxJson->getint()));
-                    auxMeet->setFlags(&auxFlags);
+                    flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
                     break;
                 }
-                case MAKENAMEID2('o', 'u'):
+                case MAKENAMEID2('o', 'u'): // organizer user
                     organizerUser = jsonsc.gethandle(USERHANDLE);
-                    auxMeet->setOrganizerUserid(organizerUser);
                     break;
 
                 // there are no scheduled meeting rules
@@ -9904,9 +9902,8 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                         auxJson->leaveobject();
                     }
 
-                    std::unique_ptr<ScheduledRules>rules(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
+                    rules.reset(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
                                                                             until, &vWeek, &vMonth, &mMonth));
-                    auxMeet->setRules(rules.get());
                     break;
                 }
                 case EOO:
@@ -9916,6 +9913,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         auxJson->leaveobject();
                     }
+
+                    std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting(chatid, Base64::atob(timezone), startDateTime, endDateTime,
+                                         Base64::atob(title), Base64::atob(description), organizerUserId, schedId,
+                                         parentSchedId, cancelled, Base64::atob(attributes),
+                                         overrides, flags.get(), rules.get()));
 
                     if (!auxMeet->isValid() || schedParseErr)
                     {
