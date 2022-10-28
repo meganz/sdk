@@ -25513,7 +25513,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
-            complete(API_EINCOMPLETE);
+            complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
         {
@@ -26777,7 +26777,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     if (sr != scanFolder_succeeded)
     {
-        complete(sr == scanFolder_cancelled ? API_EINCOMPLETE : API_EINTERNAL); // inconsistent node state
+        if (sr == scanFolder_cancelled)
+        {
+            complete(API_EINCOMPLETE, true);
+        }
+        else // inconsistent node state
+        {
+            complete(API_EINTERNAL);
+        }
     }
     else
     {
@@ -26814,7 +26821,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                     TransferQueue transferQueue;
                     if (!genDownloadTransfersForFiles(fsType, transferQueue))
                     {
-                        complete(API_EINCOMPLETE);
+                        complete(API_EINCOMPLETE, true);
                     }
                     else if (transferQueue.empty())
                     {
