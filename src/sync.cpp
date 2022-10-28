@@ -4103,7 +4103,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
             {
                 // if it was running, the app gets a callback saying it's no longer active
                 // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-                syncPtr->changestate(SYNC_CANCELED, UNLOADING_SYNC, newEnabledFlag, false, newEnabledFlag);  // after SRW is merged, keepSyncDb may differ from newEnabledFlag
+                syncPtr->changestate(SYNC_CANCELED, UNLOADING_SYNC, newEnabledFlag, false, true);
                 assert(!syncPtr->statecachetable);
                 syncPtr.reset(); // deletes sync
             }
