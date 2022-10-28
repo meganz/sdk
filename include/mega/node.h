@@ -679,7 +679,8 @@ struct MEGA_API LocalNode
             handle sourceFsid = UNDEF;
             nodetype_t sourceType = FILENODE;
             FileFingerprint sourceFingerprint;
-            LocalNode* sourcePtr = nullptr;
+            NodeHandle movedHandle;
+            const void* sourcePtr = nullptr; // for ptr comparison only - could be dangling (actually LocalNode*)
             map<LocalPath, LocalNode*> priorChildrenToRemove;
         };
 

@@ -1497,8 +1497,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // This line can be useful to uncomment for debugging, but it does add a lot to the log.
         //SYNC_verbose << "Is this a local move destination, by fsid " << toHandle(row.fsNode->fsid) << " at " << logTriplet(row, fullPath);
 
-        // was the file overwritten by moving an existing file over it?
-        if (LocalNode* sourceSyncNode = syncs.findLocalNodeByFsid(row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
+        // find where this fsid used to be, and the corresponding cloud Node is the one to move (provided it hasn't also moved)
+        // Note that it's possible that there are multiple LocalNodes with this synced fsid, due to chained moves for example.
+        // We want the one that does have the corresponding synced Node still present on the cloud side.
+
+        // also possible: was the file overwritten by moving an existing file over it?
+
+        if (LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
         {
             // We've found a node associated with the local file's FSID.
             //
@@ -1527,8 +1532,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // correctly recognize the move-source as being part of a
             // move-in-progress, even though the move-source was in the
             // process of being uploaded.
-            if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
-                return false;
+//            if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
+//                return false;
 
             assert(parentRow.syncNode);
             ProgressingMonitor monitor(syncs);
@@ -1926,6 +1931,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     movePtr->sourceType = row.fsNode->type;
                     movePtr->sourceFingerprint = row.fsNode->fingerprint;
                     movePtr->sourcePtr = sourceSyncNode;
+                    movePtr->movedHandle = sourceCloudNode.handle;
 
                     string newName = row.fsNode->localname.toName(*syncs.fsaccess);
                     if (newName == sourceCloudNode.name ||
@@ -2191,9 +2197,20 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             rowResult = false;
             return true;  // row processed (no further action) but not synced
         }
+        else if (row.syncNode->rare().moveToHere->succeeded &&
+                 row.cloudNode->handle == row.syncNode->rare().moveToHere->movedHandle)
+        {
+            SYNC_verbose << "Cloud move completed, setting synced handle to prevent interpreting a local move (if fsNode was moved in the meantime). " << logTriplet(row, fullPath);
+            syncs.setSyncedFsidReused(row.syncNode->rare().moveToHere->sourceFsid); // prevent reusing that one as move source for chained move cases
+            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+            row.syncNode->setSyncedFsid(row.syncNode->rare().moveToHere->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
+            statecacheadd(row.syncNode);
+            rowResult = false;
+            return true;
+        }
         else if (row.fsNode && syncEqual(*row.cloudNode, *row.fsNode))
         {
-            SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
+            SYNC_verbose << "Nodes at move-to site match so allow to resolve. " << logTriplet(row, fullPath);
             rowResult = false;
             return false;  // we need to progress to resolve_rowMatched at this node
         }
@@ -4790,7 +4807,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
 {
     assert(!onSyncThread());
-    // todo: returning a Sync* is not really thread safe but the tests are using these directly currently.  So long as they only browse the Sync while nothing changes, it should be ok
+    // returning a Sync* is not really thread safe but the tests are using these directly currently.  So long as they only browse the Sync while nothing changes, it should be ok
 
     lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
@@ -7444,11 +7461,11 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         parentRow.ignoreFileChanging();
     }
 
-    // We should never reach this function is pendingFrom is live.
-    assert(row.syncNode->rareRO().movePendingFrom.expired());
-
     if (row.syncNode->hasRare())
     {
+        // We should never reach this function is pendingFrom is live.
+        assert(row.syncNode->rareRO().movePendingFrom.expired());
+
         if (row.syncNode->rare().moveToHere &&
             row.syncNode->rare().moveToHere->inProgress())
         {
@@ -8578,15 +8595,15 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
-{
-    // First try and match based on synced details.
-    if (auto* node = findLocalNodeBySyncedFsid(fsid, originalpath, type, fingerprint, filesystemSync, extraCheck))
-        return node;
-
-    // Otherwise, try and match on scanned details.
-    return findLocalNodeByScannedFsid(fsid, originalpath, type, &fingerprint, filesystemSync, extraCheck);
-}
+//LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
+//{
+//    // First try and match based on synced details.
+//    if (auto* node = findLocalNodeBySyncedFsid(fsid, originalpath, type, fingerprint, filesystemSync, extraCheck))
+//        return node;
+//
+//    // Otherwise, try and match on scanned details.
+//    return findLocalNodeByScannedFsid(fsid, originalpath, type, &fingerprint, filesystemSync, extraCheck);
+//}
 
 void Syncs::setSyncedFsidReused(mega::handle fsid)
 {
