@@ -1008,7 +1008,7 @@ bool ScheduledRules::serialize(string& out) const
     if (hasUntil)    { w.serializestring(mUntil); }
     if (hasByWeekDay)
     {
-        w.serializeu64(mByWeekDay->size());
+        w.serializeu32(static_cast<uint32_t>(mByWeekDay->size()));
         for (auto i: *mByWeekDay)
         {
             w.serializei8(i);
@@ -1017,7 +1017,7 @@ bool ScheduledRules::serialize(string& out) const
 
     if (hasByMonthDay)
     {
-        w.serializeu64(mByMonthDay->size());
+        w.serializeu32(static_cast<uint32_t>(mByMonthDay->size()));
         for (auto i: *mByMonthDay)
         {
             w.serializei8(i);
@@ -1026,7 +1026,7 @@ bool ScheduledRules::serialize(string& out) const
 
     if (hasByMonthWeekDay)
     {
-        w.serializeu64(mByMonthWeekDay->size()*2);
+        w.serializeu32(static_cast<uint32_t>(mByMonthWeekDay->size()*2));
         for (auto i: *mByMonthWeekDay)
         {
             w.serializei8(i.first);
@@ -1061,9 +1061,11 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     if (hasUntil)    { w.unserializestring(until); }
     if (hasByWeekDay)
     {
+        uint32_t auxSize = 0;
         size_t vectorSize = 0;
         int8_t element = 0;
-        w.unserializeu64(vectorSize);
+        w.unserializeu32(auxSize);
+        vectorSize = auxSize;
         for (size_t i = 0; i < vectorSize; i++)
         {
            element = 0;
@@ -1074,9 +1076,11 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 
     if (hasByMonthDay)
     {
+        uint32_t auxSize = 0;
         size_t vectorSize = 0;
         int8_t element = 0;
-        w.unserializeu64(vectorSize);
+        w.unserializeu32(auxSize);
+        vectorSize = auxSize;
         for (size_t i = 0; i < vectorSize; i++)
         {
            element = 0;
@@ -1087,10 +1091,12 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 
     if (hasByMonthWeekDay)
     {
+        uint32_t auxSize = 0;
         size_t mapSize = 0;
         int8_t key = 0;
         int8_t value = 0;
-        w.unserializeu64(mapSize);
+        w.unserializeu32(auxSize);
+        mapSize = auxSize;
         for (size_t i = 0; i < mapSize / 2; i++)
         {
            key = value = 0;
