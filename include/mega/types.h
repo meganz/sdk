@@ -778,7 +778,7 @@ class ScheduledRules
             FREQ_DAILY      = 0,
             FREQ_WEEKLY     = 1,
             FREQ_MONTHLY    = 2,
-        } freq_type;
+        } freq_type_t;
 
         // just for SDK core usage
         typedef vector<int8_t> rules_vector;
@@ -849,6 +849,7 @@ public:
     ~ScheduledMeeting();
 
     // setters
+    void setSchedId(handle schedId);
     void setRules(const ScheduledRules* rules);
     void setFlags(const ScheduledFlags* flags);
     void setCancelled(int cancelled);
@@ -860,7 +861,6 @@ public:
     void setStartDateTime(const string& startDateTime);
     void setTimezone(const string& timezone);
     void setParentSchedId(handle parentSchedId);
-    void setSchedId(handle schedId);
     void setChatid(handle chatid);
     void setOrganizerUserid(handle userid);
 
@@ -899,7 +899,7 @@ private:
     handle mSchedId;
 
     // parent scheduled meeting handle
-    handle mParentSchedid;
+    handle mParentSchedId;
 
     // timeZone (B64 encoded)
     std::string mTimezone;

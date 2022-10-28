@@ -7301,11 +7301,6 @@ MegaIntegerList* MegaIntegerList::createInstanceFromBytesList(const std::vector<
     return new MegaIntegerListPrivate(bytesList);
 }
 
-MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t>& integerList)
-{
-    return new MegaIntegerListPrivate(integerList);
-}
-
 MegaIntegerList *MegaIntegerList::copy() const
 {
     return nullptr;

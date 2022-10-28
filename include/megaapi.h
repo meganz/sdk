@@ -1872,7 +1872,6 @@ public:
     virtual ~MegaIntegerList();
     static MegaIntegerList* createInstance();
     static MegaIntegerList* createInstanceFromBytesList(const std::vector<int8_t>& bytesList);
-    static MegaIntegerList* createInstance(const std::vector<int64_t>& integerList);
     virtual MegaIntegerList *copy() const;
     virtual MegaSmallIntVector* toByteList() const;
 
@@ -2304,6 +2303,8 @@ public:
     /**
      * @brief Returns a MegaHandleList with the handles of the scheduled meetings that have changed
      *
+     * This method only returns a valid value when MegaTextChat::hasChange(CHANGE_TYPE_SCHED_MEETING) returns true
+     *
      * The MegaTextChat retains the ownership of the returned MegaHandleList. It will
      * be only valid until the MegaTextChat is deleted.
      *
@@ -2604,12 +2605,12 @@ public:
 class MegaScheduledRules
 {
 public:
-    typedef enum {
+    enum {
         FREQ_INVALID    = -1,
         FREQ_DAILY      = 0,
         FREQ_WEEKLY     = 1,
         FREQ_MONTHLY    = 2,
-    } freq_type;
+    };
 
     constexpr static int INTERVAL_INVALID = 0;
     virtual ~MegaScheduledRules();
@@ -2811,9 +2812,12 @@ public:
     virtual MegaSmallIntMap* toByteMap() const;
 
     /**
-     * @brief Returns true, if the key is found in the MegaIntegerMap, otherwise returns false.
-     * If key is found it's associated value will be copied in second parameter (value)
+     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
+     * Returns true if index is <= map size, otherwise returns false
+     * If index is not out of range, key will be copied in first parameter (key)
+     * If index is not out of range, value will be copied in second parameter (value)
      *
+     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
      * @param key Key of the string that you want to get from the map
      * @param value The value associated to the key will be copied in this param
      * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.

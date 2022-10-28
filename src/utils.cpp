@@ -1113,7 +1113,7 @@ ScheduledMeeting::ScheduledMeeting()
     : mChatid(UNDEF),
       mOrganizerUserId(UNDEF),
       mSchedId(UNDEF),
-      mParentSchedid(UNDEF),
+      mParentSchedId(UNDEF),
       mTimezone(std::string()),
       mStartDateTime(std::string()),
       mEndDateTime(std::string()),
@@ -1134,7 +1134,7 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, c
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
       mSchedId(schedId),
-      mParentSchedid(parentSchedId),
+      mParentSchedId(parentSchedId),
       mTimezone(timezone),
       mStartDateTime(startDateTime ),
       mEndDateTime(endDateTime),
@@ -1152,7 +1152,7 @@ ScheduledMeeting::ScheduledMeeting(const ScheduledMeeting* scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
       mOrganizerUserId(scheduledMeeting->organizerUserid()),
       mSchedId(scheduledMeeting->schedId()),
-      mParentSchedid(scheduledMeeting->parentSchedId()),
+      mParentSchedId(scheduledMeeting->parentSchedId()),
       mTimezone(scheduledMeeting->timezone()),
       mStartDateTime(scheduledMeeting->startDateTime()),
       mEndDateTime(scheduledMeeting->endDateTime()),
@@ -1190,7 +1190,7 @@ void ScheduledMeeting::setFlags(const mega::ScheduledFlags *flags)
 void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
 void ScheduledMeeting::setOrganizerUserid(handle userid)                { mOrganizerUserId = userid; }
 void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
-void ScheduledMeeting::setParentSchedId(handle parentSchedId)           { mParentSchedid = parentSchedId; }
+void ScheduledMeeting::setParentSchedId(handle parentSchedId)           { mParentSchedId = parentSchedId; }
 void ScheduledMeeting::setTimezone(const string& timezone)              { mTimezone = timezone; }
 void ScheduledMeeting::setStartDateTime(const string& startDateTime)    { mStartDateTime = startDateTime; }
 void ScheduledMeeting::setEndDateTime(const string& endDateTime)        { mEndDateTime = endDateTime; }
@@ -1203,7 +1203,7 @@ void ScheduledMeeting::setCancelled(int cancelled)                      { mCance
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
 handle ScheduledMeeting::schedId() const                                { return mSchedId; }
-handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedid; }
+handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedId; }
 const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
 const string& ScheduledMeeting::startDateTime() const                   { return mStartDateTime; }
 const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }

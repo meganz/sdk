@@ -33534,31 +33534,6 @@ MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy() const
    return new MegaScheduledMeetingPrivate(this);
 }
 
-void MegaScheduledMeetingPrivate::setRules(MegaScheduledRules* rules)
-{
-    mRules.reset();
-    if (rules) { mRules.reset(rules->copy()); }
-}
-
-void MegaScheduledMeetingPrivate::setFlags(MegaScheduledFlags* flags)
-{
-    mFlags.reset();
-    if (flags) { mFlags.reset(flags->copy()); }
-}
-
-void MegaScheduledMeetingPrivate::setChatid(MegaHandle chatid)                  { mChatid = chatid;}
-void MegaScheduledMeetingPrivate::setSchedId(MegaHandle schedId)                { mSchedId = schedId;}
-void MegaScheduledMeetingPrivate::setParentSchedId(MegaHandle parentSchedId)    { mParentSchedid = parentSchedId;}
-void MegaScheduledMeetingPrivate::setOrganizerUserid(MegaHandle userid)         { mOrganizerUserId = userid; }
-void MegaScheduledMeetingPrivate::setTimezone(const char* timezone)             { mTimezone.append(timezone ? timezone : std::string());}
-void MegaScheduledMeetingPrivate::setStartDateTime(const char* startDateTime)   { mStartDateTime.append(startDateTime ? startDateTime : std::string());}
-void MegaScheduledMeetingPrivate::setEndDateTime(const char* endDateTime)       { mEndDateTime.append(endDateTime ? endDateTime : std::string());}
-void MegaScheduledMeetingPrivate::setTitle(const char* title)                   { mTitle.append(title ? title : std::string());}
-void MegaScheduledMeetingPrivate::setDescription(const char* description)       { mDescription.append(description ? description : std::string());}
-void MegaScheduledMeetingPrivate::setAttributes(const char* attributes)         { mAttributes.append(attributes ? attributes : std::string());}
-void MegaScheduledMeetingPrivate::setOverrides(const char* overrides)           { mOverrides.append(overrides ? overrides : std::string());}
-void MegaScheduledMeetingPrivate::setCancelled(int cancelled)                   { mCancelled = cancelled;}
-
 MegaHandle MegaScheduledMeetingPrivate::chatid() const                          { return mChatid;}
 MegaHandle MegaScheduledMeetingPrivate::schedId() const                         { return mSchedId;}
 MegaHandle MegaScheduledMeetingPrivate::parentSchedId() const                   { return mParentSchedid;}

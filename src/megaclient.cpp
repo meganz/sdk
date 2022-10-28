@@ -5039,7 +5039,7 @@ bool MegaClient::procsc()
 
                             case MAKENAMEID5('m', 'c', 's', 'm', 'r'):
                                 // scheduled meetings removal
-                                sc_delscheduledmeetings();
+                                sc_delscheduledmeeting();
                                 break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
@@ -7141,7 +7141,7 @@ void MegaClient::sc_chatflags()
 }
 
 // process mcsmr action packet
-void MegaClient::sc_delscheduledmeetings()
+void MegaClient::sc_delscheduledmeeting()
 {
     bool done = false;
     handle schedId = UNDEF;
@@ -7176,12 +7176,8 @@ void MegaClient::sc_delscheduledmeetings()
                         notifychat(chat);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
                                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+                        break;
                     }
-                    else
-                    {
-                        LOG_warn << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "] didn't exists";
-                    }
-                    break;
                 }
                 break;
             }
@@ -7200,8 +7196,9 @@ void MegaClient::sc_delscheduledmeetings()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc, true) != API_OK) { return; }
+    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc, /*parseOnce*/true) != API_OK) { return; }
 
+    assert(schedMeetings.size() == 1);
     for (auto &sm: schedMeetings)
     {
         textchat_map::iterator it = chats.find(sm->chatid());

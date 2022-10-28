@@ -1418,6 +1418,8 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
+        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
+        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
         MegaStringListMap *mStringListMap;
@@ -1428,8 +1430,6 @@ protected:
         unique_ptr<MegaStringList> mStringList;
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
-        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
-        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -4167,21 +4167,6 @@ public:
 
     virtual ~MegaScheduledMeetingPrivate();
     MegaScheduledMeetingPrivate* copy() const;
-
-    void setRules(MegaScheduledRules* rules);
-    void setFlags(MegaScheduledFlags* flags);
-    void setCancelled(int cancelled);
-    void setOverrides(const char* overrides);
-    void setAttributes(const char* attributes);
-    void setDescription(const char* description);
-    void setTitle(const char* title);
-    void setEndDateTime(const char* endDateTime);
-    void setStartDateTime(const char* startDateTime);
-    void setTimezone(const char* timezone);
-    void setParentSchedId(MegaHandle parentSchedId);
-    void setSchedId(MegaHandle schedId);
-    void setChatid(MegaHandle chatid);
-    void setOrganizerUserid(MegaHandle userid);
 
     MegaHandle chatid() const;
     MegaHandle schedId() const;
