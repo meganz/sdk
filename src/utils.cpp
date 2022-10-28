@@ -948,9 +948,9 @@ const char* ScheduledRules::freqToString () const
 {
     switch (mFreq)
     {
-        case 0: return "DAILY";
-        case 1: return "WEEKLY";
-        case 2: return "MONTHLY";
+        case 0: return "d";
+        case 1: return "w";
+        case 2: return "m";
         default: return nullptr;
     }
 }
@@ -985,9 +985,9 @@ bool ScheduledRules::equalTo(const mega::ScheduledRules *r) const
 
 int ScheduledRules::stringToFreq (const char* freq)
 {
-    if (strcmp(freq, "DAILY") == 0)     { return FREQ_DAILY; }
-    if (strcmp(freq, "WEEKLY") == 0)    { return FREQ_WEEKLY; }
-    if (strcmp(freq, "MONTHLY") == 0)   { return FREQ_WEEKLY; }
+    if (strcmp(freq, "d") == 0)     { return FREQ_DAILY; }
+    if (strcmp(freq, "w") == 0)    { return FREQ_WEEKLY; }
+    if (strcmp(freq, "m") == 0)   { return FREQ_WEEKLY; }
     return FREQ_INVALID;
 }
 
