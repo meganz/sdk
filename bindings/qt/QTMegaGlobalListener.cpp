@@ -57,6 +57,12 @@ void QTMegaGlobalListener::onEvent(MegaApi *api, MegaEvent *e)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaGlobalListener::onGlobalSyncStateChanged(MegaApi *api)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnGlobalSyncStateChanged);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaGlobalListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
@@ -79,6 +85,9 @@ void QTMegaGlobalListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnEvent:
             if(listener) listener->onEvent(event->getMegaApi(), event->getEvent());
+            break;
+        case QTMegaEvent::OnGlobalSyncStateChanged:
+            if(listener) listener->onGlobalSyncStateChanged(event->getMegaApi());
             break;
         default:
             break;
