@@ -2164,6 +2164,52 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
  }
  #endif
 
+bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult)
+{
+    // if this cloud move was a sync decision, don't look to make it locally too
+    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere &&
+        !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
+    {
+        auto& moveHerePtr = row.syncNode->rare().moveToHere;
+
+        if (moveHerePtr->failed)
+        {
+            SYNC_verbose << "Cloud move to here failed, reset for reevaluation" << logTriplet(row, fullPath);
+            moveHerePtr.reset();
+        }
+        else if (!moveHerePtr->succeeded)
+        {
+            SYNC_verbose << "Cloud move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            rowResult = false;
+            return true;  // row processed (no further action) but not synced
+        }
+        else if (row.cloudNode->handle == moveHerePtr->movedHandle)
+        {
+            SYNC_verbose << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
+            syncs.setSyncedFsidReused(moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
+            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+            row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
+            statecacheadd(row.syncNode);
+
+            moveHerePtr->syncCodeProcessedResult = true;
+            moveHerePtr.reset();
+
+            rowResult = false;
+            return true;
+        }
+        else
+        {
+            SYNC_verbose << "Cloud move completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            moveHerePtr.reset();
+        }
+    }
+
+    rowResult = false;
+    return false;
+}
+
+
+
 bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode)
 {
     // We have detected that this LocalNode might be a move/rename target (the moved-to location).
@@ -2185,41 +2231,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     // is missing.  In that case, we clean up the data structure and let the algorithm make a new choice.
 
     assert(syncs.onSyncThread());
-
-    // if this cloud move was a sync decision, don't look to make it locally too
-    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere &&
-        !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
-    {
-        if (!row.syncNode->rare().moveToHere->succeeded &&
-            !row.syncNode->rare().moveToHere->failed)
-        {
-            SYNC_verbose << "Move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
-            rowResult = false;
-            return true;  // row processed (no further action) but not synced
-        }
-        else if (row.syncNode->rare().moveToHere->succeeded &&
-                 row.cloudNode->handle == row.syncNode->rare().moveToHere->movedHandle)
-        {
-            SYNC_verbose << "Cloud move completed, setting synced handle to prevent interpreting a local move (if fsNode was moved in the meantime). " << logTriplet(row, fullPath);
-            syncs.setSyncedFsidReused(row.syncNode->rare().moveToHere->sourceFsid); // prevent reusing that one as move source for chained move cases
-            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-            row.syncNode->setSyncedFsid(row.syncNode->rare().moveToHere->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
-            statecacheadd(row.syncNode);
-            rowResult = false;
-            return true;
-        }
-        else if (row.fsNode && syncEqual(*row.cloudNode, *row.fsNode))
-        {
-            SYNC_verbose << "Nodes at move-to site match so allow to resolve. " << logTriplet(row, fullPath);
-            rowResult = false;
-            return false;  // we need to progress to resolve_rowMatched at this node
-        }
-        else
-        {
-            // this case for chained moves (user moved the local side a second time while we were processing the first move)
-            SYNC_verbose << "Checking move when one to here already succeeded at " << logTriplet(row, fullPath);
-        }
-    }
 
     SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
@@ -6608,6 +6619,13 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.suppressRecursion = true;
 
         return true;
+    }
+
+    bool rowResult;
+    if (checkForCompletedCloudMoveToHere(row, parentRow, fullPath, rowResult))
+    {
+        row.itemProcessed = true;
+        return rowResult;
     }
 
     // First deal with detecting local moves/renames and propagating correspondingly
