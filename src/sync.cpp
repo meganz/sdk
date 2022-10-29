@@ -1258,6 +1258,14 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         mConfig.mDatabaseExists = false;
     }
 
+    if (newSyncError != NO_SYNC_ERROR && mSync && mSync->statecachetable)
+    {
+        // if we are keeping the db and unloading the sync,
+        // prevent any more changes to it from this point
+        mSync->cachenodes();
+        mSync->statecachetable.reset();
+    }
+
     if (newstate != mConfig.mRunningState)
     {
         mConfig.mRunningState = newstate;
