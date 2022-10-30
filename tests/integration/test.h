@@ -429,6 +429,8 @@ struct StandardClient : public MegaApp
     void loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb);
     void loginFromSession(const string& session, PromiseBoolSP pb);
 
+    void sendDeferredAndReset();
+
     class BasicPutNodesCompletion
     {
     public:
