@@ -2182,6 +2182,7 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
         {
             SYNC_verbose << syncname << "Cloud move to here failed, reset for reevaluation" << logTriplet(row, fullPath);
             moveHerePtr.reset();
+            row.syncNode->updateMoveInvolvement();
         }
         else if (!moveHerePtr->succeeded)
         {
@@ -2259,6 +2260,7 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             moveHerePtr->syncCodeProcessedResult = true;
             moveHerePtr.reset();
             row.syncNode->trimRareFields();
+            row.syncNode->updateMoveInvolvement();
 
             rowResult = false;
             return true;
@@ -2268,11 +2270,9 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             SYNC_verbose << syncname << "Cloud move completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
             moveHerePtr->syncCodeProcessedResult = true;
             moveHerePtr.reset();
+            row.syncNode->updateMoveInvolvement();
         }
-
-        row.syncNode->updateMoveInvolvement();
     }
-
 
     rowResult = false;
     return false;
@@ -8171,7 +8171,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     return false;
 }
 
-void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name) 
+void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name)
 {
     // Have we encountered an anomalous filename?
     auto type = isFilenameAnomaly(path.localPath, name);
