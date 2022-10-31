@@ -8492,7 +8492,7 @@ TEST_F(SdkTest, SdkUserAlerts)
 #if MEGA_TEST_SC50_ALERTS
     // B2 (uses the same credentials as B1)
     // Create this here, in order to keep valid references to the others throughout the entire test
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(B1idx).c_str(), "JenkinsCanSpamSC50", unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(B1idx).c_str(), string(USER_AGENT+"SC50").c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& B2 = *megaApi.back();
     B2.addListener(this);
     PerApi pa; // make a copy
