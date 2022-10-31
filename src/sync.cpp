@@ -1449,6 +1449,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         // Move's failed. Try again.
                         moveToHere->syncCodeProcessedResult = true;
                         moveToHere.reset();
+                        s->updateMoveInvolvement();
                     }
                     else
                     {
@@ -1458,6 +1459,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             // case insensitive rename is complete
                             s->rare().moveFromHere.reset();
                             s->rare().moveToHere.reset();
+                            s->updateMoveInvolvement();
                             row.suppressRecursion = true;
                             rowResult = false;
                             // pass through to resolve_rowMatched on this pass, if appropriate
@@ -1999,10 +2001,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                                     mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
 
+                                        LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
+
                                         movePtr->succeeded = !error(err);
                                         movePtr->failed = !!error(err);
-
-                                        LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
 
                                         if (!err && anomalyReport) anomalyReport(mc);
                                     }, canChangeVault);
@@ -2010,7 +2012,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             });
 
                         row.syncNode->rare().moveToHere = movePtr;
+                        row.syncNode->updateMoveInvolvement();
                         sourceSyncNode->rare().moveFromHere = movePtr;
+                        sourceSyncNode->updateMoveInvolvement();
 
                         LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
 
@@ -2050,10 +2054,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                             canChangeVault,
                                             [&mc, movePtr, anomalyReport](NodeHandle, Error err){
 
+                                                LOG_debug << mc.clientname << "SYNC Move completed. err:" << err;
+
                                                 movePtr->succeeded = !error(err);
                                                 movePtr->failed = !!error(err);
-
-                                                LOG_debug << mc.clientname << "SYNC Move completed. err:" << err;
 
                                                 if (!err && anomalyReport) anomalyReport(mc);
                                             });
@@ -2085,7 +2089,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
 
                         row.syncNode->rare().moveToHere = movePtr;
+                        row.syncNode->updateMoveInvolvement();
                         sourceSyncNode->rare().moveFromHere = movePtr;
+                        sourceSyncNode->updateMoveInvolvement();
 
                         LOG_verbose << syncname << "Set moveToHere ptr: " << (void*)movePtr.get() << " at " << logTriplet(row, fullPath);
 
@@ -2174,35 +2180,99 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
         if (moveHerePtr->failed)
         {
-            SYNC_verbose << "Cloud move to here failed, reset for reevaluation" << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Cloud move to here failed, reset for reevaluation" << logTriplet(row, fullPath);
             moveHerePtr.reset();
         }
         else if (!moveHerePtr->succeeded)
         {
-            SYNC_verbose << "Cloud move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Cloud move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
             rowResult = false;
             return true;  // row processed (no further action) but not synced
         }
         else if (row.cloudNode->handle == moveHerePtr->movedHandle)
         {
-            SYNC_verbose << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
+
+            SYNC_verbose << syncname << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
             syncs.setSyncedFsidReused(moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
             row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
             row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
             statecacheadd(row.syncNode);
 
+            LOG_debug << syncname << "Looking up move source by fsid " << toHandle(moveHerePtr->sourceFsid);
+
+            LocalNode* sourceSyncNode = syncs.findMoveFromLocalNode(moveHerePtr);
+
+            if (sourceSyncNode && sourceSyncNode->rareRO().moveFromHere == moveHerePtr)
+            {
+                LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
+                assert(sourceSyncNode == moveHerePtr->sourcePtr);
+
+                // remove fsid (and handle) from source node, so we don't detect
+                // that as a move source anymore
+                sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, sourceSyncNode->cloneShortname());
+                sourceSyncNode->setSyncedNodeHandle(NodeHandle());
+                sourceSyncNode->sync->statecacheadd(sourceSyncNode);
+
+                // Move all the LocalNodes under the source node to the new location
+                // We can't move the source node itself as the recursive callers may be using it
+                sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+
+                row.syncNode->setScanAgain(false, true, true, 0);
+                sourceSyncNode->setScanAgain(true, false, false, 0);
+
+                sourceSyncNode->rare().moveFromHere.reset();
+                sourceSyncNode->trimRareFields();
+                sourceSyncNode->updateMoveInvolvement();
+
+                // If this node was repurposed for the move, rather than the normal case of creating a fresh one, we remove the old content if it was a folder
+                // We have to do this after all processing of sourceSyncNode, in case the source was (through multiple operations) one of the subnodes about to be removed.
+                // TODO: however, there is a risk of name collisions - probably we should use a multimap for LocalNode::children.
+                for (auto& oldc : moveHerePtr->priorChildrenToRemove)
+                {
+                    for (auto& c : row.syncNode->children)
+                    {
+                        if (c.first == oldc.first && c.second == oldc.second)
+                        {
+                            delete c.second; // removes itself from the parent map
+                            break;
+                        }
+                    }
+                }
+
+            }
+            else if (sourceSyncNode)
+            {
+                // just alert us to this an double check the case in the debugger
+                // resetting the movePtrs should cause re-evaluation
+                LOG_debug << syncname << "We found the soure move node, but the source movePtr is no longer there." << sourceSyncNode->getCloudPath(true) << logTriplet(row, fullPath);
+                assert(false);
+            }
+            else
+            {
+                // just alert us to this an double check the case in the debugger
+                // resetting the movePtrs should cause re-evaluation
+                LOG_debug << syncname << "Could not find move source node." << logTriplet(row, fullPath);
+                assert(false);
+            }
+
+            // regardless, make sure we don't get stuck
             moveHerePtr->syncCodeProcessedResult = true;
             moveHerePtr.reset();
+            row.syncNode->trimRareFields();
 
             rowResult = false;
             return true;
         }
         else
         {
-            SYNC_verbose << "Cloud move completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Cloud move completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            moveHerePtr->syncCodeProcessedResult = true;
             moveHerePtr.reset();
         }
+
+        row.syncNode->updateMoveInvolvement();
     }
+
 
     rowResult = false;
     return false;
@@ -4675,6 +4745,26 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     return mSyncConfigIOContext.get();
 }
 
+LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>& moveTo)
+{
+    assert(onSyncThread());
+
+    // There should never be many moves in progress so we can iterate the entire thing
+    // Pointers are safe to access because destruction of these LocalNodes removes them from the set
+    for (auto ln : mMoveInvolvedLocalNodes)
+    {
+        assert(ln->rareRO().moveFromHere || ln->rareRO().moveToHere);
+        if (auto& moveFrom = ln->rareRO().moveFromHere)
+        {
+            if (moveFrom == moveTo)
+            {
+                return ln;
+            }
+        }
+    }
+    return nullptr;
+}
+
 void Syncs::clear_inThread()
 {
     assert(onSyncThread());
@@ -4697,6 +4787,7 @@ void Syncs::clear_inThread()
     mSyncFlags.reset(new SyncFlags);
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     mFileChangingCheckState.clear();
+    mMoveInvolvedLocalNodes.clear();
 
     if (syncscanstate)
     {
@@ -6716,6 +6807,119 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
+bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+{
+    auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
+    if (!downloadPtr) return true;
+
+    ProgressingMonitor monitor(syncs);
+
+    if (downloadPtr->wasTerminated)
+    {
+        SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
+
+        // Did the download fail due to a MAC error?
+        if (downloadPtr->mError == API_EKEY)
+        {
+            // Then report it as a stall.
+            SYNC_verbose << syncname
+                            << "Download was terminated due to MAC verification failure: "
+                            << logTriplet(row, fullPath);
+
+            monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
+                SyncWaitReason::DownloadIssue, true, true,
+                {fullPath.cloudPath, PathProblem::MACVerificationFailure},
+                {},
+                {downloadPtr->getLocalname(), PathProblem::MACVerificationFailure},
+                {fullPath.localPath}));
+
+            return false;
+        }
+        else
+        {
+            // remove the download record so we re-evaluate what to do
+            row.syncNode->resetTransfer(nullptr);
+        }
+    }
+    else if (downloadPtr->wasCompleted)
+    {
+        assert(downloadPtr->downloadDistributor);
+
+        // Convenience.
+        auto& fsAccess = *syncs.fsaccess;
+
+        // Clarity.
+        auto& targetPath = fullPath.localPath;
+
+        // Try and move/rename the downloaded file into its new home.
+        bool nameTooLong = false;
+        bool transientError = false;
+
+        if (row.fsNode && downloadPtr->okToOverwriteFF.isvalid)
+        {
+            if (row.fsNode->fingerprint != downloadPtr->okToOverwriteFF)
+            {
+                LOG_debug << syncname << "Sync download cannot overwrite unexpected file at " << logTriplet(row, fullPath);
+                monitor.noResult();
+                return true;  // continue matching and see if we stall due to changes on both sides
+            }
+        }
+
+        if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
+        {
+            // Move was successful.
+            SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
+
+            // Let the engine know the file exists, even if it hasn't detected it yet.
+            //
+            // This is necessary as filesystem events may be delayed.
+            if (auto fsNode = FSNode::fromPath(fsAccess, targetPath))
+            {
+                parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
+                row.fsNode = &parentRow.fsAddedSiblings.back();
+            }
+
+            // Download was moved into place.
+            downloadPtr->wasDistributed = true;
+
+            // No longer necessary as the transfer's complete.
+            row.syncNode->resetTransfer(nullptr);
+        }
+        else if (nameTooLong)
+        {
+            SYNC_verbose << syncname
+                            << "Download complete but the target's name is too long: "
+                            << logTriplet(row, fullPath);
+
+            monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+                SyncWaitReason::DownloadIssue, true, true,
+                {fullPath.cloudPath},
+                {},
+                {downloadPtr->downloadDistributor->distributeFromPath()},
+                {fullPath.localPath, PathProblem::NameTooLongForFilesystem}));
+
+            // Leave the transfer intact so we don't reattempt the download.
+            return false;
+        }
+        else
+        {
+            // (Transient?) error while moving download into place.
+            SYNC_verbose << syncname << "Download complete, but filesystem move error." << logTriplet(row, fullPath);
+
+            // Let the monitor know what we're up to.
+            monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+                SyncWaitReason::DownloadIssue, false, true,
+                {fullPath.cloudPath},
+                {},
+                {downloadPtr->getLocalname()},
+                {fullPath.localPath, PathProblem::FilesystemErrorDuringOperation}));
+
+            return false;
+        }
+    }
+    return true;  // carry on with checkItem()
+}
+
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
@@ -6806,16 +7010,19 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     // rename of this node (case insensitive but case changed)?
                     moveFromHere.reset();
                     s->rare().moveToHere.reset();
+                    s->updateMoveInvolvement();
                 }
                 else if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
                 {
                     // Move's completed.
                     moveFromHere.reset();
+                    s->updateMoveInvolvement();
                 }
                 else if (moveFromHere.use_count() == 1)
                 {
                     SYNC_verbose << "Removing orphaned moveFromHere pointer at: " << logTriplet(row, fullPath);
                     moveFromHere.reset();
+                    s->updateMoveInvolvement();
                 }
                 else
                 {
@@ -6891,6 +7098,14 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         row.suppressRecursion = true;
         row.itemProcessed = true;
         return false;
+    }
+
+    if (row.syncNode && row.syncNode->transferSP)
+    {
+        if (!syncItem_checkDownloadCompletion(row, parentRow, fullPath))
+        {
+            return false;
+        }
     }
 
     auto rowType = row.type();
@@ -7186,6 +7401,7 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
         LOG_debug << "Move source does not match the movePtr anymore. (" << source->getLocalPath() << ") at: " << logTriplet(row, fullPath);
         row.syncNode->rare().moveToHere->syncCodeProcessedResult = true;  // a visit to the source node with the corresponding moveFromHere ptr will now remove it
         row.syncNode->rare().moveToHere.reset();
+        row.syncNode->updateMoveInvolvement();
         return false;
     }
 
@@ -7208,10 +7424,12 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
     source->rare().moveFromHere->syncCodeProcessedResult = true;
     source->rare().moveFromHere.reset();
     source->trimRareFields();
+    source->updateMoveInvolvement();
 
     target->rare().moveToHere->syncCodeProcessedResult = true;
     target->rare().moveToHere.reset();
     target->trimRareFields();
+    target->updateMoveInvolvement();
 
     // Consider us synced with the local disk.
     target->setSyncedFsid(movePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
@@ -7262,6 +7480,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
         sourceSyncNode->rare().moveFromHere->syncCodeProcessedResult = true;
         sourceSyncNode->rare().moveFromHere.reset();
         sourceSyncNode->trimRareFields();
+        sourceSyncNode->updateMoveInvolvement();
 
         // If this node was repurposed for the move, rather than the normal case of creating a fresh one, we remove the old content if it was a folder
         // We have to do this after all processing of sourceSyncNode, in case the source was (through multiple operations) one of the subnodes about to be removed.
@@ -7289,6 +7508,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
     row.syncNode->rare().moveToHere->syncCodeProcessedResult = true;
     row.syncNode->rare().moveToHere.reset();
     row.syncNode->trimRareFields();
+    row.syncNode->updateMoveInvolvement();
 
     return sourceSyncNode != nullptr;
 }
@@ -7567,7 +7787,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         {
             fsNodeIsElsewhere = true;
             fsElsewhereLocation = fsElsewhere->getCloudPath(false);
-            SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere: " << fsElsewhere->getLocalPath() << " triplet: " << logTriplet(row, fullPath);
+            SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere: " << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
         }
 
         CloudNode cloudNode;
@@ -7578,12 +7798,12 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         if (found && !isInTrash && nodeIsInActiveUnpausedSync && !nodeIsDefinitelyExcluded)
         {
             cloudNodeIsElsewhere = true;
-            SYNC_verbose << "LocalNode considered for deletion, but cloud Node is elsewhere: " << cloudNodePath << " triplet: " << logTriplet(row, fullPath);
+            SYNC_verbose << "LocalNode considered for deletion, but cloud Node is elsewhere: " << cloudNodePath << logTriplet(row, fullPath);
         }
 
         if (fsNodeIsElsewhere && cloudNodeIsElsewhere && fsElsewhereLocation != cloudNodePath)
         {
-            SYNC_verbose << "LocalNode considered for deletion, but is the source of moves to different locations: " << cloudNodePath << " " << fsElsewhereLocation << " triplet: " << logTriplet(row, fullPath);
+            SYNC_verbose << "LocalNode considered for deletion, but is the source of moves to different locations: " << cloudNodePath << " " << fsElsewhereLocation << logTriplet(row, fullPath);
 
             // Moves are not complete yet so we can't be sure this node is not the source of two
             // inconsistent moves, one local and one remote.  Keep for now until all moves are resolved.
@@ -8042,7 +8262,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
                 row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
-                    fullPath.localPath, inshare, *syncs.fsaccess, threadSafeState), downloadFirst);
+                    fullPath.localPath, inshare, threadSafeState, row.fsNode ? row.fsNode->fingerprint : FileFingerprint()
+                    ), downloadFirst);
 
                 //row.syncNode->treestate(TREESTATE_SYNCING);
                 //parentRow.syncNode->treestate(TREESTATE_SYNCING);
@@ -8056,122 +8277,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 //    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
                 //}
             }
-            else if (downloadPtr->wasTerminated)
-            {
-                SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
-
-                // Did the download fail due to a MAC error?
-                if (downloadPtr->mError == API_EKEY)
-                {
-                    // Then report it as a stall.
-                    SYNC_verbose << syncname
-                                 << "Download was terminated due to MAC verification failure: "
-                                 << logTriplet(row, fullPath);
-
-                    monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
-                        SyncWaitReason::DownloadIssue, true, true,
-                        {fullPath.cloudPath, PathProblem::MACVerificationFailure},
-                        {},
-                        {downloadPtr->getLocalname(), PathProblem::MACVerificationFailure},
-                        {fullPath.localPath}));
-
-                }
-                else
-                {
-                    row.syncNode->resetTransfer(nullptr);
-                }
-            }
-            else if (downloadPtr->wasCompleted)
-            {
-                assert(downloadPtr->downloadDistributor);
-
-                // Convenience.
-                auto& fsAccess = *syncs.fsaccess;
-
-                // Clarity.
-                auto& targetPath = fullPath.localPath;
-
-                // Try and move/rename the downloaded file into its new home.
-                bool nameTooLong = false;
-                bool transientError = false;
-
-                if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
-                {
-                    // Move was successful.
-                    SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
-
-                    // Check for anomalous file names.
-                    checkForFilenameAnomaly(fullPath, row.cloudNode->name);
-
-                    // Let the engine know the file exists, even if it hasn't detected it yet.
-                    //
-                    // This is necessary as filesystem events may be delayed.
-                    if (auto fsNode = FSNode::fromPath(fsAccess, targetPath))
-                    {
-                        parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
-                        row.fsNode = &parentRow.fsAddedSiblings.back();
-                    }
-
-                    // Download was moved into place.
-                    downloadPtr->wasDistributed = true;
-
-                    // No longer necessary as the transfer's complete.
-                    row.syncNode->resetTransfer(nullptr);
-
-                    // this case is covered when we syncItem
-
-                    //// Have we just downloaded an ignore file?
-                    //if (row.syncNode->isIgnoreFile())
-                    //{
-                    //    // Then load the filters.
-                    //    parentRow.syncNode->loadFilters(fullPath.localPath);
-                    //}
-                }
-                else if (nameTooLong)
-                {
-                    SYNC_verbose << syncname
-                                 << "Download complete but the target's name is too long: "
-                                 << logTriplet(row, fullPath);
-
-                    monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::DownloadIssue, true, true,
-                        {fullPath.cloudPath},
-                        {},
-                        {downloadPtr->downloadDistributor->distributeFromPath()},
-                        {fullPath.localPath, PathProblem::NameTooLongForFilesystem}));
-
-                    // Leave the transfer intact so we don't reattempt the download.
-                }
-                else if (transientError)
-                {
-                    // Transient error while moving download into place.
-                    SYNC_verbose << syncname << "Download complete, but move transient error" << logTriplet(row, fullPath);
-
-                    // Let the monitor know what we're up to.
-                    monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::DownloadIssue, false, true,
-                        {fullPath.cloudPath},
-                        {},
-                        {downloadPtr->getLocalname()},
-                        {fullPath.localPath, PathProblem::FilesystemErrorDuringOperation}));
-                }
-                else
-                {
-                    // todo: shouldn't we stall in this case also, same as transientError but until user addresses
-
-                    // Hard error while moving download into place.
-                    SYNC_verbose << syncname << "Download complete, but move failed" << logTriplet(row, fullPath);
-                    row.syncNode->resetTransfer(nullptr);
-                }
-
-                // Rescan our parent if we're operating in periodic scan mode.
-                //
-                // The reason we're issuing a scan in almost all cases is
-                // that we can't tell whether we were able to move any
-                // existing file at the donwload target into the debris.
-                if (!fsAccess.target_name_too_long && !dirnotify.get())
-                    parentRow.syncNode->setScanAgain(false, true, false, 0);
-            }
+            // terminated and completed transfers are checked for early in syncItem()
             else
             {
                 SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
@@ -8304,8 +8410,18 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
 
     if (row.syncNode)
     {
+        bool immediateStall = true;
+
+        if (row.syncNode->transferSP) immediateStall = false;
+
+        if (row.syncNode->hasRare())
+        {
+            if (row.syncNode->rare().moveFromHere) immediateStall = false;
+            if (row.syncNode->rare().moveToHere) immediateStall = false;
+        }
+
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, true, true,
+            SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, immediateStall, true,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath},

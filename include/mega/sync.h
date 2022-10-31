@@ -472,6 +472,7 @@ public:
 
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
@@ -1348,6 +1349,11 @@ private:
         m_time_t updatedfileinitialts = 0;
     };
     std::map<LocalPath, FileChangingState> mFileChangingCheckState;
+
+    // Keep track of which LocalNodes are involved in moves
+    // Sometimes we can't find the other end by fsid for example, if both Cloud and FSNode moved.
+    std::set<LocalNode*> mMoveInvolvedLocalNodes;
+    LocalNode* findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>&);
 
     // shutdown safety
     bool mExecutingLocallogout = false;

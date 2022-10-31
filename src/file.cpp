@@ -448,10 +448,11 @@ string File::displayname()
 
 #ifdef ENABLE_SYNC
 SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
-        FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss)
+        shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
+    okToOverwriteFF = overwriteFF;
 
     syncxfer = true;
     fromInsycShare = fromInshare;

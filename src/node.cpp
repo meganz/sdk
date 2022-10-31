@@ -2349,6 +2349,8 @@ LocalNode::~LocalNode()
         // for other cases - single sync cancel, disable etc - transfers are cancelled.
         resetTransfer(nullptr);
 
+        sync->syncs.mMoveInvolvedLocalNodes.erase(this);
+
         // remove from fsidnode map, if present
         if (fsid_lastSynced_it != sync->syncs.localnodeBySyncedFsid.end())
         {
@@ -2540,6 +2542,19 @@ FSNode LocalNode::getScannedFSDetails() const
     n.fingerprint = scannedFingerprint;
     assert(scannedFingerprint.isvalid || type != FILENODE);
     return n;
+}
+
+void LocalNode::updateMoveInvolvement()
+{
+    bool moveInvolved = hasRare() && (rare().moveToHere || rare().moveFromHere);
+    if (moveInvolved)
+    {
+        sync->syncs.mMoveInvolvedLocalNodes.insert(this);
+    }
+    else
+    {
+        sync->syncs.mMoveInvolvedLocalNodes.erase(this);
+    }
 }
 
 void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst)

@@ -17176,6 +17176,12 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
 
 TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 {
+    // checks upload also:
+    //  - establish file f synced in the root of a sync
+    //  - update f in the cloud, causing the sync to download it
+    //  - simultaneous with the download, locally move f to d/f inside the sync
+    // we expect the updated f's download to end up at d/f locally
+
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get ourselves a shiny new client.
@@ -17239,7 +17245,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 
     client->mOnTransferAdded = onTransferAddedHandler;
 
-    // Create a new version of f in the cloud.
+    // Update f in the cloud (manual upload, making a version chain, and causing the sync to download it)
     {
         auto data = randomData(16384);
         auto path = client->fsBasePath / "f";

@@ -109,12 +109,14 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
     bool failed(error, MegaClient*) override;
 
     SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare,
-            FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss);
+            shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF);
 
     ~SyncDownload_inClient();
 
     // True if we could copy (or move) the download into place.
     bool wasDistributed = false;
+
+    FileFingerprint okToOverwriteFF;
 };
 
 struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this<SyncUpload_inClient>
@@ -802,6 +804,7 @@ struct MEGA_API LocalNode
     void transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;
 
+    void updateMoveInvolvement();
 
     void setSyncedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, std::unique_ptr<LocalPath> newshortname);
     void setScannedFsid(handle newfsid, fsid_localnode_map& fsidnodes, const LocalPath& fsName, const FileFingerprint& scanfp);
