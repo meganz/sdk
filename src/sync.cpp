@@ -6870,6 +6870,9 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
             // Move was successful.
             SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
 
+            // Check for anomalous file names.
+            checkForFilenameAnomaly(fullPath, row.cloudNode->name);
+
             // Let the engine know the file exists, even if it hasn't detected it yet.
             //
             // This is necessary as filesystem events may be delayed.
@@ -6877,6 +6880,7 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
             {
                 parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
                 row.fsNode = &parentRow.fsAddedSiblings.back();
+                row.syncNode->slocalname = row.fsNode->cloneShortname();
             }
 
             // Download was moved into place.
@@ -8167,6 +8171,24 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     return false;
 }
 
+void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name) 
+{
+    // Have we encountered an anomalous filename?
+    auto type = isFilenameAnomaly(path.localPath, name);
+
+    // Nope so we can bail early.
+    if (type == FILENAME_ANOMALY_NONE) return;
+
+    // Get our hands on the relevant paths.
+    auto localPath = path.localPath;
+    auto remotePath = path.cloudPath;
+
+    // Report the anomaly.
+    syncs.queueClient([=](MegaClient& client, TransferDbCommitter&) {
+        client.filenameAnomalyDetected(type, localPath, remotePath);
+    });
+};
+
 bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists)
 {
     assert(syncs.onSyncThread());
@@ -8189,24 +8211,6 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         changestate(BACKUP_MODIFIED, false, true, false);
         return false;
     }
-
-    // Consider making this a class-wide function.
-    auto checkForFilenameAnomaly = [this](const SyncPath& path, const string& name) {
-        // Have we encountered an anomalous filename?
-        auto type = isFilenameAnomaly(path.localPath, name);
-
-        // Nope so we can bail early.
-        if (type == FILENAME_ANOMALY_NONE) return;
-
-        // Get our hands on the relevant paths.
-        auto localPath = path.localPath;
-        auto remotePath = path.cloudPath;
-
-        // Report the anomaly.
-        syncs.queueClient([=](MegaClient& client, TransferDbCommitter&) {
-            client.filenameAnomalyDetected(type, localPath, remotePath);
-        });
-    };
 
     if (row.cloudNode->type == FILENODE)
     {
