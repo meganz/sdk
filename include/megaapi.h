@@ -26,7 +26,6 @@
 #include <vector>
 #include <map>
 #include <inttypes.h>
-#include <bitset>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -35,8 +34,6 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
-typedef std::vector<int8_t> MegaSmallIntVector;
-typedef std::multimap<int8_t, int8_t> MegaSmallIntMap;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -1871,9 +1868,7 @@ class MegaIntegerList
 public:
     virtual ~MegaIntegerList();
     static MegaIntegerList* createInstance();
-    static MegaIntegerList* createInstanceFromBytesList(const std::vector<int8_t>& bytesList);
     virtual MegaIntegerList *copy() const;
-    virtual MegaSmallIntVector* toByteList() const;
 
     /**
      * @brief Returns the integer at the position i in the MegaIntegerList
@@ -2805,11 +2800,8 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaIntegerMap* createInstance();
-    static MegaIntegerMap* createInstanceFromBytesMap(const std::multimap<int8_t, int8_t>& bytesMap);
-    static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
-    virtual MegaSmallIntMap* toByteMap() const;
 
     /**
      * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.

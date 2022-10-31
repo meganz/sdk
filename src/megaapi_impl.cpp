@@ -4299,7 +4299,6 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate()
 {
 }
 
-// JCHECK refactor this method to accept a const reference instead of const ptr
 MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate& megaIntegerMap)
     :mIntegerMap(megaIntegerMap.getMap() ? *megaIntegerMap.getMap() : integer_map())
 {
@@ -33438,9 +33437,9 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules
     mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
     mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
     mUntil(rules->until()),
-    mByWeekDay(rules->byWeekDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byWeekDay()) : nullptr),
-    mByMonthDay(rules->byMonthDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byMonthDay()) : nullptr),
-    mByMonthWeekDay(rules->byMonthWeekDay() ? MegaIntegerMap::createInstanceFromBytesMap(*rules->byMonthWeekDay()) : nullptr)
+    mByWeekDay(rules->byWeekDay() ? new MegaIntegerListPrivate(*rules->byWeekDay()) : nullptr),
+    mByMonthDay(rules->byMonthDay() ? new MegaIntegerListPrivate(*rules->byMonthDay()) : nullptr),
+    mByMonthWeekDay(rules->byMonthWeekDay() ? new MegaIntegerMapPrivate(*rules->byMonthWeekDay()) : nullptr)
 {
 }
 
@@ -33462,9 +33461,9 @@ const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const 
 
 ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {
-    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? mByWeekDay->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByWeekDay? mByWeekDay->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? mByMonthWeekDay->toByteMap() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (static_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (static_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
     return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
 }
 
