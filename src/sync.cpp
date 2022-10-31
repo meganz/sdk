@@ -6903,7 +6903,8 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
                 {fullPath.localPath, PathProblem::NameTooLongForFilesystem}));
 
             // Leave the transfer intact so we don't reattempt the download.
-            return false;
+            // Also allow the syncItem logic to continue, to resolve via user change, eg delete the cloud node
+            return true;
         }
         else
         {
@@ -6918,7 +6919,8 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
                 {downloadPtr->getLocalname()},
                 {fullPath.localPath, PathProblem::FilesystemErrorDuringOperation}));
 
-            return false;
+            // Also allow the syncItem logic to continue, to resolve via user change, eg delete the cloud node
+            return true;
         }
     }
     return true;  // carry on with checkItem()
