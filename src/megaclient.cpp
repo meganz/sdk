@@ -7196,7 +7196,7 @@ void MegaClient::sc_delscheduledmeeting()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc, /*parseOnce*/true) != API_OK) { return; }
+    if (parseScheduledMeetings(schedMeetings, false, &jsonsc, /*parseOnce*/true) != API_OK) { return; }
 
     assert(schedMeetings.size() == 1);
     for (auto &sm: schedMeetings)
@@ -9666,15 +9666,9 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings,
+error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce)
 {
-    if (!schedMeetings)
-    {
-        assert(false);
-        return API_EARGS;
-    }
-
     JSON* auxJson = j
             ? j         // custom Json provided
             : &json;    // MegaClient-Server response JSON
@@ -9927,7 +9921,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
                     else
                     {
-                        schedMeetings->emplace_back(std::move(auxMeet));
+                        schedMeetings.emplace_back(std::move(auxMeet));
                     }
 
                     break;
@@ -11835,7 +11829,7 @@ void MegaClient::procmcsm(JSON *j)
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     if (j && j->enterarray())
     {
-        error err = parseScheduledMeetings(&schedMeetings, false, j);
+        error err = parseScheduledMeetings(schedMeetings, false, j);
         j->leavearray();
         if (err || schedMeetings.empty()) { return; }
     }

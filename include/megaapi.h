@@ -18471,7 +18471,7 @@ class MegaApi
          *
          * TODO complete documentation
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

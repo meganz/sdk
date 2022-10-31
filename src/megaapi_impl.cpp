@@ -4299,8 +4299,9 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate()
 {
 }
 
-MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap)
-    :mIntegerMap(megaIntegerMap && megaIntegerMap->getMap() ? *megaIntegerMap->getMap() : integer_map())
+// JCHECK refactor this method to accept a const reference instead of const ptr
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate& megaIntegerMap)
+    :mIntegerMap(megaIntegerMap.getMap() ? *megaIntegerMap.getMap() : integer_map())
 {
 }
 
@@ -4328,7 +4329,7 @@ MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
 
 MegaIntegerMap* MegaIntegerMapPrivate::copy() const
 {
-    return new MegaIntegerMapPrivate(this);
+    return new MegaIntegerMapPrivate(*this);
 }
 
 bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
@@ -10773,13 +10774,13 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
     waiter->notify();
 }
 
-void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS, listener);
     request->setNodeHandle(chatid);
     request->setName(since);
     request->setEmail(until);
-    request->setAccess(count);
+    request->setNumber(count);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23544,7 +23545,7 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             const char* since = request->getName();
             const char* until = request->getEmail();
-            int count = request->getAccess();
+            unsigned int count = static_cast<unsigned int>(request->getNumber());
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())

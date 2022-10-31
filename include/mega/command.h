@@ -1564,12 +1564,12 @@ class MEGA_API CommandScheduledMeetingFetchEvents : public Command
     handle mChatId;
     string mSince;
     string mUntil;
-    int mCount;
+    unsigned mCount;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 

@@ -1861,7 +1861,7 @@ public:
     bool equalTo(const std::multimap<int8_t, int8_t>* aux) const override;
     const integer_map* getMap() const;
 private:
-    MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);
+    MegaIntegerMapPrivate(const MegaIntegerMapPrivate &megaIntegerMap);
     integer_map mIntegerMap;
 };
 
@@ -2964,7 +2964,7 @@ class MegaApiImpl : public MegaApp
         void createScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
