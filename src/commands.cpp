@@ -3157,7 +3157,7 @@ bool CommandPutUAVer::procresult(Result r)
 
         if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
         {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            LOG_err << "Error in CommandPutUAVer. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
             return false;
         }
@@ -3177,7 +3177,7 @@ bool CommandPutUAVer::procresult(Result r)
                 }
                 else
                 {
-                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('upv')";
                 }
             }
             else if (at == ATTR_UNSHAREABLE_KEY)
@@ -3197,10 +3197,10 @@ bool CommandPutUAVer::procresult(Result r)
     return true;
 }
 
-
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
+CommandPutUA::CommandPutUA(MegaClient* cl, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
+    this->client = cl; // used in the lambda completion
     this->at = at;
     this->av.assign((const char*)av, avl);
 
@@ -3209,7 +3209,7 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
                         client->app->putua_result(e);
                   };
 
-    cmd("up");
+    cmd("up2");
 
     string an = User::attr2string(at);
 
@@ -3243,7 +3243,29 @@ bool CommandPutUA::procresult(Result r)
     }
     else
     {
-        client->json.storeobject(); // [<uh>]
+        const char* ptr;
+        const char* end;
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+        attr_t at = User::string2attr(string(ptr, (end - ptr)).c_str());
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+        string v = string(ptr, (end - ptr));
+
+        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        {
+            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
 
         User *u = client->ownuser();
         assert(u);
@@ -3253,8 +3275,32 @@ bool CommandPutUA::procresult(Result r)
             mCompletion(API_EACCESS);
             return true;
         }
-        u->setattr(at, &av, NULL);
+        u->setattr(at, &av, &v);
         u->setTag(tag ? tag : -1);
+
+        if (User::isAuthring(at))
+        {
+            client->mAuthRings.erase(at);
+            const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+            if (tlvRecords)
+            {
+                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+            }
+            else
+            {
+                LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('up')";
+            }
+        }
+        else if (at == ATTR_UNSHAREABLE_KEY)
+        {
+            LOG_info << "Unshareable key successfully created";
+            client->unshareablekey.swap(av);
+        }
+        else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+        {
+            LOG_info << "JSON config data successfully created.";
+        }
+
         client->notifyuser(u);
 
         if (at == ATTR_DISABLE_VERSIONS)

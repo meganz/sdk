@@ -5907,6 +5907,14 @@ TEST_F(SdkTest, SdkUserAlias)
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+
+    // test setter/getter for different value
+    alias = "UserAliasTest_changed";
+    err = synchronousSetUserAlias(0, uh, alias.c_str());
+    ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
