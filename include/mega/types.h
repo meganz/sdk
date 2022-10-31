@@ -758,7 +758,6 @@ class ScheduledFlags
 
         // getters
         unsigned long getNumericValue() const;
-        bool EmailsDisabled() const;
         bool isEmpty() const;
         bool equalTo(const ScheduledFlags*) const;
 
@@ -798,7 +797,7 @@ class ScheduledRules
         ~ScheduledRules();
 
         // getters
-        int freq() const;
+        ScheduledRules::freq_type_t freq() const;
         int interval() const;
         const std::string &until() const;
         const rules_vector* byWeekDay() const;
@@ -808,7 +807,7 @@ class ScheduledRules
         const char* freqToString() const;
         bool equalTo(const ScheduledRules*) const;
         static int stringToFreq (const char* freq);
-        static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
+        static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
 
         // serialization
@@ -817,7 +816,7 @@ class ScheduledRules
 
     private:
         // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
-        int mFreq;
+        freq_type_t mFreq;
 
         // repetition interval in relation to the frequency
         int mInterval = 0;

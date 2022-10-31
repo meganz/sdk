@@ -874,7 +874,6 @@ ScheduledFlags* ScheduledFlags::copy() const
 }
 
 unsigned long ScheduledFlags::getNumericValue() const       { return mFlags.to_ulong(); }
-bool ScheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool ScheduledFlags::isEmpty() const                        { return mFlags.none(); }
 bool ScheduledFlags::equalTo(const ScheduledFlags* f) const
 {
@@ -905,7 +904,7 @@ ScheduledRules::ScheduledRules(int freq,
                               const rules_vector* byWeekDay,
                               const rules_vector* byMonthDay,
                               const rules_map* byMonthWeekDay)
-    : mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
+    : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
       mUntil(until),
       mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
@@ -933,7 +932,7 @@ ScheduledRules::~ScheduledRules()
 {
 }
 
-int ScheduledRules::freq() const                                            { return mFreq; }
+ScheduledRules::freq_type_t ScheduledRules::freq() const                    { return mFreq; }
 int ScheduledRules::interval() const                                        { return mInterval; }
 const std::string& ScheduledRules::until() const                            { return mUntil;}
 const ScheduledRules::rules_vector* ScheduledRules::byWeekDay() const       { return mByWeekDay.get(); }
