@@ -2210,6 +2210,7 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
+                sourceSyncNode->syncedFingerprint =  moveHerePtr->sourceFingerprint;
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, sourceSyncNode->cloneShortname());
                 sourceSyncNode->setSyncedNodeHandle(NodeHandle());
                 sourceSyncNode->sync->statecacheadd(sourceSyncNode);
@@ -8651,14 +8652,20 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
             }
         }
 #endif
-        if (type == FILENODE &&
-            (fingerprint.mtime != it->second->syncedFingerprint.mtime ||
-                fingerprint.size != it->second->syncedFingerprint.size))
-        {
-            // fsid match, but size or mtime mismatch
-            // treat as different
-            continue;
-        }
+
+        // Even if the fingerprint didn't match, the syncedFsid here means the file came from this location
+        // It could be updated and moved.
+        // One case where this happens, is MoveJustAsPutNodesSent where we upload a file and
+        // while the putnodes is in flight, also move the file locally
+        //
+        //if (type == FILENODE &&
+        //    (fingerprint.mtime != it->second->syncedFingerprint.mtime ||
+        //        fingerprint.size != it->second->syncedFingerprint.size))
+        //{
+        //    // fsid match, but size or mtime mismatch
+        //    // treat as different
+        //    continue;
+        //}
 
         // If we got this far, it's a good enough match to use
         // todo: come back for other matches?

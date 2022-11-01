@@ -17514,14 +17514,14 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Hook the putnodes callback.
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // Make a change for the engine to synchronize.
+    // File d/f already exists - update content from "y" to "z".  Sync will upload, ending in putnodes
     model.addfile("d/f", "z");
     model.generate(client->fsBasePath / "s");
 
     // Wait for the engine to send the putnodes request.
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Move the local file up the hierarchy.
+    // Move d/f into its parent folder. Sync will generate another putnodes, somewhat contrary to the other
     model.movenode("d/f", "");
 
     fs::rename(client->fsBasePath / "s" / "d" / "f",
