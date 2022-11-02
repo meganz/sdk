@@ -9808,7 +9808,7 @@ class MegaApi
          *
          * The verification email will be resent to the same address as it was previously sent to.
          *
-         * This function can be called if the the reason for being blocked is:
+         * This function can be called if the reason for being blocked is:
          *      700: the account is supended for Weak Account Protection.
          *
          * If the logged in account is not suspended or is suspended for some other reason,
@@ -14304,14 +14304,13 @@ class MegaApi
         /**
          * @brief Move or Remove the nodes that used to be part of backup.
          *
-         * The folder must be the the Vault/<device>/, and will be moved, or permanently deleted.
-         * Deletion is selected if the specified destination is INVALID_HANDLE.
-         * Deletion is permanent, and not to the Trash.  If the nodes should be moved to the
-         * trash, use that handle.
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
          *
          * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
          *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
          *
@@ -17750,7 +17749,7 @@ class MegaApi
          * When this feature is enabled, the HTTP proxy server will check if there are files with that name
          * in the same folder as the node corresponding to the handle in the link.
          *
-         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * If a matching file is found, the name is exactly the same as the node with the specified handle
          * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
          * the HTTP proxy server will serve that file.
          *
