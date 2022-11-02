@@ -12472,7 +12472,14 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
 
-        sendevent(99458, "Public link encrypted to a password");
+        if (isFolder)
+        {
+            sendevent(99459, "Public folder link encrypted to a password");
+        }
+        else
+        {
+            sendevent(99460, "Public file link encrypted to a password");
+        }
     }
 
     return e;
