@@ -9542,14 +9542,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setSchedId(schedId);
 
-    if ((mScheduledMeeting->parentSchedId() == UNDEF || mScheduledMeeting->overrides().empty())
-            && chat->getSchedMeetingById(mScheduledMeeting->schedId()))
-    {
-        // if we are not overwritting an existing scheduled meeting, it should not exist
-        assert(false);
-        LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "] should not exist";
-    }
-
     bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
@@ -9629,7 +9621,7 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     }
 
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    error err = client->parseScheduledMeetings(&schedMeetings, false /*parsingOccurrences*/);
+    error err = client->parseScheduledMeetings(schedMeetings, false /*parsingOccurrences*/);
     if (err)
     {
         if (mCompletion) { mCompletion(err, nullptr); }
@@ -9640,7 +9632,7 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     return true;
 }
 
-CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, int count, CommandScheduledMeetingFetchEventsCompletion completion)
+CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
    mSince(since ? since : string()),
    mUntil(until ? until : string()),
@@ -9672,7 +9664,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
 
     TextChat* chat = it->second;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    error err = client->parseScheduledMeetings(&schedMeetings, true /*parsingOccurrences*/);
+    error err = client->parseScheduledMeetings(schedMeetings, true /*parsingOccurrences*/);
     if (err)
     {
         if (mCompletion) { mCompletion(err, nullptr); }

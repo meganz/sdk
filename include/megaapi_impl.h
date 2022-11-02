@@ -111,6 +111,9 @@ class MegaHTTPServer;
 class MegaFTPServer;
 #endif
 
+typedef std::vector<int8_t> MegaSmallIntVector;
+typedef std::multimap<int8_t, int8_t> MegaSmallIntMap;
+
 class MegaDbAccess
   : public SqliteDbAccess
 {
@@ -880,13 +883,11 @@ public:
     MegaIntegerListPrivate(const vector<int8_t>& bytesList);
     MegaIntegerListPrivate(const vector<int64_t>& integerList);
     virtual ~MegaIntegerListPrivate();
-    MegaSmallIntVector* toByteList() const override;
+    MegaSmallIntVector* toByteList() const;
     MegaIntegerList *copy() const override;
     void add(long long i) override;
     int64_t get(int i) const override;
     int size() const override;
-    bool equalTo(const std::vector<int64_t>* aux) const override;
-    bool equalTo(const std::vector<int8_t>* aux) const override;
     const vector<int64_t>* getList() const;
 
 private:
@@ -1529,6 +1530,8 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
+        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
+        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
         MegaStringListMap *mStringListMap;
@@ -1539,8 +1542,6 @@ protected:
         unique_ptr<MegaStringList> mStringList;
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
-        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
-        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -1964,17 +1965,15 @@ public:
     MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap);
     MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMapPrivate();
-    MegaSmallIntMap* toByteMap() const override;
+    MegaSmallIntMap* toByteMap() const;
     MegaIntegerMap* copy() const override;
     bool at(size_t index, long long& key, long long& value) const override;
     MegaIntegerList* getKeys() const override;
     unsigned long long size() const override;
     void set(const long long& key, const long long& value) override;
-    bool equalTo(const std::multimap<int64_t, int64_t>* aux) const override;
-    bool equalTo(const std::multimap<int8_t, int8_t>* aux) const override;
     const integer_map* getMap() const;
 private:
-    MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);
+    MegaIntegerMapPrivate(const MegaIntegerMapPrivate &megaIntegerMap);
     integer_map mIntegerMap;
 };
 
@@ -3086,7 +3085,7 @@ class MegaApiImpl : public MegaApp
         void createScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -4299,21 +4298,6 @@ public:
 
     virtual ~MegaScheduledMeetingPrivate();
     MegaScheduledMeetingPrivate* copy() const;
-
-    void setRules(MegaScheduledRules* rules);
-    void setFlags(MegaScheduledFlags* flags);
-    void setCancelled(int cancelled);
-    void setOverrides(const char* overrides);
-    void setAttributes(const char* attributes);
-    void setDescription(const char* description);
-    void setTitle(const char* title);
-    void setEndDateTime(const char* endDateTime);
-    void setStartDateTime(const char* startDateTime);
-    void setTimezone(const char* timezone);
-    void setParentSchedId(MegaHandle parentSchedId);
-    void setSchedId(MegaHandle schedId);
-    void setChatid(MegaHandle chatid);
-    void setOrganizerUserid(MegaHandle userid);
 
     MegaHandle chatid() const;
     MegaHandle schedId() const;

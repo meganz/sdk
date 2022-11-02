@@ -4241,8 +4241,8 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate()
 {
 }
 
-MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap)
-    : mIntegerMap(megaIntegerMap && megaIntegerMap->getMap() ? *megaIntegerMap->getMap() : integer_map())
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate& megaIntegerMap)
+    :mIntegerMap(megaIntegerMap.getMap() ? *megaIntegerMap.getMap() : integer_map())
 {
 }
 
@@ -4270,7 +4270,7 @@ MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
 
 MegaIntegerMap* MegaIntegerMapPrivate::copy() const
 {
-    return new MegaIntegerMapPrivate(this);
+    return new MegaIntegerMapPrivate(*this);
 }
 
 bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
@@ -4311,22 +4311,6 @@ void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
 const integer_map* MegaIntegerMapPrivate::getMap() const
 {
     return &mIntegerMap;
-}
-
-bool MegaIntegerMapPrivate::equalTo(const std::multimap<int64_t, int64_t>* aux) const
-{
-    if (!aux) return false;
-    return mIntegerMap == *aux;
-}
-
-bool MegaIntegerMapPrivate::equalTo(const std::multimap<int8_t, int8_t>* aux) const
-{
-    if (!aux) return false;
-    return std::equal(aux->begin(), aux->end(), mIntegerMap.begin(),
-                      [](std::pair<int8_t, int8_t> i, std::pair<int8_t, int8_t> j)
-                      {
-                        return (i.first == j.first && i.second == j.second);
-                      });
 }
 
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
@@ -10695,13 +10679,13 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
     waiter->notify();
 }
 
-void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS, listener);
     request->setNodeHandle(chatid);
     request->setName(since);
     request->setEmail(until);
-    request->setAccess(count);
+    request->setNumber(count);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23639,7 +23623,7 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             const char* since = request->getName();
             const char* until = request->getEmail();
-            int count = request->getAccess();
+            unsigned int count = static_cast<unsigned int>(request->getNumber());
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -33794,9 +33778,9 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules
     mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
     mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
     mUntil(rules->until()),
-    mByWeekDay(rules->byWeekDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byWeekDay()) : nullptr),
-    mByMonthDay(rules->byMonthDay() ? MegaIntegerList::createInstanceFromBytesList(*rules->byMonthDay()) : nullptr),
-    mByMonthWeekDay(rules->byMonthWeekDay() ? MegaIntegerMap::createInstanceFromBytesMap(*rules->byMonthWeekDay()) : nullptr)
+    mByWeekDay(rules->byWeekDay() ? new MegaIntegerListPrivate(*rules->byWeekDay()) : nullptr),
+    mByMonthDay(rules->byMonthDay() ? new MegaIntegerListPrivate(*rules->byMonthDay()) : nullptr),
+    mByMonthWeekDay(rules->byMonthWeekDay() ? new MegaIntegerMapPrivate(*rules->byMonthWeekDay()) : nullptr)
 {
 }
 
@@ -33818,9 +33802,9 @@ const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const 
 
 ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {
-    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? mByWeekDay->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByWeekDay? mByWeekDay->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? mByMonthWeekDay->toByteMap() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (static_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (static_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
     return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
 }
 
@@ -33890,31 +33874,6 @@ MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy() const
 {
    return new MegaScheduledMeetingPrivate(this);
 }
-
-void MegaScheduledMeetingPrivate::setRules(MegaScheduledRules* rules)
-{
-    mRules.reset();
-    if (rules) { mRules.reset(rules->copy()); }
-}
-
-void MegaScheduledMeetingPrivate::setFlags(MegaScheduledFlags* flags)
-{
-    mFlags.reset();
-    if (flags) { mFlags.reset(flags->copy()); }
-}
-
-void MegaScheduledMeetingPrivate::setChatid(MegaHandle chatid)                  { mChatid = chatid;}
-void MegaScheduledMeetingPrivate::setSchedId(MegaHandle schedId)                { mSchedId = schedId;}
-void MegaScheduledMeetingPrivate::setParentSchedId(MegaHandle parentSchedId)    { mParentSchedid = parentSchedId;}
-void MegaScheduledMeetingPrivate::setOrganizerUserid(MegaHandle userid)         { mOrganizerUserId = userid; }
-void MegaScheduledMeetingPrivate::setTimezone(const char* timezone)             { mTimezone.append(timezone ? timezone : std::string());}
-void MegaScheduledMeetingPrivate::setStartDateTime(const char* startDateTime)   { mStartDateTime.append(startDateTime ? startDateTime : std::string());}
-void MegaScheduledMeetingPrivate::setEndDateTime(const char* endDateTime)       { mEndDateTime.append(endDateTime ? endDateTime : std::string());}
-void MegaScheduledMeetingPrivate::setTitle(const char* title)                   { mTitle.append(title ? title : std::string());}
-void MegaScheduledMeetingPrivate::setDescription(const char* description)       { mDescription.append(description ? description : std::string());}
-void MegaScheduledMeetingPrivate::setAttributes(const char* attributes)         { mAttributes.append(attributes ? attributes : std::string());}
-void MegaScheduledMeetingPrivate::setOverrides(const char* overrides)           { mOverrides.append(overrides ? overrides : std::string());}
-void MegaScheduledMeetingPrivate::setCancelled(int cancelled)                   { mCancelled = cancelled;}
 
 MegaHandle MegaScheduledMeetingPrivate::chatid() const                          { return mChatid;}
 MegaHandle MegaScheduledMeetingPrivate::schedId() const                         { return mSchedId;}
@@ -34330,21 +34289,6 @@ int MegaIntegerListPrivate::size() const
 const vector<int64_t>* MegaIntegerListPrivate::getList() const
 {
     return &mIntegers;
-}
-
-bool MegaIntegerListPrivate::equalTo(const std::vector<int64_t>* aux) const
-{
-    if (!aux) return false;
-    return *aux == mIntegers;
-}
-
-bool MegaIntegerListPrivate::equalTo(const std::vector<int8_t>* aux) const
-{
-    return std::equal(aux->begin(), aux->end(), mIntegers.begin(),
-                      [](int8_t i, int64_t j)
-                      {
-                        return (i==j);
-                      });
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)

@@ -5228,7 +5228,7 @@ void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaR
     pImpl->fetchScheduledMeeting(chatid, schedId, listener);
 }
 
-void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
+void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
 {
     pImpl->fetchScheduledMeetingEvents(chatid, since, until, count, listener);
 }
@@ -6770,24 +6770,8 @@ MegaIntegerMap* MegaIntegerMap::createInstance()
     return new MegaIntegerMapPrivate();
 }
 
-
-MegaIntegerMap* MegaIntegerMap::createInstanceFromBytesMap(const std::multimap<int8_t, int8_t>& bytesMap)
-{
-    return new MegaIntegerMapPrivate(bytesMap);
-}
-
-MegaIntegerMap* MegaIntegerMap::createInstance(const std::multimap<int64_t, int64_t>& integerMap)
-{
-    return new MegaIntegerMapPrivate(integerMap);
-}
-
 MegaIntegerMap::~MegaIntegerMap()
 {
-}
-
-MegaSmallIntMap* MegaIntegerMap::toByteMap() const
-{
-    return NULL;
 }
 
 MegaIntegerMap* MegaIntegerMap::copy() const
@@ -6808,16 +6792,6 @@ MegaIntegerList* MegaIntegerMap::getKeys() const
 void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
 {
 
-}
-
-bool MegaIntegerMap::equalTo(const std::multimap<int64_t, int64_t>*) const
-{
-    return false;
-}
-
-bool MegaIntegerMap::equalTo(const std::multimap<int8_t, int8_t>*) const
-{
-    return false;
 }
 
 unsigned long long MegaIntegerMap::size() const
@@ -7417,24 +7391,9 @@ MegaIntegerList* MegaIntegerList::createInstance()
     return new MegaIntegerListPrivate();
 }
 
-MegaIntegerList* MegaIntegerList::createInstanceFromBytesList(const std::vector<int8_t>& bytesList)
-{
-    return new MegaIntegerListPrivate(bytesList);
-}
-
-MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t>& integerList)
-{
-    return new MegaIntegerListPrivate(integerList);
-}
-
 MegaIntegerList *MegaIntegerList::copy() const
 {
     return nullptr;
-}
-
-MegaSmallIntVector* MegaIntegerList::toByteList() const
-{
-    return NULL;
 }
 
 int64_t MegaIntegerList::get(int /*i*/) const
@@ -7450,16 +7409,6 @@ void MegaIntegerList::add(long long /*i*/)
 int MegaIntegerList::size() const
 {
     return 0;
-}
-
-bool MegaIntegerList::equalTo(const std::vector<int64_t>*) const
-{
-    return false;
-}
-
-bool MegaIntegerList::equalTo(const std::vector<int8_t>*) const
-{
-    return false;
 }
 
 MegaBanner::MegaBanner()

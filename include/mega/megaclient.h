@@ -448,7 +448,7 @@ public:
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
     // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -1216,7 +1216,7 @@ public:
     void sc_chatnode();
     void sc_chatflags();
     void sc_scheduledmeetings();
-    void sc_delscheduledmeetings();
+    void sc_delscheduledmeeting();
 #endif
     void sc_uac();
     void sc_la();

@@ -24,9 +24,7 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <inttypes.h>
-#include <bitset>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -35,8 +33,6 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
-typedef std::vector<int8_t> MegaSmallIntVector;
-typedef std::multimap<int8_t, int8_t> MegaSmallIntMap;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -2125,10 +2121,7 @@ class MegaIntegerList
 public:
     virtual ~MegaIntegerList();
     static MegaIntegerList* createInstance();
-    static MegaIntegerList* createInstanceFromBytesList(const std::vector<int8_t>& bytesList);
-    static MegaIntegerList* createInstance(const std::vector<int64_t>& integerList);
     virtual MegaIntegerList *copy() const;
-    virtual MegaSmallIntVector* toByteList() const;
 
     /**
      * @brief Returns the integer at the position i in the MegaIntegerList
@@ -2152,20 +2145,6 @@ public:
      * @return Number of integer values in the list
      */
     virtual int size() const;
-
-    /**
-     * @brief Returns true if all the elements in provided vector (as param) are equal to all elements in the list
-     *
-     * @return True if all the elements in provided vector (as param) are equal to all elements in the list
-     */
-    virtual bool equalTo(const std::vector<int64_t>*) const;
-
-    /**
-     * @brief Returns true if all the elements in provided vector <int8_t> (as param) are equal to all elements in the list
-     *
-     * @return True if all the elements in provided vector (as param) are equal to all elements in the list
-     */
-    virtual bool equalTo(const std::vector<int8_t>*) const;
 };
 
 /**
@@ -2558,6 +2537,8 @@ public:
     /**
      * @brief Returns a MegaHandleList with the handles of the scheduled meetings that have changed
      *
+     * This method only returns a valid value when MegaTextChat::hasChange(CHANGE_TYPE_SCHED_MEETING) returns true
+     *
      * The MegaTextChat retains the ownership of the returned MegaHandleList. It will
      * be only valid until the MegaTextChat is deleted.
      *
@@ -2858,12 +2839,12 @@ public:
 class MegaScheduledRules
 {
 public:
-    typedef enum {
+    enum {
         FREQ_INVALID    = -1,
         FREQ_DAILY      = 0,
         FREQ_WEEKLY     = 1,
         FREQ_MONTHLY    = 2,
-    } freq_type;
+    };
 
     constexpr static int INTERVAL_INVALID = 0;
     virtual ~MegaScheduledRules();
@@ -3058,16 +3039,16 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaIntegerMap* createInstance();
-    static MegaIntegerMap* createInstanceFromBytesMap(const std::multimap<int8_t, int8_t>& bytesMap);
-    static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t>& integerMap);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
-    virtual MegaSmallIntMap* toByteMap() const;
 
     /**
-     * @brief Returns true, if the key is found in the MegaIntegerMap, otherwise returns false.
-     * If key is found it's associated value will be copied in second parameter (value)
+     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
+     * Returns true if index is <= map size, otherwise returns false
+     * If index is not out of range, key will be copied in first parameter (key)
+     * If index is not out of range, value will be copied in second parameter (value)
      *
+     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
      * @param key Key of the string that you want to get from the map
      * @param value The value associated to the key will be copied in this param
      * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
@@ -3093,20 +3074,6 @@ public:
      * @param value The new value for the key in the map.
      */
     virtual void set(const long long& /*key*/, const long long& /*value*/);
-
-    /**
-     * @brief Returns true if all the elements in provided map (as param) are equal to all elements in the list
-     *
-     * @return True if all the elements in provided map (as param) are equal to all elements in this map
-     */
-    virtual bool equalTo(const std::multimap<int64_t, int64_t>*) const;
-
-    /**
-     * @brief Returns true if all the elements in provided map <int8_t, int8_t> (as param) are equal to all elements in the list
-     *
-     * @return True if all the elements in provided map (as param) are equal to all elements in this map
-     */
-    virtual bool equalTo(const std::multimap<int8_t, int8_t>*) const;
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map
@@ -18868,7 +18835,7 @@ class MegaApi
          *
          * TODO complete documentation
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
