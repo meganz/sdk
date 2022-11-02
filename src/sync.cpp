@@ -2093,8 +2093,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         sourceSyncNode->rare().moveFromHere = movePtr;
                         sourceSyncNode->updateMoveInvolvement();
 
-                        LOG_verbose << syncname << "Set moveToHere ptr: " << (void*)movePtr.get() << " at " << logTriplet(row, fullPath);
-
                         row.suppressRecursion = true;
 
                         row.syncNode->setSyncAgain(true, true, false); // keep visiting this node
@@ -2197,7 +2195,6 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             syncs.setSyncedFsidReused(moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
             row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
             row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
-            statecacheadd(row.syncNode);
 
             LOG_debug << syncname << "Looking up move source by fsid " << toHandle(moveHerePtr->sourceFsid);
 
@@ -2208,9 +2205,15 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
                 LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
                 assert(sourceSyncNode == moveHerePtr->sourcePtr);
 
+                // Assign the same syncedFingerprint as the move-from node
+                // That way, if that row had some other sync aspect needed
+                // (such as upload from an edit-then-move case, and the sync performs the move first)
+                // then we will detect that same operation at this new row.
+                row.syncNode->syncedFingerprint = sourceSyncNode->syncedFingerprint;
+
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
-                sourceSyncNode->syncedFingerprint =  moveHerePtr->sourceFingerprint;
+                sourceSyncNode->syncedFingerprint = FileFingerprint();
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, sourceSyncNode->cloneShortname());
                 sourceSyncNode->setSyncedNodeHandle(NodeHandle());
                 sourceSyncNode->sync->statecacheadd(sourceSyncNode);
@@ -2240,7 +2243,6 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
                         }
                     }
                 }
-
             }
             else if (sourceSyncNode)
             {
@@ -2262,6 +2264,7 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             moveHerePtr.reset();
             row.syncNode->trimRareFields();
             row.syncNode->updateMoveInvolvement();
+            statecacheadd(row.syncNode);
 
             rowResult = false;
             return true;
