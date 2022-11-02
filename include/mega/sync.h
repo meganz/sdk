@@ -606,10 +606,8 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    void removeSync(handle backupId, std::function<void(Error)> completion);
-
-    // removes the sync from RAM; the config will be flushed to disk
-    void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
+    void removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -721,6 +719,7 @@ private:
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
     error backupOpenDrive_inThread(const LocalPath& drivePath);
@@ -747,7 +746,6 @@ private:
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     bool unloadSyncByBackupID(handle id, SyncConfig&);
-    void unloadSyncByIndex(size_t index);
 
     // shutdown safety
     bool mExecutingLocallogout = false;

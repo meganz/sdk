@@ -578,7 +578,7 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
+                client->syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, nullptr);
                 alreadyDisabled = true;
             }
 #endif
