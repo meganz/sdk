@@ -444,6 +444,14 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
+
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+        
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -487,7 +495,8 @@ class chunkmac_map
         // finished == true and offset == -1, and mac == macsmac to the end of this block.
         bool finished = false;
 
-        // valid for download where we always set one or the other.   Not so for upload
+        // True when the chunk is not entirely processed.
+        // Offset is only increased by downloads, so (!offset) should always be true for uploads.
         bool notStarted() { return !finished && !offset; }
 
         // the very first record can be the macsmac calculation so far, from the start to some contiguous point
@@ -549,7 +558,9 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
-    void serializecompressed64(int64_t field);
+    void serializecompressedu64(uint64_t field);
+    void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
+
     void serializei8(int8_t field);
     void serializei32(int32_t field);
     void serializei64(int64_t field);
@@ -579,7 +590,9 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
-    bool unserializecompressed64(uint64_t& field);
+    bool unserializecompressedu64(uint64_t& field);
+    bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
+
     bool unserializei8(int8_t& s);
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
@@ -940,6 +953,8 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
+
 struct SyncTransferCount
 {
     bool operator==(const SyncTransferCount& rhs) const;
@@ -957,6 +972,8 @@ struct SyncTransferCounts
     bool operator==(const SyncTransferCounts& rhs) const;
     bool operator!=(const SyncTransferCounts& rhs) const;
     void operator-=(const SyncTransferCounts& rhs);
+
+    // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
 
     SyncTransferCount mDownloads;

@@ -570,7 +570,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_MY_BACKUPS_FOLDER:
-            attrname = "*!bak";
+            attrname = "^!bak";
             break;
 
         case ATTR_COOKIE_SETTINGS:
@@ -881,7 +881,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DEVICE_NAMES;
     }
-    else if (!strcmp(name, "*!bak"))
+    else if (!strcmp(name, "^!bak"))
     {
         return ATTR_MY_BACKUPS_FOLDER;
     }
@@ -969,7 +969,6 @@ char User::scope(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
-        case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_JSON_SYNC_CONFIG_DATA:
         case ATTR_DRIVE_NAMES:
             return '*';
@@ -991,6 +990,7 @@ char User::scope(attr_t at)
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
+        case ATTR_MY_BACKUPS_FOLDER:
             return '^';
 
         default:

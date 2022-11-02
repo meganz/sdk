@@ -146,6 +146,8 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void sets_updated(Set**, int) override;
+    void setelements_updated(SetElement**, int) override;
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
@@ -258,7 +260,8 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
-    void backupremove_result(const Error&, handle /*backup id*/) override;
+
+    void reqstat_progress(int) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -319,6 +322,8 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);
@@ -370,6 +375,7 @@ void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
+void exec_setmaxloglinesize(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
 void exec_httpsonly(autocomplete::ACState& s);
 void exec_mfac(autocomplete::ACState& s);
@@ -404,3 +410,6 @@ void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
+
+void exec_setsandelements(autocomplete::ACState& s);
+void exec_reqstat(autocomplete::ACState& s);

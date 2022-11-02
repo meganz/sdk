@@ -65,7 +65,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
     std::lock_guard<std::mutex> g(pdfMutex);
     assert (initialized);
 
-    FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath().c_str(), nullptr);
+    FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath(false).c_str(), nullptr);
 #ifdef _WIN32
     LocalPath tmpFilePath;
     bool removetemporaryfile = false;
@@ -86,7 +86,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                     tmpFilePath.appendWithSeparator(LocalPath::fromRelativePath(".megapdftmp"),false);
                     if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
                     {
-                        pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath().c_str(), nullptr);
+                        pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(false).c_str(), nullptr);
                         removetemporaryfile = true;
                     }
                 }
@@ -124,11 +124,11 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 {
                     if (!w || !h)
                     {
-                        LOG_err << "Error reading PDF page size for " << path.toPath().c_str();
+                        LOG_err << "Error reading PDF page size for " << path.toPath(false).c_str();
                     }
                     else
                     {
-                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath().c_str();
+                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath(false).c_str();
                     }
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);

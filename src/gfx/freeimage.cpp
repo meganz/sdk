@@ -260,7 +260,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
     // deprecated/no longer required in FFMPEG 4.0:
     av_register_all();
 #endif
-    if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath(false).c_str(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
         return false;

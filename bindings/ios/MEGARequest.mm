@@ -20,6 +20,8 @@
  */
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 #import "MEGAPricing+init.h"
 #import "MEGAAccountDetails+init.h"
 #import "MEGAAchievementsDetails+init.h"
@@ -272,6 +274,27 @@ using namespace mega;
     }
 
     return recentActionBucketMutableArray;
+}
+
+- (MEGASet *)set {
+    return self.megaRequest ? [[MEGASet alloc] initWithMegaSet:self.megaRequest->getMegaSet()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (NSArray<MEGASetElement *> *)elementsInSet {
+    MegaSetElementList *setElementList = self.megaRequest->getMegaSetElementList();
+    int size = setElementList->size();
+    
+    NSMutableArray<MEGASetElement *> *setElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        [setElements addObject:[[MEGASetElement alloc]
+                                initWithMegaSetElement:setElementList->get(i)->copy()
+                                            cMemoryOwn:YES]];
+    }
+    
+    delete setElementList;
+    
+    return [setElements copy];
 }
 
 @end

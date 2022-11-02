@@ -40,6 +40,7 @@
 #include "user.h"
 #include "sync.h"
 #include "drivenotify.h"
+#include "setandelement.h"
 
 namespace mega {
 
@@ -223,7 +224,6 @@ struct SyncdownContext
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
-
 // Class to help with upload of file attributes
 struct UploadWaitingForFileAttributes
 {
@@ -264,16 +264,16 @@ public:
     handle me;
     string uid;
 
-    // root nodes (files, incoming, rubbish)
+    // root nodes (files, vault, rubbish)
     struct Rootnodes
     {
         NodeHandle files;
-        NodeHandle inbox;
+        NodeHandle vault;
         NodeHandle rubbish;
 
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
+        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
 
@@ -312,6 +312,12 @@ public:
 
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
+
+private:
+    // Pro Flexi plan is enabled
+    bool mProFlexi = false;
+public:
+    bool isProFlexi() const { return mProFlexi; }
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
@@ -507,7 +513,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -522,13 +528,19 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
+
+#ifdef ENABLE_SYNC
+    void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+#endif
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -571,14 +583,14 @@ public:
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
-    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
+    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
@@ -663,17 +675,45 @@ public:
      * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
      *         Otherwise, API_OK
      */
-    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork);
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork);
 
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
-     * @param syncConfig the Config to attempt to add
+     * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
+     * @exludedPath: in sync rework, use this to specify a folder within the sync to exclude (eg, working folder with sync db in it)
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+
+    /**
+     * @brief
+     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.
+     *
+     * @param bkpName
+     * The name of the remote backup dir (desired final outcome is //in/"My Backups"/`DEVICE_NAME`/bkpName)
+     *
+     * @param extDriveRoot
+     * Drive root in case backup is from external drive; empty otherwise
+     *
+     * @param completion
+     * Completion function
+     *
+     * @return
+     * API_OK if remote backup dir has been successfully created.
+     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a dir,
+     * or if remote backup dir already existed.
+     * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
+     * API_EINCOMPLETE if device-id or device-name could not be obtained
+     * Any error returned by readDriveId(), in case of external drive.
+     * Registration occurs later, during addsync(), not in this function.
+     * UndoFunction will be passed on completion, the caller can use it to remove the new backup cloud node if there is a later failure.
+     */
+    typedef std::function<void(std::function<void()> continuation)> UndoFunction;
+    void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -940,6 +980,14 @@ public:
     // flag to request an extra loop of the SDK to finish something pending
     bool looprequested;
 
+private:
+    // flag to start / stop the request status monitor
+    bool mReqStatEnabled = false;
+public:
+    bool requestStatusMonitorEnabled() { return mReqStatEnabled; }
+    void startRequestStatusMonitor() { mReqStatEnabled = true; }
+    void stopRequestStatusMonitor() { mReqStatEnabled = false; }
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -986,6 +1034,9 @@ public:
 
     // root URL for chat stats
     static const string SFUSTATSURL;
+
+    // root URL for reqstat requests
+    static const string REQSTATURL;
 
     // root URL for Website
     static const string MEGAURL;
@@ -1045,6 +1096,7 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+    BackoffTimer btreqstat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1065,6 +1117,11 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+private:
+    // Request status monitor
+    unique_ptr<HttpReq> mReqStatCS;
+
+public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
@@ -1169,7 +1226,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1281,7 +1338,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1567,7 +1624,10 @@ public:
     handlelocalnode_map fsidnode;
 
     // local nodes that need to be added remotely
-    localnode_vector synccreate;
+    // we need to distinguish those that are allowed to alter vault
+    // since the node create command applies the vw flag for all contained nodes
+    localnode_vector synccreateForVault;
+    localnode_vector synccreateGeneral;
 
     // number of sync-initiated putnodes() in progress
     int syncadding;
@@ -1585,6 +1645,7 @@ public:
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
+    void syncupdate(localnode_vector&, bool canChangeVault);
 
     // create missing folders, copy/start uploading missing files
     bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
@@ -1598,15 +1659,15 @@ public:
     bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
-    node_set todebris;
+    unlink_or_debris_set toDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
-    node_set tounlink;
+    unlink_or_debris_set toUnlink;
 
     // commit all queueud deletions
     void execsyncdeletions();
@@ -1677,6 +1738,7 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procreqstat();
 
     // API warnings
     void warn(const char*);
@@ -1703,6 +1765,8 @@ public:
     static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
+    static const int SETHANDLE = Set::HANDLESIZE;
+    static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1796,6 +1860,9 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
+    error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
@@ -1903,6 +1970,8 @@ public:
     // the SDK is trying to log out
     int loggingout = 0;
 
+    bool executingLocalLogout = false;
+
     // the logout request succeeded, time to clean up localy once returned from CS response processing
     std::function<void(MegaClient*)> mOnCSCompletion;
 
@@ -1995,6 +2064,97 @@ private:
 
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
+
+
+//
+// Sets and Elements
+//
+
+public:
+    // generate "asp" command
+    void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
+
+    // generate "asr" command
+    void removeSet(handle sid, std::function<void(Error)> completion);
+
+    // generate "aft" command
+    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+
+    // generate "aep" command
+    void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
+
+    // generate "aer" command
+    void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
+
+    // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
+    bool procaesp();
+
+    // load Sets and Elements from json
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
+
+    // return Set with given sid or nullptr if it was not found
+    const Set* getSet(handle sid) const;
+
+    // return all available Sets, indexed by id
+    const map<handle, Set>& getSets() const { return mSets; }
+
+    // add new Set or replace exisiting one
+    const Set* addSet(Set&& a);
+
+    // search for Set with the same id, and update its members
+    bool updateSet(Set&& s);
+
+    // delete Set with elemId from local memory; return true if found and deleted
+    bool deleteSet(handle sid);
+
+    // return Element with given eid from Set sid, or nullptr if not found
+    const SetElement* getSetElement(handle sid, handle eid) const;
+
+    // return all available Elements in a Set, indexed by eid
+    const map<handle, SetElement>* getSetElements(handle sid) const;
+
+    // add new SetElement or replace exisiting one
+    const SetElement* addOrUpdateSetElement(SetElement&& el);
+
+    // delete Element with eid from Set with sid in local memory; return true if found and deleted
+    bool deleteSetElement(handle sid, handle eid);
+
+private:
+
+    error readSets(JSON& j, map<handle, Set>& sets);
+    error readSet(JSON& j, Set& s);
+    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
+    error readElement(JSON& j, SetElement& el);
+    error decryptSetData(Set& s);
+    error decryptElementData(SetElement& el, const string& setKey);
+    string decryptKey(const string& k, SymmCipher& cipher) const;
+    bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
+    string encryptAttrs(const string_map& attrs, const string& encryptionKey);
+
+    void sc_asp(); // AP after new or updated Set
+    void sc_asr(); // AP after removed Set
+    void sc_aep(); // AP after new or updated Set Element
+    void sc_aer(); // AP after removed Set Element
+
+    bool initscsets();
+    bool fetchscset(string* data, uint32_t id);
+    bool updatescsets();
+    void notifypurgesets();
+    void notifyset(Set*);
+    vector<Set*> setnotify;
+    map<handle, Set> mSets; // indexed by Set id
+
+    bool initscsetelements();
+    bool fetchscsetelement(string* data, uint32_t id);
+    bool updatescsetelements();
+    void notifypurgesetelements();
+    void notifysetelement(SetElement*);
+    void clearsetelementnotify(handle sid);
+    vector<SetElement*> setelementnotify;
+    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+
+// -------- end of Sets and Elements
+
 };
 } // namespace
 

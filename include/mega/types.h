@@ -349,9 +349,19 @@ typedef enum {
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
-    INCOMINGNODE,    // INCOMING - inbox
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
+
+
+// MimeType_t maps to file extensionse declared at Node
+typedef enum { MIME_TYPE_UNKNOWN    = 0,
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+             } MimeType_t;
+
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -400,7 +410,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -459,7 +469,7 @@ enum SyncError {
     LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
     REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
-    BUSINESS_EXPIRED = 10,                  // Business account expired
+    ACCOUNT_EXPIRED = 10,                   // Account expired (business or Pro Flexi)
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -472,7 +482,7 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    ACCOUNT_BLOCKED = 23,                   // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
@@ -481,6 +491,17 @@ enum SyncError {
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+    ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+    COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+    COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+    SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+    UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+    NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+    INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
 };
 
 enum SyncWarning {
@@ -501,7 +522,15 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
-typedef set<Node*> node_set;
+struct UnlinkOrDebris {
+    bool unlink = false;
+    bool debris = false;
+    bool canChangeVault = false;
+    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
+};
+
+typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
@@ -708,13 +737,13 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
@@ -988,6 +1017,7 @@ typedef enum {
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
+    ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
 
 typedef enum
@@ -1210,7 +1240,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return mChatOptions <= maxValidValue; }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:

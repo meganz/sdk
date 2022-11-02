@@ -151,6 +151,18 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeFav = 4
 };
 
+typedef NS_ENUM(NSInteger, MEGASetAttribute) {
+    MEGASetAttributeCreate = 0,
+    MEGASetAttributeName   = 1,
+    MEGASetAttributeCover  = 2
+};
+
+typedef NS_ENUM(NSInteger, MEGASetElementAttribute) {
+    MEGASetElementAttributeCreate = 0,
+    MEGASetElementAttributeName   = 1,
+    MEGASetElementAttributeOrder  = 2
+};
+
 typedef NS_ENUM(NSInteger, HTTPServer) {
     HTTPServerDenyAll                = -1,
     HTTPServerAllowAll               = 0,
@@ -202,8 +214,8 @@ typedef NS_ENUM(NSInteger, SMSState) {
 
 typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeNone = 0, // The account is not blocked
-    AccountSuspensionTypeNonCopyright = 200, // suspension for any type of suspension, but copyright suspension
-    AccountSuspensionTypeCopyright = 300, // suspension only for multiple copyright violations
+    AccountSuspensionTypeCopyright = 200, // suspension only for multiple copyright violations
+    AccountSuspensionTypeNonCopyright = 300, // suspension for any type of suspension, but copyright suspension
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
@@ -242,6 +254,51 @@ typedef NS_ENUM(NSUInteger, BackUpState) {
     BackUpStatePauseUp = 5,
     BackUpStatePauseDown = 6,
     BackUpStatePauseFull = 7
+};
+
+typedef NS_ENUM(NSUInteger, BackUpSubState) {
+    BackUpSubStateNoSyncError = 0,
+    BackUpSubStateUnknownError = 1,
+    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
+    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
+    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
+    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
+    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
+    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
+    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
+    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
+    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
+    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
+    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
+    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
+    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
+    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
+    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
+    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
+    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
+    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
+    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
+    BackUpSubStateAccountBlocked = 23, // Account blocked
+    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
+    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
+    BackUpSubStateLoggedOut = 26, // Logged out
+    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
+    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
+    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
+    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
+    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
+    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
+    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
+    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
+    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
+    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
+    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
+    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
+    BackUpSubStateInsufficientDiskSpace = 42,
 };
 
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
@@ -687,7 +744,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /**
  * @brief Converts the handle of a node to a Base64-encoded NSString
  *
- * You take the ownership of the returned value
  * You can revert this operation using [MEGASdk handleForBase64Handle:]
  *
  * @param handle Node handle to be converted
@@ -3401,6 +3457,268 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count;
 
+/**
+ * @brief Request creation of a new Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ *
+ * - [MEGARequest parentHandle] - Returns INVALID_HANDLE
+ * - [MEGARequest text] - Returns name of the Set
+ * - [MEGARequest paramType] - Returns MEGASetAttributeCreate, possibly combined with MEGASetAttributeName
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest set] - Returns either the new Set, or nil if it was not created.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiEArgs - Malformed
+ * - MEGAErrorTypeApiEAccess - Permissions Error
+ *
+ * @param name the name that should be given to the new Set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to fetch a Set and its Elements
+ *
+ * The associated request type with this request is MEGARequestTypeFetchSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Set to be fetched
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest set]           - Returns the Set
+ * - [MEGARequest elementsInSet] - Returns Elements in Set
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set could not be found
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be fetched
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the name of a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Set to be updated
+ * - [MEGARequest text]         - Returns new name of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetAttributeName
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set with the given id could not be found (before or after the request)
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be updated
+ * @param name the new name that should be given to the Set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetName:(MEGAHandle)sid name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Request to remove a Set
+*
+* The associated request type with this request is MEGARequestTypeRemoveSet
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest parentHandle] - Returns id of the Set to be removed
+*
+* On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+* - MEGAErrorTypeApiENoent    - Set could not be found
+* - MEGAErrorTypeApiEInternal - Received answer could not be read
+* - MEGAErrorTypeApiEArgs     - Malformed
+* - MEGAErrorTypeApiEAccess   - Permissions Error
+*
+* @param sid the id of the Set to be removed
+* @param delegate MEGARequestDelegate to track this request
+*/
+-(void)removeSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the cover of a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Set to be updated
+ * - [MEGARequest nodeHandle]   - Returns Element id to be set as the new cover
+ * - [MEGARequest paramType]    - Returns MEGASetAttributeCover
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set with the given id could not be found (before or after the request).
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ * - MEGAErrorTypeApiEArgs     - Given Element id was not part of the current Set; Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be updated
+ * @param eid the id of the Element to be set as cover
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)putSetCover:(MEGAHandle)sid eid:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request creation of a new Element for a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns INVALID_HANDLE
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeCreate, possibly combined with MEGASetElementAttributeName
+ * - [MEGARequest text]         - Returns new name of the Element
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest elementsInSet] - Returns a list containing only the new Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set could not be found, or node could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEKey      - File-node had no key.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid      the id of the Set that will own the new Element
+ * @param nodeId   the handle of the file-node that will be represented by the new Element
+ * @param name     the name that should be given to the new Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)createSetElement:(MEGAHandle)sid
+                 nodeId:(MEGAHandle)nodeId
+                   name:(nullable NSString *)name
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the name of an Element
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be updated
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeName
+ * - [MEGARequest text]         - Returns new name of the Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Element could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element that will be updated
+ * @param name the new name that should be given to the Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetElement:(MEGAHandle)sid
+                    eid:(MEGAHandle)eid
+                   name:(NSString *)name
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the order of an Element
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be updated
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeOrder
+ * - [MEGARequest number]       - Returns order of the Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Element could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element that will be updated
+ * @param order the new order of the Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetElementOrder:(MEGAHandle)sid
+                         eid:(MEGAHandle)eid
+                        order:(int64_t)order
+                    delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to remove an Element
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be removed
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - No Set or no Element with given ids could be found (before or after the request).
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element to be removed
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)removeSetElement:(MEGAHandle)sid
+                    eid:(MEGAHandle)eid
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the Set with the given id, for current user.
+ *
+ * The response value is stored as a MEGASet.
+ *
+ * @param sid the id of the Set to be retrieved
+ *
+ * @return the requested MEGASet, or nil if not found
+ */
+-(MEGASet *)setBySid:(MEGAHandle)sid;
+
+/**
+ * @brief Get a list of all Sets available for current user.
+ *
+ * The response value is stored as a MEGASet array.
+ *
+ * @return array of MEGASets
+ */
+-(NSArray<MEGASet *>*)megaSets;
+
+/**
+ * @brief Get the cover (Element id) of the Set with the given id, for current user.
+ *
+ * @param sid the id of the Set to retrieve the cover for
+ *
+ * @return Element id of the cover, or INVALID_HANDLE if not set or invalid id
+ */
+-(MEGAHandle)megaSetCoverBySid:(MEGAHandle)sid;
+
+/**
+ * @brief Get a particular Element in a particular Set, for current user.
+ *
+ * The response value is stored as a MEGASetElement.
+ *
+ * @param sid the id of the Set owning the Element
+ * @param eid the id of the Element to be retrieved
+ *
+ * @return requested Element, or nil if not found
+ */
+-(MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
+
+/**
+ * @brief Get all Elements in the Set with given id, for current user.
+ *
+ * The response value is stored as a MEGASetElement array.
+ *
+ * @param sid the id of the Set owning the Elements
+ *
+ * @return all Elements in that Set, or nil if not found or none added
+ */
+-(NSArray<MEGASetElement *>*)megaSetElementsBySid:(MEGAHandle)sid;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -5401,40 +5719,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)getCameraUploadsFolderSecondary;
 
 /**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- *
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- */
-- (void)getMyBackupsFolder;
-
-/**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -5945,8 +6229,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *
- * You take the ownership of the returned value.
- *
  * @return An array of `NSDate` with the timestamp corresponding to each warning
 */
 -(NSArray<NSDate *> *)overquotaWarningDateList;
@@ -5973,8 +6255,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @brief Get the transfer with a transfer tag
  *
  * That tag can be got using [MEGATransfer tag]
- *
- * You take the ownership of the returned value
  *
  * @param transferTag tag to check
  * @return MEGATransfer object with that tag, or nil if there isn't any
@@ -7087,8 +7367,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /**
  * @brief Get all MEGAUserAlerts for the logged in user
  *
- * You take the ownership of the returned value
- *
  * @return List of MEGAUserAlert objects
  */
 - (MEGAUserAlertList *)userAlertList;
@@ -7752,8 +8030,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
  *
- * You take the ownership of the returned value
- *
  * @param name Name to convert (UTF8)
  * @return Converted name (UTF8)
  */
@@ -7766,8 +8042,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
- *
- * You take the ownership of the returned value
  *
  * @param name Name to convert (UTF8)
  * @param destinationPath Destination file path
@@ -8297,8 +8571,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The HTTP proxy server must be running before using this function, otherwise
  * it will return nil.
- *
- * You take the ownership of the returned value
  *
  * @param node Node to generate the local HTTP link
  * @return URL to the node in the local HTTP proxy server, otherwise nil
@@ -9028,9 +9300,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param node MEGA target node folder to hold the backups
  * @param path Local path of the folder
  * @param state BackUpState type backup state
+ * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre

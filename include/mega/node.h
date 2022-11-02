@@ -80,6 +80,7 @@ struct MEGA_API NewNode : public NodeCore
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
     bool added = false;           // set true when the actionpacket arrives
+    bool canChangeVault = false;
     handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
@@ -142,6 +143,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // If this is a file, and has a file for a parent, it's not the latest version
     const Node* latestFileVersion() const;
 
+    // Node's depth, counting from the cloud root.
+    unsigned depth() const;
+
     // try to resolve node key string
     bool applykey();
 
@@ -157,11 +161,22 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
 
+    // check if this node has a name.
+    bool hasName() const;
+
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 
+    // return mimetype type
+    MimeType_t getMimeType(bool checkPreview = false) const;
+
     // node attributes
     AttrMap attrs;
+
+    // {backup-id, state} pairs received in "sds" node attribute
+    vector<pair<handle, int>> getSdsBackups() const;
+    static nameid sdsId();
+    static string toSdsString(const vector<pair<handle, int>>&);
 
     // owner
     handle owner = mega::UNDEF;
@@ -255,11 +270,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
-    node_set::iterator todebris_it;
+    unlink_or_debris_set::iterator todebris_it;
 
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
+    unlink_or_debris_set::iterator tounlink_it;
 #endif
 
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
@@ -284,16 +299,29 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
 
+    Node* childbyname(const string& name);
+
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    bool getExtension(std::string& ext) const;
+    bool isPhoto(const std::string& ext, bool checkPreview) const;
+    bool isVideo(const std::string& ext) const;
+    bool isAudio(const std::string& ext) const;
+    bool isDocument(const std::string& ext) const;
+
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const
 {
-    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    assert(keyApplied() || type == ROOTNODE || type == VAULTNODE || type == RUBBISHNODE);
     return nodekeydata;
 }
 

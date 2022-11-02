@@ -94,7 +94,8 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
 
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
 {
-    return s << lp.toPath();
+    // when logging, do not normalize the string, or we can't diagnose failures to match differently encoded utf8 strings
+    return s << lp.toPath(false);
 }
 
 
@@ -176,7 +177,7 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
@@ -437,7 +438,7 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
-        (npos - pos) <= maxReqSize &&
+        (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
@@ -682,7 +683,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
@@ -2230,6 +2231,38 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #endif // ! _WIN32
 }
 
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -3187,6 +3220,18 @@ void debugLogHeapUsage()
 #endif
 }
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
+}
+
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
     mCompleted -= rhs.mCompleted;
@@ -3229,7 +3274,7 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
-        return 1.0;
+        return 1.0; // 100%
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
