@@ -8,8 +8,8 @@ libsodium/92adeffbce95847e141411177248ed04ac49ea9b all:on ios:libsodium-ios.patc
 openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off osx:off
 openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off linux:on
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
-vcpkg-cmake-config/7375bb408f2278d2f1875c259beef93332697ba7
-vcpkg-cmake/7375bb408f2278d2f1875c259beef93332697ba7
+vcpkg-cmake-config/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                    # from vcpkg '2022.10.19 Release'
+vcpkg-cmake/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                           # from vcpkg '2022.10.19 Release'
 
 # needed by external projects which still rely on SDK to fetch and build it; SDK no longer uses PCRE
 # this is the minimum version after PCRE's ftp server switched
@@ -31,20 +31,20 @@ ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-osx-cross-
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 osx:freeimage-bool-typedef-xcode-compiler.patch             # from vcpkg '2022.10.19 Release'
-libpng/7375bb408f2278d2f1875c259beef93332697ba7
-libjpeg-turbo/7375bb408f2278d2f1875c259beef93332697ba7
-tiff/7375bb408f2278d2f1875c259beef93332697ba7
-openjpeg/7375bb408f2278d2f1875c259beef93332697ba7
+libpng/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
+libjpeg-turbo/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                         # from vcpkg '2022.10.19 Release'
+tiff/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                  # from vcpkg '2022.10.19 Release'
+openjpeg/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                              # from vcpkg '2022.10.19 Release'
 libwebp/7375bb408f2278d2f1875c259beef93332697ba7 all:libwebp-no-freeglut-no-avx.patch
-libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch
-jxrlib/7375bb408f2278d2f1875c259beef93332697ba7 ios:jxrlib-ios-guiddef-fix.patch
+libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch                                       # upgrading this broke freeimage
+jxrlib/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:jxrlib-ios-guiddef-fix.patch                               # from vcpkg '2022.10.19 Release'
 openexr/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:openexr-ios.patch                                         # from vcpkg '2022.10.19 Release'
 imath/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                 # from vcpkg '2022.10.19 Release'
-jasper/7375bb408f2278d2f1875c259beef93332697ba7 all:jasper-no-freeglut.patch
-liblzma/7375bb408f2278d2f1875c259beef93332697ba7 ios:liblzma-ios.patch
+jasper/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 all:jasper-no-freeglut.patch                                   # from vcpkg '2022.10.19 Release'
+liblzma/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:liblzma-ios.patch                                         # from vcpkg '2022.10.19 Release'
 #python3 not needed; it only provides python bindings to use openexr from python
-libffi/7375bb408f2278d2f1875c259beef93332697ba7
-opengl/7375bb408f2278d2f1875c259beef93332697ba7
+libffi/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
+opengl/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
 #freeglut (cross platform window manager) not needed; problematic on some platforms, pulling in many, many dependencies
 #vcpkg-cmake-config already added above for SDK
 #vcpkg-cmake already added above for SDK
