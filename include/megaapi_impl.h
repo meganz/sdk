@@ -4323,7 +4323,7 @@ private:
     MegaHandle mSchedId;
 
     // parent scheduled meeting handle
-    MegaHandle mParentSchedid;
+    MegaHandle mParentSchedId;
 
     // organizer user handle
     handle mOrganizerUserId;
