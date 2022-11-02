@@ -30,7 +30,7 @@ libzen/0.4.37
 ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-osx-cross-compilation.patch ios:off
 
 #freeimage and its dependencies (image preview/thumbnail generation)
-freeimage/7375bb408f2278d2f1875c259beef93332697ba7 osx:freeimage-bool-typedef-xcode-compiler.patch
+freeimage/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 osx:freeimage-bool-typedef-xcode-compiler.patch             # from vcpkg '2022.10.19 Release'
 libpng/7375bb408f2278d2f1875c259beef93332697ba7
 libjpeg-turbo/7375bb408f2278d2f1875c259beef93332697ba7
 tiff/7375bb408f2278d2f1875c259beef93332697ba7
@@ -38,7 +38,8 @@ openjpeg/7375bb408f2278d2f1875c259beef93332697ba7
 libwebp/7375bb408f2278d2f1875c259beef93332697ba7 all:libwebp-no-freeglut-no-avx.patch
 libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch
 jxrlib/7375bb408f2278d2f1875c259beef93332697ba7 ios:jxrlib-ios-guiddef-fix.patch
-openexr/7375bb408f2278d2f1875c259beef93332697ba7 ios:openexr-ios.patch
+openexr/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:openexr-ios.patch                                         # from vcpkg '2022.10.19 Release'
+imath/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                 # from vcpkg '2022.10.19 Release'
 jasper/7375bb408f2278d2f1875c259beef93332697ba7 all:jasper-no-freeglut.patch
 liblzma/7375bb408f2278d2f1875c259beef93332697ba7 ios:liblzma-ios.patch
 #python3 not needed; it only provides python bindings to use openexr from python

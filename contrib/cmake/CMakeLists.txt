@@ -482,16 +482,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_FREEIMAGE)
             ImportStdVcpkgLibrary(freeimage             FreeImaged       FreeImage      libFreeImaged       libFreeImage       )
-            ImportStdVcpkgLibrary(freeimage_Iex         Iex-2_5_d        Iex-2_5        libIex-2_5_d        libIex-2_5         )
-            ImportStdVcpkgLibrary(freeimage_IexMath     IexMath-2_5_d    IexMath-2_5    libIexMath-2_5_d    libIexMath-2_5     )
-            ImportStdVcpkgLibrary(freeimage_IlmImf      IlmImf-2_5_d     IlmImf-2_5     libIlmImf-2_5_d     libIlmImf-2_5      )
-            ImportStdVcpkgLibrary(freeimage_IlmImfUtil  IlmImfUtil-2_5_d IlmImfUtil-2_5 libIlmImfUtil-2_5_d libIlmImfUtil-2_5  )
-            ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
-            ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
+            ImportStdVcpkgLibrary(freeimage_Iex         Iex-3_1_d        Iex-3_1        libIex-3_1_d        libIex-3_1         )
+            ImportStdVcpkgLibrary(freeimage_OpenEXR     OpenEXR-3_1_d    OpenEXR-3_1    libOpenEXR-3_1_d    libOpenEXR-3_1     )
+            ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-3_1_d  IlmThread-3_1  libIlmThread-3_1_d  libIlmThread-3_1   )
+            ImportStdVcpkgLibrary(freeimage_Imath       Imath-3_1_d      Imath-3_1      libImath-3_1_d      libImath-3_1       )
             ImportStdVcpkgLibrary(freeimage_jpeg        jpeg             jpeg           libjpeg             libjpeg            )
             ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
-            ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
@@ -501,10 +498,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             target_link_libraries(freeimage INTERFACE
                                             freeimage_Iex
-                                            freeimage_IlmImf
-                                            freeimage_IlmImfUtil
+                                            freeimage_OpenEXR
                                             freeimage_IlmThread
-                                            freeimage_half
                                             libpng
                                             libraw
                                             liblcms
