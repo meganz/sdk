@@ -810,7 +810,7 @@ void SdkTest::purgeVaultTree(MegaNode *vault)
             std::unique_ptr<MegaNodeList> devices{megaApi[0]->getChildren(myBackups)};
             for (int i = 0; i < devices->size(); ++i)
             {
-                std::unique_ptr<MegaNodeList> backupRoots{megaApi[0]->getChildren(myBackups)};
+                std::unique_ptr<MegaNodeList> backupRoots{megaApi[0]->getChildren(devices->get(i))};
                 for (int j = 0; j < backupRoots->size(); ++j)
                 {
                     RequestTracker rt(megaApi[0].get());
@@ -6394,12 +6394,15 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
     for (int i = 0; i < allSyncs->size(); ++i)
     {
         RequestTracker rt1(megaApi);
-        megaApi->removeSync(allSyncs->get(0)->getBackupId(), &rt1);
+        megaApi->removeSync(allSyncs->get(i)->getBackupId(), &rt1);
         ASSERT_EQ(API_OK, rt1.waitForResult());
 
-        RequestTracker rt2(megaApi);
-        megaApi->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), INVALID_HANDLE, &rt2);
-        ASSERT_EQ(API_OK, rt2.waitForResult());
+        if (allSyncs->get(i)->getType() == MegaSync::TYPE_BACKUP)
+        {
+            RequestTracker rt2(megaApi);
+            megaApi->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(i)->getMegaHandle(), INVALID_HANDLE, &rt2);
+            ASSERT_EQ(API_OK, rt2.waitForResult());
+        }
     }
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
