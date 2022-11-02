@@ -1,4 +1,3 @@
-
 #ifndef MEGA_MAJOR_VERSION
 #define MEGA_MAJOR_VERSION 4
 #endif
