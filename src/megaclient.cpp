@@ -7430,7 +7430,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         chat->removeChildSchedMeetings(schedId);
                         notifychat(chat);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
                         break;
                     }
@@ -7468,7 +7468,7 @@ void MegaClient::sc_scheduledmeetings()
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(sm.get());
         notifychat(chat);
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
     }
 }
@@ -12365,7 +12365,7 @@ void MegaClient::procmcsm(JSON *j)
         notifychat(chat);
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, -1,
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
     }
 }
