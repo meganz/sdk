@@ -10604,6 +10604,10 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     static set<string> tests = {
         // investigating why this one fails sometimes in jenkins MR jobs
         //"internal_backup_delete_down_self_file_steady"
+        //"internal_backup_rename_up_self_folder_steady",
+        //"twoWay_move_up_other_file_steady",
+        //"twoWay_move_up_other_folder_steady",
+        //"twoWay_moveIn_up_other_file_steady"
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
@@ -17176,6 +17180,12 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
 
 TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 {
+    // checks upload also:
+    //  - establish file f synced in the root of a sync
+    //  - update f in the cloud, causing the sync to download it
+    //  - simultaneous with the download, locally move f to d/f inside the sync
+    // we expect the updated f's download to end up at d/f locally
+
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get ourselves a shiny new client.
@@ -17239,7 +17249,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
 
     client->mOnTransferAdded = onTransferAddedHandler;
 
-    // Create a new version of f in the cloud.
+    // Update f in the cloud (manual upload, making a version chain, and causing the sync to download it)
     {
         auto data = randomData(16384);
         auto path = client->fsBasePath / "f";
@@ -17504,14 +17514,14 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Hook the putnodes callback.
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // Make a change for the engine to synchronize.
+    // File d/f already exists - update content from "y" to "z".  Sync will upload, ending in putnodes
     model.addfile("d/f", "z");
     model.generate(client->fsBasePath / "s");
 
     // Wait for the engine to send the putnodes request.
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Move the local file up the hierarchy.
+    // Move d/f into its parent folder. Sync will generate another putnodes, somewhat contrary to the other
     model.movenode("d/f", "");
 
     fs::rename(client->fsBasePath / "s" / "d" / "f",

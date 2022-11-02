@@ -472,6 +472,7 @@ public:
 
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
@@ -495,6 +496,7 @@ public:
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
     bool checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    void checkForFilenameAnomaly(const SyncPath& path, const string& name);
 
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
@@ -1348,6 +1350,11 @@ private:
         m_time_t updatedfileinitialts = 0;
     };
     std::map<LocalPath, FileChangingState> mFileChangingCheckState;
+
+    // Keep track of which LocalNodes are involved in moves
+    // Sometimes we can't find the other end by fsid for example, if both Cloud and FSNode moved.
+    std::set<LocalNode*> mMoveInvolvedLocalNodes;
+    LocalNode* findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>&);
 
     // shutdown safety
     bool mExecutingLocallogout = false;
