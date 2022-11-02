@@ -134,9 +134,9 @@ class MEGA_API LocalPath
     // there is still at least one use from outside this class
 public:
     static void path2local(const string*, string*);
-    static void local2path(const string*, string*);
+    static void local2path(const string*, string*, bool normalize);
 #if defined(_WIN32)
-    static void local2path(const std::wstring*, string*);
+    static void local2path(const std::wstring*, string*, bool normalize);
     static void path2local(const string*, std::wstring*);
 #endif
 
@@ -165,6 +165,31 @@ public:
     void clear();
     void truncate(size_t bytePos);
     LocalPath leafName() const;
+
+    /*
+    * Return the last component of the path (internally uses absolute path, no matter how the instance was initialized)
+    * that could be used as an actual name.
+    *
+    * Examples:
+    *   "D:\\foo\\bar.txt"  "bar.txt"
+    *   "D:\\foo\\"         "foo"
+    *   "D:\\foo"           "foo"
+    *   "D:\\"              "D"
+    *   "D:"                "D"
+    *   "D"                 "D"
+    *   "D:\\.\\"           "D"
+    *   "D:\\."             "D"
+    *   ".\\foo\\"          "foo"
+    *   ".\\foo"            "foo"
+    *   ".\\"               (as in "C:\\foo\\bar\\.\\")                             "bar"
+    *   "."                 (as in "C:\\foo\\bar\\.")                               "bar"
+    *   "..\\..\\"          (as in "C:\\foo\\bar\\..\\..\\")                        "C"
+    *   "..\\.."            (as in "C:\\foo\\bar\\..\\..")                          "C"
+    *   "..\\..\\.."        (as in "C:\\foo\\bar\\..\\..\\..", thus too far back)   "C"
+    *   "/" (*nix)          ""
+    */
+    string leafOrParentName() const;
+
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
     void prependWithSeparator(const LocalPath& additionalPath);
@@ -195,7 +220,7 @@ public:
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    string toPath() const;
+    string toPath(bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
@@ -583,7 +608,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
-    virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;
+    virtual bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) = 0;
 
     // default permissions for new files
     int getdefaultfilepermissions() { return 0600; }
@@ -779,6 +804,21 @@ struct MEGA_API FSNode
 
     // Same as the above but useful in situations where we don't have an FA handy.
     static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+
+    const string& toName_of_localname(const FileSystemAccess& fsaccess)
+    {
+        // Although FSNode wouldn't naturally have a utf8 and normalized version of localname,
+        // we need to compare such a string during sorting operations.
+        // Using a caching mechanism like this avoids execessive conversions, normalization, and computing that if it's not used.
+        if (toName_of_localname_cached.empty())
+        {
+            toName_of_localname_cached = localname.toName(fsaccess);
+        }
+        return toName_of_localname_cached;
+    }
+
+private:
+    string toName_of_localname_cached;
 };
 
 class MEGA_API ScanService

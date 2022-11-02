@@ -74,7 +74,7 @@ public:
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
 
@@ -108,9 +108,8 @@ public:
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
 
     m_off_t availableDiskSpace(const LocalPath& drivePath) override;
-	
-private:
-    bool CheckForSymlink(const LocalPath& lp);
+
+    static bool checkForSymlink(const LocalPath& lp);
 };
 
 #ifdef ENABLE_SYNC

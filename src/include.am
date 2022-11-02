@@ -45,6 +45,7 @@ src_libmega_la_SOURCES += src/raid.cpp
 src_libmega_la_SOURCES += src/testhooks.cpp
 src_libmega_la_SOURCES += src/request.cpp
 src_libmega_la_SOURCES += src/serialize64.cpp
+src_libmega_la_SOURCES += src/setandelement.cpp
 src_libmega_la_SOURCES += src/share.cpp
 src_libmega_la_SOURCES += src/sharenodekeys.cpp
 src_libmega_la_SOURCES += src/sync.cpp

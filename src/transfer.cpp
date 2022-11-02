@@ -141,6 +141,8 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d)
 {
+    assert(localfilename.empty() || localfilename.isAbsolute());
+
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
@@ -576,7 +578,7 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
+                client->syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, nullptr);
                 alreadyDisabled = true;
             }
 #endif
@@ -764,7 +766,9 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr, nullptr);
+                            client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr, nullptr, false);
+                            // canChangeVault = false -> this is a download being completed. Backups only upload data, and
+                            // even if the FileFingerprint was missing, setting it is not an action coming from a backup
                         }
                     }
                 }
@@ -1974,7 +1978,6 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     {
         return true;
     }
-    LOG_debug << "Transfer not found";
     return false;
 }
 

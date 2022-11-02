@@ -1208,7 +1208,7 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
+bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)
 {
     // Sanity.
     assert(!source.empty());
@@ -2211,7 +2211,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = errno;
 
         LOG_warn << "Unable to determine available disk space on volume: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 
