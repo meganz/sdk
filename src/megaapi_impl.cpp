@@ -8859,7 +8859,7 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
     request->setNodeHandle(backupDestination);
 
-    request->action = [deconfiguredBackupRoot, backupDestination, this, request](){
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request](){
 
         Node* n1 = client->nodebyhandle(deconfiguredBackupRoot);
         Node* n2 = client->nodebyhandle(backupDestination);
@@ -8867,7 +8867,7 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
         if (!n1)
         {
             LOG_debug << "Backup root node not found";
-            return API_EEXIST;
+            return API_ENOENT;
         }
         LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
 
@@ -8880,7 +8880,9 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
             return API_EARGS;
         }
 
-        if (n2 && n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte())
+        if (n2 && (
+            n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte() ||
+            n2->firstancestor()->nodeHandle() != client->rootnodes.rubbish.as8byte()))
         {
             LOG_debug << "Destination node not in the main files root";
             return API_EARGS;
@@ -18941,11 +18943,11 @@ void MegaApiImpl::sendPendingRequests()
             }
         }
 
-        if (request->action)
+        if (request->performRequest)
         {
             // the action should result in request destruction via fireOnRequestFinish
             // or a requeue of another step, etc.
-            error e = request->action();
+            error e = request->performRequest();
 
             if(e)
             {

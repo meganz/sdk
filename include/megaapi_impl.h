@@ -1367,9 +1367,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
 
-        // Set this action to be executed in sendPendingRequests()
-        // instead of the huge switch, as a structural improvement
-        std::function<error()> action;
+        // Set the function to be executed in sendPendingRequests()
+        // instead of adding more code to the huge switch there
+        std::function<error()> performRequest;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
