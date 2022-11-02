@@ -4025,12 +4025,12 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
-        case TYPE_PUT_SET: return "TYPE_PUT_SET";
-        case TYPE_REMOVE_SET: return "TYPE_REMOVE_SET";
-        case TYPE_FETCH_SET: return "TYPE_FETCH_SET";
-        case TYPE_PUT_SET_ELEMENT: return "TYPE_PUT_SET_ELEMENT";
-        case TYPE_REMOVE_SET_ELEMENT: return "TYPE_REMOVE_SET_ELEMENT";
-        case TYPE_REMOVE_OLD_BACKUP_NODES: return "TYPE_REMOVE_OLD_BACKUP_NODES";
+        case TYPE_PUT_SET: return "PUT_SET";
+        case TYPE_REMOVE_SET: return "REMOVE_SET";
+        case TYPE_FETCH_SET: return "FETCH_SET";
+        case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
+        case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
+        case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
 
     }
     return "UNKNOWN";
