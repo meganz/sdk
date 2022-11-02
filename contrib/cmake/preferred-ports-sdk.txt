@@ -1,3 +1,20 @@
+# Ports (components) are taken from various vcpkg commits (https://github.com/microsoft/vcpkg).
+#
+# NOTE: Modifying a commit here will not trigger a rebuild of that port, leading to build failures.
+#       In order to test a different commit for ports, there are 2 possible approaches:
+#       - start with a new SDK clone, apply changes here, and only then attempt to build, OR
+#       - for every affected component, first clean it manually from vcpkg
+#         (i.e. `vcpkg remove --triplet x64-windows-mega libraw`
+#         vcpkg is usually at 3rdparty_sdk/vcpkg/vcpkg)
+
+# vcpkg commits used as source for ports in this file -- to consider for future upgrades
+# e0a9559a9b24af116388eae242d675bf9fde025c from 2022.10.25
+# 94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 from 2022.10.19 ('2022.10.19 Release' tag)
+# cb91b416cb8f85f0a55853baad23fb18d306148a from 2022.04.01
+# 92adeffbce95847e141411177248ed04ac49ea9b from 2021.12.22
+# 979a5197b3389cfdf91d0ac5d98b6066ce73fd7a from 2021.11.10
+# 7375bb408f2278d2f1875c259beef93332697ba7 from 2021.11.03
+# c303dd024e2dc03a0665ddffbb12a1077933e649 from 2020.12.07
 
 # direct core dependencies of the SDK
 c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
@@ -8,8 +25,8 @@ libsodium/92adeffbce95847e141411177248ed04ac49ea9b all:on ios:libsodium-ios.patc
 openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off osx:off
 openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off linux:on
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
-vcpkg-cmake-config/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                    # from vcpkg '2022.10.19 Release'
-vcpkg-cmake/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                           # from vcpkg '2022.10.19 Release'
+vcpkg-cmake-config/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+vcpkg-cmake/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
 
 # needed by external projects which still rely on SDK to fetch and build it; SDK no longer uses PCRE
 # this is the minimum version after PCRE's ftp server switched
@@ -29,22 +46,23 @@ libzen/0.4.37
 # ffmpeg (video preview/thumbnail generation)
 ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-osx-cross-compilation.patch ios:off
 
-#freeimage and its dependencies (image preview/thumbnail generation)
-freeimage/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 osx:freeimage-bool-typedef-xcode-compiler.patch             # from vcpkg '2022.10.19 Release'
-libpng/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
-libjpeg-turbo/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                         # from vcpkg '2022.10.19 Release'
-tiff/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                  # from vcpkg '2022.10.19 Release'
-openjpeg/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                              # from vcpkg '2022.10.19 Release'
+# freeimage and its dependencies (image preview/thumbnail generation)
+freeimage/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 osx:freeimage-bool-typedef-xcode-compiler.patch
+libpng/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+libjpeg-turbo/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+tiff/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+openjpeg/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
 libwebp/7375bb408f2278d2f1875c259beef93332697ba7 all:libwebp-no-freeglut-no-avx.patch
-libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch                                       # upgrading this broke freeimage
-jxrlib/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:jxrlib-ios-guiddef-fix.patch                               # from vcpkg '2022.10.19 Release'
-openexr/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:openexr-ios.patch                                         # from vcpkg '2022.10.19 Release'
-imath/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                 # from vcpkg '2022.10.19 Release'
-jasper/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 all:jasper-no-freeglut.patch                                   # from vcpkg '2022.10.19 Release'
-liblzma/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:liblzma-ios.patch                                         # from vcpkg '2022.10.19 Release'
+#upgrading libraw broke freeimage build
+libraw/7375bb408f2278d2f1875c259beef93332697ba7 ios:libraw-ios.patch
+jxrlib/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:jxrlib-ios-guiddef-fix.patch
+openexr/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:openexr-ios.patch
+imath/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+jasper/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 all:jasper-no-freeglut.patch
+liblzma/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 ios:liblzma-ios.patch
 #python3 not needed; it only provides python bindings to use openexr from python
-libffi/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
-opengl/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46                                                                # from vcpkg '2022.10.19 Release'
+libffi/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
+opengl/94ce0dab56f4d8ba6bd631ba59ed682b02d45c46
 #freeglut (cross platform window manager) not needed; problematic on some platforms, pulling in many, many dependencies
 #vcpkg-cmake-config already added above for SDK
 #vcpkg-cmake already added above for SDK
