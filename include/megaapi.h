@@ -2805,20 +2805,6 @@ public:
     virtual void reset();
 
     /**
-     * @brief Enables or disables the value of emails disabled flag.
-     * If this flag is enabled, API won't send out calendar emails for this meeting
-     */
-    virtual void setEmailsDisabled(bool /*enabled*/);
-
-    /**
-     * @brief Returns true if emails disabled flag is enabled
-     * If this flag is enabled, API won't send out calendar emails for this meeting
-     *
-     * @return True if emails disabled flag is enabled, otherwise returns false.
-     */
-    virtual bool EmailsDisabled() const;
-
-    /**
      * @brief Returns the bistmask in a numeric value format
      *
      * @return The bistmask in a numeric value format

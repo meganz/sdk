@@ -7096,8 +7096,6 @@ MegaScheduledFlags::~MegaScheduledFlags()
 }
 
 void MegaScheduledFlags::reset()                                {}
-void MegaScheduledFlags::setEmailsDisabled(bool /*enabled*/)    {}
-bool MegaScheduledFlags::EmailsDisabled() const                 { return false; }
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
 unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
 

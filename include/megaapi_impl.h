@@ -4218,11 +4218,11 @@ public:
 
     // setters
     void reset() override;
-    void setEmailsDisabled(bool enabled) override;
+    void setEmailsDisabled(bool enabled);
 
     // getters
     unsigned long getNumericValue() const override;
-    bool EmailsDisabled() const override;
+    bool EmailsDisabled() const;
     bool isEmpty() const override;
     ScheduledFlags* getSdkScheduledFlags() const;
 
