@@ -7156,10 +7156,6 @@ void MegaClient::sc_delscheduledmeeting()
                 schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case 'i':
-                i = jsonsc.gethandle(MegaClient::CHATHANDLE);
-                break;
-
             case MAKENAMEID2('o','u'):
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
@@ -9745,11 +9741,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 case MAKENAMEID1('d'): // description
                 {
                     auxJson->storeobject(&description);
-                    break;
-                }
-                case MAKENAMEID1('i'):
-                {
-                    i = jsonsc.gethandle(MegaClient::CHATHANDLE);
                     break;
                 }
                 case MAKENAMEID2('a', 't'): // attributes
