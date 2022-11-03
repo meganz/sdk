@@ -302,13 +302,16 @@ void SdkTest::Cleanup()
             for (int i = syncs->size(); i--; )
             {
                 delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-                m->removeSync(syncs->get(i)->getBackupId(), INVALID_HANDLE, delSyncTrackers.back().get());
+                m->removeSync(syncs->get(i)->getBackupId(), delSyncTrackers.back().get());
             }
         }
     }
     // wait for delsyncs to complete:
     for (auto& d : delSyncTrackers) d->waitForResult();
-    WaitMillisec(5000);
+    WaitMillisec(2000);
+
+
+
 #endif
 
     if (!megaApi.empty() && megaApi[0])
@@ -317,7 +320,7 @@ void SdkTest::Cleanup()
         // Remove nodes in Cloud & Rubbish
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
-        //        megaApi[0]->cleanRubbishBin();
+        purgeVaultTree(std::unique_ptr<MegaNode>{megaApi[0]->getVaultNode()}.get());
 
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
@@ -794,6 +797,28 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
         }
 
         ASSERT_EQ(API_OK, result) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
+    }
+}
+
+void SdkTest::purgeVaultTree(MegaNode *vault)
+{
+    std::unique_ptr<MegaNodeList> vc{megaApi[0]->getChildren(vault)};
+    if (vc->size())
+    {
+        if (MegaNode* myBackups = vc->get(0))
+        {
+            std::unique_ptr<MegaNodeList> devices{megaApi[0]->getChildren(myBackups)};
+            for (int i = 0; i < devices->size(); ++i)
+            {
+                std::unique_ptr<MegaNodeList> backupRoots{megaApi[0]->getChildren(devices->get(i))};
+                for (int j = 0; j < backupRoots->size(); ++j)
+                {
+                    RequestTracker rt(megaApi[0].get());
+                    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(backupRoots->get(j)->getHandle(), INVALID_HANDLE, &rt);
+                    rt.waitForResult();
+                }
+            }
+        }
     }
 }
 
@@ -5686,6 +5711,9 @@ TEST_F(SdkTest, SdkBackupFolder)
         ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
     }
 
+    // So we can detect when the node database has been committed.
+    resetlastEvent();
+
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
@@ -5698,11 +5726,17 @@ TEST_F(SdkTest, SdkBackupFolder)
             !strcmp(megaSync->getName(), backupName) &&
             !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->isActive()) << "Sync instance found but not active.";
+
             found = true;
             break;
         }
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found";
+
+    // Wait for the node database to be updated.
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // Verify sync after logout / login
     string session = dumpSession();
@@ -5714,6 +5748,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
     found = false;
+
     for (int i = 0; i < allSyncs->size(); ++i)
     {
         MegaSync* megaSync = allSyncs->get(i);
@@ -5722,6 +5757,9 @@ TEST_F(SdkTest, SdkBackupFolder)
             !strcmp(megaSync->getName(), backupName) &&
             !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->isActive()) << "Sync instance found but not active.";
+
             found = true;
             break;
         }
@@ -5730,8 +5768,12 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), INVALID_HANDLE, &removeTracker);
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    RequestTracker removeNodesTracker(megaApi[0].get());
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), INVALID_HANDLE, &removeNodesTracker);
+    ASSERT_EQ(API_OK, removeNodesTracker.waitForResult());
 
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
@@ -5758,8 +5800,13 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Remove second backup, using the option to move the contents rather than delete them
     RequestTracker removeTracker2(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), nhrb, &removeTracker2);
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker2);
     ASSERT_EQ(API_OK, removeTracker2.waitForResult());
+
+    RequestTracker moveNodesTracker(megaApi[0].get());
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), nhrb, &moveNodesTracker);
+    ASSERT_EQ(API_OK, moveNodesTracker.waitForResult());
+
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for second backup";
     destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
@@ -5830,6 +5877,8 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     // remove backup
     err = synchronousRemoveSync(0, backupId);
     ASSERT_EQ(MegaError::API_OK, err) << "Remove sync failed (error: " << err << ")";
+
+    ASSERT_EQ(MegaError::API_OK, synchronousRemoveBackupNodes(0, backupFolderHandle));
 
     // reset DriveName value, before a future test
     err = synchronousSetDriveName(0, pathToDriveStr.c_str(), "");
@@ -6354,10 +6403,20 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
+    unique_ptr<MegaSyncList> allSyncs{ megaApi->getSyncs() };
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        RequestTracker rt1(megaApi);
+        megaApi->removeSync(allSyncs->get(i)->getBackupId(), &rt1);
+        ASSERT_EQ(API_OK, rt1.waitForResult());
 
-    RequestTracker removeTracker(megaApi);
-    megaApi->removeSyncs(INVALID_HANDLE, &removeTracker);
-    ASSERT_EQ(API_OK, removeTracker.waitForResult());
+        if (allSyncs->get(i)->getType() == MegaSync::TYPE_BACKUP)
+        {
+            RequestTracker rt2(megaApi);
+            megaApi->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(i)->getMegaHandle(), INVALID_HANDLE, &rt2);
+            ASSERT_EQ(API_OK, rt2.waitForResult());
+        }
+    }
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -6899,7 +6958,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     auto removeSync = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        megaApi[0]->removeSync(backupId, INVALID_HANDLE, &syncTracker);
+        megaApi[0]->removeSync(backupId, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
