@@ -557,6 +557,12 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+private:
+    // Pro Flexi plan is enabled
+    bool mProFlexi = false;
+public:
+    bool isProFlexi() const { return mProFlexi; }
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -765,7 +771,11 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
+#ifdef ENABLE_SYNC
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+#endif
 
     // delete all versions
     void unlinkversions();

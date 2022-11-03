@@ -17,7 +17,7 @@ pcre/d6bd10b9af6f6197711222a0ac827e52e0247e30 all:off linux:on
 
 readline/8.0 all:off osx:on
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
-zlib/9b064ff07b987c8f213fdbf4358122fd4fe38ef1
+zlib/e0a9559a9b24af116388eae242d675bf9fde025c
 
 # needed by the SDK if enabling serving/streaming (outgoing) files via http/s or include a an ftp server
 libuv/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off
