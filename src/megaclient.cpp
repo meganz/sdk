@@ -2193,7 +2193,7 @@ void MegaClient::exec()
                     if (useralerts.procsc_useralert(json))
                     {
                         // NULL vector: "notify all elements"
-                        app->useralerts_updated(NULL, int(useralerts.validAlertCount()));
+                        app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
                     }
                     pendingscUserAlerts.reset();
                     break;
@@ -7763,10 +7763,10 @@ void MegaClient::notifypurge(void)
     totalNodes = nodes.size();
 }
 
-void MegaClient::persistAlert(UserAlert::Base* a)
+void MegaClient::notifyAlert(UserAlert::Base* a)
 {
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
-    if (a->persistRemove())
+    if (a->removed())
     {
         if (sctable->del(a->dbid))
         {
@@ -7777,7 +7777,7 @@ void MegaClient::persistAlert(UserAlert::Base* a)
             LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
         }
     }
-    else if (a->persistPut()) // insert or replace
+    else // insert or replace
     {
         if (sctable->put(CACHEDALERT, a, &key))
         {

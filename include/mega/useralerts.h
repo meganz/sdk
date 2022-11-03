@@ -122,11 +122,8 @@ namespace UserAlert
 
         virtual bool checkprovisional(handle ou, MegaClient* mc);
 
-        void setPersistPut() { persistType[PERSIST_TYPE_PUT] = true; }
-        void setPersistRemove() { persistType[PERSIST_TYPE_REMOVE] = true; }
-        bool persistPut() const { return persistType[PERSIST_TYPE_PUT]; }
-        bool persistRemove() const { return persistType[PERSIST_TYPE_REMOVE]; }
-        void resetPersistType() { persistType = 0; }
+        void setRemoved() { mRemoved = true; }
+        bool removed() const { return mRemoved; }
 
     protected:
         struct Persistent // variables to be persisted
@@ -142,7 +139,7 @@ namespace UserAlert
         static unique_ptr<Persistent> unserialize(string*);
 
     private:
-        std::bitset<PERSIST_TYPE_SIZE> persistType;
+        bool mRemoved = false; // useful to know when to remove from persist db
     };
 
     struct IncomingPendingContact : public Base
@@ -166,7 +163,6 @@ namespace UserAlert
     struct ContactChange : public Base
     {
         int action;
-        handle otherUserHandle; // looks like this is not used anywhere !
 
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
@@ -301,7 +297,6 @@ namespace UserAlert
     {
         bool isTakedown;
         bool isReinstate;
-        int type; // looks like this is not used anywhere !
         handle nodeHandle;
 
         Takedown(UserAlertRaw& un, unsigned int id);
@@ -336,14 +331,14 @@ private:
 
 public:
     typedef deque<UserAlert::Base*> Alerts;
-    Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50
+    Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50; newest go at the end
     size_t validAlertCount() const;
 
     void purgescalerts(); // persist alerts from action packets
     bool unserializeAlert(string* d, uint32_t dbid);
 
     // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
-    useralert_vector useralertnotify; // notifications to be presented to the user
+    useralert_vector useralertnotify; // alerts to be notified to the app (new/updated/removed)
 
     // set true after our initial query to MEGA to get the last 50 alerts on startup
     bool begincatchup;
@@ -437,8 +432,6 @@ public:
                       [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase); })
             , end(container));
     }
-    // remove from `alerts`, and releases memory if not in `useralertnotify`
-    void eraseAlerts(const set<UserAlert::Base*>& alertsToRemove);
     void removeNodeAlerts(Node* n);
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
 

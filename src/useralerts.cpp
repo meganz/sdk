@@ -342,7 +342,6 @@ UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
     action = un.getint('c', -1);
     pst.relevant = action >= 0 && action < 4;
     assert(action >= 0 && action < 4);
-    otherUserHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
 }
 
 UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id)
@@ -1361,7 +1360,7 @@ void UserAlerts::add(UserAlertRaw& un)
 bool UserAlerts::canBeCombinedAs(const UserAlert::Base* a, nameid t) const
 {
     return !alerts.empty() &&
-           !alerts.back()->persistRemove() &&
+           !alerts.back()->removed() &&
            a->type == t &&
            alerts.back()->type == t;
 }
@@ -1413,7 +1412,6 @@ void UserAlerts::add(UserAlert::Base* unb)
                     op->setSeen(false);
                     op->tag = 0;
                     useralertnotify.push_back(op);
-                    op->setPersistPut();
                     LOG_debug << "Updated user alert added to notify queue";
                 }
                 delete unb;
@@ -1440,7 +1438,6 @@ void UserAlerts::add(UserAlert::Base* unb)
                     od->setSeen(false);
                     od->tag = 0;
                     useralertnotify.push_back(od);
-                    od->setPersistPut();
                     LOG_debug << "Updated user alert added to notify queue";
                 }
                 delete unb;
@@ -1467,7 +1464,6 @@ void UserAlerts::add(UserAlert::Base* unb)
                     od->setSeen(false);
                     od->tag = 0;
                     useralertnotify.push_back(od);
-                    od->setPersistPut();
                     LOG_debug << "Updated user alert added to notify queue";
                 }
                 delete unb;
@@ -1488,7 +1484,6 @@ void UserAlerts::add(UserAlert::Base* unb)
                 if (catchupdone)
                 {
                     useralertnotify.push_back(*i);
-                    (*i)->setPersistPut();
                 }
             }
         }
@@ -1502,7 +1497,6 @@ void UserAlerts::add(UserAlert::Base* unb)
     {
         unb->tag = 0;
         useralertnotify.push_back(unb);
-        unb->setPersistPut();
         LOG_debug << "New user alert added to notify queue";
     }
 }
@@ -1782,7 +1776,7 @@ bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
     std::function<bool (UserAlert::Base*)> isAlertWithTypeRemoved =
         [nodeHandleToFind, this](UserAlert::Base* alertToCheck)
             {
-                return !alertToCheck->persistRemove() && containsRemovedNodeAlert(nodeHandleToFind, alertToCheck);
+                return !alertToCheck->removed() && containsRemovedNodeAlert(nodeHandleToFind, alertToCheck);
             };
 
     std::string debug_msg = "Found removal-alert with nodehandle |" + std::to_string(nodeHandleToFind) + "| in ";
@@ -1811,14 +1805,6 @@ bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
     return false;
 }
 
-void UserAlerts::eraseAlerts(const set<UserAlert::Base*>& alertsToRelease)
-{
-    eraseAlertsFromContainer(useralertnotify, alertsToRelease);
-    eraseAlertsFromContainer(alerts, alertsToRelease);
-
-    for_each(begin(alertsToRelease), end(alertsToRelease), [](UserAlert::Base* a) { delete a; });
-}
-
 void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
 {
     if (!nodeToRemoveAlert)
@@ -1838,11 +1824,11 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             LOG_debug << debug_msg << "new-alert type";
             if (pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty())
             {
-                pNewSN->setPersistRemove();
+                pNewSN->setRemoved();
             }
-            else
+            else if (std::find(useralertnotify.rbegin(), useralertnotify.rend(), pNewSN) == useralertnotify.rend())
             {
-                pNewSN->setPersistPut();
+                useralertnotify.push_back(pNewSN); // was updated, so persist it
             }
         }
         else if (auto pRemovedSN = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck))
@@ -1850,11 +1836,11 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             LOG_debug << debug_msg << "removal-alert type";
             if (pRemovedSN->nodeHandles.empty())
             {
-                pRemovedSN->setPersistRemove();
+                pRemovedSN->setRemoved();
             }
-            else
+            else if (std::find(useralertnotify.rbegin(), useralertnotify.rend(), pRemovedSN) == useralertnotify.rend())
             {
-                pRemovedSN->setPersistPut();
+                useralertnotify.push_back(pRemovedSN); // was updated, so persist it
             }
         }
     }
@@ -1892,7 +1878,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
             bool emptyAlert = pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty();
             LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
 
-            if (emptyAlert) pNewSN->setPersistRemove();
+            if (emptyAlert) pNewSN->setRemoved();
             newSNToConvertToUpdatedSN.push_back(pNewSN);
         }
     }
@@ -2112,10 +2098,9 @@ void UserAlerts::acknowledgeAll()
             {
                 (*i)->tag = mc.reqtag;
             }
-            if (!(*i)->persistRemove() && !(*i)->persistPut())
+            if (!(*i)->removed() && std::find(useralertnotify.begin(), useralertnotify.end(), *i) == useralertnotify.end())
             {
                 useralertnotify.push_back(*i);
-                (*i)->setPersistPut();
             }
         }
     }
@@ -2134,10 +2119,9 @@ void UserAlerts::onAcknowledgeReceived()
             {
                 (*i)->setSeen(true);
                 (*i)->tag = 0;
-                if (!(*i)->persistRemove() && !(*i)->persistPut())
+                if (!(*i)->removed() && std::find(useralertnotify.begin(), useralertnotify.end(), *i) == useralertnotify.end())
                 {
                     useralertnotify.push_back(*i);
-                    (*i)->setPersistPut();
                 }
             }
         }
@@ -2243,87 +2227,87 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
 
 void UserAlerts::initscalerts() // called after sc50 response has been received
 {
-    trimAlertsToMaxCount();
-    set<UserAlert::Base*> alertsToRemove;
-
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     for (auto& a : alerts)
     {
-        a->setPersistPut(); // this will not overwrite the REMOVE mark if set above
-        mc.persistAlert(a);
-
-        if (a->persistRemove())
-        {
-            alertsToRemove.insert(a);
-        }
-        else
-        {
-            a->resetPersistType();
-        }
-    }
-
-    if (!alertsToRemove.empty())
-    {
-        eraseAlerts(alertsToRemove);
+        mc.notifyAlert(a);
     }
 }
 
 void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
 {
+    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
+
     if (useralertnotify.empty())
     {
-        return;
+        return; // don't just loop `alerts` every time
     }
 
     trimAlertsToMaxCount();
-    LOG_debug << "Notifying " << useralertnotify.size() << " user alerts";
 
-    // send notification
-    mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
-
-    set<UserAlert::Base*> alertsToRemove;
-
-    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
-    for (auto& ua : useralertnotify)
+    if (!useralertnotify.empty())
     {
-        mc.persistAlert(ua);
-        if (ua->persistRemove())
-        {
-            alertsToRemove.insert(ua);
-        }
-        else
-        {
-            ua->resetPersistType();
-            ua->tag = -1;
-        }
-    }
+        // send notification
+        LOG_debug << "Notifying " << useralertnotify.size() << " user alerts";
+        mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
 
-    if (!alertsToRemove.empty())
-    {
-        eraseAlerts(alertsToRemove);
-    }
+        for (auto a : useralertnotify)
+        {
+            mc.notifyAlert(a); // persist to db
+        }
 
-    useralertnotify.clear();
+        useralertnotify.clear();
+    }
 }
 
 void UserAlerts::trimAlertsToMaxCount()
 {
-    static constexpr size_t maxAlertCount = 200; // make this configurable?
-    size_t count = 0;
+    static constexpr size_t maxAlertCount = 200; // value mentioned in the requirements
+    size_t kept = 0;
+    set<UserAlert::Base*> alertsToRemove;
 
-    for (auto& a : alerts)
+    for (auto it = alerts.rbegin(); it != alerts.rend();)
     {
-        if (!a->persistRemove())
+        auto a = *it;
+
+        if (kept < maxAlertCount)
         {
-            if (count < maxAlertCount)
+            if (a->removed())
             {
-                ++count;
+                mc.notifyAlert(a); // remove from db
+                auto dist = std::distance(alerts.rbegin(), it);
+                alerts.erase(it.base() - 1);
+                delete a;
+                alertsToRemove.insert(a); // keep it to remove from useralertnotify
+                it = alerts.rbegin() + dist;
             }
             else
             {
-                a->setPersistRemove();
+                ++kept;
+                ++it;
             }
         }
+
+        else
+        {
+            // remove from db and release all that overflowed
+            a->setRemoved();
+            mc.notifyAlert(a); // remove from db
+            delete a;
+            alertsToRemove.insert(a); // keep it to remove from useralertnotify
+            ++it; // overflowed, so release it after exiting the loop
+        }
+    }
+
+    if (alerts.size() > maxAlertCount)
+    {
+        // erase all that overflowed
+        alerts.erase(alerts.begin(), alerts.begin() + (alerts.size() - maxAlertCount));
+    }
+
+    if (!alertsToRemove.empty())
+    {
+        eraseAlertsFromContainer(useralertnotify, alertsToRemove);
     }
 }
 
@@ -2332,7 +2316,7 @@ size_t UserAlerts::validAlertCount() const
     size_t count = 0;
     for (const auto& a : alerts)
     {
-        if (!a->persistRemove())
+        if (!a->removed())
         {
             ++count;
         }

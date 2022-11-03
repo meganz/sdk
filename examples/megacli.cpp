@@ -7425,7 +7425,7 @@ void exec_alerts(autocomplete::ACState& s)
             size_t n = 0;
             for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin(); j != client->useralerts.alerts.rend(); ++j, ++n)
             {
-                if (!(*j)->persistRemove())
+                if (!(*j)->removed())
                 {
                     showN += ((*j)->relevant() || n >= showN) ? 0 : 1;
                 }
@@ -7435,7 +7435,7 @@ void exec_alerts(autocomplete::ACState& s)
         size_t n = client->useralerts.alerts.size();
         for (; i != client->useralerts.alerts.end(); ++i)
         {
-            if ((*i)->relevant() && !(*i)->persistRemove())
+            if ((*i)->relevant() && !(*i)->removed())
             {
                 if (--n < showN || (shownew && !(*i)->seen()) || (showold && (*i)->seen()))
                 {

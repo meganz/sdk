@@ -8701,7 +8701,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "RemovedSharedNode";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "RemovedSharedNode";
     ASSERT_EQ(a->getNumber(0), 1) << "RemovedSharedNode";
-    bkpAlerts.emplace_back(a->copy());
+    //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
 
 
@@ -8743,7 +8743,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(1), 1) << "NewSharedNodes"; // file count
     ASSERT_EQ(a->getNodeHandle(), hSubfolder) << "NewSharedNodes"; // parent handle
     ASSERT_EQ(a->getHandle(0), hUpfile) << "NewSharedNodes";
-    bkpAlerts.emplace_back(a->copy());
+    //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
 
 
@@ -9003,7 +9003,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(B1idx));
     unique_ptr<MegaUserAlertList> persistedAlerts(B1.getUserAlerts());
     ASSERT_TRUE(persistedAlerts);
-    ASSERT_EQ(persistedAlerts->size(), (int)bkpAlerts.size());
+    ASSERT_EQ(persistedAlerts->size(), (int)bkpAlerts.size()); // B1 will not get sc50 alerts, due to its useragent
 
     // sort persisted alerts in the same order as backed up ones; timestamp is not enough because there can be clashes
     vector<const MegaUserAlert*> sortedPersistedAlerts(bkpAlerts.size(), nullptr);
@@ -9027,7 +9027,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     {
         const auto* bkp = bkpAlerts[j].get();
         const auto* pal = sortedPersistedAlerts[j];
-        ASSERT_TRUE(pal) << "Test error: some alerts got lost while sorting";
+        ASSERT_TRUE(pal) << "Test error: some alerts were not persited or got lost while sorting: " << bkp->getTypeString();
 
         ASSERT_EQ(bkp->getType(), pal->getType()) << "persisted alerts: " << bkp->getTypeString() << " vs " << pal->getTypeString();
         ASSERT_STREQ(bkp->getTypeString(), pal->getTypeString()) << "persisted alerts: " << pal->getTypeString();
