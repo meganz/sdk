@@ -3515,9 +3515,10 @@ class MegaRequest
             TYPE_FETCH_SET                                                  = 153,
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
-            TYPE_SET_SYNC_RUNSTATE                                          = 156,
-            TYPE_GET_SYNC_STALL_LIST                                        = 157,
-            TOTAL_OF_REQUEST_TYPES                                          = 158,
+            TYPE_REMOVE_OLD_BACKUP_NODES                                    = 156,
+            TYPE_SET_SYNC_RUNSTATE                                          = 157,
+            TYPE_GET_SYNC_STALL_LIST                                        = 158,
+            TOTAL_OF_REQUEST_TYPES                                          = 159,
         };
 
         virtual ~MegaRequest();
@@ -9941,7 +9942,7 @@ class MegaApi
          *
          * The verification email will be resent to the same address as it was previously sent to.
          *
-         * This function can be called if the the reason for being blocked is:
+         * This function can be called if the reason for being blocked is:
          *      700: the account is supended for Weak Account Protection.
          *
          * If the logged in account is not suspended or is suspended for some other reason,
@@ -14433,6 +14434,30 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
@@ -17742,7 +17767,7 @@ class MegaApi
          * When this feature is enabled, the HTTP proxy server will check if there are files with that name
          * in the same folder as the node corresponding to the handle in the link.
          *
-         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * If a matching file is found, the name is exactly the same as the node with the specified handle
          * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
          * the HTTP proxy server will serve that file.
          *

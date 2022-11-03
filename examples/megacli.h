@@ -326,6 +326,8 @@ void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_syncrescan(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);
