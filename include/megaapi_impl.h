@@ -503,7 +503,6 @@ protected:
     long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
 
     std::string epochdsToString(int64_t rawtimeds) const;
-    int64_t stringTimeTods(string stime) const;
 
     void clearCurrentBackupData();
 

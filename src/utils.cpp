@@ -1867,6 +1867,54 @@ m_time_t m_mktime_UTC(const struct tm *src)
     return t;
 }
 
+extern time_t stringToTimestamp(string stime, date_time_format_t format)
+{
+    if ((format == FORMAT_SCHEDULED_COPY && stime.size() != 14)
+       || (format == FORMAT_ISO8601 && stime.size() != 15))
+    {
+        return 0;
+    }
+
+    if (format == FORMAT_ISO8601)
+    {
+        stime.erase(8, 1); // remove T from stime (20220726T133000)
+    }
+
+    struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
+#ifdef _WIN32
+    for (int i = 0; i < stime.size(); i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
+
+    if (format == FORMAT_SCHEDULED_COPY)
+    {
+        // let mktime interprete if time has Daylight Saving Time flag correction
+        // TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+        dt.tm_isdst = -1;
+        return (mktime(&dt))*10;  // deciseconds
+    }
+    else
+    {
+        dt.tm_isdst = 0;    // no daylight saving as we want to get UTC
+        return mktime(&dt); // seconds
+    }
+}
+
 std::string rfc1123_datetime( time_t time )
 {
     struct tm * timeinfo;

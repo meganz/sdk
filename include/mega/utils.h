@@ -66,6 +66,12 @@ SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
 SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
+typedef enum
+{
+    FORMAT_SCHEDULED_COPY = 0,  // 20221205123045
+    FORMAT_ISO8601        = 1,  // 20221205T123045
+} date_time_format_t;
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -464,6 +470,7 @@ extern m_time_t m_mktime(struct tm*);
 extern int m_clock_getmonotonictime(struct timespec *t);
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
+extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
