@@ -8880,11 +8880,11 @@ void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBac
             return API_EARGS;
         }
 
-        if (n2 && (
-            n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte() ||
-            n2->firstancestor()->nodeHandle() != client->rootnodes.rubbish.as8byte()))
+        if (n2 &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte() &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.rubbish.as8byte())
         {
-            LOG_debug << "Destination node not in the main files root";
+            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
             return API_EARGS;
         }
 
