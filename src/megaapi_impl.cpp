@@ -6199,9 +6199,10 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fetchTimeZone(MegaRequestListener *listener)
+void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
+    request->setFlag(forceApiFetch);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19234,7 +19235,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_TIMEZONE:
         {
-            client->fetchtimezone();
+            if (!mTimezones || request->getFlag() /*forceApiFetch*/)
+            {
+                client->fetchtimezone();
+            }
+            else
+            {
+                request->setTimeZoneDetails(mTimezones);
+                e = API_OK;
+            }
             break;
         }
         case MegaRequest::TYPE_CREATE_FOLDER:

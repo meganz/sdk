@@ -2169,7 +2169,12 @@ void MegaApi::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener 
 
 void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 {
-    pImpl->fetchTimeZone(listener);
+    pImpl->fetchTimeZone(true /*forceApiFetch*/, listener);
+}
+
+void MegaApi::fetchTimeZoneFromLocal(MegaRequestListener* listener)
+{
+    pImpl->fetchTimeZone(false /*forceApiFetch*/, listener);
 }
 
 void MegaApi::addEntropy(char *data, unsigned int size)

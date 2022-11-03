@@ -3030,7 +3030,7 @@ public:
 
     /**
      * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
-     * Returns true if index is <= map size, otherwise returns false
+     * Returns true if index is < map size, otherwise returns false
      * If index is not out of range, key will be copied in first parameter (key)
      * If index is not out of range, value will be copied in second parameter (value)
      *
@@ -9482,13 +9482,35 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
          *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getFlag - Returns true to indicate that we want to force API request
+         *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
          *
          * @param listener MegaRequestListener to track this request
          */
-        void fetchTimeZone(MegaRequestListener *listener = NULL);
+        void fetchTimeZone(MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Fetch details related to time zones and the current default.
+         *
+         * This method checks if we already have that information locally, to avoid an unnecessary API request,
+         * otherwise we will request the information to API.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getFlag - Returns false to indicate that we don't want to force API request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchTimeZoneFromLocal(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Log in to a MEGA account
