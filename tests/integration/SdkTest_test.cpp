@@ -5711,6 +5711,9 @@ TEST_F(SdkTest, SdkBackupFolder)
         ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
     }
 
+    // So we can detect when the node database has been committed.
+    resetlastEvent();
+
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
@@ -5723,11 +5726,17 @@ TEST_F(SdkTest, SdkBackupFolder)
             !strcmp(megaSync->getName(), backupName) &&
             !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->isActive()) << "Sync instance found but not active.";
+
             found = true;
             break;
         }
     }
     ASSERT_EQ(found, true) << "Sync instance could not be found";
+
+    // Wait for the node database to be updated.
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // Verify sync after logout / login
     string session = dumpSession();
@@ -5739,6 +5748,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
     found = false;
+
     for (int i = 0; i < allSyncs->size(); ++i)
     {
         MegaSync* megaSync = allSyncs->get(i);
@@ -5747,6 +5757,9 @@ TEST_F(SdkTest, SdkBackupFolder)
             !strcmp(megaSync->getName(), backupName) &&
             !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->isActive()) << "Sync instance found but not active.";
+
             found = true;
             break;
         }
