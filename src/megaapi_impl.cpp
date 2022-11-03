@@ -4024,6 +4024,13 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
+        case TYPE_PUT_SET: return "PUT_SET";
+        case TYPE_REMOVE_SET: return "REMOVE_SET";
+        case TYPE_FETCH_SET: return "FETCH_SET";
+        case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
+        case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
+        case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
+
     }
     return "UNKNOWN";
 }
@@ -8846,12 +8853,58 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
+void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
+    request->setNodeHandle(backupDestination);
+
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request](){
+
+        Node* n1 = client->nodebyhandle(deconfiguredBackupRoot);
+        Node* n2 = client->nodebyhandle(backupDestination);
+
+        if (!n1)
+        {
+            LOG_debug << "Backup root node not found";
+            return API_ENOENT;
+        }
+        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
+
+        if (!n1->parent ||   // device
+            !n1->parent->parent ||  // my backups node
+            !n1->parent->parent->parent ||  // Vault root
+             n1->parent->parent->parent->nodehandle != client->rootnodes.vault.as8byte())
+        {
+            LOG_debug << "Node not in the right place to be a backup root";
+            return API_EARGS;
+        }
+
+        if (n2 &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte() &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.rubbish.as8byte())
+        {
+            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
+            return API_EARGS;
+        }
+
+        NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
+        NodeHandle destination = NodeHandle().set6byte(backupDestination);
+
+        client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e){
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
-    request->setNodeHandle(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8861,17 +8914,12 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_SYNC_RUNSTATE, listener);
     request->setParentHandle(backupId);
 
-    request->action = [this, request, targetState](){
+    request->performRequest = [this, request, targetState](){
 
         auto backupId = request->getParentHandle();
 
         switch (targetState)
         {
-            case MegaSync::RUNSTATE_PENDING:
-            case MegaSync::RUNSTATE_LOADING:
-                assert(false);
-                break;
-
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
@@ -8881,7 +8929,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err), true);
                     }, false, "");
 
-                break;
+                return API_OK;
             }
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
@@ -8895,8 +8943,14 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
                     [this, request](){
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK), true);
                     });
-                break;
+
+                return API_OK;
             }
+            case MegaSync::RUNSTATE_PENDING:
+            case MegaSync::RUNSTATE_LOADING:
+            default:
+                assert(false);
+                return API_EARGS;
         }
     };
 
@@ -18816,11 +18870,18 @@ void MegaApiImpl::sendPendingRequests()
             }
         }
 
-        if (request->action)
+        if (request->performRequest)
         {
             // the action should result in request destruction via fireOnRequestFinish
             // or a requeue of another step, etc.
-            request->action();
+            error e = request->performRequest();
+
+            if(e)
+            {
+                LOG_err << "Error starting request: " << e;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }
+
             continue;
         }
 
@@ -21750,7 +21811,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
             e = API_EARGS;
-            assert(false);  // this function removed; not used; no need to maintain
+            assert(false); // this function deprecated, it wasn't used (and, questions about which error to report if multiple occur)
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -21775,16 +21836,6 @@ void MegaApiImpl::sendPendingRequests()
             std::function<void(Error)> completion = [request, this](Error e) {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
-
-            if (c.isBackup())
-            {
-                // unlink the backup's Vault nodes after deregistering it
-                NodeHandle source = c.mRemoteNode;
-                NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
-                completion = [completion, source, destination, this](Error e){
-                    client->unlinkOrMoveBackupNodes(source, destination, completion);
-                };
-            }
 
             client->deregisterThenRemoveSync(backupId, completion);
             break;
@@ -25747,7 +25798,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
-            complete(API_EINCOMPLETE);
+            complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
         {
@@ -27011,7 +27062,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     if (sr != scanFolder_succeeded)
     {
-        complete(sr == scanFolder_cancelled ? API_EINCOMPLETE : API_EINTERNAL); // inconsistent node state
+        if (sr == scanFolder_cancelled)
+        {
+            complete(API_EINCOMPLETE, true);
+        }
+        else // inconsistent node state
+        {
+            complete(API_EINTERNAL);
+        }
     }
     else
     {
@@ -27048,7 +27106,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                     TransferQueue transferQueue;
                     if (!genDownloadTransfersForFiles(fsType, transferQueue))
                     {
-                        complete(API_EINCOMPLETE);
+                        complete(API_EINCOMPLETE, true);
                     }
                     else if (transferQueue.empty())
                     {

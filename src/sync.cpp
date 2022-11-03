@@ -4152,25 +4152,27 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
             }
         }
     }
-
-    // regardless of that, we de-register all syncs/backups in Backup Centre
-    for (auto& us : mSyncVec)
+    else // if logging out and syncs won't be kept...
     {
-        std::function<void()> onFinalDeregister = nullptr;
-        if (us.get() == mSyncVec.back().get())
+        // regardless of that, we de-register all syncs/backups in Backup Centre
+        for (auto& us : mSyncVec)
         {
-            // this is the last one, so we'll arrange clientCompletion
-            // to run after it completes.  Earlier de-registers must finish first
-            onFinalDeregister = move(clientCompletion);
-            clientCompletion = nullptr;
-        }
+            std::function<void()> onFinalDeregister = nullptr;
+            if (us.get() == mSyncVec.back().get())
+            {
+                // this is the last one, so we'll arrange clientCompletion
+                // to run after it completes.  Earlier de-registers must finish first
+                onFinalDeregister = move(clientCompletion);
+                clientCompletion = nullptr;
+            }
 
-        auto backupId = us->mConfig.mBackupId;
-        queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
-            mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
-                if (onFinalDeregister) onFinalDeregister();
-            }));
-        });
+            auto backupId = us->mConfig.mBackupId;
+            queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
+                mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
+                    if (onFinalDeregister) onFinalDeregister();
+                }));
+            });
+        }
     }
 
     if (clientCompletion)
