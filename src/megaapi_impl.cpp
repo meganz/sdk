@@ -6199,9 +6199,10 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fetchTimeZone(MegaRequestListener *listener)
+void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
+    request->setFlag(forceApiFetch);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19234,7 +19235,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_TIMEZONE:
         {
-            client->fetchtimezone();
+            if (!mTimezones || request->getFlag() /*forceApiFetch*/)
+            {
+                client->fetchtimezone();
+            }
+            else
+            {
+                request->setTimeZoneDetails(mTimezones);
+                e = API_OK;
+            }
             break;
         }
         case MegaRequest::TYPE_CREATE_FOLDER:
@@ -26533,7 +26542,7 @@ int64_t MegaScheduledCopyController::getTimeOfBackup(string localname) const
     string rest = localname.substr(pos + 4).c_str();
 
 //    int64_t toret = atol(rest.c_str());
-    int64_t toret = stringTimeTods(rest);
+    int64_t toret = stringToTimestamp(rest, FORMAT_SCHEDULED_COPY);
     return toret;
 }
 
@@ -26703,37 +26712,6 @@ std::string MegaScheduledCopyController::epochdsToString(const int64_t rawtimeds
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 
     return std::string(buffer);
-}
-
-int64_t MegaScheduledCopyController::stringTimeTods(string stime) const
-{
-    struct tm dt;
-    memset(&dt, 0, sizeof(struct tm));
-#ifdef _WIN32
-    if (stime.size() != 14)
-    {
-        return 0; //better control of this?
-    }
-    for(int i=0;i<14;i++)
-    {
-        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
-        {
-            return 0; //better control of this?
-        }
-    }
-
-    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
-    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
-    dt.tm_mday = atoi(stime.substr(6,2).c_str());
-    dt.tm_hour = atoi(stime.substr(8,2).c_str());
-    dt.tm_min = atoi(stime.substr(10,2).c_str());
-    dt.tm_sec = atoi(stime.substr(12,2).c_str());
-#else
-    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
-#endif
-    dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
-                        //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
-    return (mktime(&dt))*10;
 }
 
 void MegaScheduledCopyController::clearCurrentBackupData()

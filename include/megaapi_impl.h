@@ -503,7 +503,6 @@ protected:
     long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
 
     std::string epochdsToString(int64_t rawtimeds) const;
-    int64_t stringTimeTods(string stime) const;
 
     void clearCurrentBackupData();
 
@@ -2485,7 +2484,7 @@ class MegaApiImpl : public MegaApp
         void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
 
-        void fetchTimeZone(MegaRequestListener *listener = NULL);
+        void fetchTimeZone(bool forceApiFetch = true, MegaRequestListener *listener = NULL);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
