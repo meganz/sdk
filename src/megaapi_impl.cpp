@@ -5252,11 +5252,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
-}
-
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
@@ -5630,6 +5625,14 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     }
 
     return MegaApi::strdup(client->mPrivKey.c_str());
+}
+
+void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
+{
+    g_netLoggingOn = networking;
+#ifdef ENABLE_SYNC
+    client->syncs.mDetailedSyncLogging = syncs;
+#endif
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -8661,7 +8664,7 @@ int MegaApiImpl::syncPathState(string* pathParam)
     syncPathStateLockTimeout = false;
 
     int state = MegaApi::STATE_NONE;
-    if (client->syncs.isEmpty)
+    if (client->syncs.mSyncVecIsEmpty)
     {
         return state;
     }
@@ -8842,16 +8845,6 @@ const char* MegaApiImpl::exportSyncConfigs()
     }
 
     return MegaApi::strdup(configs.c_str());
-}
-
-void MegaApiImpl::removeSync(handle nodehandle, MegaHandle backupDestination, MegaRequestListener* listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setNodeHandle(nodehandle);
-    request->setFlag(true);
-    request->setNodeHandle(backupDestination);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::removeSyncById(handle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
@@ -14993,7 +14986,6 @@ void MegaApiImpl::getua_result(error e)
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
-                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
@@ -16156,9 +16148,12 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 }
 
 
-void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
+void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e, bool callbackIsFromSyncThread)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(callbackIsFromSyncThread || threadId == std::this_thread::get_id());
+#ifdef ENABLE_SYNC
+    assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
+#endif
     activeRequest = request;
     activeError = e.get();
 
@@ -16569,6 +16564,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -18610,7 +18606,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     f->cancelToken = transfer->accessCancelToken();
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag);
+                    mega::error cause;
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -18627,8 +18624,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
-                        transfer->setState(MegaTransfer::STATE_CANCELLED);
-                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST));
+                        transfer->setState(MegaTransfer::STATE_FAILED);
+                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(cause));
                     }
                 }
                 else
@@ -18991,7 +18988,7 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
             {
                 el.setName(request->getText() ? request->getText() : string());
-            }    
+            }
             client->putSetElement(move(el),
                 [this, request](Error e, const SetElement* el)
                 {
@@ -20101,6 +20098,12 @@ void MegaApiImpl::sendPendingRequests()
                     type == ATTR_SIG_CU255_PUBK     ||
                     type == ATTR_SIG_RSA_PUBK)
             {
+                e = API_EACCESS;
+                break;
+            }
+            else if (type == ATTR_MY_BACKUPS_FOLDER)
+            {
+                LOG_err << "Cannot set 'My backups' folder attribute directly. Please, use MegaApi::setMyBackupsFolder";
                 e = API_EACCESS;
                 break;
             }
@@ -21657,17 +21660,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto backupId = request->getParentHandle();
-            UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
+            client->syncs.enableSyncByBackupId(backupId, false, true, true, true, [request, this](error e, SyncError se, handle h){
 
-            request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
+                request->setNumDetails(se);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 
-            if (!e) //sync added (enabled) fine
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
-            }
+            }, true, "");
+
 
             break;
         }
@@ -21681,11 +21681,9 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive));
-            }
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
+                });
             }
             break;
         }
@@ -21699,11 +21697,9 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive));
-            }
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
+                });
             }
             break;
         }
@@ -21852,12 +21848,36 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs(
-                        [](SyncConfig&, Sync*) { return true; },
-                        [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); },
-                        true,   // for backups, it should move backup-folder(s) to target destination or delete them
-                                // the Remover will check if the sync is a backup or a regular sync internally, and override for regular syncs
-                        NodeHandle().set6byte(request->getNodeHandle()));
+            auto configVector = client->syncs.getConfigs(false);
+            if (configVector.empty())
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            else
+            {
+                for (auto& v : configVector)
+                {
+                    std::function<void(Error)> completion = [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); };
+
+                    if (&v != &configVector.back())
+                    {
+                        // only make the Finish callback for the last one.
+                        completion = nullptr;
+                    }
+
+                    if (v.isBackup())
+                    {
+                        // unlink the backup's Vault nodes after deregistering it
+                        NodeHandle source = v.mRemoteNode;
+                        NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
+                        completion = [completion, source, destination, this](Error e){
+                            client->unlinkOrMoveBackupNodes(source, destination, completion);
+                        };
+                    }
+
+                    client->syncs.removeSync(v.mBackupId, completion);
+                }
+            }
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -21877,30 +21897,23 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            handle backupTarget = request->getNodeHandle();
+            request->setFile(c.mLocalPath.toPath(false).c_str());
 
-            client->syncs.removeSelectedSync(
-              [&](SyncConfig& c, Sync* sync)
-              {
-                  bool matched = c.mBackupId == backupId;
-                  if (matched && sync)    // if active
-                  {
-                      string path = sync->localroot->localname.toPath(false);
+            std::function<void(Error)> completion = [request, this](Error e) {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
+            };
 
-                      if (!request->getFile() || sync->localroot->node)
-                      {
-                          request->setFile(path.c_str());
-                      }
-                  }
-                  return matched;
-              },
-              [request, this](Error e)
-              {
-                  fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
-              },
-              c.isBackup(),
-              NodeHandle().set6byte(backupTarget));
+            if (c.isBackup())
+            {
+                // unlink the backup's Vault nodes after deregistering it
+                NodeHandle source = c.mRemoteNode;
+                NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
+                completion = [completion, source, destination, this](Error e){
+                    client->unlinkOrMoveBackupNodes(source, destination, completion);
+                };
+            }
 
+            client->syncs.removeSync(backupId, completion);
             break;
         }
         case MegaRequest::TYPE_DISABLE_SYNC:
@@ -23254,7 +23267,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
-                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); }));
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:

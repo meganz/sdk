@@ -1361,7 +1361,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realEmail(bufRealEmail); // user@host.domain
     auto pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
-    const string newTestAcc = realAccount + '+' + getUniqueAlias() + realEmail.substr(pos); // user+rand20210919@host.domain
+    const string newTestAcc = realAccount + '+' +
+                              mApi[0].email.substr(0, mApi[0].email.find("@")) + '+' +
+                              getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Using Mega account " << newTestAcc;
     const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
 
@@ -1866,14 +1868,13 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandSendSignupLink2::procresult(Result r)
     bool CommandConfirmSignupLink2::procresult(Result r)
     bool CommandSetKeyPair::procresult(Result r)
-    bool CommandReportEvent::procresult(Result r)
     bool CommandSubmitPurchaseReceipt::procresult(Result r)
     bool CommandCreditCardStore::procresult(Result r)
     bool CommandCreditCardQuerySubscriptions::procresult(Result r)
     bool CommandCreditCardCancelSubscriptions::procresult(Result r)
     bool CommandCopySession::procresult(Result r)
     bool CommandGetPaymentMethods::procresult(Result r)
-    bool CommandUserFeedbackStore::procresult(Result r)
+    bool CommandSendReport::procresult(Result r)
     bool CommandSupportTicket::procresult(Result r)
     bool CommandCleanRubbishBin::procresult(Result r)
     bool CommandGetRecoveryLink::procresult(Result r)
@@ -6535,7 +6536,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
         ASSERT_EQ(API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
         ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
-        ASSERT_EQ(API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
+        ASSERT_EQ(API_OK, synchronousEnableSync(0, sync2.get())); // Currently enabled, already running.
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);  // since the sync is active, we should see its real state, and it should not have had any error code stored in it
     }
 
@@ -7328,18 +7329,18 @@ TEST_F(SdkTest, SyncPaths)
     fs::path fileDownloadPath = fs::current_path() / fs::u8path(fileNameStr.c_str());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
-#ifndef WIN32
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
-#endif
     deleteFile(fileDownloadPath.u8string());
 
     // Create local directories
+
+    std::error_code ignoredEc;
+    fs::remove_all(localPath, ignoredEc);
+
     fs::create_directory(localPath);
-#ifndef WIN32
     fs::create_directory(localPath / "level_1A");
     fs::create_directory_symlink(localPath / "level_1A", localPath / "symlink_1A");
     fs::create_directory_symlink(localPath / "level_1A", fs::current_path() / "symlink_1A");
-#endif
 
     LOG_verbose << "SyncPaths :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -7373,22 +7374,26 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-#if !defined(WIN32) && !defined(__APPLE__)
+#if !defined(__APPLE__)
     LOG_verbose << "SyncPersistence :  Check that symlinks are not synced.";
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(("/" + string(remoteBaseNode->getName()) + "/symlink_1A").c_str()));
     ASSERT_EQ(remoteNodeSym.get(), nullptr);
 
+    nh = createFolder(0, "symlink_1A", remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteNodeSym.get(), nullptr);
+
+#ifndef WIN32
     {
         TestingWithLogErrorAllowanceGuard g;
 
         LOG_verbose << "SyncPersistence :  Check that symlinks are considered when creating a sync.";
-        nh = createFolder(0, "symlink_1A", remoteRootNode.get());
-        ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
-        remoteNodeSym.reset(megaApi[0]->getNodeByHandle(nh));
-        ASSERT_NE(remoteNodeSym.get(), nullptr);
         ASSERT_EQ(API_EARGS, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
+
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
     auto tagID = sync->getBackupId();
     ASSERT_EQ(API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
@@ -7417,17 +7422,19 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
-    {
+#ifndef WIN32
+{
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(API_EARGS, synchronousEnableSync(0, tagID)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
+#endif
 
-    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 #endif
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 }
 
 /**

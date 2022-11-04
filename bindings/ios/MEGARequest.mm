@@ -20,6 +20,8 @@
  */
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 #import "MEGAPricing+init.h"
 #import "MEGAAccountDetails+init.h"
 #import "MEGAAchievementsDetails+init.h"

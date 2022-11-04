@@ -5654,6 +5654,16 @@ public:
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
         ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+        COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+        COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+        SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+        UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+        INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+        NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+        UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+        UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+        UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+        INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
     };
 
     enum Warning
@@ -6514,7 +6524,7 @@ protected:
         // MegaError::Errors enum/ErrorCodes
         int errorCode;
 
-        // SyncError/MegaSync::Error 
+        // SyncError/MegaSync::Error
         int syncError;
 
         friend class MegaTransfer;
@@ -10342,6 +10352,19 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
 
         /**
          * @brief Set the limit of size to requests payload
@@ -14516,12 +14539,12 @@ class MegaApi
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
-         * 
+         *
          * Possible return values for this function are:
          * - MegaError::API_OK if the folder is syncable
          * - MegaError::API_ENOENT if the node doesn't exist in the account
          * - MegaError::API_EARGS if the node is NULL or is not a folder
-         * 
+         *
          * - MegaError::API_EACCESS:
          *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
          *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
