@@ -16716,7 +16716,7 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
 {
-    assert(f->getLocalname().isAbsolute());
+    //assert(f->getLocalname().isAbsolute());  // this will be true after we merge SRW, since LocalNodes are Files for now
     f->mVersioningOption = vo;
 
     // Dummy to avoid checking later.
