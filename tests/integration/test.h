@@ -27,9 +27,13 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
-#ifdef __linux__
-std::string exec(const char* cmd);
-#endif
+enum class PROG_OUTPUT_TYPE
+{
+    TEXT,   // skip \n and concatenate lines; uses fgets()
+    BINARY  // read everything just as it was received; uses fread()
+};
+
+string runProgram(const string& command, PROG_OUTPUT_TYPE ot);
 
 // platform specific Http POST
 void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);

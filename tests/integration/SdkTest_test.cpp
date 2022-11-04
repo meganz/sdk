@@ -1295,45 +1295,6 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 }
 
-string runProgram(const string& command)
-{
-    string output;
-    FILE* pPipe =
-#ifdef _WIN32
-        _popen(command.c_str(), "rt");
-#else
-        popen(command.c_str(), "r");
-#endif
-
-    if (!pPipe)
-    {
-        LOG_err << "Failed to run command\n" << command;
-        return output;
-    }
-
-    /* Read pipe until file ends or error occurs. */
-
-    char   psBuffer[128];
-    while (fgets(psBuffer, 128, pPipe))
-    {
-        output += psBuffer;
-    }
-
-    /* Close pipe. */
-    if (!feof(pPipe))
-    {
-        LOG_err << "Failed to read command output.";
-    }
-
-#ifdef _WIN32
-    _pclose(pPipe);
-#else
-    pclose(pPipe);
-#endif
-
-    return output;
-}
-
 string getLinkFromMailbox(const string& exe,         // Python
                           const string& script,      // email_processor.py
                           const string& realAccount, // user
@@ -1354,7 +1315,7 @@ string getLinkFromMailbox(const string& exe,         // Python
         // get time interval to look for emails, add some seconds to account for the connection and other delays
         const auto& attemptTime = std::chrono::system_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
-        output = runProgram(command + ' ' + to_string(timeSinceEmail)); // Run Python script
+        output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
         if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
             break;
     }
@@ -1389,6 +1350,8 @@ string getUniqueAlias()
     return alias;
 }
 
+std::string getCurrentTimestamp(bool includeDate);
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -1419,11 +1382,11 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     string pyExe = "python";
     const string pyOpt = " -V";
     const string pyExpected = "Python 3.";
-    string output = runProgram(pyExe + pyOpt);  // Python -V
+    string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python -V
     if (output.substr(0, pyExpected.length()) != pyExpected)
     {
         pyExe += "3";
-        output = runProgram(pyExe + pyOpt);  // Python3 -V
+        output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python3 -V
         ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
     }
     LOG_debug << "Using " << output;
@@ -5368,6 +5331,191 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
 }*/
 
+TEST_F(SdkTest, SdkBackupFolder)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST BackupFolder___";
+
+    // get timestamp
+    string timestamp = getCurrentTimestamp(true);
+
+    // look for Device Name attr
+    string deviceName;
+    bool deviceNameWasSetByCurrentTest = false;
+    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    {
+        deviceName = attributeValue;
+    }
+    else
+    {
+        deviceName = "Jenkins " + timestamp;
+        synchronousSetDeviceName(0, deviceName.c_str());
+
+        // make sure Device Name attr was set
+        int err = synchronousGetDeviceName(0);
+        ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
+        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+        deviceNameWasSetByCurrentTest = true;
+    }
+
+#ifdef ENABLE_SYNC
+    // create My Backups folder
+    syncTestMyBackupsRemoteFolder(0);
+    MegaHandle mh = mApi[0].lastSyncBackupId;
+
+    // Create a test root directory
+    fs::path localBasePath = makeNewTestRoot();
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(megaApi[0].get(), localBasePath));
+
+    // request to backup a folder
+    fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
+    fs::create_directories(localFolderPath);
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    const char* backupName = backupNameStr.c_str();
+    MegaHandle newSyncRootNodeHandle = UNDEF;
+    int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
+    ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
+
+    // verify node attribute
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(newSyncRootNodeHandle));
+    const char* deviceIdFromNode = backupNode->getDeviceId();
+    ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
+
+    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
+    // TODO: always verify the remote path was created as expected,
+    // even if it needs to create a new public interface that allows
+    // to retrieve the handle of the device-folder
+    if (deviceNameWasSetByCurrentTest)
+    {
+        // Verify that the remote path was created as expected.
+        // Only check this if current test has actually set the device name, otherwise the device name may have changed
+        // since the backup folder has been created.
+        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
+        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+    }
+
+    // So we can detect when the node database has been committed.
+    resetlastEvent();
+
+    // Verify that the sync was added
+    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
+    bool found = false;
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
+        {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
+
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found";
+
+    // Wait for the node database to be updated.
+    // If nothing changed, there won't be an update
+    //ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
+
+    // Verify sync after logout / login
+    string session = dumpSession();
+    locallogout();
+    auto tracker = asyncRequestFastLogin(0, session.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+
+    resetlastEvent();
+
+    fetchnodes(0, maxTimeout); // auto-resumes one active backup
+
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+
+    // Verify the sync again
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
+    found = false;
+
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
+        {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
+
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
+    // which may result on the new node not being available yet).
+    size_t times = 10;
+    while (times--)
+    {
+        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
+
+    // Remove registered backup
+    RequestTracker removeTracker(megaApi[0].get());
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker);
+    ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    RequestTracker removeNodesTracker(megaApi[0].get());
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), INVALID_HANDLE, &removeNodesTracker);
+    ASSERT_EQ(API_OK, removeNodesTracker.waitForResult());
+
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
+
+    // Request to backup another folder
+    // this time, the remote folder structure is already there
+    fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
+    fs::create_directories(localFolderPath2);
+    const string backupName2Str = string("RemoteBackupFolder2_") + timestamp;
+    const char* backupName2 = backupName2Str.c_str();
+    err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
+    ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size() == 1) << "Sync not found for second backup";
+
+    // Create remote folder to be used as destination when removing second backup
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    auto nhrb = createFolder(0, "DestinationOfRemovedBackup", remoteRootNode.get());
+    ASSERT_NE(nhrb, UNDEF) << "Error creating remote DestinationOfRemovedBackup";
+    std::unique_ptr<MegaNode> remoteDestNode(megaApi[0]->getNodeByHandle(nhrb));
+    ASSERT_NE(remoteDestNode.get(), nullptr) << "Error getting remote node of DestinationOfRemovedBackup";
+    std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(remoteDestNode.get()));
+    ASSERT_TRUE(!destChildren || !destChildren->size());
+
+    // Remove second backup, using the option to move the contents rather than delete them
+    RequestTracker removeTracker2(megaApi[0].get());
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker2);
+    ASSERT_EQ(API_OK, removeTracker2.waitForResult());
+
+    RequestTracker moveNodesTracker(megaApi[0].get());
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), nhrb, &moveNodesTracker);
+    ASSERT_EQ(API_OK, moveNodesTracker.waitForResult());
+
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for second backup";
+    destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
+    ASSERT_TRUE(destChildren && destChildren->size() == 1);
+    ASSERT_STREQ(destChildren->get(0)->getName(), backupName2);
+#endif
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -5563,205 +5711,13 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
-
     // test setter/getter
-    string deviceName = string("SdkDeviceNamesTest") + timestamp;
+    string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
     ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
-}
-
-TEST_F(SdkTest, SdkBackupFolder)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST BackupFolder___";
-
-    // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
-
-    // look for Device Name attr
-    string deviceName;
-    bool deviceNameWasSetByCurrentTest = false;
-    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
-    {
-        deviceName = attributeValue;
-    }
-    else
-    {
-        deviceName = string("Jenkins ") + timestamp;
-        synchronousSetDeviceName(0, deviceName.c_str());
-
-        // make sure Device Name attr was set
-        int err = synchronousGetDeviceName(0);
-        ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
-        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
-        deviceNameWasSetByCurrentTest = true;
-    }
-
-#ifdef ENABLE_SYNC
-    // create My Backups folder
-    syncTestMyBackupsRemoteFolder(0);
-    MegaHandle mh = mApi[0].lastSyncBackupId;
-
-    // Create a test root directory
-    fs::path localBasePath = makeNewTestRoot();
-
-    ASSERT_NO_FATAL_FAILURE(cleanUp(megaApi[0].get(), localBasePath));
-
-    // request to backup a folder
-    fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
-    fs::create_directories(localFolderPath);
-    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
-    const char* backupName = backupNameStr.c_str();
-    MegaHandle newSyncRootNodeHandle = UNDEF;
-    int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
-    ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
-
-    // verify node attribute
-    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(newSyncRootNodeHandle));
-    const char* deviceIdFromNode = backupNode->getDeviceId();
-    ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
-
-    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
-    // TODO: always verify the remote path was created as expected,
-    // even if it needs to create a new public interface that allows
-    // to retrieve the handle of the device-folder
-    if (deviceNameWasSetByCurrentTest)
-    {
-        // Verify that the remote path was created as expected.
-        // Only check this if current test has actually set the device name, otherwise the device name may have changed
-        // since the backup folder has been created.
-        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
-        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
-    }
-
-    // So we can detect when the node database has been committed.
-    resetlastEvent();
-
-    // Verify that the sync was added
-    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
-    bool found = false;
-    for (int i = 0; i < allSyncs->size(); ++i)
-    {
-        MegaSync* megaSync = allSyncs->get(i);
-        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
-            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
-            !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
-        {
-            // Make sure the sync's actually active.
-            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
-
-            found = true;
-            break;
-        }
-    }
-    ASSERT_EQ(found, true) << "Sync instance could not be found";
-
-    // Wait for the node database to be updated.
-    // If nothing changed, there won't be an update
-    //ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
-
-    // Verify sync after logout / login
-    string session = dumpSession();
-    locallogout();
-    auto tracker = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
-
-    resetlastEvent();
-
-    fetchnodes(0, maxTimeout); // auto-resumes one active backup
-
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
-
-    // Verify the sync again
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
-    found = false;
-
-    for (int i = 0; i < allSyncs->size(); ++i)
-    {
-        MegaSync* megaSync = allSyncs->get(i);
-        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
-            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
-            !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
-        {
-            // Make sure the sync's actually active.
-            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
-
-            found = true;
-            break;
-        }
-    }
-    ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
-    // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
-    // which may result on the new node not being available yet).
-    size_t times = 10;
-    while (times--)
-    {
-        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
-        std::this_thread::sleep_for(std::chrono::seconds{1});
-    }
-    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
-
-    // Remove registered backup
-    RequestTracker removeTracker(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker);
-    ASSERT_EQ(API_OK, removeTracker.waitForResult());
-
-    RequestTracker removeNodesTracker(megaApi[0].get());
-    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), INVALID_HANDLE, &removeNodesTracker);
-    ASSERT_EQ(API_OK, removeNodesTracker.waitForResult());
-
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
-
-    // Request to backup another folder
-    // this time, the remote folder structure is already there
-    fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
-    fs::create_directories(localFolderPath2);
-    const string backupName2Str = string("RemoteBackupFolder2_") + timestamp;
-    const char* backupName2 = backupName2Str.c_str();
-    err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
-    ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(allSyncs && allSyncs->size() == 1) << "Sync not found for second backup";
-
-    // Create remote folder to be used as destination when removing second backup
-    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
-    auto nhrb = createFolder(0, "DestinationOfRemovedBackup", remoteRootNode.get());
-    ASSERT_NE(nhrb, UNDEF) << "Error creating remote DestinationOfRemovedBackup";
-    std::unique_ptr<MegaNode> remoteDestNode(megaApi[0]->getNodeByHandle(nhrb));
-    ASSERT_NE(remoteDestNode.get(), nullptr) << "Error getting remote node of DestinationOfRemovedBackup";
-    std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(remoteDestNode.get()));
-    ASSERT_TRUE(!destChildren || !destChildren->size());
-
-    // Remove second backup, using the option to move the contents rather than delete them
-    RequestTracker removeTracker2(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker2);
-    ASSERT_EQ(API_OK, removeTracker2.waitForResult());
-
-    RequestTracker moveNodesTracker(megaApi[0].get());
-    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), nhrb, &moveNodesTracker);
-    ASSERT_EQ(API_OK, moveNodesTracker.waitForResult());
-
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for second backup";
-    destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
-    ASSERT_TRUE(destChildren && destChildren->size() == 1);
-    ASSERT_STREQ(destChildren->get(0)->getName(), backupName2);
-#endif
 }
 
 #ifdef ENABLE_SYNC
@@ -5776,11 +5732,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::create_directory(pathToDrive);
 
     // drive name
-    string driveName = "SdkExternalDriveTest_";
-    char today[50];
-    auto rawtime = time(NULL);
-    strftime(today, sizeof today, "%Y-%m-%d_%H:%M:%S", localtime(&rawtime));
-    driveName += today;
+    string driveName = "SdkExternalDriveTest_" + getCurrentTimestamp(true);
 
     // set drive name
     const string& pathToDriveStr = pathToDrive.u8string();
