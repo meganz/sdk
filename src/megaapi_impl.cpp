@@ -1212,11 +1212,6 @@ bool MegaApiImpl::isSyncing()
     return client->syncs.syncBusyState;
 }
 
-bool MegaApiImpl::syncsHaveStalls()
-{
-    return client->syncs.syncStallState || client->syncs.syncConflictState;
-}
-
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 {
     // syncs has its own thread safety

@@ -2944,7 +2944,6 @@ class MegaApiImpl : public MegaApp
         MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isScanning();
         bool isSyncing();
-        bool syncsHaveStalls();
 
         bool receivedStallFlag = false;
         bool receivedNameConflictsFlag = false;

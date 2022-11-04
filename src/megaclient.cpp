@@ -1327,8 +1327,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     init();
 
-    auto f = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
-    f->waiter = w;
+    fsaccess = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1338,7 +1338,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     waiter = w;
     httpio = h;
-    fsaccess = move(f);
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -7985,7 +7985,7 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
         }
     }
 }
-#endif
+#endif // ENABLE_SYNC
 
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
