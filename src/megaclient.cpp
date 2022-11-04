@@ -1260,6 +1260,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
    , btreqstat(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(new FSACCESS_CLASS())
 #ifdef ENABLE_SYNC
     , syncs(*this)
 #endif
@@ -1327,8 +1328,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     init();
 
-    auto f = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
-    f->waiter = w;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1338,7 +1338,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     waiter = w;
     httpio = h;
-    fsaccess = move(f);
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -7497,7 +7497,7 @@ Node* MegaClient::sc_deltree()
 
                 if (!ISUNDEF((h = jsonsc.gethandle())))
                 {
-                    n = nodebyhandle(h);  // ok even if it's a file version
+                    n = nodebyhandle(h);
                 }
                 break;
 
@@ -7965,7 +7965,12 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
 
     reqs.add(new CommandBackupRemove(this, backupId,
-            [backupId, completion, this](Error){
+            [backupId, completion, this](Error e){
+                if (e)
+                {
+                    // de-registering is not critical - we continue anyway
+                    LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
 
@@ -7981,11 +7986,16 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
             attr_map m;
             m[AttrMap::string2nameid("dev-id")] = "";
             m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), nullptr, true);
+            setattr(n, move(m), [](NodeHandle, Error e){
+                if (e)
+                {
+                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
+                }
+            }, true);
         }
     }
 }
-#endif
+#endif // ENABLE_SYNC
 
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
@@ -9063,7 +9073,7 @@ void MegaClient::procph(JSON *j)
                             break;
                         }
 
-                        n = nodebyhandle(h); // even if it is a version, it's still the node with the link
+                        n = nodebyhandle(h);
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
@@ -13665,6 +13675,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
+
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.
             // so that the app does not need to carry that burden.
@@ -13906,8 +13918,8 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+    reqs.add(new CommandBackupPut(this, info,
+        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
             LOG_debug << "Request for backupId failed for sync add";

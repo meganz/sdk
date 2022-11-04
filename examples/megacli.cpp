@@ -132,6 +132,9 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
+// external drive id, used for name filtering
+string b64driveid;
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
@@ -612,25 +615,6 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
         }
     }
 }
-
-// generic name filter
-// FIXME: configurable regexps
-//static bool is_syncable(const char* name)
-//{
-//    return *name != '.' && *name != '~' && strcmp(name, "Thumbs.db") && strcmp(name, "desktop.ini");
-//}
-
-//// determines whether remote node should be synced
-//bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
-//{
-//    return is_syncable(n->displayname());
-//}
-//
-//// determines whether local file should be synced
-//bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
-//{
-//    return is_syncable(name);
-//}
 #endif
 
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
@@ -1324,30 +1308,59 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        bool printDriveId = false;
 
-        vector<string> *keys = tlv->getKeys();
-        vector<string>::const_iterator it;
-        unsigned valuelen;
-        string value, key;
-        char *buf;
-        for (it=keys->begin(); it != keys->end(); it++)
+        unique_ptr<vector<string>> keys(tlv->getKeys());
+        for (auto it = keys->begin(); it != keys->end(); it++)
         {
-            key = (*it).empty() ? "(no key)" : *it;
-            if (!tlv->get(*it, value) || value.empty())
+            const string& key = it->empty() ? "(no key)" : *it;
+
+            // drive names can be filtered
+            if (type == ATTR_DRIVE_NAMES)
             {
-                cout << "\t" << key << "\t" << "(no value)" << endl;
-                continue;
+                printDriveId = b64driveid.empty() || key == b64driveid;
+                if (!printDriveId)
+                {
+                    continue;
+                }
             }
 
-            valuelen = unsigned(value.length());
+            // print user attribute values
+            string value;
+            if (!tlv->get(*it, value) || value.empty())
+            {
+                cout << "\t" << key << "\t" << "(no value)";
+            }
+            else
+            {
+                cout << "\t" << key << "\t";
+                if (type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES || type == ATTR_ALIAS)
+                {
+                    // Values that are known to contain only printable characters are ok to display directly.
+                    cout << value << " (real text value)";
+                }
+                else
+                {
+                    // Some values may contain non-printable characters, so display them as base64 encoded.
+                    const string& b64value = Base64::btoa(value);
+                    cout << b64value << " (base64 encoded value)";
+                }
+            }
 
-            buf = new char[valuelen * 4 / 3 + 4];
-            Base64::btoa((const byte *) value.data(), valuelen, buf);
+            if (key == client->getDeviceidHash())
+            {
+                cout << " (own device)";
+            }
 
-            cout << "\t" << key << "\t" << buf << endl;
-            delete [] buf;
+            cout << endl;
         }
-        delete keys;
+
+        // echo specific drive name not found
+        if (!printDriveId && !b64driveid.empty())
+        {
+            cout << "Specified drive could not be found" << endl;
+        }
+        b64driveid.clear(); // in case this was for a request that used it
     }
 }
 
@@ -2943,7 +2956,7 @@ void cycleUpload(LocalPath lp, int count)
 
     LocalPath upload_lp = lp;
     upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
-    string leaf = upload_lp.leafName().toPath(true);
+    string leaf = upload_lp.leafName().toPath(false);
 
     int total = 0;
     uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
@@ -2958,7 +2971,7 @@ void cycleUpload(LocalPath lp, int count)
     // also delete the old remote file
     if (count > 0)
     {
-        string leaf2 = lp.leafName().toPath(true) + "_" + std::to_string(count-1);
+        string leaf2 = lp.leafName().toPath(false) + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
             client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
@@ -2971,7 +2984,7 @@ void cycleDownload(LocalPath lp, int count)
 {
     checkReportCycleFails();
 
-    string leaf = lp.leafName().toPath(true) + "_" + std::to_string(count);
+    string leaf = lp.leafName().toPath(false) + "_" + std::to_string(count);
 
     Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
 
@@ -2985,7 +2998,7 @@ void cycleDownload(LocalPath lp, int count)
     downloadName.append(LocalPath::fromRelativePath("_" + std::to_string(count+1)));
 
 
-    string newleaf = lp.leafName().toPath(true);
+    string newleaf = lp.leafName().toPath(false);
     newleaf += "_" + std::to_string(count + 1);
 
     auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
@@ -3456,13 +3469,285 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void putua_map(const std::string& b64key, const std::string& b64value, attr_t attrtype)
+{
+    User* ownUser = client->ownuser();
+    if (!ownUser)
+    {
+        cout << "Must be logged in to set own attributes." << endl;
+        return;
+    }
+
+    std::unique_ptr<TLVstore> tlv;
+
+    const std::string* oldValue = ownUser->getattr(attrtype);
+    if (!oldValue)  // attr doesn't exist -> create it
+    {
+        tlv.reset(new TLVstore());
+        const string& realValue = Base64::atob(b64value);
+        tlv->set(b64key, realValue); // real value, non-B64
+    }
+    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+    {
+        cout << "User attribute is outdated";
+        cout << "Fetch the attribute first" << endl;
+        return;
+    }
+    else
+    {
+        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+        string_map attrMap;
+        attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
+        if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        {
+            cout << "Failed to merge with existing values" << endl;
+            return;
+        }
+    }
+
+    // serialize and encrypt the TLV container
+    std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+    client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
+}
+
+void exec_setdevicename(autocomplete::ACState& s)
+{
+    const string& b64idhash = client->getDeviceidHash(); // already in B64
+    const string& devname = s.words[1].s;
+    const string& b64devname = Base64::btoa(devname);
+    putua_map(b64idhash, b64devname, ATTR_DEVICE_NAMES);
+}
+
+void exec_getdevicename(autocomplete::ACState& s)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Must be logged in to query own attributes." << endl;
+        return;
+    }
+
+    client->getua(u, ATTR_DEVICE_NAMES);
+}
+
+void exec_setextdrivename(autocomplete::ACState& s)
+{
+    const string& drivepath = s.words[1].s;
+    const string& drivename = s.words[2].s;
+
+    // check if the drive-id was already created
+    // read <drivepath>/.megabackup/drive-id
+    handle driveid;
+    error e = readDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+
+    if (e == API_ENOENT)
+    {
+        // generate new id
+        driveid = generateDriveId(client->rng);
+        // write <drivepath>/.megabackup/drive-id
+        e = writeDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+    }
+
+    if (e != API_OK)
+    {
+        cout << "Failed to get drive-id for " << drivepath << endl;
+        return;
+    }
+
+    putua_map(string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)), Base64::btoa(drivename), ATTR_DRIVE_NAMES);
+}
+
+void exec_getextdrivename(autocomplete::ACState& s)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Must be logged in to query own attributes." << endl;
+        return;
+    }
+
+    bool idFlag = s.extractflag("-id");
+    bool pathFlag = s.extractflag("-path");
+
+    if (s.words.size() == 2)
+    {
+        b64driveid.clear();
+
+        if (idFlag)
+        {
+            b64driveid = s.words[1].s;
+        }
+        else if (pathFlag)
+        {
+            // read drive-id from <drivepath>/.megabackup/drive-id
+            const string& drivepath = s.words[1].s;
+            handle driveid = 0;
+            error e = readDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+
+            if (e == API_ENOENT)
+            {
+                cout << "Drive-id not set for " << drivepath << endl;
+                return;
+            }
+
+            b64driveid = string(Base64Str<MegaClient::DRIVEHANDLE>(driveid));
+        }
+    }
+
+    client->getua(u, ATTR_DRIVE_NAMES);
+}
+
+void exec_setmybackups(autocomplete::ACState& s)
+{
+    const string& bkpsFolder = s.words[1].s;
+    std::function<void(Error)> completion = [bkpsFolder](Error e)
+    {
+        if (e == API_OK)
+        {
+            cout << "\"My Backups\" folder set to " << bkpsFolder << endl;
+        }
+        else
+        {
+            cout << "Failed to set \"My Backups\" folder to " << bkpsFolder << " (remote error " << error(e) << ": " << errorstring(e) << ')' << endl;
+        }
+    };
+
+    error err = client->setbackupfolder(bkpsFolder.c_str(), 0, completion);
+    if (err != API_OK)
+    {
+        cout << "Failed to set \"My Backups\" folder to " << bkpsFolder << " (" << err << ": " << errorstring(err) << ')' << endl;
+    }
+}
+
+void exec_getmybackups(autocomplete::ACState&)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Login first." << endl;
+        return;
+    }
+
+    const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!buf)
+    {
+        cout << "\"My Backups\" folder has not been set." << endl;
+        return;
+    }
+
+    handle h = 0;
+    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+    if (!h || h == UNDEF)
+    {
+        cout << "Invalid handle stored for \"My Backups\" folder." << endl;
+        return;
+    }
+
+    Node* n = client->nodebyhandle(h);
+    if (!n)
+    {
+        cout << "\"My Backups\" folder could not be found." << toHandle(h) << endl;
+        return;
+    }
+
+    cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
+}
+
+// if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
+void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
+{
+    vector<pair<handle, int>> sdsBkps;
+    if (backupRootNode) // also allow removing orphan syncs (with no nodes)
+    {
+        // validate node's sds attribute
+        sdsBkps = backupRootNode->getSdsBackups();
+        assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
+            {
+                return n.first == backupId && n.second == CommandBackupPut::DELETED;
+            }) == sdsBkps.end());
+    }
+
+    // prepare to update sds node attribute
+    CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
+    {
+        if (e != API_OK)
+        {
+            setattr_result(nh, e);
+            return;
+        }
+
+        if (moveOrDelete)
+        {
+            // delete or move backup files
+            if (!targetDest)
+            {
+                // ...delete target...
+                auto completion = [](NodeHandle, Error e)
+                {
+                    if (e != API_OK)
+                    {
+                        cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
+                    }
+                };
+                e = client->unlink(backupRootNode, false, 0, true, move(completion));
+                if (e != API_OK)
+                {
+                    cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
+                }
+            }
+            else    // move to target destination
+            {
+                NodeHandle prevParent;
+                prevParent.set6byte(backupRootNode->parenthandle);
+                CommandMoveNode::Completion completion = [](NodeHandle, Error e)
+                {
+                    if (e != API_OK)
+                    {
+                        cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
+                    }
+                };
+                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+            }
+        }
+    };
+
+    // remove backup
+    client->reqs.add(new CommandBackupRemove(client, backupId,
+        [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
+        {
+            if (cbrErr != API_OK && cbrErr != API_ENOENT)
+            {
+                cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
+                return;
+            }
+
+            cout << "Backup Centre - Sync / backup removed" << endl;
+
+            if (backupRootNode)
+            {
+                sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
+                const string& sdsValue = Node::toSdsString(sdsBkps);
+
+                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), move(attrCompl), true);
+                if (e != API_OK)
+                {
+                    cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
+                }
+            }
+        }));
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
+    bool purgeFlag = s.extractflag("-purge");
+    bool stopFlag = s.extractflag("-stop");
 
     if (s.words.size() == 1)
     {
-        client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+        client->reqs.add(new CommandBackupSyncFetch([purgeFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        {
             if (e)
             {
                 cout << "backupcentre failed: " << e << endl;
@@ -3471,33 +3756,120 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 for (auto& d : data)
                 {
-                    cout << "Backup ID: " << toHandle(d.backupId) << endl;
-                    cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
-                    cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
-                    cout << "  local folder: " << d.localFolder << endl;
-                    cout << "  device id: " << d.deviceId << endl;
-                    cout << "  sync state: " << d.syncState << endl;
-                    cout << "  sync substate: " << d.syncSubstate << endl;
-                    cout << "  extra: " << d.extra << endl;
-                    cout << "    backup name: " << d.backupName << endl;
-                    cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
-                    cout << "  heartbeat status: " << d.hbStatus << endl;
-                    cout << "  heartbeat progress: " << d.hbProgress << endl;
-                    cout << "  heartbeat uploads: " << d.uploads << endl;
-                    cout << "  heartbeat downloads: " << d.downloads << endl;
-                    cout << "  last activity time: " << d.lastActivityTs << endl;
-                    cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                    if (purgeFlag)
+                    {
+                        client->reqs.add(new CommandBackupRemove(client, d.backupId,[&](Error e)
+                        {
+                            if (e)
+                            {
+                                cout << "backup center failed to purge id: " << toHandle(d.backupId) << endl;
+                            }
+                        }));
+
+                    }
+                    else
+                    {
+                        cout << "Backup ID: " << toHandle(d.backupId) << " (" << d.backupId << ')' << endl;
+                        cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
+                        cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
+                        cout << "  local folder: " << d.localFolder << endl;
+                        cout << "  device id: " << d.deviceId << endl;
+                        cout << "  sync state: " << d.syncState << endl;
+                        cout << "  sync substate: " << d.syncSubstate << endl;
+                        cout << "  extra: " << d.extra << endl;
+                        cout << "    backup name: " << d.backupName << endl;
+                        cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                        cout << "  heartbeat status: " << d.hbStatus << endl;
+                        cout << "  heartbeat progress: " << d.hbProgress << endl;
+                        cout << "  heartbeat uploads: " << d.uploads << endl;
+                        cout << "  heartbeat downloads: " << d.downloads << endl;
+                        cout << "  last activity time: " << d.lastActivityTs << endl;
+                        cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                    }
                 }
 
-                cout << "Backup Centre - Backups count: " << data.size() << endl;
-            }
+                if (purgeFlag)
+                {
+                    cout << "Backup Center - Purging registered syncs/backups from API..." << endl;
+                }
+                else
+                {
+                    cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
+                }
+             }
         }));
     }
-    else if (s.words.size() == 2 && delFlag)
+    else if (s.words.size() >= 2 && (delFlag || stopFlag))
     {
-        handle backupId;
-        Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-        client->reqs.add(new CommandBackupRemove(client, backupId, nullptr));
+        // get backup's remote node
+        const string& backupIdStr = s.words[1].s;
+
+        Node *targetDest = nullptr;
+        if (s.words.size() == 3 && delFlag)    // move backup to cloud
+        {
+            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
+            Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
+
+            targetDest = client->nodebyhandle(hDest);
+            if (!targetDest)
+            {
+                cout << "Backup Centre - Move destination not found" << endl;
+                return;
+            }
+        }
+
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
+                return;
+            }
+
+            handle backupId = 0;
+            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+            bool found = false;
+            for (auto& d : data)
+            {
+                if (d.backupId == backupId)
+                {
+                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
+                    {
+                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
+                        return;
+                    }
+                    if (stopFlag && d.backupType != BackupType::TWO_WAY)
+                    {
+                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
+                        return;
+                    }
+                    Node* remoteNode = client->nodebyhandle(d.rootNode);
+                    if (!remoteNode)
+                    {
+                        cout << "Backup Centre - Remote node not found for id: " << backupIdStr << endl;
+
+                        if (stopFlag && d.backupType == BackupType::TWO_WAY)
+                        {
+                            cout << "Backup Centre - Attempt to forcefully remove orphan sync." << endl;
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+
+                    backupremove(backupId, remoteNode, targetDest, delFlag);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                cout << "Backup Centre - id not found: " << backupIdStr << endl;
+                return;
+            }
+        }));
     }
 }
 
@@ -3655,18 +4027,30 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+    p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
+    p->Add(exec_getdevicename, sequence(text("getdevicename")));
+    p->Add(exec_setextdrivename, sequence(text("setextdrivename"), param("drive_path"), param("drive_name")));
+    p->Add(exec_getextdrivename, sequence(text("getextdrivename"), opt(either(sequence(flag("-id"), param("b64driveid")), sequence(flag("-path"), param("drivepath"))))));
+    p->Add(exec_setmybackups, sequence(text("setmybackups"), param("mybackup_folder")));
+    p->Add(exec_getmybackups, sequence(text("getmybackups")));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
+                                       sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
+                                       sequence(flag("-purge")),
+                                       sequence(flag("-stop"), param("backup_id"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
-                    opt(flag("-backup")),
-                    opt(sequence(flag("-external"), param("drivePath"))),
-                    opt(sequence(flag("-name"), param("syncname"))),
                     opt(flag("-scan-only")),
                     opt(sequence(flag("-scan-interval"), param("interval-secs"))),
-                    localFSFolder("source"),
-                    remoteFSFolder(client, &cwd, "target")));
+                    either(
+                        sequence(flag("-backup"),
+                            opt(sequence(flag("-external"), param("drivePath"))),
+                            opt(sequence(flag("-name"), param("syncname"))),
+                            localFSFolder("source")),
+                        sequence(opt(sequence(flag("-name"), param("syncname"))),
+                            localFSFolder("source"),
+                            remoteFSFolder(client, &cwd, "target")))));
 
     p->Add(exec_syncrename,
            sequence(text("sync"),
@@ -5078,6 +5462,12 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
+    if (s.words.size() != 2)
+    {
+        cout << "lcd <dir>" << endl;
+        return;
+    }
+
     LocalPath localpath = localPathArg(s.words[1].s);
 
     if (!client->fsaccess->chdirlocal(localpath))
@@ -5828,46 +6218,13 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_DRIVE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            // received <attrKey> will be B64 encoded
+            // received <attrValue> will have the real text value
+            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name }
+                    || attrtype == ATTR_DRIVE_NAMES // TLV: { B64enc DriveId, drive name}
+                    || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
             {
-                std::string key = s.words[3].s;
-                std::string value = Base64::btoa(s.words[4].s);
-                string_map attrMap;
-                attrMap[key] = value;
-
-                std::unique_ptr<TLVstore> tlv;
-
-                User *ownUser = client->finduser(client->me);
-                const std::string *oldValue = ownUser->getattr(attrtype);
-                if (!oldValue)  // attr doesn't exist -> create it
-                {
-                    tlv.reset(new TLVstore());
-                    tlv->set(key, value);
-                }
-                else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
-                {
-                    cout << "User attribute is versioned (need to know current version first). ";
-                    cout << "Fetch the attribute first" << endl;
-                    return;
-                }
-                else
-                {
-                    tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
-
-                    if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
-                    {
-                        cout << "Failed to merge with existing values" << endl;
-                        return;
-                    }
-                }
-
-                // serialize and encrypt the TLV container
-                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
-
-                return;
+                putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
             }
         }
     }
@@ -9617,7 +9974,7 @@ void sync_completion(error result, const SyncError& se, handle backupId)
 {
     if (backupId == UNDEF)
     {
-        cerr << "Sync could not be added: "
+        cerr << "Sync could not be added " << (se == SyncError::PUT_NODES_ERROR ? "(putnodes for backup failed)" : "") << ": "
              << errorstring(result)
              << endl;
     }
@@ -9650,33 +10007,27 @@ void exec_syncadd(autocomplete::ACState& s)
     bool named = s.extractflagparam("-name", syncname);
     bool scanOnly = s.extractflag("-scan-only");
     bool scanIntervalSpecified = s.extractflagparam("-scan-interval", scanInterval);
+    LocalPath sourcePath = localPathArg(s.words[2].s);
+
+    if (!named)
+    {
+        syncname = sourcePath.leafOrParentName();
+    }
 
     // sync add source target
-    LocalPath drivePath = localPathArg(drive);
-    LocalPath sourcePath = localPathArg(s.words[2].s);
-    string targetPath = s.words[3].s;
-
-    // Does the target node exist?
-    auto* targetNode = nodebypath(targetPath.c_str());
-
-    if (!targetNode)
-    {
-        cerr << targetPath
-             << ": Not found."
-             << endl;
-        return;
-    }
+    LocalPath drivePath = external ? localPathArg(drive) : LocalPath();
 
     // Create a suitable sync config.
     auto config =
-      SyncConfig(sourcePath,
-                 named ? syncname : sourcePath.leafName().toPath(true),
-                 NodeHandle().set6byte(targetNode->nodehandle),
-                 targetNode->displaypath(),
-                 0,
-                 external ? std::move(drivePath) : LocalPath(),
-                 true,
-                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+        SyncConfig(sourcePath,
+            syncname,
+            NodeHandle(),
+            string(),
+            0,
+            move(drivePath),
+            true,
+            backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+
 
     // Scan interval
     if (scanIntervalSpecified)
@@ -9691,34 +10042,69 @@ void exec_syncadd(autocomplete::ACState& s)
     if (scanOnly)
         config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
 
-    // Drive ID.
-    if (external)
+
+    if (!backup) // regular sync
     {
-        if (!backup)
-        {
-            cerr << "Sorry, external syncs must be backups for now" << endl;
-        }
+        // Does the target node exist?
+        const string& targetPath = s.words[3].s;
+        auto* targetNode = nodebypath(targetPath.c_str());
 
-        // Try and generate a drive ID.
-        auto id = UNDEF;
-        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
-
-        if (result == API_ENOENT)
+        if (!targetNode)
         {
-            id = generateDriveId(client->rng);
-            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
-        }
-
-        if (result != API_OK)
-        {
-            cerr << "Unable to generate drive ID for " << drive << endl;
+            cerr << targetPath
+                << ": Not found."
+                << endl;
             return;
         }
+
+        config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
+        config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
+
+        client->addsync(move(config), false, sync_completion, "");
     }
 
-    // Try and add the new sync.
-	// All validation is performed in this function.
-    client->addsync(move(config), false, sync_completion, "");
+    else // backup
+    {
+        // drive must be without trailing separator
+        if (!drive.empty() && drive.back() == LocalPath::localPathSeparator_utf8)
+        {
+            drive.pop_back();
+        }
+
+#ifdef _WIN32
+        // source can be with or without trailing separator, except for Win where it must have it for drive root (OMG...)
+        string src = s.words[2].s;
+        if (!src.empty() && src.back() != LocalPath::localPathSeparator_utf8)
+        {
+            src.push_back(LocalPath::localPathSeparator_utf8);
+            sourcePath = LocalPath::fromAbsolutePath(src);
+        }
+#endif
+
+        client->preparebackup(config, [](Error err, SyncConfig sc, MegaClient::UndoFunction revertOnError){
+
+            if (err != API_OK)
+            {
+                sync_completion(error(err), SyncError::PUT_NODES_ERROR, UNDEF);
+            }
+            else
+            {
+                client->addsync(move(sc), false, [revertOnError](error e, SyncError se, handle h){
+
+                    if (e != API_OK)
+                    {
+                        if (revertOnError)
+                        {
+                            cerr << "Removing the created backup node, as backup sync add failed" << endl;
+                            revertOnError(nullptr);
+                        }
+                    }
+                    sync_completion(e, se, h);
+
+                }, "");
+            }
+        });
+    }
 }
 
 void exec_syncrename(autocomplete::ACState& s)

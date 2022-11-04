@@ -1883,8 +1883,6 @@ public:
     * @brief Returns the handle of a user related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
@@ -7760,26 +7758,6 @@ class MegaListener
      * The SDK calls this function when the state of the synchronization changes. you can use
      * MegaSync::getRunState to get the new state of the synchronization
      * and MegaSync::getError to get the error if any.
-     *
-     * Notice, for changes that imply other callbacks, expect that the SDK
-     * will call onSyncStateChanged first, so that you can update your model only using this one.
-     *
-     * This can happen in the following situations
-     *
-     * - There's a condition that cause the sync to fail
-     *
-     * - There's a condition that cause the sync to be temporarily disabled
-     *
-     * - The users tries to disable a sync that had been previously failed permanently
-     *
-     * - The users tries to disable a sync that had been previously temporarily disabled.
-     *
-     * - The user tries to disable a sync that was active
-     *
-     * - The users enables a sync that was disabled
-     *
-     * - The sdk tries resumes a sync that had been temporarily disabled
-     *
      *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
@@ -14530,12 +14508,6 @@ class MegaApi
          * @return true if it is syncing, otherwise false
          */
         bool isSyncing();
-
-        /**
-        * @brief Indicates whether there is any sync problem that needs user attention
-        * @return true if any sync is stalled, or has a stall condition
-        */
-        bool syncsHaveStalls();
 
         /**
          * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore

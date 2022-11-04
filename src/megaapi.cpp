@@ -3483,11 +3483,6 @@ bool MegaApi::isSyncing()
     return pImpl->isSyncing();
 }
 
-bool MegaApi::syncsHaveStalls()
-{
-    return pImpl->syncsHaveStalls();
-}
-
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);

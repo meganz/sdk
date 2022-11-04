@@ -928,6 +928,69 @@ void Node::setattr()
     }
 }
 
+nameid Node::sdsId()
+{
+    constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
+    return nid;
+}
+
+vector<pair<handle, int>> Node::getSdsBackups() const
+{
+    vector<pair<handle, int>> bkps;
+
+    auto it = attrs.map.find(sdsId());
+    if (it != attrs.map.end())
+    {
+        std::istringstream is(it->second);  // "b64aa:8,b64bb:8"
+        while (!is.eof())
+        {
+            string b64BkpIdStr;
+            std::getline(is, b64BkpIdStr, ':');
+            if (!is.good())
+            {
+                LOG_err << "Invalid format in 'sds' attr value for backup id";
+                break;
+            }
+            handle bkpId = UNDEF;
+            Base64::atob(b64BkpIdStr.c_str(), (byte*)&bkpId, MegaClient::BACKUPHANDLE);
+            assert(bkpId != UNDEF);
+
+            string stateStr;
+            std::getline(is, stateStr, ',');
+            try
+            {
+                int state = std::stoi(stateStr);
+                bkps.push_back(std::make_pair(bkpId, state));
+            }
+            catch (...)
+            {
+                LOG_err << "Invalid backup state in 'sds' attr value";
+                break;
+            }
+        }
+    }
+
+    return bkps;
+}
+
+string Node::toSdsString(const vector<pair<handle, int>>& ids)
+{
+    string value;
+
+    for (const auto& i : ids)
+    {
+        std::string idStr(Base64Str<MegaClient::BACKUPHANDLE>(i.first));
+        value += idStr + ':' + std::to_string(i.second) + ','; // `b64aa:8,b64bb:8,`
+    }
+
+    if (!value.empty())
+    {
+        value.pop_back(); // remove trailing ','
+    }
+
+    return value;
+}
+
 // if present, configure FileFingerprint from attributes
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
