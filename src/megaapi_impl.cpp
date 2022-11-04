@@ -4050,6 +4050,12 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
+        case TYPE_PUT_SET: return "PUT_SET";
+        case TYPE_REMOVE_SET: return "REMOVE_SET";
+        case TYPE_FETCH_SET: return "FETCH_SET";
+        case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
+        case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
+        case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
         case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
@@ -8953,12 +8959,58 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
+void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
+    request->setNodeHandle(backupDestination);
+
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request](){
+
+        Node* n1 = client->nodebyhandle(deconfiguredBackupRoot);
+        Node* n2 = client->nodebyhandle(backupDestination);
+
+        if (!n1)
+        {
+            LOG_debug << "Backup root node not found";
+            return API_ENOENT;
+        }
+        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
+
+        if (!n1->parent ||   // device
+            !n1->parent->parent ||  // my backups node
+            !n1->parent->parent->parent ||  // Vault root
+             n1->parent->parent->parent->nodehandle != client->rootnodes.vault.as8byte())
+        {
+            LOG_debug << "Node not in the right place to be a backup root";
+            return API_EARGS;
+        }
+
+        if (n2 &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.files.as8byte() &&
+            n2->firstancestor()->nodeHandle() != client->rootnodes.rubbish.as8byte())
+        {
+            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
+            return API_EARGS;
+        }
+
+        NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
+        NodeHandle destination = NodeHandle().set6byte(backupDestination);
+
+        client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e){
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
-    request->setNodeHandle(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9002,14 +9054,6 @@ MegaSyncList *MegaApiImpl::getSyncs()
     for (auto p : vMegaSyncs) delete p;
 
     return syncList;
-}
-
-void MegaApiImpl::stopSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
-    request->setNodeHandle(backupDestination);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 bool MegaApiImpl::isSynced(MegaNode *n)
@@ -19041,11 +19085,18 @@ void MegaApiImpl::sendPendingRequests()
             }
         }
 
-        if (request->action)
+        if (request->performRequest)
         {
             // the action should result in request destruction via fireOnRequestFinish
             // or a requeue of another step, etc.
-            request->action();
+            error e = request->performRequest();
+
+            if(e)
+            {
+                LOG_err << "Error starting request: " << e;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }
+
             continue;
         }
 
@@ -21982,36 +22033,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            auto configVector = client->syncs.getConfigs(false);
-            if (configVector.empty())
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
-            else
-            {
-                for (auto& v : configVector)
-                {
-                    std::function<void(Error)> completion = [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); };
-
-                    if (&v != &configVector.back())
-                    {
-                        // only make the Finish callback for the last one.
-                        completion = nullptr;
-                    }
-
-                    if (v.isBackup())
-                    {
-                        // unlink the backup's Vault nodes after deregistering it
-                        NodeHandle source = v.mRemoteNode;
-                        NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
-                        completion = [completion, source, destination, this](Error e){
-                            client->unlinkOrMoveBackupNodes(source, destination, completion);
-                        };
-                    }
-
-                    client->deregisterThenRemoveSync(v.mBackupId, completion);
-                }
-            }
+            e = API_EARGS;
+            assert(false); // this function deprecated, it wasn't used (and, questions about which error to report if multiple occur)
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -22036,16 +22059,6 @@ void MegaApiImpl::sendPendingRequests()
             std::function<void(Error)> completion = [request, this](Error e) {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
-
-            if (c.isBackup())
-            {
-                // unlink the backup's Vault nodes after deregistering it
-                NodeHandle source = c.mRemoteNode;
-                NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
-                completion = [completion, source, destination, this](Error e){
-                    client->unlinkOrMoveBackupNodes(source, destination, completion);
-                };
-            }
 
             client->deregisterThenRemoveSync(backupId, completion);
             break;
