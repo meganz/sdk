@@ -5669,7 +5669,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_EQ(found, true) << "Sync instance could not be found";
 
     // Wait for the node database to be updated.
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
+    // If nothing changed, there won't be an update
+    //ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // Verify sync after logout / login
     string session = dumpSession();
