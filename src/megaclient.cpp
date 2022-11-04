@@ -5390,6 +5390,16 @@ void MegaClient::initsc()
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
+
+        if (complete)
+        {
+            // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
+            // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            sctable->commit();
+            assert(!sctable->inTransaction());
+            sctable->begin();
+            pendingsccommit = false;
+        }
     }
 }
 
@@ -5445,7 +5455,7 @@ void MegaClient::updatesc()
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                        LOG_verbose << clientname << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -5454,7 +5464,7 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                    LOG_verbose << clientname << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
                     {
                         break;
@@ -5465,15 +5475,17 @@ void MegaClient::updatesc()
 
         if (complete)
         {
+            unsigned removed = 0;
+            unsigned added = 0;
+
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
-                char base64[12];
                 if ((*it)->changed.removed)
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                        removed += 1;
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -5482,12 +5494,20 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    added += 1;
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
                     {
                         break;
                     }
                 }
+            }
+            if (removed)
+            {
+                LOG_verbose << clientname << "Removed " << removed << " nodes from database";
+            }
+            if (added)
+            {
+                LOG_verbose << clientname << "Added " << added << " nodes to database";
             }
         }
 
@@ -5887,7 +5907,10 @@ void MegaClient::sc_updatenode()
 
 void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type, int64_t value)
 {
-    auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
+#ifndef NDEBUG
+    auto it =
+#endif
+    insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
     assert(it.second);
 
     LOG_verbose << "Loaded status from cache: " << CacheableStatus::typeToStr(type) << " = " << value;
@@ -8101,10 +8124,12 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 if (c[2] == "in")
                 {
                     n = nodeByHandle(rootnodes.vault);
+                    assert(!n || n->type == VAULTNODE);
                 }
                 else if (c[2] == "bin")
                 {
                     n = nodeByHandle(rootnodes.rubbish);
+                    assert(!n || n->type == RUBBISHNODE);
                 }
                 else
                 {
@@ -8116,6 +8141,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             else
             {
                 n = nodeByHandle(rootnodes.files);
+                assert(!n || loggedIntoFolder() || n->type == ROOTNODE); //folder links root node type is not ROOTNODE
                 l = 1;
             }
         }
@@ -14393,7 +14419,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
     error e = API_OK;
-    syncs.forEachSyncConfig([&](const SyncConfig& config){
+    for (auto& config : syncs.getConfigs(false))
+    {
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
         if (config.mBackupId != excludeBackupId)
         {
@@ -14406,6 +14433,13 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
             {
+                LOG_warn << "Path already associated with a sync: "
+                         << newLocallyEncodedAbsolutePath
+                         << " "
+                         << toHandle(config.mBackupId)
+                         << " "
+                         << otherLocallyEncodedAbsolutePath;
+
                 if (syncError)
                 {
                     *syncError = LOCAL_PATH_SYNC_COLLISION;
@@ -14413,7 +14447,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
                 e = API_EARGS;
             }
         }
-    });
+    }
 
     return e;
 }
@@ -16682,6 +16716,7 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
 {
+    assert(f->getLocalname().isAbsolute());
     f->mVersioningOption = vo;
 
     // Dummy to avoid checking later.
@@ -16816,7 +16851,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         else
         {
             it = cachedtransfers[d].find(f);
-            if (it != cachedtransfers[d].end())
+            if (it != cachedtransfers[d].end() && !it->second->localfilename.empty())
             {
                 t = it->second;
                 bool hadAnyData = t->pos > 0;
