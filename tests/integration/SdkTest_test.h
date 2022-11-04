@@ -232,10 +232,9 @@ public:
 
         std::unique_ptr<MegaFolderInfo> mFolderInfo;
 
-#ifdef ENABLE_SYNC
         int lastSyncError;
         handle lastSyncBackupId = 0;
-#endif
+
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
@@ -332,7 +331,9 @@ public:
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
-    void purgeTree(unsigned apiIndex, MegaNode *p, bool depthfirst = true);
+    void purgeTree(MegaNode *p, bool depthfirst = true);
+    void purgeVaultTree(MegaNode *vault);
+
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
@@ -408,7 +409,8 @@ public:
     template<typename ... requestArgs> int doAckUserAlerts(unsigned apiIndex) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->acknowledgeUserAlerts(&rt); rt.waitForResult(); return rt.result; }
 #ifdef ENABLE_SYNC
     template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
-    template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., INVALID_HANDLE, &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousRemoveBackupNodes(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(args..., INVALID_HANDLE, &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousDisableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
 #endif // ENABLE_SYNC

@@ -325,6 +325,8 @@ void exec_nodecounter(autocomplete::ACState& s);
 void exec_numberofnodes(autocomplete::ACState& s);
 void exec_numberofchildren(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);

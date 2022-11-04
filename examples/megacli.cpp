@@ -4098,6 +4098,8 @@ autocomplete::ACN autocompleteSyntax()
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_encryptLink, sequence(text("encryptlink"), param("link"), param("password")));
+    p->Add(exec_decryptLink, sequence(text("decryptlink"), param("link"), param("password")));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -7079,6 +7081,41 @@ void exec_export(autocomplete::ACState& s)
     {
         cout << s.words[1].s << ": Not found" << endl;
     }
+}
+
+void exec_encryptLink(autocomplete::ACState& s)
+{
+    string link = s.words[1].s;
+    string password = s.words[2].s;
+    string encryptedLink;
+
+    error e = client->encryptlink(link.c_str(), password.c_str(), &encryptedLink);
+    if (e)
+    {
+        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Password encrypted link: " << encryptedLink << endl;
+    }
+}
+
+void exec_decryptLink(autocomplete::ACState &s)
+{
+    string link = s.words[1].s;
+    string password = s.words[2].s;
+    string decryptedLink;
+
+    error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
+    if (e)
+    {
+        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Password encrypted link: " << decryptedLink << endl;
+    }
+
 }
 
 void exec_import(autocomplete::ACState& s)
@@ -10304,7 +10341,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.removeSync(v[0].mBackupId, completion);
+    client->deregisterThenRemoveSync(v[0].mBackupId, completion);
 }
 
 void exec_syncxable(autocomplete::ACState& s)

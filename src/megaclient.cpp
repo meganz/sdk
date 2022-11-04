@@ -4492,6 +4492,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -7435,7 +7436,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
+            syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -8383,6 +8384,46 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     }
 }
 
+#ifdef ENABLE_SYNC
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+{
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    reqs.add(new CommandBackupRemove(this, backupId,
+            [backupId, completion, this](Error e){
+                if (e)
+                {
+                    // de-registering is not critical - we continue anyway
+                    LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                }
+                syncs.removeSyncAfterDeregistration(backupId, completion);
+            }));
+
+    // while we are on the client thread, also tidy up dev-id, drv-id
+    SyncConfig sc;
+    if (syncs.configById(backupId, sc) &&
+        sc.isBackup())
+    {
+        if (auto n = nodeByHandle(sc.mRemoteNode))
+        {
+            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
+
+            attr_map m;
+            m[AttrMap::string2nameid("dev-id")] = "";
+            m[AttrMap::string2nameid("drv-id")] = "";
+            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
+                if (e)
+                {
+                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
+                }
+            }, true);
+        }
+    }
+}
+
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
     Node* n = nodeByHandle(backupRootNode);
@@ -8436,6 +8477,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         }
     }
 }
+#endif // ENABLE_SYNC
 
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
@@ -9411,6 +9453,9 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
             mCookieBannerEnabled = bool(json->getint());
+            break;
+        case MAKENAMEID2('p', 'f'): // pro flexi plan
+            mProFlexi = bool(json->getint());
             break;
         case EOO:
             return API_OK;
@@ -12132,6 +12177,15 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append(MegaClient::MEGAURL);
         encryptedLink->append("/#P!");
         encryptedLink->append(encLink);
+
+        if (isFolder)
+        {
+            sendevent(99459, "Public folder link encrypted to a password");
+        }
+        else
+        {
+            sendevent(99460, "Public file link encrypted to a password");
+        }
     }
 
     return e;
@@ -14236,8 +14290,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else if (businessExpired)
     {
-        LOG_debug << "Business expired for sync add";
-        syncConfig.mError = BUSINESS_EXPIRED;
+        LOG_debug << "Account expired for sync add";
+        syncConfig.mError = ACCOUNT_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
@@ -19680,8 +19734,8 @@ void NodeManager::notifyPurge()
                 };
 
                 // Try and remove the sync.
-                mClient.syncs.removeSync(us.mConfig.mBackupId,
-                                 move(completion));
+                mClient.deregisterThenRemoveSync(us.mConfig.mBackupId,
+                                                 move(completion));
             }
 
             //update sync root node location and trigger failing cases
