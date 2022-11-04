@@ -1010,15 +1010,29 @@ bool Sync::active() const
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
+    assert(syncs.onSyncThread());
+
     auto range = tmap->equal_range(parent_dbid);
 
-    for (auto it = range.first; it != range.second; it++)
+    // remove processed elements as we go, so we can then clean the database at the end.
+    for (auto it = range.first; it != tmap->end() && it->first == parent_dbid; it = tmap->erase(it))
     {
+        LocalNode* const l = it->second;
+
+        auto preExisting = p->children.find(l->getLocalname());
+        if (preExisting != p->children.end())
+        {
+            // tidying up from prior versions of the SDK which might have duplicate LocalNodes
+            LOG_debug << "Removing duplicate LocalNode: " << preExisting->second->debugGetParentList();
+            delete preExisting->second;   // also detaches and preps removal from db
+            assert(p->children.find(l->getLocalname()) == p->children.end());
+            // l will be added in its place.  Later entries were the ones used by the old algorithm
+        }
+
         ScopedLengthRestore restoreLen(localpath);
 
-        localpath.appendWithSeparator(it->second->getLocalname(), true);
+        localpath.appendWithSeparator(l->getLocalname(), true);
 
-        LocalNode* l = it->second;
         Node* node = l->node.release_unchecked();
         handle fsid = l->fsid;
         m_off_t size = l->size;
@@ -1061,6 +1075,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
+                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -1134,6 +1149,9 @@ const SyncConfig& Sync::getConfig() const
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
+    assert(syncs.onSyncThread());
+    assert(l->sync == this);
+
     if (state() == SYNC_CANCELED)
     {
         return;
@@ -1145,17 +1163,21 @@ void Sync::statecachedel(LocalNode* l)
     // size of these queues to determine whether a sync is or is not idle.
     //
     // The same reasoning applies to statecacheadd(...) below.
-    insertq.erase(l);
-
-    if (l->dbid)
+    if (l->dbid && statecachetable)
     {
-        deleteq.insert(l->dbid);
+        statecachetable->del(l->dbid);
     }
+    l->dbid = 0;
+
+    insertq.erase(l);
 }
 
 // insert LocalNode into DB cache
 void Sync::statecacheadd(LocalNode* l)
 {
+    assert(syncs.onSyncThread());
+    assert(l->sync == this);
+
     if (state() == SYNC_CANCELED)
     {
         return;
@@ -1166,7 +1188,15 @@ void Sync::statecacheadd(LocalNode* l)
         deleteq.erase(l->dbid);
     }
 
+    if (l->type < 0)
+    {
+        LOG_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
+        return;
+    }
+
     insertq.insert(l);
+    assert(l != localroot.get());
+    assert(l->parent);
 }
 
 void Sync::cachenodes()
@@ -2644,9 +2674,9 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
+Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
   : mClient(mc)
-  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
+  , fsaccess(fsa)  // reference to MegaClient's for now, for linux we need it that way ofr notifications.  In sync rework, this will be a separate instance
 {
     fsaccess->initFilesystemNotificationSystem();
 

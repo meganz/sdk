@@ -523,7 +523,7 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
 struct UnlinkOrDebris {
     bool unlink = false;

@@ -620,7 +620,7 @@ struct Syncs
 
     void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
 
-    Syncs(MegaClient& mc);
+    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
     ~Syncs();
 
 
@@ -736,7 +736,7 @@ private:
     MegaClient& mClient;
 
     // Syncs should have a separate fsaccess for thread safety
-    unique_ptr<FileSystemAccess> fsaccess;
+    unique_ptr<FileSystemAccess>& fsaccess;
 
     // pseudo-random number generator
     PrnGen rng;

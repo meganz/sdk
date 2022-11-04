@@ -1972,12 +1972,23 @@ void LocalNode::getlocalpath(LocalPath& path) const
     }
 }
 
+string LocalNode::debugGetParentList()
+{
+    string s;
+
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
+    {
+        s += l->getLocalname().toPath(false) + "(" + std::to_string((long long)(void*)l) + ") ";
+    }
+    return s;
+}
+
 // locate child by localname or slocalname
 LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(getLocalname())) == children.end() && (it = schildren.find(getLocalname())) == schildren.end()))
+    if (!localname || ((it = children.find(*localname)) == children.end() && (it = schildren.find(*localname)) == schildren.end()))
     {
         return NULL;
     }

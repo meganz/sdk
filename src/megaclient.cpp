@@ -1270,8 +1270,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
    , btreqstat(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(new FSACCESS_CLASS())
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1352,7 +1353,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     init();
 
-    fsaccess = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
     fsaccess->client = this;
     fsaccess->waiter = w;
     transferlist.client = this;
