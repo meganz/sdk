@@ -1259,7 +1259,7 @@ void MegaClient::init()
     mOptimizePurgeNodes = false;
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess>&& f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1270,9 +1270,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btreqstat(rng)
    , btsc(rng)
    , btpfa(rng)
-   , fsaccess(move(f))
 #ifdef ENABLE_SYNC
-    , syncs(*this, fsaccess)
+    , syncs(*this)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1353,6 +1352,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
+    fsaccess = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
     fsaccess->client = this;
     fsaccess->waiter = w;
     transferlist.client = this;
@@ -2653,7 +2653,7 @@ void MegaClient::exec()
                     {
                         LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
 
-                        if (sync->scan(&localPath, fa.get()))
+                        if (sync->scan(localPath, fa.get()))
                         {
                             syncsup = false;
                             sync->initializing = false;
@@ -3097,7 +3097,7 @@ void MegaClient::exec()
 
                                                 sync->localroot->setSubtreeNeedsRescan(true);
 
-                                                sync->scan(&sync->localroot->localname, NULL);
+                                                sync->scan(sync->localroot->getLocalname(), NULL);
                                                 sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
@@ -3159,7 +3159,7 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            LocalPath localpath = sync->localroot->localname;
+                            LocalPath localpath = sync->localroot->getLocalname();
                             if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand: "
@@ -8706,6 +8706,7 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
         }
     }
 }
+#endif // ENABLE_SYNC
 
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
@@ -8760,7 +8761,6 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         }
     }
 }
-#endif // ENABLE_SYNC
 
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
@@ -11464,7 +11464,7 @@ void MegaClient::filecachedel(File *file, TransferDbCommitter* committer)
     if (file->temporaryfile)
     {
         LOG_debug << "Removing temporary file";
-        fsaccess->unlinklocal(file->localname);
+        fsaccess->unlinklocal(file->getLocalname());
     }
 }
 
@@ -15144,7 +15144,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         rit = nchildren.find(&ll->name);
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.appendWithSeparator(ll->localname, true);
+        localpath.appendWithSeparator(ll->getLocalname(), true);
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -15672,7 +15672,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
         }
 
         // UTF-8 converted local name
-        string localname = ll->localname.toName(*fsaccess);
+        string localname = ll->getLocalname().toName(*fsaccess);
         if (!localname.size() || !ll->name.size())
         {
             if (!ll->reported)
@@ -15680,7 +15680,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first->reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                sprintf(report, "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -15732,7 +15732,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (!gfxdisabled && gfx && gfx->isgfx(ll->localname))
+                            if (!gfxdisabled && gfx && gfx->isgfx(ll->getLocalname()))
                             {
                                 int missingattr = 0;
 
@@ -15748,7 +15748,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                                 }
 
                                 if (missingattr && checkaccess(ll->node, OWNER)
-                                        && !gfx->isvideo(ll->localname))
+                                        && !gfx->isvideo(ll->getLocalname()))
                                 {
                                     char me64[12];
                                     Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
@@ -16696,7 +16696,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     // Is caller trying to start a download?
     if (d == GET)
     {
-        auto targetPath = f->localname.parentPath();
+        auto targetPath = f->getLocalname().parentPath();
 
         assert(f->size >= 0);
 
@@ -16704,7 +16704,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         if (fsaccess->availableDiskSpace(targetPath) <= f->size)
         {
             LOG_warn << "Insufficient space available for download: "
-                     << f->localname
+                     << f->getLocalname()
                      << ": "
                      << f->size;
 
@@ -16731,7 +16731,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(f->localname, d == PUT, d == GET))
+                if (fa->fopen(f->getLocalname(), d == PUT, d == GET))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -16748,7 +16748,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, f->localname);
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname());
 #endif
         }
         else
@@ -16770,7 +16770,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             {
                 for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                 {
-                    if ((d == GET && f->localname == (*fi)->localname)
+                    if ((d == GET && f->getLocalname() == (*fi)->getLocalname())
                             || (d == PUT && f->h != UNDEF
                                 && f->h == (*fi)->h
                                 && !f->targetuser.size()
@@ -17048,7 +17048,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
         return nullptr;
 
     std::string localName =
-      localNode->localname.toName(*fsaccess);
+      localNode->getLocalname().toName(*fsaccess);
 
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =

@@ -312,7 +312,7 @@ static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> fi
         conlock(cout) << "Unable to download file: "
                       << path
                       << " -> "
-                      << file->localname.toPath(false)
+                      << file->getLocalname().toPath(false)
                       << ": "
                       << errorstring(result)
                       << endl;
@@ -404,7 +404,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess);
+    *dname = getLocalname().toName(*transfer->client->fsaccess);
 }
 
 // transfer progress callback
@@ -653,13 +653,13 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
     auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, fstype);
     ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
-    localname = ln;
+    setLocalname(ln);
 }
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
     // full local path
-    localname = clocalname;
+    setLocalname(clocalname);
 
     // target parent node
     h = ch;
@@ -3050,7 +3050,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 Transfer::unserialize(client, &serialized, client->cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
-                auto fpstr = t->files.front()->localname.toPath(false);
+                auto fpstr = t->files.front()->getLocalname().toPath(false);
                 auto countpos = fpstr.find_last_of('_');
                 auto count = atoi(fpstr.c_str() + countpos + 1);
                 fpstr.resize(countpos);
@@ -5642,14 +5642,11 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          move(fsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -9739,7 +9736,6 @@ int main(int argc, char* argv[])
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            move(fsAccess),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",

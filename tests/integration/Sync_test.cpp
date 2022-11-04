@@ -847,7 +847,6 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     , client(this,
                 &waiter,
                 httpio.get(),
-                makeFsAccess(),
 #ifdef DBACCESS_CLASS
                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
@@ -1482,7 +1481,7 @@ void StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
 
     file->h = node->nodeHandle();
     file->hprivate = true;
-    file->localname = LocalPath::fromAbsolutePath(destination.u8string());
+    file->setLocalname(LocalPath::fromAbsolutePath(destination.u8string()));
     file->name = node->displayname();
     file->result = std::move(result);
 
@@ -1534,7 +1533,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     unique_ptr<File> file(new FilePut());
 
     file->h = parent->nodeHandle();
-    file->localname = LocalPath::fromAbsolutePath(path.u8string());
+    file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
     file->name = name;
 
     error result = API_OK;
@@ -1715,7 +1714,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     file->h = parentNode->nodeHandle();
     file->mCompletion = std::move(completion);
     file->name = targetName;
-    file->localname = LocalPath::fromAbsolutePath(sourcePath.u8string());
+    file->setLocalname(LocalPath::fromAbsolutePath(sourcePath.u8string()));
 
     // Kick off the upload. Client takes ownership of file.
     TransferDbCommitter committer(client.tctable);
@@ -2422,21 +2421,21 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
 
     if (depth)
     {
-        if (0 != compareUtf(mn->fsName(), true, n->localname, true, false))
+        if (0 != compareUtf(mn->fsName(), true, n->getLocalname(), true, false))
         {
-            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath(false);
+            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->getLocalname().toPath(false);
             return false;
         }
     }
 
     if (!mn->typematchesnodetype(n->type))
     {
-        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath(false) << ":" << n->type;
+        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->getLocalname().toPath(false) << ":" << n->type;
         return false;
     }
 
     auto localpath = n->getLocalPath().toName(*client.fsaccess);
-    string n_localname = n->localname.toName(*client.fsaccess);
+    string n_localname = n->getLocalname().toName(*client.fsaccess);
     if (n_localname.size() && n->parent)  // the sync root node's localname contains an absolute path, not just the leaf name.  Also the filesystem sync root folder and cloud sync root folder don't have to have the same name.
     {
         EXPECT_EQ(n->name, n_localname);
@@ -3305,7 +3304,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
         sc.client.syncs.prepareForLogout(false, [this, pb](){
-            
+
             // 3rd param true to "load" (zero) syncs again so store is ready for the test
             client.syncs.locallogout(true, false, true);
             pb->set_value(true);

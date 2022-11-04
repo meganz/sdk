@@ -3381,8 +3381,8 @@ class MegaRequest
             TYPE_QUERY_SIGNUP_LINK                                          = 23,
             TYPE_ADD_SYNC                                                   = 24,
             TYPE_REMOVE_SYNC                                                = 25,
-            TYPE_DISABLE_SYNC                                               = 26,
-            TYPE_ENABLE_SYNC                                                = 27,
+            //TYPE_DISABLE_SYNC                                               = 26,
+            //TYPE_ENABLE_SYNC                                                = 27,
             TYPE_COPY_SYNC_CONFIG                                           = 28,
             TYPE_COPY_CACHED_STATUS                                         = 29,
             TYPE_IMPORT_SYNC_CONFIGS                                        = 30,
@@ -5945,7 +5945,7 @@ class MegaSyncList
 
 
 
-#endif
+#endif // ENABLE_SYNC
 
 
 /**
@@ -14214,8 +14214,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);

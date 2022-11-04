@@ -312,7 +312,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(LocalPath*, FileAccess*);
+    bool scan(LocalPath, FileAccess*);
 
     // rescan sequence number (incremented when a full rescan or a new
     // notification batch starts)
@@ -620,7 +620,7 @@ struct Syncs
 
     void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
 
-    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
+    Syncs(MegaClient& mc);
     ~Syncs();
 
 
@@ -736,7 +736,7 @@ private:
     MegaClient& mClient;
 
     // Syncs should have a separate fsaccess for thread safety
-    unique_ptr<FileSystemAccess>& fsaccess;
+    unique_ptr<FileSystemAccess> fsaccess;
 
     // pseudo-random number generator
     PrnGen rng;

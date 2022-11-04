@@ -1070,7 +1070,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     string ext;
     if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
-        mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
+        mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess.get());
 
         // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
         uint32_t dummykey[4];
@@ -1210,7 +1210,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpa
     auto path = localpath;
 
     // Convenience.
-    const auto& root = sync->localroot->localname;
+    auto root = sync->localroot->getLocalname();
 
     while (root.isContainingPathOf(path) && path != root)
     {
@@ -1416,7 +1416,7 @@ char *MegaApiImpl::getBlockedPath()
     return path;
 }
 
-#endif
+#endif // ENABLE_SYNC
 
 MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
 {
@@ -3899,8 +3899,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONFIRM_ACCOUNT: return "CONFIRM_ACCOUNT";
         case TYPE_QUERY_SIGNUP_LINK: return "QUERY_SIGNUP_LINK";
         case TYPE_ADD_SYNC: return "ADD_SYNC";
-        case TYPE_ENABLE_SYNC: return "ENABLE_SYNC";
-        case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
+        //case TYPE_ENABLE_SYNC: return "ENABLE_SYNC";
+        //case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
         case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
         case TYPE_COPY_CACHED_STATUS: return "TYPE_COPY_CACHED_STATUS";
         case TYPE_IMPORT_SYNC_CONFIGS: return "TYPE_IMPORT_SYNC_CONFIGS";
@@ -4966,7 +4966,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     if(n->nodekey().size()>=sizeof(filekey))
         memcpy(filekey,n->nodekey().data(),sizeof filekey);
 
-    localname = finalPath;
+    setLocalname(finalPath);
     hprivate = true;
     hforeign = false;
 }
@@ -5009,7 +5009,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     if(n->getNodeKey()->size()>=sizeof(filekey))
         memcpy(filekey,n->getNodeKey()->data(),sizeof filekey);
 
-    localname = finalPath;
+    setLocalname(finalPath);
     hprivate = !n->isPublic();
     hforeign = n->isForeign();
 
@@ -5083,7 +5083,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
-        transfer->localfilename = localname;
+        transfer->localfilename = getLocalname();
         assert(transfer->localfilename.isAbsolute());
 
         size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
@@ -5124,7 +5124,7 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, N
     : MegaFile()
 {
     // full local path
-    localname = std::move(clocalname);
+    setLocalname(clocalname);
 
     // target parent node
     h = ch;
@@ -5310,7 +5310,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
-    fsAccess = new MegaFileSystemAccess();
+    fsAccess.reset(new MegaFileSystemAccess());
 
     dbAccess = nullptr;
     if (basePath)
@@ -5343,9 +5343,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-
-    // We keep the fsAccess raw pointer but MegaClient has ownership.  Valid until we destroy MegaClient.
-    client = new MegaClient(this, waiter, httpio, unique_ptr<FileSystemAccess>(fsAccess), dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
+    client = new MegaClient(this, waiter, httpio, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
 #if defined(_WIN32)
     httpio->unlock();
@@ -8636,7 +8634,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     client->syncs.forEachRunningSync([&](Sync* s) {
 
-        if (s->localroot->localname.isContainingPathOf(localpath))
+        if (s->localroot->getLocalname().isContainingPathOf(localpath))
         {
             sync = s;
         }
@@ -8677,7 +8675,7 @@ int MegaApiImpl::syncPathState(string* pathParam)
 
     client->syncs.forEachRunningSync_shortcircuit([&](Sync* sync) {
 
-        if (!sync->localroot->localname.isContainingPathOf(localpath))
+        if (!sync->localroot->getLocalname().isContainingPathOf(localpath))
         {
             return true;
         }
@@ -8688,7 +8686,7 @@ int MegaApiImpl::syncPathState(string* pathParam)
             return false;
         }
 
-        if (localpath == sync->localroot->localname)
+        if (localpath == sync->localroot->getLocalname())
         {
             state = sync->localroot->ts;
             return false;
@@ -8736,7 +8734,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
 
         if (!node)
         {
-            if (path == sync->localroot->localname)
+            if (path == sync->localroot->getLocalname())
             {
                 node = MegaNodePrivate::fromNode(sync->localroot->node);
             }
@@ -12450,7 +12448,7 @@ void MegaApiImpl::file_added(File *f)
         else
 #endif
         {
-            path = f->localname.toPath(false);
+            path = f->getLocalname().toPath(false);
         }
         transfer->setPath(path.c_str());
     }
@@ -12501,7 +12499,7 @@ void MegaApiImpl::file_complete(File *f)
             // The final name can change when downloads are complete
             // if there is another file in the same path
 
-            string path = f->localname.toPath(false);
+            string path = f->getLocalname().toPath(false);
             transfer->setPath(path.c_str());
         }
 
@@ -21619,20 +21617,6 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_ENABLE_SYNC:
-        {
-            auto backupId = request->getParentHandle();
-
-            client->syncs.enableSyncByBackupId(backupId, false, true, true, true, [request, this](error e, SyncError se, handle h){
-
-                request->setNumDetails(se);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-
-            }, true, "");
-
-
-            break;
-        }
         case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:
         {
             const char* externalDrive = request->getFile();
@@ -21838,34 +21822,6 @@ void MegaApiImpl::sendPendingRequests()
             };
 
             client->deregisterThenRemoveSync(backupId, completion);
-            break;
-        }
-        case MegaRequest::TYPE_DISABLE_SYNC:
-        {
-            handle nodehandle = request->getNodeHandle();
-            auto backupId = request->getParentHandle();
-
-            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            size_t nDisabled = 0;
-            auto configs = client->syncs.getConfigs(false);
-            for (auto& sc : configs)
-            {
-                if (sc.mBackupId == backupId ||
-                   (!ISUNDEF(nodehandle) && sc.mRemoteNode == nodehandle))
-                {
-                    client->syncs.disableSyncByBackupId(
-                        sc.mBackupId,
-                        false, NO_SYNC_ERROR, false, nullptr);
-                    ++nDisabled;
-                }
-            }
-
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
             break;
         }
 #endif  // ENABLE_SYNC

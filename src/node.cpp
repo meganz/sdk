@@ -1483,7 +1483,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         return;
     }
 
-    bool newnode = localname.empty();
+    bool newnode = getLocalname().empty();
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
@@ -1494,11 +1494,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     if (parent)
     {
         // remove existing child linkage
-        parent->children.erase(&localname);
+        parent->children.erase(getLocalname());
 
         if (slocalname)
         {
-            parent->schildren.erase(slocalname.get());
+            parent->schildren.erase(*slocalname);
             slocalname.reset();
         }
     }
@@ -1509,11 +1509,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         size_t p = newlocalpath->getLeafnameByteIndex();
 
         // has the name changed?
-        if (!newlocalpath->backEqual(p, localname))
+        if (!newlocalpath->backEqual(p, getLocalname()))
         {
             // set new name
-            localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->syncs.fsaccess);
+            setLocalname(newlocalpath->subpathFrom(p));
+            name = getLocalname().toName(*sync->syncs.fsaccess);
 
             if (node)
             {
@@ -1583,12 +1583,12 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         }
 
         // (we don't construct a UTF-8 or sname for the root path)
-        parent->children[&localname] = this;
+        parent->children[getLocalname()] = this;
 
-        if (newshortname && *newshortname != localname)
+        if (newshortname && *newshortname != getLocalname())
         {
             slocalname = std::move(newshortname);
-            parent->schildren[slocalname.get()] = this;
+            parent->schildren[*slocalname] = this;
         }
         else
         {
@@ -1680,9 +1680,9 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     }
     else
     {
-        localname = cfullpath;
-        slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath(true);
+        setLocalname(cfullpath);
+        slocalname.reset(shortname && *shortname != cfullpath ? shortname.release() : nullptr);
+        name = cfullpath.toPath(true);
     }
 
     scanseqno = sync->scanseqno;
@@ -1968,7 +1968,7 @@ void LocalNode::getlocalpath(LocalPath& path) const
         assert(!l->parent || l->parent->sync == sync);
 
         // sync root has absolute path, the rest are just their leafname
-        path.prependWithSeparator(l->localname);
+        path.prependWithSeparator(l->getLocalname());
     }
 }
 
@@ -1977,7 +1977,7 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end()))
+    if (!localname || ((it = children.find(getLocalname())) == children.end() && (it = schildren.find(getLocalname())) == schildren.end()))
     {
         return NULL;
     }
@@ -2047,7 +2047,7 @@ bool LocalNode::serialize(string* d)
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
-    w.serializestring(localname.platformEncoded());
+    w.serializestring(getLocalname().platformEncoded());
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
@@ -2126,10 +2126,10 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    l->setLocalname(LocalPath::fromPlatformEncodedRelative(localname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->syncs.fsaccess);
+    l->name = l->getLocalname().toName(*sync->syncs.fsaccess);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

@@ -445,7 +445,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris)
 {
-    auto& rootpath = sync.localroot->localname;
+    auto rootpath = sync.localroot->getLocalname();
     LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = fsaccess.newfileaccess(false);
@@ -1016,7 +1016,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     {
         ScopedLengthRestore restoreLen(localpath);
 
-        localpath.appendWithSeparator(it->second->localname, true);
+        localpath.appendWithSeparator(it->second->getLocalname(), true);
 
         LocalNode* l = it->second;
         Node* node = l->node.release_unchecked();
@@ -1024,7 +1024,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         m_off_t size = l->size;
 
         // clear localname to force newnode = true in setnameparent
-        l->localname.clear();
+        l->setLocalname(LocalPath());
 
         // if we already have the shortname from database, use that, otherwise (db is from old code) look it up
         std::unique_ptr<LocalPath> shortname;
@@ -1045,9 +1045,9 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = syncs.fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() &&
-                ((!l->slocalname && (!sn || l->localname == *sn)) ||
-                (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+            assert(!l->getLocalname().empty() &&
+                ((!l->slocalname && (!sn || l->getLocalname() == *sn)) ||
+                (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->getLocalname() && *l->slocalname == *sn)));
         }
 #endif
 
@@ -1082,6 +1082,7 @@ void Sync::readstatecache()
         LocalNode* l;
 
         statecachetable->rewind();
+        unsigned numLocalNodes = 0;
 
         // bulk-load cached nodes into tmap
         while (statecachetable->next(&cid, &cachedata, &client->key))
@@ -1090,12 +1091,29 @@ void Sync::readstatecache()
             {
                 l->dbid = cid;
                 tmap.insert(pair<int32_t,LocalNode*>(l->parent_dbid,l));
+                numLocalNodes += 1;
             }
         }
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
-        addstatecachechildren(0, &tmap, localroot->localname, localroot.get(), 100);
+        {
+            DBTableTransactionCommitter committer(statecachetable);
+            LocalPath pathBuffer = localroot->getLocalname(); // don't let localname be appended during recurse
+            addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
+
+            if (!tmap.empty())
+            {
+                // if there is anything left in tmap, those are orphan nodes - tidy up the db
+                LOG_debug << "Removing " << tmap.size() << " LocalNode orphans from db";
+                for (auto& ln : tmap)
+                {
+                    statecachedel(ln.second);
+                }
+            }
+        }
         cachenodes();
+
+        LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -1298,7 +1316,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (!localroot->localname.isContainingPathOf(localpath, &subpathIndex))
+        if (!localroot->getLocalname().isContainingPathOf(localpath, &subpathIndex))
         {
             if (parent)
             {
@@ -1328,8 +1346,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         localnode_map::iterator it;
-        if ((it = l->children.find(&component)) == l->children.end()
-            && (it = l->schildren.find(&component)) == l->schildren.end())
+        if ((it = l->children.find(component)) == l->children.end()
+            && (it = l->schildren.find(component)) == l->schildren.end())
         {
             // no full match: store residual path, return NULL with the
             // matching component LocalNode in parent
@@ -1365,13 +1383,13 @@ bool Sync::assignfsids()
 
 // scan localpath, add or update child nodes, call recursively for folder nodes
 // localpath must be prefixed with Sync
-bool Sync::scan(LocalPath* localpath, FileAccess* fa)
+bool Sync::scan(LocalPath localpath, FileAccess* fa)
 {
     if (fa)
     {
         assert(fa->type == FOLDERNODE);
     }
-    if (!localdebris.isContainingPathOf(*localpath))
+    if (!localdebris.isContainingPathOf(localpath))
     {
         LocalPath localname;
         string name;
@@ -1385,32 +1403,32 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
        auto da = syncs.fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
-        if ((success = da->dopen(localpath, fa, false)))
+        if ((success = da->dopen(&localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, false))
+            while (da->dnext(localpath, localname, false))
             {
                 name = localname.toName(*syncs.fsaccess);
 
-                ScopedLengthRestore restoreLen(*localpath);
-                localpath->appendWithSeparator(localname, false);
+                ScopedLengthRestore restoreLen(localpath);
+                localpath.appendWithSeparator(localname, false);
 
                 // check if this record is to be ignored
-                if (client->app->sync_syncable(this, name.c_str(), *localpath))
+                if (client->app->sync_syncable(this, name.c_str(), localpath))
                 {
                     // skip the sync's debris folder
-                    if (!localdebris.isContainingPathOf(*localpath))
+                    if (!localdebris.isContainingPathOf(localpath))
                     {
                         LocalNode *l = NULL;
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
+                            l = checkpath(NULL, &localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
                         {
                             // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, false);
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(localpath), false, false);
                         }
                     }
                 }
@@ -1562,7 +1580,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        scan(*localpathNew, fa.get());
                     }
                     else
                     {
@@ -1930,7 +1948,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         if (fullscan)
                         {
                             // immediately scan folder to detect deviations from cached state
-                            scan(localpathNew, fa.get());
+                            scan(*localpathNew, fa.get());
 
                             // consider this folder scanned.
                             it->second->needsRescan = false;
@@ -1971,7 +1989,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             {
                 if (newnode || l->needsRescan)
                 {
-                    scan(localpathNew, fa.get());
+                    scan(*localpathNew, fa.get());
                     l->needsRescan = false;
 
                     if (newnode)
@@ -2578,8 +2596,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     LOG_debug << "Initial scan sync: " << us.mConfig.getLocalPath();
 
-    auto nonconst_rootpath = rootpath;
-    if (us.mSync->scan(&nonconst_rootpath, openedLocalFolder.get()))
+    if (us.mSync->scan(rootpath, openedLocalFolder.get()))
     {
         mClient.syncsup = false;
         us.mSync->initializing = false;
@@ -2627,9 +2644,9 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
+Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
-  , fsaccess(fsa)  // reference to MegaClient's for now.  In sync rework, this will be a separate instance
+  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
 {
     fsaccess->initFilesystemNotificationSystem();
 

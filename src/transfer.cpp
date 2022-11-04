@@ -789,7 +789,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             {
                 transient_error = false;
                 success = false;
-                localname = (*it)->localname;
+                localname = (*it)->getLocalname();
 
                 if (localname != localfilename)
                 {
@@ -847,7 +847,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
-                            (*it)->localname = localnewname;
+                            (*it)->setLocalname(localnewname);
                             localname = localnewname;
                         }
                     }
@@ -938,7 +938,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 {
                     if (auto node = client->nodeByHandle((*it)->h))
                     {
-                        auto path = (*it)->localname;
+                        auto path = (*it)->getLocalname();
                         auto type = isFilenameAnomaly(path, node);
 
                         if (type != FILENAME_ANOMALY_NONE)
@@ -1031,7 +1031,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            LocalPath *localpath = &f->localname;
+            LocalPath localpath = f->getLocalname();
 
 #ifdef ENABLE_SYNC
             LocalPath synclocalpath;
@@ -1040,12 +1040,12 @@ void Transfer::complete(TransferDbCommitter& committer)
             {
                 LOG_debug << "Verifying sync upload";
                 synclocalpath = ll->getLocalPath();
-                localpath = &synclocalpath;
+                localpath = synclocalpath;
             }
 #endif
             if (auto node = client->nodeByHandle(f->h))
             {
-                auto type = isFilenameAnomaly(*localpath, f->name);
+                auto type = isFilenameAnomaly(localpath, f->name);
 
                 if (type != FILENAME_ANOMALY_NONE)
                 {
@@ -1056,17 +1056,17 @@ void Transfer::complete(TransferDbCommitter& committer)
                                << (node->parent ? "/" : "")
                                << f->name;
 
-                    client->filenameAnomalyDetected(type, *localpath, remotepath.str());
+                    client->filenameAnomalyDetected(type, localpath, remotepath.str());
                 }
             }
 
-            if (localpath == &f->localname)
+            if (localpath == f->getLocalname())
             {
                 LOG_debug << "Verifying regular upload";
             }
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(*localpath);
+            bool isOpen = fa->fopen(localpath);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)
@@ -1138,7 +1138,7 @@ void Transfer::completefiles()
             {
                 pfs = &client->pendingfiles[tag];
             }
-            pfs->push_back(f->localname);
+            pfs->push_back(f->getLocalname());
         }
 
         client->app->file_complete(f);

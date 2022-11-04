@@ -2717,7 +2717,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-#endif
+#endif // ENABLE_SYNC
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
@@ -3157,7 +3157,7 @@ protected:
         MegaClient *client;
         MegaHttpIO *httpio;
         MegaWaiter *waiter;
-        MegaFileSystemAccess *fsAccess;
+        unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
