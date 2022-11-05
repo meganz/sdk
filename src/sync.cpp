@@ -6500,7 +6500,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                     {
                                         row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(fullPath.localPath, this));
                                         syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
-                                        syncs.mClient.app->syncupdate_filter_error(getConfig());
                                     }
                                 }
                             }
@@ -11024,9 +11023,6 @@ void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
     // Record the failure.
     mIgnoreFileFailureContext.mBackupID = sync.getConfig().mBackupId;
     mIgnoreFileFailureContext.mPath = path;
-
-    // Let the application know an ignore file has failed to load.
-    mClient.app->syncupdate_filter_error(sync.getConfig());
 }
 
 bool Syncs::hasIgnoreFile(const SyncConfig& config)

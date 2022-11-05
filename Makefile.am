@@ -27,14 +27,6 @@ AM_CPPFLAGS = \
 
 include m4/aminclude.am
 
-if ANDROID
-AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/posix
-endif
-
-if DARWIN
-AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/osx
-endif
-
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
 else

@@ -336,7 +336,6 @@ struct StandardClient : public MegaApp
     void syncupdate_stalled(bool state) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
-    void syncupdate_filter_error(const SyncConfig& config) override;
 
     void syncupdate_local_lockretry(bool b) override;
 
@@ -784,7 +783,6 @@ struct StandardClient : public MegaApp
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
-    function<void(const SyncConfig&)> mOnFilterError;
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
 };

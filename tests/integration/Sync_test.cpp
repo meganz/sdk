@@ -30,6 +30,9 @@
 using namespace ::mega;
 using namespace ::std;
 
+// we are on SRW branch
+#define SRW_NEEDED_FOR_THIS_ONE
+
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -1411,15 +1414,6 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::syncupdate_filter_error(const SyncConfig& config)
-{
-    if (mOnFilterError)
-    {
-        mOnFilterError(config);
-    }
-}
-
-
 void StandardClient::syncupdate_local_lockretry(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
 
 void StandardClient::notify_retry(dstime t, retryreason_t r)
@@ -2640,7 +2634,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     };
 
     // Do we need to upload an ignore file?
-//#if 0
+#ifdef SRW_NEEDED_FOR_THIS_ONE
     if (syncOptions.uploadIgnoreFile)
     {
         auto ignorePath = fsBasePath / ".megaignore";
@@ -2660,7 +2654,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         // Completion function will continue the work.
         return;
     }
-//#endif
+#endif
 
     LOG_debug << "Making sure we've received latest cloud changes...";
 
@@ -3270,6 +3264,8 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
         return false;
     }
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+
     // Does this sync have a state cache?
     if (!sync)
         return true;
@@ -3290,7 +3286,7 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
         << "Sync "
         << toHandle(backupId)
         << ": State cache mismatch.";
-
+#endif
     return true;
 }
 
@@ -3772,7 +3768,6 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     mOnConflictsDetected = nullptr;
     mOnFileAdded = nullptr;
     mOnFileComplete = nullptr;
-    mOnFilterError = nullptr;
     mOnStall = nullptr;
     mOnSyncStateConfig = nullptr;
     mOnTransferAdded = nullptr;
@@ -4899,8 +4894,7 @@ public:
     const std::size_t arbitraryFileLength;
 }; /* SyncFingerprintCollision */
 
-// Disabled as SRW doesn't copy existing nodes if there's a fingerprint hit.
-TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
+TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 {
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
@@ -4921,9 +4915,10 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
+    fs::rename(client0->fsBasePath / "a", path1);
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -4933,7 +4928,11 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
     addModelFile(model0, "d/d_0", "a", data0);
     addModelFile(model0, "d/d_1", "a", data1);
     addModelFile(model1, "d/d_0", "a", data0);
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+    addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
+#else
     addModelFile(model1, "d/d_1", "a", data0);
+#endif
     model1.ensureLocalDebrisTmpLock("d");
 
     confirmModels();
@@ -4960,9 +4959,10 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     // Prepare the file outside of the engine's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
+    fs::rename(client0->fsBasePath / "a", path1);
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -4994,10 +4994,11 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     // Build the file somewhere the sync won't notice.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data0, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, client0->fsBasePath, stamp));
 
     // Move file into place.
     prepareForNodeUpdates();
+    fs::rename(client0->fsBasePath / "b", path1);
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -6010,7 +6011,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     // wait for normal sync resumes to complete
     pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
 
-    vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
+    waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
     // Sync rework update:  for now at least, delete wins in this case
 
@@ -6034,6 +6035,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), backupId2));
 }
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMoves)
 {
     fs::path localtestroot = makeNewTestRoot();
@@ -6094,7 +6096,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(false), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
     ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(false), (client1LocalSyncRoot / "f_1").u8string() );
 }
-
+#endif
 
 TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
 {
@@ -6194,6 +6196,7 @@ TEST_F(SyncTest, BasicSync_SpecialCreateFile)
 }
 #endif
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
@@ -6238,6 +6241,7 @@ TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(model.removesynctrash("f"));
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
 }
+#endif
 
 namespace {
 
@@ -6972,7 +6976,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
-
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, DetectsAndReportsNameClashes)
 {
     const auto TESTFOLDER = makeNewTestRoot();
@@ -7093,9 +7097,9 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     conflicts.clear();
     ASSERT_FALSE(client->conflictsDetected(conflicts));
 }
+#endif
 
-
-// TODO: re-enable after sync rework is merged
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
@@ -7262,6 +7266,7 @@ TEST_F(SyncTest, DoesntUploadFilesWithClashingNames)
 
     ASSERT_TRUE(cu->confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
+#endif
 
 TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
 {
@@ -12990,42 +12995,6 @@ TEST_F(FilterFailureFixture, ResolveBrokenIgnoreFile)
 
     // f1 should exist in the cloud if the second sync is running.
     ASSERT_TRUE(confirm(*cdu, id1, model1));
-}
-
-TEST_F(FilterFailureFixture, TriggersFailureEvent)
-{
-    Model model;
-
-    // Set up the local filesystem.
-    model.addfile(".megaignore", "bad");
-    model.generate(root(*cu) / "root");
-
-    // Log in the client.
-    ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
-    ASSERT_TRUE(CatchupClients(cd, cdu, cu));
-
-    // Hook the filter failure event.
-    std::promise<handle> notifier;
-
-    cu->mOnFilterError = [&](const SyncConfig& config) {
-        // Notify the waiter.
-        notifier.set_value(config.mBackupId);
-
-        // Detach the callback.
-        cu->mOnFilterError = nullptr;
-    };
-
-    // Add and start a sync.
-    auto id = setupSync(*cu, "root", "cu", false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the sync to signal the event.
-    auto result = notifier.get_future();
-
-    ASSERT_NE(result.wait_for(std::chrono::seconds(8)),
-              future_status::timeout);
-
-    ASSERT_EQ(result.get(), id);
 }
 
 TEST_F(FilterFailureFixture, TriggersStall)
