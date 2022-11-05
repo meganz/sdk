@@ -1605,7 +1605,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     FileFingerprint ffp;
     {
-        auto fsa = makeFsAccess();
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         auto fa = fsa->newfileaccess();
         ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str())));
         ASSERT_TRUE(ffp.genfingerprint(fa.get()));
@@ -1807,7 +1807,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ remove the imported node, for a clean next test
     ASSERT_EQ(API_OK, synchronousRemove(1, nimported.get())) << "Cannot remove a node";
-
 
     // ___ again but unshareable this time - totally separate new node - set the coords  (unshareable)
 
@@ -3314,7 +3313,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        auto fsa = makeFsAccess();
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
@@ -4292,7 +4291,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    auto fsa = makeFsAccess();
+    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
     string name = "testfile";
     LocalPath localname = LocalPath::fromAbsolutePath(name);
 
@@ -8153,9 +8152,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
                                                        nullptr /*cancelToken*/)) << "Cannot upload test file " << mp3;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
-
 }
-
 #endif
 
 /**

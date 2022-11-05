@@ -102,7 +102,7 @@ public:
 
     void clear();
 
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     Request deferredRequests;
     std::function<bool(Command*)> deferRequests;
     void sendDeferred();

@@ -16,6 +16,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
+bool gScanOnly = false; // will be used in SRW
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 
@@ -454,6 +455,11 @@ int main (int argc, char *argv[])
             gOutputToCout = true;
             argc -= 1;
         }
+        else if (std::string(*it) == "--SCANONLY")
+        {
+            gScanOnly = true;
+            argc -= 1;
+        }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
@@ -639,11 +645,6 @@ fs::path makeNewTestRoot()
     fs::create_directories(p);
     assert(b);
     return p;
-}
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
-{
-    return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
 fs::path makeReusableClientFolder(const string& subfolder)
