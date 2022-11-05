@@ -4428,7 +4428,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
@@ -4466,7 +4466,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     // Prepare the file outside of the engine's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
@@ -4499,7 +4499,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     // Build the file somewhere the sync won't notice.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(path1, data0, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, client0->fsBasePath, stamp));
 
     // Move file into place.
     prepareForNodeUpdates();
@@ -5628,6 +5628,7 @@ TEST_F(SyncTest, BasicSync_SpecialCreateFile)
 }
 #endif
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
@@ -5672,6 +5673,7 @@ TEST_F(SyncTest, BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(model.removesynctrash("f"));
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
 }
+#endif
 
 namespace {
 
