@@ -2277,7 +2277,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     };
 
     // Do we need to upload an ignore file?
-#if 0
+#ifdef SRW_NEEDED_FOR_THIS_ONE
     if (syncOptions.uploadIgnoreFile)
     {
         auto ignorePath = fsBasePath / ".megaignore";
@@ -2882,6 +2882,29 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
         return false;
     }
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+
+    // Does this sync have a state cache?
+    if (!sync)
+        return true;
+
+    string statecachename = sync->getConfig().getSyncDbStateCacheName(sync->localroot->fsid_lastSynced, sync->getConfig().mRemoteNode, client.me);
+
+    StateCacheValidator validator;
+
+    // Try and load the state cache.
+    EXPECT_TRUE(validator.load(client, statecachename))
+        << "Sync "
+        << toHandle(backupId)
+        << ": Unable to load state cache: "
+        << statecachename;
+
+    // Does the state cache accurately reflect the LNT in memory?
+    EXPECT_TRUE(validator.compare(*sync->localroot))
+        << "Sync "
+        << toHandle(backupId)
+        << ": State cache mismatch.";
+#endif
     return true;
 }
 
@@ -4417,6 +4440,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 
     prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     // Wait for the engine to process any further changes.
@@ -4432,6 +4456,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     // Wait for the engine to process changes.
@@ -4440,7 +4465,11 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     addModelFile(model0, "d/d_0", "a", data0);
     addModelFile(model0, "d/d_1", "a", data1);
     addModelFile(model1, "d/d_0", "a", data0);
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+    addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
+#else
     addModelFile(model1, "d/d_1", "a", data0);
+#endif
     model1.ensureLocalDebrisTmpLock("d");
 
     confirmModels();
@@ -4455,6 +4484,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
     prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     // Process any further changes.
@@ -4470,6 +4500,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     // Wait for the engine to process our change.
@@ -4492,6 +4523,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
 
     prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     waitOnSyncs();
@@ -4504,6 +4536,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     // Move file into place.
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "b", path1);
+    client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
     // Wait for the engine to process our changes.
@@ -4618,6 +4651,8 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(!e) << "remove failed " << (clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
     ASSERT_GT(static_cast<unsigned int>(nRemoved), 0u) << e;
 
+    clientA1->triggerPeriodicScanEarly(backupId1);
+
     // let them catch up
     waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
@@ -4662,6 +4697,8 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     error_code rename_error;
     fs::rename(clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1", clientA1->syncSet(backupId1).localpath / "f_2_1", rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
+
+    clientA1->triggerPeriodicScanEarly(backupId1);
 
     // client1 should send a rename command to the API
     // both client1 and client2 should receive the corresponding actionpacket
@@ -5529,6 +5566,68 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), backupId2));
 }
 
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMoves)
+{
+    fs::path localtestroot = makeNewTestRoot();
+    unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+
+    // set up sync for A1, it should build matching local folders
+    handle backupId1 = pclientA1->setupSync_mainthread("sync1", "f", false, true);
+    ASSERT_NE(backupId1, UNDEF);
+    handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
+    ASSERT_NE(backupId2, UNDEF);
+    waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
+    pclientA1->logcb = clientA2.logcb = true;
+
+    auto client1LocalSyncRoot = pclientA1->syncSet(backupId1).localpath;
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2, true));
+
+    // save session A1
+    string session;
+    pclientA1->client.dumpsession(session);
+    fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
+
+    // logout A1 (but keep caches on disk)
+    pclientA1->localLogout();
+
+    // move f_0 into f_1 remote
+    ASSERT_TRUE(clientA2.movenode("f/f_0", "f/f_1"));
+
+    // move f_1 into f_0 locally
+    error_code rename_error;
+    fs::rename(client1LocalSyncRoot / "f_1", client1LocalSyncRoot / "f_0" / "f_1", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+
+    // get sync2 activity out of the way
+    waitonsyncs(std::chrono::seconds(4), &clientA2);
+
+    // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
+    pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+    ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
+    vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
+
+    ASSERT_EQ(waitResult[0].syncStalled, true);
+    ASSERT_EQ(2u, waitResult[0].stall.cloud.size());  // for now at least, reporting source and destination nodes for each move
+    ASSERT_EQ(2u, waitResult[0].stall.local.size());
+    ASSERT_EQ(waitResult[0].stall.cloud.begin()->first, "/mega_test_sync/f/f_0");
+    ASSERT_EQ(waitResult[0].stall.cloud.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
+    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(false), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(false), (client1LocalSyncRoot / "f_1").u8string() );
+}
+#endif
 
 TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
 {
@@ -6341,22 +6440,22 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
-/*
+#ifdef SRW_NEEDED_FOR_THIS_ONE
 TEST_F(SyncTest, DetectsAndReportsNameClashes)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
-    StandardClient client(TESTFOLDER, "c");
-
-    // Log in client.
-    ASSERT_TRUE(client.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    StandardClientInUse client = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+    ASSERT_TRUE(client->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(client));
 
     // Needed so that we can create files with the same name.
-    client.client.versions_disabled = true;
+    client->client.versions_disabled = true;
 
     // Populate local filesystem.
-    const auto root = TESTFOLDER / "c" / "s";
+    const auto root = client->fsBasePath / "s";
 
     fs::create_directories(root / "d" / "e");
 
@@ -6366,11 +6465,11 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     createNameFile(root / "d" / "e", "g%30");
 
     // Start the sync.
-    handle backupId1 = client.setupSync_mainthread("s", "x");
+    handle backupId1 = client->setupSync_mainthread("s", "x", false, true);
     ASSERT_NE(backupId1, UNDEF);
 
     // Give the client time to synchronize.
-    waitonsyncs(TIMEOUT, &client);
+    waitonsyncs(TIMEOUT, client);
 
     // Helpers.
     auto localConflictDetected = [](const NameConflict& nc, const LocalPath& name)
@@ -6382,69 +6481,63 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     };
 
     // Were any conflicts detected?
-    ASSERT_TRUE(client.conflictsDetected());
-
     // Can we obtain a list of the conflicts?
     list<NameConflict> conflicts;
-    ASSERT_TRUE(client.conflictsDetected(conflicts));
+    ASSERT_TRUE(client->conflictsDetected(conflicts));
     ASSERT_EQ(conflicts.size(), 2u);
-    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
+    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromRelativePath("d").prependNewWithSeparator(client->syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f%30", *client.fsaccess)));
-    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromPath("f0", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
+    ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
     ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
 
-    client.triggerPeriodicScanEarly(backupId1);
+    client->triggerPeriodicScanEarly(backupId1);
 
     // Resolve the f0 / f%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "f%30"));
 
     // Give the sync some time to think.
-    waitonsyncs(TIMEOUT, &client);
+    waitonsyncs(TIMEOUT, client);
 
     // We should still detect conflicts.
-    ASSERT_TRUE(client.conflictsDetected());
-
     // Has the list of conflicts changed?
     conflicts.clear();
-    ASSERT_TRUE(client.conflictsDetected(conflicts));
+    ASSERT_TRUE(client->conflictsDetected(conflicts));
     ASSERT_GE(conflicts.size(), 1u);
-    ASSERT_EQ(conflicts.front().localPath, LocalPath::fromPath("e", *client.fsaccess)
-        .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess))
-        .prependNewWithSeparator(client.syncByBackupId(backupId1)->localroot->localname));
+    ASSERT_EQ(conflicts.front().localPath, LocalPath::fromRelativePath("e")
+        .prependNewWithSeparator(LocalPath::fromRelativePath("d"))
+        .prependNewWithSeparator(client->syncByBackupId(backupId1)->localroot->localname));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
-    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g%30", *client.fsaccess)));
-    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromPath("g0", *client.fsaccess)));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g%30")));
+    ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g0")));
     ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
 
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
 
-    client.triggerPeriodicScanEarly(backupId1);
+    client->triggerPeriodicScanEarly(backupId1);
 
     // Give the sync some time to think.
-    waitonsyncs(TIMEOUT, &client);
+    waitonsyncs(TIMEOUT, client);
 
     // No conflicts should be reported.
-    ASSERT_FALSE(client.conflictsDetected());
-
     // Is the list of conflicts empty?
     conflicts.clear();
-    ASSERT_FALSE(client.conflictsDetected(conflicts));
+    ASSERT_FALSE(client->conflictsDetected(conflicts));
     ASSERT_EQ(conflicts.size(), 0u);
 
     // Create a remote name clash.
-    auto* node = client.drillchildnodebyname(client.gettestbasenode(), "x/d");
+    auto* node = client->drillchildnodebyname(client->gettestbasenode(), "x/d");
     ASSERT_TRUE(!!node);
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
-    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node));
 
     // Let the client attempt to synchronize.
-    waitonsyncs(TIMEOUT, &client);
+    waitonsyncs(TIMEOUT, client);
 
     // Have we detected any conflicts?
     conflicts.clear();
-    ASSERT_TRUE(client.conflictsDetected(conflicts));
+    ASSERT_TRUE(client->conflictsDetected(conflicts));
 
     // Does our list of conflicts include remotes?
     ASSERT_GE(conflicts.size(), 1u);
@@ -6455,41 +6548,43 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 0u);
 
     // Resolve the remote conflict.
-    ASSERT_TRUE(client.deleteremote("x/d/h"));
+    ASSERT_TRUE(client->deleteremote("x/d/h"));
 
     // Wait for the client to process our changes.
-    waitonsyncs(TIMEOUT, &client);
+    waitonsyncs(TIMEOUT, client);
 
     conflicts.clear();
-    client.conflictsDetected(conflicts);
-    ASSERT_EQ(0, conflicts.size());
+    client->conflictsDetected(conflicts);
+    ASSERT_EQ(0u, conflicts.size());
 
     // Conflicts should be resolved.
-    ASSERT_FALSE(client.conflictsDetected());
+    conflicts.clear();
+    ASSERT_FALSE(client->conflictsDetected(conflicts));
 }
-*/
+#endif
 
-// TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
+#ifdef SRW_NEEDED_FOR_THIS_ONE
+TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
+    StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    StandardClientInUse cd = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    // Log callbacks.
+    cu->logcb = true;
+    cd->logcb = true;
+    ASSERT_TRUE(cd->resetBaseFolderMulticlient(cu));
+    ASSERT_TRUE(cd->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cu));
+
     // Populate cloud.
     {
-        StandardClient cu(TESTFOLDER, "cu");
-
-        // Log callbacks.
-        cu.logcb = true;
-
-        // Log client in.
-        ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
-
         // Needed so that we can create files with the same name.
-        cu.client.versions_disabled = true;
+        cu->client.versions_disabled = true;
 
         // Create local test hierarchy.
-        const auto root = TESTFOLDER / "cu" / "x";
+        const auto root = cu->fsBasePath / "x";
 
         // d will be duplicated and generate a clash.
         fs::create_directories(root / "d");
@@ -6503,38 +6598,30 @@ TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
         // ff will be singular, no clash.
         ASSERT_TRUE(createNameFile(root, "ff"));
 
-        auto* node = cu.drillchildnodebyname(cu.gettestbasenode(), "x");
+        auto* node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
         ASSERT_TRUE(!!node);
 
         // Upload d twice, generate clash.
-        ASSERT_TRUE(cu.uploadFolderTree(root / "d", node));
-        ASSERT_TRUE(cu.uploadFolderTree(root / "d", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node));
 
         // Upload dd once.
-        ASSERT_TRUE(cu.uploadFolderTree(root / "dd", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "dd", node));
 
         // Upload f twice, generate clash.
-        ASSERT_TRUE(cu.uploadFile(root / "f", node));
-        ASSERT_TRUE(cu.uploadFile(root / "f", node));
+        ASSERT_TRUE(cu->uploadFile(root / "f", node));
+        ASSERT_TRUE(cu->uploadFile(root / "f", node));
 
         // Upload ff once.
-        ASSERT_TRUE(cu.uploadFile(root / "ff", node));
+        ASSERT_TRUE(cu->uploadFile(root / "ff", node));
     }
 
-    StandardClient cd(TESTFOLDER, "cd");
-
-    // Log callbacks.
-    cd.logcb = true;
-
-    // Log in client.
-    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-
     // Add and start sync.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, false);
+    handle backupId1 = cd->setupSync_mainthread("sd", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
 
     // Wait for initial sync to complete.
-    waitonsyncs(TIMEOUT, &cd);
+    waitonsyncs(TIMEOUT, cd);
 
     // Populate and confirm model.
     Model model;
@@ -6548,49 +6635,49 @@ TEST_F(SyncTest, DISABLED_DoesntDownloadFilesWithClashingNames)
     model.ensureLocalDebrisTmpLock("x");
 
     // Confirm the model.
-    ASSERT_TRUE(cd.confirmModel_mainthread(
+    ASSERT_TRUE(cd->confirmModel_mainthread(
                   model.findnode("x"),
                   backupId1,
                   false,
                   StandardClient::CONFIRM_LOCAL));
 
     // Resolve the name collisions.
-    ASSERT_TRUE(cd.deleteremote("x/d"));
-    ASSERT_TRUE(cd.deleteremote("x/f"));
+    ASSERT_TRUE(cd->deleteremote("x/d"));
+    ASSERT_TRUE(cd->deleteremote("x/f"));
 
     // Wait for the sync to update.
-    waitonsyncs(TIMEOUT, &cd);
+    waitonsyncs(TIMEOUT, cd);
 
     // Confirm that d and f have now been downloaded.
     model.findnode("x")->addkid(model.makeModelSubfolder("d"));
     model.findnode("x")->addkid(model.makeModelSubfile("f"));
 
     // Local FS, Local Tree and Remote Tree should now be consistent.
-    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
 // TODO: re-enable after sync rework is merged
-TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
+TEST_F(SyncTest, DoesntUploadFilesWithClashingNames)
 {
     const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
-    // Download client.
-    StandardClient cd(TESTFOLDER, "cd");
-    // Upload client.
-    StandardClient cu(TESTFOLDER, "cu");
+    StandardClientInUse cd = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
+    StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTFOLDER);
 
     // Log callbacks.
-    cd.logcb = true;
-    cu.logcb = true;
+    cd->logcb = true;
+    cu->logcb = true;
 
-    // Log in the clients.
-    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
-    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_EQ(cd.basefolderhandle, cu.basefolderhandle);
+    // Log in client.
+    ASSERT_TRUE(cd->resetBaseFolderMulticlient(cu));
+    ASSERT_TRUE(cd->makeCloudSubdirs("x", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cu));
+
+    ASSERT_EQ(cd->basefolderhandle, cu->basefolderhandle);
 
     // Populate the local filesystem.
-    const auto root = TESTFOLDER / "cu" / "su";
+    const auto root = cu->fsBasePath / "su";
 
     // Make sure clashing directories are skipped.
     fs::create_directories(root / "d0");
@@ -6608,13 +6695,13 @@ TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
     createNameFile(root / "d1", "f0");
 
     // Start the syncs.
-    handle backupId1 = cd.setupSync_mainthread("sd", "x", false, true);
-    handle backupId2 = cu.setupSync_mainthread("su", "x", false, false);
+    handle backupId1 = cd->setupSync_mainthread("sd", "x", false, true);
+    handle backupId2 = cu->setupSync_mainthread("su", "x", false, false);
     ASSERT_NE(backupId1, UNDEF);
     ASSERT_NE(backupId2, UNDEF);
 
     // Wait for the initial sync to complete.
-    waitonsyncs(TIMEOUT, &cu, &cd);
+    waitonsyncs(TIMEOUT, cu, cd);
 
     // Populate and confirm model.
     Model model;
@@ -6626,23 +6713,24 @@ TEST_F(SyncTest, DISABLED_DoesntUploadFilesWithClashingNames)
 
     model.ensureLocalDebrisTmpLock("root");
 
-    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("root"), backupId1));
+    ASSERT_TRUE(cd->confirmModel_mainthread(model.findnode("root"), backupId1));
 
     // Remove the clashing nodes.
     fs::remove_all(root / "d0");
     fs::remove_all(root / "f0");
 
-    cu.triggerPeriodicScanEarly(backupId2);
+    cu->triggerPeriodicScanEarly(backupId2);
 
     // Wait for the sync to complete.
-    waitonsyncs(TIMEOUT, &cd, &cu);
+    waitonsyncs(TIMEOUT, cd, cu);
 
     // Confirm that d0 and f0 have been downloaded.
     model.findnode("root")->addkid(model.makeModelSubfolder("d0"));
     model.findnode("root")->addkid(model.makeModelSubfile("f0", "f%30"));
 
-    ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2, true));
+    ASSERT_TRUE(cu->confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
+#endif
 
 TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 {
