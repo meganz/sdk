@@ -644,10 +644,10 @@ fs::path makeNewTestRoot()
     {
         moveToTrash(p);
     }
-    #ifndef NDEBUG
-    bool b =
-    #endif
-    fs::create_directories(p);
+
+    std::error_code e;
+    bool b = fs::create_directories(p, e);
+    out() << "Failed to create base directory for test at: " << p << ", error: " << e.message();
     assert(b);
     return p;
 }
