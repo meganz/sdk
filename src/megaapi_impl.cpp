@@ -8891,11 +8891,11 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
     waiter->notify();
 }
 
-void MegaApiImpl::rescanSync(MegaHandle backupId)
+void MegaApiImpl::rescanSync(MegaHandle backupId, bool reFingerprint)
 {
     // no need to go via the Request queue
     // (since syncs are threaded independently, no need to lock sdkMutex)
-    client->syncs.setSyncsNeedFullSync(true, backupId);
+    client->syncs.setSyncsNeedFullSync(true, reFingerprint, backupId);
 }
 
 MegaSyncList *MegaApiImpl::getSyncs()

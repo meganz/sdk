@@ -10768,7 +10768,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
         });
 }
 
-void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
+void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)
 {
     assert(!onSyncThread());
     queueSync([=](){
@@ -10784,6 +10784,10 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
                 if (andFullScan)
                 {
                     us->mSync->localroot->setScanAgain(false, true, true, 0);
+                    if (andReFingerprint)
+                    {
+                        us->mSync->localroot->setSubtreeNeedsRefingerprint();
+                    }
                 }
             }
         }

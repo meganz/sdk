@@ -628,7 +628,12 @@ void moveToTrash(const fs::path& p)
     {
         newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
     }
-    fs::rename(p, newpath);
+    std::error_code e;
+    fs::rename(p, newpath, e);
+    if (e)
+    {
+        LOG_err << "Failed to trash-rename " << p << " to " << newpath << ": " << e.message();
+    }
 }
 
 fs::path makeNewTestRoot()

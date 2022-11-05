@@ -838,6 +838,8 @@ struct MEGA_API LocalNode
 
     void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
 
+    void setSubtreeNeedsRefingerprint();
+
 private:
     struct
     {

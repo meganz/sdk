@@ -1050,7 +1050,8 @@ public:
     bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, Sync* sameSync, bool& unsureDueToIncompleteScanning);
 
     // manage syncdown flags inside the syncs
-    void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
+    // backupId of UNDEF to rescan all
+    void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>* conflicts) const;

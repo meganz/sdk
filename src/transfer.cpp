@@ -595,7 +595,7 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->syncs.setSyncsNeedFullSync(false, UNDEF);
+                client->syncs.setSyncsNeedFullSync(false, false, UNDEF);
             }
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
@@ -904,7 +904,7 @@ void Transfer::complete(TransferDbCommitter& committer)
 #ifdef ENABLE_SYNC
                     if (f->syncxfer)
                     {
-                        client->syncs.setSyncsNeedFullSync(false, UNDEF);
+                        client->syncs.setSyncsNeedFullSync(false, false, UNDEF);
                     }
                     else
 #endif

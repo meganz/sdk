@@ -5694,7 +5694,7 @@ void exec_syncrescan(autocomplete::ACState& s)
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*)&backupId, int(sizeof(backupId)));
 
-    client->syncs.setSyncsNeedFullSync(true, backupId);
+    client->syncs.setSyncsNeedFullSync(true, true, backupId);
 }
 
 #endif

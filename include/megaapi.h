@@ -14460,8 +14460,9 @@ class MegaApi
         * about when scanning is going on, or is resolved.
         *
         * @param backupId Identifier of the single Sync, or INVALID_HANDLE to rescan all.
+        * @param reFingerprint If true, files on disk will be re-fingerprinted in case of changes not detectable by mtime etc
         */
-        void rescanSync(MegaHandle backupId);
+        void rescanSync(MegaHandle backupId, bool reFingerprint);
 
         /**
          * @brief
