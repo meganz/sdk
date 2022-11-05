@@ -632,6 +632,7 @@ struct StandardClient : public MegaApp
     bool setSyncPausedByBackupId(handle id, bool pause);
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
     bool enableSyncByBackupId(handle id, const string& logname);
+    void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
     handle backupIdForSyncPath(fs::path path);
 
     enum Confirm
@@ -763,6 +764,7 @@ struct StandardClient : public MegaApp
     std::function<void(const LocalPath&)> mOnPutnodesBegin;
 #endif // ! NDEBUG
 
+    void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
 
     void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
     bool ipcr(handle id, ipcactions_t action);

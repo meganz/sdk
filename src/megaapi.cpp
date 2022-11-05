@@ -3488,6 +3488,10 @@ int MegaApi::isNodeSyncable(MegaNode *node)
     return pImpl->isNodeSyncable(node);
 }
 
+MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
+    return pImpl->isNodeSyncableWithError(node);
+}
+
 void MegaApi::setLegacyExcludedNames(vector<string> *excludedNames)
 {
     pImpl->setLegacyExcludedNames(excludedNames);

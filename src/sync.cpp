@@ -662,11 +662,16 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
                 readstatecache();
             }
         }
-    }
-    us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
+        us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
 
-    mCaseInsensitive = determineCaseInsenstivity(false);
-    LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+        mCaseInsensitive = determineCaseInsenstivity(false);
+        LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+    }
+    else
+    {
+        LOG_err << "Could not open sync root folder: " << mLocalPath;
+        us.mConfig.mRunState = SyncRunState::Disable;
+    }
 }
 
 Sync::~Sync()
@@ -3253,6 +3258,13 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
+
+    if (us.mConfig.mRunState == SyncRunState::Disable)
+    {
+        LOG_err << "Could not determine fsid of sync root folder.";
+        return fail(API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID);
+    }
+
     debugLogHeapUsage();
 
     us.mSync->purgeStaleDownloads();

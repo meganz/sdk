@@ -14574,6 +14574,29 @@ class MegaApi
         int isNodeSyncable(MegaNode *node);
 
         /**
+         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         *
+         * - MegaError::API_EACCESS:
+         *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
+         *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
+         *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+         *              SyncError: ACTIVE_SYNC_SAME_PATH - There's a synced node at the path to be synced
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
+         *          caller must free
+
+         */
+        MegaError* isNodeSyncableWithError(MegaNode* node);
+
+        /**
          * @brief Get the synchronization identified with a backupId
          *
          * You take the ownership of the returned value

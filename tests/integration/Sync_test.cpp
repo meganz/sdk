@@ -1063,9 +1063,9 @@ ClientManager::~ClientManager()
     LOG_debug << "ClientManager shutdown complete";
 }
 
-void StandardClient::ResultProc::prepresult(StandardClient::resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
+void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
 {
-    if (rpe != StandardClient::COMPLETION)
+    if (rpe != COMPLETION)
     {
         lock_guard<recursive_mutex> g(mtx);
         auto& perTypeTags = m[rpe];
@@ -1085,10 +1085,10 @@ void StandardClient::ResultProc::prepresult(StandardClient::resultprocenum rpe, 
     client.client.waiter->notify();
 }
 
-void StandardClient::ResultProc::processresult(StandardClient::resultprocenum rpe, error e, handle h)
+void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle h)
 {
     int tag = client.client.restag;
-    if (tag == 0 && rpe != StandardClient::CATCHUP)
+    if (tag == 0 && rpe != CATCHUP)
     {
         //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag; // too many of those to output
         return;
@@ -1103,7 +1103,7 @@ void StandardClient::ResultProc::processresult(StandardClient::resultprocenum rp
     lock_guard<recursive_mutex> g(mtx);
     auto& entry = m[rpe];
 
-    if (rpe == StandardClient::CATCHUP)
+    if (rpe == CATCHUP)
     {
         while (!entry.empty())
         {
@@ -2077,6 +2077,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     file->mCompletion = std::move(completion);
     file->name = targetName;
     file->setLocalname(LocalPath::fromAbsolutePath(sourcePath.u8string()));
+
     // Kick off the upload. Client takes ownership of file.
     TransferDbCommitter committer(client.tctable);
 
@@ -4210,14 +4211,18 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
 
 bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 {
-    auto path = LocalPath::fromAbsolutePath(drivePath.u8string());
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.backupOpenDrive(drivePath, std::move(result));
+    }, __FILE__, __LINE__);
 
-    return withWait<bool>([&](PromiseBoolSP result) {
-        auto callback = [result](Error error) {
-            result->set_value(error == API_OK);
-        };
+    return result.get();
+}
 
-        client.syncs.backupOpenDrive(path, std::move(callback));
+void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
+{
+    auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
+    client.syncs.backupOpenDrive(localDrivePath, [result](Error e){
+        result->set_value(e == API_OK);
     });
 }
 
@@ -5063,7 +5068,7 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA1->waitForNodesUpdated(60));
     ASSERT_TRUE(clientA2->waitForNodesUpdated(60));
 
-    waitonsyncs(std::chrono::seconds(30), clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
@@ -5111,7 +5116,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(20), clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));

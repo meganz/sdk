@@ -1183,22 +1183,30 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
 int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
 {
+    MegaError *merror = isNodeSyncableWithError(megaNode);
+    int r = merror->getErrorCode();
+    delete merror;
+    return r;
+}
+
+MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
     if (!megaNode)
     {
-        return MegaError::API_EARGS;
+        return new MegaErrorPrivate(MegaError::API_EARGS);
     }
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
+    Node* node = client->nodebyhandle(megaNode->getHandle());
     if (!node)
     {
         sdkMutex.unlock();
-        return MegaError::API_ENOENT;
+        return new MegaErrorPrivate(MegaError::API_ENOENT);
     }
 
-    error e = client->isnodesyncable(node);
+    SyncError se = SyncError::NO_SYNC_ERROR;
+    error e = client->isnodesyncable(node, nullptr, &se);
     sdkMutex.unlock();
-    return e;
+    return new MegaErrorPrivate(e, se);
 }
 
 bool MegaApiImpl::isScanning()

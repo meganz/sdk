@@ -407,12 +407,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 attributeValue = request->getName() ? request->getName() : "";
             }
-#ifdef ENABLE_SYNC
             else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
             {
                 mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
             }
-#endif // ENABLE_SYNC
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 attributeValue = request->getText() ? request->getText() : "";
@@ -884,11 +882,13 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
 void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change)
 {
     // if change == -1 this method just checks if we have received onNodesUpdate for the node specified in target
-    ASSERT_TRUE(nodes && mApi.size() > apiIndex && target != INVALID_HANDLE);
+    ASSERT_TRUE(nodes && mApi.size() > apiIndex && (target != INVALID_HANDLE
+            || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW)));
     for (int i = 0; i < nodes->size(); i++)
     {
         MegaNode* n = nodes->get(i);
-        if (n->getHandle() == target && (n->hasChanged(change) || change == -1))
+        if ((n->getHandle() == target && (n->hasChanged(change) || change == -1))
+                || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW && n->hasChanged(change)))
         {
             mApi[apiIndex].nodeUpdated = true;
         }
@@ -936,6 +936,7 @@ void SdkTest::deleteFile(string filename)
     std::error_code ignoredEc;
     fs::remove(p, ignoredEc);
 }
+
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);
@@ -1967,7 +1968,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
     LOG_info << "___TEST Resume session___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-     unique_ptr<char[]> session(dumpSession());
+    unique_ptr<char[]> session(dumpSession());
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
@@ -2871,6 +2872,46 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
+    // --- Move share file from different subtree, same file and fingerprint ---
+    // Pre-requisite, the movement finds a file with same name and fp at target folder
+    // Since the source and target folders belong to different trees, it will attempt to copy+delete
+    // (hfile1 copied to rubbish, renamed to "copy", copied back to hfolder2, move
+    // Since there is a file with same name and fingerprint, it will skip the copy and will do delete
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandle = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, megaApi[1]->getNodeByHandle(hfile2), megaApi[1]->getNodeByHandle(hfolder1), "copy")) << "Copying shared file (not owned) to same place failed";
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
+    mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandleInRubbish = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandleInRubbish, megaApi[1]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Copying shared file (not owned) to Rubbish bin failed";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, megaApi[0]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Moving shared file, same name and fingerprint";
+    ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
+
     // --- Move shared file (not owned) to Rubbish bin ---
     MegaHandle movedNodeHandle = UNDEF;
     ASSERT_EQ(API_OK, doMoveNode(1, &movedNodeHandle, megaApi[0]->getNodeByHandle(hfile2), megaApi[1]->getRubbishNode())) << "Moving shared file (not owned) to Rubbish bin failed";
@@ -3106,17 +3147,22 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(2, false));
 
-
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(2, mApi[2].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
 
     WaitMillisec(3000);
 
-    ASSERT_EQ(API_OK, synchronousShare(0, shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
-    ASSERT_EQ(API_OK, synchronousShare(0, subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 0u);
 
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
-                           && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
+    ASSERT_EQ(API_OK, synchronousShare(0, shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
+
+    ASSERT_EQ(API_OK, synchronousShare(0, subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
+
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 1u);
 
     unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
     unique_ptr<MegaNodeList> nl2(megaApi[2]->getInShares(megaApi[2]->getContact(mApi[0].email.c_str())));
@@ -5321,15 +5367,14 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
 }
 
-// TODO: re-enable before merging
-/*TEST_F(SdkTest, SdkGetBanners)
+TEST_F(SdkTest, SdkGetBanners)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST GetBanners___";
 
     auto err = synchronousGetBanners(0);
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
-}*/
+}
 
 TEST_F(SdkTest, SdkBackupFolder)
 {
@@ -5708,6 +5753,8 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
 TEST_F(SdkTest, SdkDeviceNames)
 {
+    /// Run this before other tests that use device name, like SdkBackupFolder
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
@@ -5793,6 +5840,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
+#endif
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
@@ -5819,7 +5867,6 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
     EXPECT_NE(n, nullptr);
 }
-#endif
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()
 {
@@ -6677,7 +6724,102 @@ TEST_F(SdkTest, SyncBasicOperations)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
+TEST_F(SdkTest, SyncIsNodeSyncable)
+{
+    LOG_info << "___TEST SyncIsNodeSyncable___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    fs::path basePath = "SyncIsNodeSyncable";
+    std::string syncFolder1 =   "sync1";
+    std::string syncFolder2 =   "sync2"; // <-- synced
+    std::string  syncFolder2a =   "2a";
+    std::string  syncFolder2b =   "2b";
+    std::string syncFolder3 =   "sync3";
+
+    fs::path basePath1 = basePath / syncFolder1;
+    fs::path basePath2 = basePath / syncFolder2;
+    fs::path basePath2a = basePath / syncFolder2 / syncFolder2a;
+    fs::path basePath2b = basePath / syncFolder2 / syncFolder2b;
+    fs::path basePath3 = basePath / syncFolder3;
+    const auto localPath1 = fs::current_path() / basePath1;
+    const auto localPath2 = fs::current_path() / basePath2;
+    const auto localPath2a = fs::current_path() / basePath2a;
+    const auto localPath2b = fs::current_path() / basePath2b;
+    const auto localPath3 = fs::current_path() / basePath3;
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+
+    // Create local directories and a files.
+    fs::create_directories(localPath1);
+    ASSERT_TRUE(createFile((localPath1 / "fileTest1").u8string(), false));
+    fs::create_directories(localPath2);
+    ASSERT_TRUE(createFile((localPath2 / "fileTest2").u8string(), false));
+    fs::create_directories(localPath2a);
+    ASSERT_TRUE(createFile((localPath2a / "fileTest2a").u8string(), false));
+    fs::create_directories(localPath2b);
+    ASSERT_TRUE(createFile((localPath2b / "fileTest2b").u8string(), false));
+    fs::create_directories(localPath3);
+
+    LOG_verbose << "Sync.IsNodeSyncable:  Creating the remote folders to be synced to.";
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+
+    // SyncIsNodeSyncable
+    MegaHandle nh = createFolder(0, basePath.string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    // Sync 1
+    nh = createFolder(0, syncFolder1.c_str(), remoteBaseNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode1.get(), nullptr);
+    // Sync 2
+    nh = createFolder(0, syncFolder2.c_str(), remoteBaseNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode2.get(), nullptr);
+    // Sync 3
+    nh = createFolder(0, syncFolder3.c_str(), remoteBaseNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode3(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode3.get(), nullptr);
+    // Sync 2a
+    nh = createFolder(0, syncFolder2a.c_str(), remoteBaseNode2.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode2a(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode2a.get(), nullptr);
+    // Sync 2b
+    nh = createFolder(0, syncFolder2b.c_str(), remoteBaseNode2.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode2b(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode2b.get(), nullptr);
+
+    MegaHandle handle2 = INVALID_HANDLE;
+    int err = synchronousSyncFolder(0, &handle2,  MegaSync::SyncType::TYPE_TWOWAY, localPath2.u8string().c_str(), "sync test", remoteBaseNode2.get()->getHandle(), nullptr);
+    /// <summary>
+    ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
+
+    MegaNode* node3 = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath3.string(), '\\', '/')).c_str());
+    ASSERT_NE(node3, (MegaNode*)NULL);
+    unique_ptr<MegaError> error(megaApi[0]->isNodeSyncableWithError(node3));
+    ASSERT_EQ(error->getErrorCode(), API_OK);
+    ASSERT_EQ(error->getSyncError(), NO_SYNC_ERROR);
+
+    MegaNode* node2a = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath2a.string(), '\\', '/')).c_str());
+    // on Windows path separator is \ but API takes /
+    ASSERT_NE(node2a, (MegaNode*)NULL);
+    error.reset(megaApi[0]->isNodeSyncableWithError(node2a));
+    ASSERT_EQ(error->getErrorCode(), API_EEXIST);
+    ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_ABOVE_PATH);
+
+    MegaNode* baseNode = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath.string(), '\\', '/')).c_str());
+    // on Windows path separator is \ but API takes /
+    ASSERT_NE(baseNode, (MegaNode*)NULL);
+    error.reset(megaApi[0]->isNodeSyncableWithError(baseNode));
+    ASSERT_EQ(error->getErrorCode(), API_EEXIST);
+    ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_BELOW_PATH);
+}
 
 struct SyncListener : MegaListener
 {
@@ -6985,6 +7127,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
+    resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes three active syncs
     ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
@@ -7182,9 +7325,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     //    // Check if a locallogout keeps the sync configuration if the remote is removed.
     //    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-    //    ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
+    //    ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
     //    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
-    //    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
+    //    ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
     //    ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
     //}
 
@@ -8023,7 +8166,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     // in fact we get EACCESS - maybe this API feature is not migrated to live yet?
     ASSERT_EQ(API_OK, ErrorCodes(tt.waitForResult(600))) << "Upload transfer failed";
 
-    //// --- Check that node has been created in rubbish bin ---
+    // --- Check that node has been created in rubbish bin ---
     std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(tt.resultNodeHandle));
     ASSERT_TRUE(n) << "Error retrieving new created node";
 
@@ -8034,7 +8177,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
             << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
             << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
 
-    //// --- Clean rubbish bin for secondary account ---
+    // --- Clean rubbish bin for secondary account ---
     auto err = synchronousCleanRubbishBin(1);
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 }

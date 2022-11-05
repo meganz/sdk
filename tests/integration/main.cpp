@@ -16,7 +16,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
-bool gScanOnly = false;
+bool gScanOnly = false; // will be used in SRW
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 
