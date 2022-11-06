@@ -624,15 +624,25 @@ void moveToTrash(const fs::path& p)
     fs::path trashpath(TestFS::GetTrashFolder());
     fs::create_directory(trashpath);
     fs::path newpath = trashpath / p.filename();
-    for (int i = 2; fs::exists(newpath); ++i)
+    int errcount = 0;
+    for (int i = 2; errcount < 20; ++i)
     {
+        if (!fs::exists(p)) break;
+
         newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
-    }
-    std::error_code e;
-    fs::rename(p, newpath, e);
-    if (e)
-    {
-        LOG_err << "Failed to trash-rename " << p << " to " << newpath << ": " << e.message();
+
+        if (!fs::exists(newpath))
+        {
+            std::error_code e;
+            fs::rename(p, newpath, e);
+            if (e)
+            {
+                LOG_err << "Failed to trash-rename " << p << " to " << newpath << ": " << e.message();
+                WaitMillisec(500);
+                errcount += 1;
+            }
+            else break;
+        }
     }
 }
 
@@ -647,7 +657,7 @@ fs::path makeNewTestRoot()
 
     std::error_code e;
     bool b = fs::create_directories(p, e);
-    out() << "Failed to create base directory for test at: " << p << ", error: " << e.message();
+    if (!b) { out() << "Failed to create base directory for test at: " << p << ", error: " << e.message(); }
     assert(b);
     return p;
 }
