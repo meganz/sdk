@@ -1180,6 +1180,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 {
     client.clientname = clientname + " ";
     client.syncs.mDetailedSyncLogging = true;
+    g_netLoggingOn = true;
 #ifdef GFX_CLASS
     gfx.startProcessingThread();
 #endif
