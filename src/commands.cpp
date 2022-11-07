@@ -9441,7 +9441,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     handle schedId = schedMeeting->schedId();
     handle parentSchedId = schedMeeting->parentSchedId();
 
-    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)JCHECK
+    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)
     cmd("mcsmp");
 
     // required params
