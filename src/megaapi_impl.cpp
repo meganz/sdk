@@ -12310,7 +12310,7 @@ bool SearchTreeProcessor::processNode(Node* node)
     if (node->type <= FOLDERNODE && (!mSearch || strcasestr(node->displayname(), mSearch) != NULL))
     {
         // If no search string provided (filter by node type), or search string match with node name
-        if (node->getMimeType() == mMimeType)
+        if (mMimeType == MimeType_t::MIME_TYPE_UNKNOWN || node->getMimeType() == mMimeType)
         {
             mResults.push_back(node);
         }
