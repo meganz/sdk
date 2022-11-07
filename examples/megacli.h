@@ -264,6 +264,7 @@ struct DemoApp : public MegaApp
     void reqstat_progress(int) override;
 
     void reload(const char*) override;
+    void reloading() override;
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;

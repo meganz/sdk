@@ -4368,6 +4368,7 @@ public:
 #endif
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
+        EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
     };
 
     virtual ~MegaEvent();
@@ -7247,6 +7248,12 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -7894,6 +7901,12 @@ class MegaListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event

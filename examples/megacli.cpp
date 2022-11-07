@@ -8872,6 +8872,11 @@ void DemoApp::reload(const char* reason)
     cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
 }
 
+void DemoApp::reloading()
+{
+    cout << "Reload forced from server. Waiting for response..." << endl;
+}
+
 // reload initiated
 void DemoApp::clearing()
 {

@@ -14860,6 +14860,12 @@ void MegaApiImpl::reload(const char*)
     fireOnReloadNeeded();
 }
 
+void MegaApiImpl::reloading()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_RELOADING);
+    fireOnEvent(event);
+}
+
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
@@ -33589,6 +33595,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
+        case MegaEvent::EVENT_RELOADING: return "RELOADING";
     }
 
     return "UNKNOWN";
