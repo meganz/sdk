@@ -3956,7 +3956,7 @@ class MegaRequest
             TYPE_ADD_UPDATE_SCHEDULED_MEETING                               = 157,
             TYPE_DEL_SCHEDULED_MEETING                                      = 158,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 159,
-            TYPE_FETCH_SCHEDULED_MEETING_EVENTS                             = 160,
+            TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES                        = 160,
             TOTAL_OF_REQUEST_TYPES                                          = 161,
         };
 

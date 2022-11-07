@@ -4059,7 +4059,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
-        case TYPE_FETCH_SCHEDULED_MEETING_EVENTS: return "FETCH_SCHEDULED_MEETING_EVENTS";
+        case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
     }
     return "UNKNOWN";
 }
@@ -10726,7 +10726,7 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
 
 void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
     request->setNodeHandle(chatid);
     request->setName(since);
     request->setEmail(until);
@@ -23640,7 +23640,7 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
-        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS:
+        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES:
         {
             handle chatid = request->getNodeHandle();
             const char* since = request->getName();
