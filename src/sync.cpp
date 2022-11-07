@@ -8443,6 +8443,8 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
             if (row.syncNode->rare().moveToHere) immediateStall = false;
         }
 
+        SYNC_verbose << "both sides mismatch. Immediate: " << immediateStall << " at " << logTriplet(row, fullPath);
+
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, immediateStall, true,
             {fullPath.cloudPath},

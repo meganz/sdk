@@ -3321,7 +3321,7 @@ bool StandardClient::setattr(const CloudItem& item, attr_map&& updates)
             client.setattr(std::move(item), std::move(updates), result);
         }, __FILE__, __LINE__);
 
-    auto status = result.wait_for(DEFAULTWAIT);
+    auto status = result.wait_for(std::chrono::seconds(90));   // allow for up to 60 seconds of unexpected -3s on all channels
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)
@@ -12543,7 +12543,7 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     ASSERT_NE(id, UNDEF);
 
     // Wait for synchronization to complete.
-    waitOnSyncs(cdu);
+    waitonsyncs(std::chrono::seconds(30), cdu);  // 16 was too short, when an upload failed and retried, succeeded on 2nd go but did not get to putnodes in time
 
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
@@ -18517,6 +18517,7 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     // Set up the sync and see how it deals with those (may vary by platform, Mac auto normalizes filesnames for example (with some other normalization than we chose))
     auto id = client->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
+    WaitMillisec(1000);
 
     // Wait for the synchronization to complete.
     auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
