@@ -10422,6 +10422,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                         auxJson->leaveobject();
                     }
 
+                    // note: we need to B64 decode the following params: timezone, title, description, attributes
                     std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting(chatid, Base64::atob(timezone), startDateTime, endDateTime,
                                          Base64::atob(title), Base64::atob(description), organizerUserId, schedId,
                                          parentSchedId, cancelled, Base64::atob(attributes),

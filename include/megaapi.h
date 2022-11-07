@@ -2690,9 +2690,9 @@ public:
     virtual MegaHandle parentSchedId() const;
 
     /**
-     * @brief Returns the time zone B64 encoded
+     * @brief Returns the time zone
      *
-     * @return time zone B64 encoded
+     * @return time zone
      */
     virtual const char* timezone() const;
 
@@ -2711,23 +2711,23 @@ public:
     virtual const char* endDateTime() const;
 
     /**
-     * @brief Returns the scheduled meeting title B64 encoded
+     * @brief Returns the scheduled meeting title
      *
-     * @return The title of the scheduled meeting B64 encoded
+     * @return The title of the scheduled meeting
      */
     virtual const char* title() const;
 
     /**
-     * @brief Returns the scheduled meeting description B64 encoded
+     * @brief Returns the scheduled meeting description
      *
-     * @return The description of the scheduled meeting B64 encoded
+     * @return The description of the scheduled meeting
      */
     virtual const char* description() const;
 
     /**
-     * @brief Returns additional scheduled meetings attributes B64 encoded
+     * @brief Returns additional scheduled meetings attributes
      *
-     * @return Additional scheduled meetings attributes B64 encoded
+     * @return Additional scheduled meetings attributes
      */
     virtual const char* attributes() const;
 
