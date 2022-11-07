@@ -1039,12 +1039,21 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
         string obfuscatedPass;
         for (auto c : pass)
         {
-            obfuscatedPass += "/";
+            obfuscatedPass += "*";
             obfuscatedPass += c;
-            obfuscatedPass += "\\";
+            obfuscatedPass += "&";
         }
 
-        cout << "Using test account " << loginIndex << " " << user << " " << obfuscatedPass << endl;
+        string obfuscatedUser;
+        for (auto c : user)
+        {
+            obfuscatedUser += "%";
+            obfuscatedUser += c;
+            obfuscatedUser += "$";
+        }
+
+        cout << "[       OK ] " << clientname << " is on " << obfuscatedUser << " " << obfuscatedPass << endl;
+        LOG_info << clientname << " is on " << obfuscatedUser << " " << obfuscatedPass;
         declaredTestAccounts.insert(user);
     }
 
@@ -10756,7 +10765,11 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
             auto config = testcase.client1().syncConfigByBackupID(testcase.backupId);
 
             // Is the sync monitoring as it should be?
-            if (config.getBackupState() != SYNC_BACKUP_MONITOR) return false;
+            if (config.getBackupState() != SYNC_BACKUP_MONITOR)
+            {
+                LOG_warn << "Backup state is not SYNC_BACKUP_MONITOR, for test " << testcase.name() << ". actual state: " << config.getBackupState();
+                return false;
+            }
         }
 
         // Everyone's monitoring as they should be.
@@ -17435,6 +17448,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Populate local filesystem.
     Model model;
 
+    LOG_info << "test adds file f, content 'x'.  Will cause upload";
     model.addfolder("d");
     model.addfile("f", "x");
     model.generate(client->fsBasePath / "s");
@@ -17454,6 +17468,9 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
 
     // Signal the waiter when the putnodes request is sent.
     auto putnodesBeginHandler = [&](const LocalPath&) {
+
+        LOG_info << "test detected putnodes begin";
+
         // Let the test thread know it can continue.
         notifier.set_value();
 
@@ -17464,14 +17481,14 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Hook the putnodes callback.
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // Make a local change for the engine to upload.
+    LOG_info << "test updates file f, content 'y'.  Will cause upload";
     model.addfile("f", "y");
     model.generate(client->fsBasePath / "s");
 
     // Wait for the engine to process our changes.
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Move the file elsewhere.
+    LOG_info << "test Move the file elsewhere locally : s/f to s/d/f";
     fs::rename(client->fsBasePath / "s" / "f",
                client->fsBasePath / "s" / "d" / "f");
 
@@ -17491,14 +17508,14 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Hook the putnodes callback.
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // File d/f already exists - update content from "y" to "z".  Sync will upload, ending in putnodes
+    LOG_info << "test File d/f already exists - update content from `y` to `z`.  Sync will upload, ending in putnodes";
     model.addfile("d/f", "z");
     model.generate(client->fsBasePath / "s");
 
     // Wait for the engine to send the putnodes request.
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Move d/f into its parent folder. Sync will generate another putnodes, somewhat contrary to the other
+    LOG_info << "test Moves d/f into its parent folder. Sync will generate another putnodes, somewhat contrary to the other";
     model.movenode("d/f", "");
 
     fs::rename(client->fsBasePath / "s" / "d" / "f",
