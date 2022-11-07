@@ -7758,6 +7758,7 @@ void exec_mediainfo(autocomplete::ACState& s)
                     }
                 }
                 break;
+            case SETNODE:
             case TYPE_DONOTSYNC:
             case TYPE_SPECIAL:
             case TYPE_UNKNOWN:
