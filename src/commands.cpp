@@ -9334,7 +9334,7 @@ CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool isExportSet, st
 {
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
-    if (!isExportSet) arg("r", 1);
+    if (!isExportSet) arg("d", 1);
 
     notself(cl); // don't process its Action Packet after sending this
 }
