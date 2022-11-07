@@ -6,7 +6,7 @@ Build-Depends:  debhelper,
                 libtool,
                 dh-autoreconf,
                 cdbs,
-                python
+                python | python2 | python3
 
 Package: pdfium-mega
 Architecture: any

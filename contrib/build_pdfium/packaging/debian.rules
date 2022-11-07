@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 FMEDIAINFO := $(shell dpkg -l | grep mediainfo >/dev/null && echo "-i" || echo " ")
+DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 21.10\|Kinetic Kudu\|Ubuntu 22\|Jammy Jellyfish\|Impish Indri" >/dev/null && echo "-- -Zxz" || echo "")
+
 
 build: build-stamp
 build-stamp:
@@ -7,7 +9,7 @@ build-stamp:
 	./depot_tools/ninja -C out pdfium
 	touch build-stamp
 	#clean all unrequired stuff
-	rm -rf `ls | grep -v "out\|public"`
+	#rm -rf `ls | grep -v "out\|public"`
 
 clean:
 	dh_testdir
@@ -50,7 +52,7 @@ binary-arch: build install
 	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
-	dh_builddeb
+	dh_builddeb $(DPKGXZ)
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install
