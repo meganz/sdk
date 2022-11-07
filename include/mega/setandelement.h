@@ -42,6 +42,7 @@ namespace mega {
         const handle& id() const { return mId; }
 
         // get key used for encrypting attrs
+        // SETNODEKEYLENGTH at types.h (128 = SymmCipher::KEYLENGTH)
         const std::string& key() const { return mKey; }
 
         // get timestamp
@@ -79,6 +80,7 @@ namespace mega {
         std::string encryptAttributes(std::function<std::string(const string_map&, const std::string&)> f) const;
 
         static const int HANDLESIZE = 8;
+        static const int PUBLICHANDLESIZE = 6;
 
     protected:
         CommonSE() = default;

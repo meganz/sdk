@@ -1729,6 +1729,7 @@ public:
     static const int CHATLINKHANDLE = 6;
     static const int SETHANDLE = Set::HANDLESIZE;
     static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
+    static const int PUBLICSETHANDLE = Set::PUBLICHANDLESIZE;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2086,7 +2087,7 @@ public:
 
     void exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion);
 
-    string getPublicSetLink(handle sid, bool isExportSet) const;
+    string getPublicSetLink(handle sid, bool isExportSet, const string& key) const;
 
     // returns error code and public handle for the link provided as a param
     error startSetPreview(const char* publicSetLink, std::function<void(Error, Set*, map<handle, SetElement>*)>);
@@ -2106,6 +2107,7 @@ private:
     error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
     error readElement(JSON& j, SetElement& el);
     error readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved);
+    error readSetPublicHandles(JSON&j, map<handle, Set>& sets);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
@@ -2138,7 +2140,7 @@ private:
     struct SetLink
     {
         handle mPublicId = UNDEF;
-        SymmCipher mPublicKey;
+        string mPublicKey;
         string mPublicLink;
         Set mSet;
         map<handle, SetElement> mElements;

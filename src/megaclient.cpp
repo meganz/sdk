@@ -5149,6 +5149,10 @@ bool MegaClient::procsc()
                                 sc_asp();
                                 break;
 
+                            case MAKENAMEID3('a', 's', 's'):
+                                sc_ass();
+                                break;
+
                             case MAKENAMEID3('a', 's', 'r'):
                                 // removal of a Set
                                 sc_asr();
@@ -17764,8 +17768,7 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
     auto clientUpdateOnCompletion =
         [completion, this](Error e, Set* s, map<handle, SetElement>* els)
         {
-            assert(s && els);
-            if ((e == API_OK) && s && els)
+            if ((e == API_OK) && s && els && inSetPreviewMode())
             {
                 auto& previewSet = mPreviewSet->mSet;
                 previewSet = *s;
@@ -17926,6 +17929,15 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
             break;
         }
 
+        case MAKENAMEID1('p'):
+        {
+            // precondition: sets which ph is coming are already read and in memory
+            error e = readSetPublicHandles(j, newSets);
+            if (e != API_OK)
+                return e;
+            break;
+        }
+
         default: // skip unknown member
             if (!j.storeobject())
             {
@@ -17971,14 +17983,38 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
 
 error MegaClient::decryptSetData(Set& s)
 {
-    if (!s.id() || s.id() == UNDEF || s.key().empty())
+    if (!s.id() || s.id() == UNDEF)
     {
         LOG_err << "Sets: Missing mandatory Set data";
         return API_EINTERNAL;
     }
 
-    // decrypt Set key using the master key
-    s.setKey(decryptKey(s.key(), key));
+    if (inSetPreviewMode())
+    {
+        if ((mPreviewSet->mSet.id() == UNDEF)    // first time receiving Set data for preview Set
+            || mPreviewSet->mSet.id() == s.id()) // followup receiving Set data for preview Set
+        {
+            s.setKey(mPreviewSet->mPublicKey); // already decrypted
+            s.setPublicId(mPreviewSet->mPublicId);
+        }
+        else
+        {
+            LOG_err << "Sets: Data for Set |" << toHandle(s.id()) << "| fetched while public Set preview mode active for Set |"
+                    << toHandle(mPreviewSet->mSet.id()) << "|\n";
+            return API_EARGS;
+        }
+    }
+    else
+    {
+        if (s.key().empty())
+        {
+            LOG_err << "Sets: Missing mandatory Set key";
+            return API_EINTERNAL;
+        }
+
+        // decrypt Set key using the master key
+        s.setKey(decryptKey(s.key(), key));
+    }
 
     // decrypt attrs
     if (s.hasEncrAttrs())
@@ -18111,6 +18147,12 @@ error MegaClient::readSet(JSON& j, Set& s)
         case MAKENAMEID2('i', 'd'):
             s.setId(j.gethandle(MegaClient::SETHANDLE));
             break;
+
+        case MAKENAMEID2('p', 'h'):
+        {
+            s.setPublicId(j.gethandle(MegaClient::PUBLICSETHANDLE)); // overwrite if existed
+            break;
+        }
 
         case MAKENAMEID2('a', 't'):
         {
@@ -18512,7 +18554,7 @@ error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemov
             break;
 
         case MAKENAMEID2('p', 'h'):
-            s.setPublicId(j.gethandle(MegaClient::SETHANDLE)); // overwrite if existed
+            s.setPublicId(j.gethandle(MegaClient::PUBLICSETHANDLE)); // overwrite if existed
             break;
 
         case MAKENAMEID2('t', 's'):
@@ -18526,6 +18568,7 @@ error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemov
             s.setPublicId(UNDEF);
             break;
         }
+
         case MAKENAMEID1('c'):
         {
             auto& exportRemovalReason = exportRemoved.second;
@@ -18534,15 +18577,86 @@ error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemov
              * Other => ETD / ATD / dispute */
             break;
         }
+
+        default: // skip 'i' and any unknown/unexpected member
+        {
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse Set";
+                return API_EINTERNAL;
+            }
+
+            LOG_debug << "Sets: Unknown member received in 'ass' action packet";
+            break;
+        }
+
         case EOO:
             return API_OK;
 
-        default:
-            LOG_err << "Sets: Unknown member received in 'ass' action packet";
-            return API_EINTERNAL;
         }
     }
 }
+
+error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
+{
+    if (!j.enterarray()) return API_EINTERNAL;
+
+    while (j.enterobject())
+    {
+        handle item = UNDEF, itemPH = UNDEF;
+        m_off_t ts = 0;
+        for (;;)
+        {
+            switch (jsonsc.getnameid())
+            {
+            case MAKENAMEID1('s'):
+                item = j.gethandle(MegaClient::SETHANDLE);
+                break;
+
+            case MAKENAMEID2('p', 'h'):
+                itemPH = j.gethandle(MegaClient::PUBLICSETHANDLE);
+                break;
+
+            case MAKENAMEID2('t', 's'):
+                ts = j.getint();
+                assert(item != UNDEF && itemPH != UNDEF);
+                if (sets.find(item) != end(sets))
+                {
+                    sets[item].setPublicId(itemPH);
+                    sets[item].setTs(ts);
+                }
+                else
+                {
+                    LOG_err << "Sets: Set handle |" << toHandle(item) << "| not found in user's Sets";
+                }
+                item = UNDEF;
+                itemPH = UNDEF;
+                break;
+
+            default: // skip any unknown/unexpected member
+            {
+                if (!j.storeobject())
+                {
+                    LOG_err << "Sets: Failed to parse public handles for Sets";
+                    return API_EINTERNAL;
+                }
+
+                LOG_debug << "Sets: Unknown member received in 'aesp' for an 'f' command";
+                break;
+            }
+
+            case EOO:
+                return API_OK;
+
+            }
+        }
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
 void MegaClient::sc_ass()
 {
     Set s;
@@ -18583,16 +18697,16 @@ void MegaClient::exportSet(handle sid, bool isExportSet, std::function<void(Erro
     }
 }
 
-string MegaClient::getPublicSetLink(handle publicId, bool isExportSet) const
+string MegaClient::getPublicSetLink(handle publicId, bool isExportSet, const string& setKey) const
 {
     string ret{""};
     if (isExportSet)
     {
         // create URL and save it at ret
-        ret = publicLinkURL(false /*newLinkFormat*/,
-                            FILENODE /*nodetype_t type*/,
+        ret = publicLinkURL(true /*newLinkFormat*/,
+                            SETNODE /*nodetype_t type*/,
                             publicId /*handle ph*/,
-                            nullptr /*const char *key*/);
+                            setKey.c_str() /*const char *key*/);
     }
     return ret;
 }

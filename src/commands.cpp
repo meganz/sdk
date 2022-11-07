@@ -9050,7 +9050,7 @@ bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* 
             case MAKENAMEID2('p', 'h'):
                 if (ph)
                 {
-                    *ph = client->json.gethandle(MegaClient::SETHANDLE);
+                    *ph = client->json.gethandle(MegaClient::PUBLICSETHANDLE);
                 }
                 else if(!client->json.storeobject())
                 {
@@ -9181,12 +9181,15 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
+CommandFetchSet::CommandFetchSet(MegaClient* cl, handle id,
     std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
     : mCompletion(completion)
 {
     cmd("aft");
-    arg("id", (byte*)&id, MegaClient::SETHANDLE); // unrequired while inSetPreviewMode
+    if(!cl->inSetPreviewMode())
+    {
+        arg("id", (byte*)&id, MegaClient::SETHANDLE);
+    }
 }
 
 bool CommandFetchSet::procresult(Result r)
@@ -9344,7 +9347,6 @@ bool CommandExportSet::procresult(Result r)
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
     assert(sid == mSet->id());
-//    assert(publicId != UNDEF);
 
     if (parsedOk && e == API_OK)
     {

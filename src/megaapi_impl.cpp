@@ -19021,7 +19021,7 @@ void MegaApiImpl::sendPendingRequests()
                         assert(updatedSet);
                         assert(updatedSet->publicId() != UNDEF);
 
-                        request->setLink(client->getPublicSetLink(updatedSet->publicId(), isExportSet).c_str());
+                        request->setLink(client->getPublicSetLink(updatedSet->publicId(), isExportSet, updatedSet->key()).c_str());
 
                         auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
                         fireOnSetsUpdate(updatedSetList);
