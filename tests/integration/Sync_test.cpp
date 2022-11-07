@@ -5380,7 +5380,9 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
+    // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
+    // 4 seconds was too short sometimes, sync2 not caught up yet, due to a few consecutive -3 for `g`
+    waitonsyncs(std::chrono::seconds(10), clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model1.findnode("f/f_2")->addkid(model1.buildModelSubdirs("newkid", 2, 2, 2));
@@ -17529,10 +17531,9 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     // Populate local filesystem.
     Model model;
 
+    LOG_info << "test adds local file s/f (containing x)";
     model.addfile("f", "x");
     model.generate(client->fsBasePath / "s");
-
-    // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, client);
 
     // Check if the cloud is as we expect.
@@ -17543,25 +17544,21 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
     // Signal the waiter when putnodes is sent.
     auto putnodesBeginHandler = [&](const LocalPath&) {
+        LOG_info << "test detected putnodes begin";
         notifier.set_value();
         client->mOnPutnodesBegin = nullptr;
     };
 
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // Make a change for the engine to upload.
+    LOG_info << "test replaces local file content s/f (with y. was: x)";
     model.addfile("f", "y");
     model.generate(client->fsBasePath / "s");
-
-    // Wait for the putnodes to be sent.
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Remove the local file.
+    LOG_info << "test deletes local file s/f";
     model.removenode("f");
-
     fs::remove(client->fsBasePath / "s" / "f");
-
-    // Let the engine process our changes.
     waitonsyncs(TIMEOUT, client);
 
     // Check if the cloud is as we expect.
@@ -17570,7 +17567,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     // Try the same scenario when the file hasn't previously been synchronized.
     client->mOnPutnodesBegin = putnodesBeginHandler;
 
-    // Add a new file for the engine to synchronize.
+    LOG_info << "test adds local file s/g (content: x)";
     model.addfile("g", "x");
     model.generate(client->fsBasePath / "s");
 
@@ -17579,9 +17576,8 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
     ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Remove the local file.
+    LOG_info << "test removes local file s/g (content: x)";
     model.removenode("g");
-
     fs::remove(client->fsBasePath / "s" / "g");
 
     // Wait for the engine to synchronize our changes.
