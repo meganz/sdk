@@ -1455,13 +1455,37 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
     mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
+bool MegaClient::validTypeForPublicLinkURL(nodetype_t type)
+{
+    switch (type)
+    {
+    case FOLDERNODE:
+    case FILENODE:
+    case SETNODE:
+        return true;
+    default:
+        return false;
+    }
+}
+
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
+    assert(validTypeForPublicLinkURL(type));
+    if (!validTypeForPublicLinkURL(type))
+    {
+        LOG_warn << "Public link URL requested for non-valid type " << type;
+        return string{};
+    }
+
     string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
-        nodeType = (type == FOLDERNODE ?  "folder/" : "file/");
+        static const map<nodetype_t, string> typeSchema = {{FOLDERNODE, "folder/"}
+                                                          ,{FILENODE, "file/"}
+                                                          ,{SETNODE, "collection/"}
+                                                          };
+        nodeType = typeSchema.at(type);
     }
     else
     {
@@ -9793,9 +9817,8 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 //
 //   - folder links:    #F!<ph>[!<key>]
 //                      /folder/<ph>[<params>][#<key>]
-//   - set links:       #!<ph>[!<key>]
-//                      /set/<ph>[<params>][#<key>]
-error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool isFolderLink)
+//   - set links:       /collection/<ph>[<params>][#<key>]
+error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, nodetype_t type)
 {
     bool isFolder;
     const char* ptr = nullptr;
@@ -9819,9 +9842,9 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
         ptr += 5;
         isFolder = false;
     }
-    else if ((ptr = strstr(link, "set/")))
+    else if ((ptr = strstr(link, "collection/")))
     {
-        ptr += 4;
+        ptr += 11; // std::strlen("collection/");
         isFolder = false;
     }
     else    // legacy file link format without '#'
@@ -9830,7 +9853,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
         isFolder = false;
     }
 
-    if (isFolder != isFolderLink)
+    if (isFolder != (type == FOLDERNODE))
     {
         return API_EARGS;   // type of link mismatch
     }
@@ -9859,7 +9882,11 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
         if (*ptr == '!' || *ptr == '#')
         {
             const char *k = ptr + 1;    // skip '!' or '#' separator
-            int keylen = isFolderLink ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+            static const map<nodetype_t, int> nodetypeKeylength = {{FOLDERNODE, FOLDERNODEKEYLENGTH}
+                                                                  ,{FILENODE, FILENODEKEYLENGTH}
+                                                                  ,{SETNODE, SETNODEKEYLENGTH}
+                                                                  };
+            int keylen = nodetypeKeylength.at(type);
             if (Base64::atob(k, key, keylen) == keylen)
             {
                 return API_OK;
@@ -9901,7 +9928,7 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
     byte folderkey[FOLDERNODEKEYLENGTH];
 
     error e;
-    if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
+    if ((e = parsepubliclink(folderlink, h, folderkey, FOLDERNODE)) == API_OK)
     {
         if (authKey)
         {
@@ -12167,11 +12194,18 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         return API_EARGS;
     }
 
+    if(strstr(link, "collection/"))
+    {
+        LOG_err << "Attempting to encrypt a non-folder, non-file link";
+        assert(false);
+        return API_EARGS;
+    }
+
     bool isFolder = (strstr(link, "#F!") || strstr(link, "folder/"));
     handle ph;
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
     std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
-    error e = parsepubliclink(link, ph, linkKey.get(), isFolder);
+    error e = parsepubliclink(link, ph, linkKey.get(), (isFolder ? FOLDERNODE : FILENODE));
     if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
@@ -18569,16 +18603,16 @@ error MegaClient::startSetPreview(const char* publicSetLink,
     if (mPreviewSet) mPreviewSet.reset();
 
     handle publicSetId = UNDEF;
-    std::array<byte, FOLDERNODEKEYLENGTH> publicSetKey; // 16 bits
+    std::array<byte, SETNODEKEYLENGTH> publicSetKey;
     error e;
-    if ((e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), false)) == API_OK)
+    if ((e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), SETNODE)) == API_OK)
     {
         assert(publicSetId != UNDEF);
 
         // 1. setup member mPreviewSet: publicId, key, publicSetLink
         mPreviewSet = make_unique<SetLink>();
         mPreviewSet->mPublicId = publicSetId;
-        mPreviewSet->mPublicKey.setkey(publicSetKey.data());
+        mPreviewSet->mPublicKey.assign(reinterpret_cast<char*>(publicSetKey.data()), publicSetKey.size());
         mPreviewSet->mPublicLink.assign(publicSetLink);
 
         // 2. send `aft` command and intercept to save at mPreviewSet: Set, SetElements map

@@ -5049,7 +5049,7 @@ void exec_get(autocomplete::ACState& s)
     {
         handle ph = UNDEF;
         byte key[FILENODEKEYLENGTH];
-        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
+        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, FILENODE) == API_OK)
         {
             cout << "Checking link..." << endl;
 
@@ -7091,7 +7091,7 @@ void exec_import(autocomplete::ACState& s)
 {
     handle ph = UNDEF;
     byte key[FILENODEKEYLENGTH];
-    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, false);
+    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, FILENODE);
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
@@ -7108,8 +7108,8 @@ void exec_folderlinkinfo(autocomplete::ACState& s)
     publiclink = s.words[1].s;
 
     handle ph = UNDEF;
-    byte folderkey[SymmCipher::KEYLENGTH];
-    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, true) == API_OK)
+    byte folderkey[FOLDERNODEKEYLENGTH];
+    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, FOLDERNODE) == API_OK)
     {
         cout << "Loading public folder link info..." << endl;
         client->getpubliclinkinfo(ph);
@@ -8716,7 +8716,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     #ifndef NDEBUG
     error eaux =
     #endif
-    client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
+    client->parsepubliclink(publiclink.c_str(), ph, folderkey, FOLDERNODE);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link

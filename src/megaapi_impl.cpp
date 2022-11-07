@@ -19709,7 +19709,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle ph = UNDEF;
             byte key[FILENODEKEYLENGTH];
-            e = client->parsepubliclink(megaFileLink, ph, key, false);
+            e = client->parsepubliclink(megaFileLink, ph, key, FILENODE);
             if (e == API_OK)
             {
                 client->openfilelink(ph, key);
@@ -22941,7 +22941,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle h = UNDEF;
             byte folderkey[FOLDERNODEKEYLENGTH];
-            e = client->parsepubliclink(link, h, folderkey, true);
+            e = client->parsepubliclink(link, h, folderkey, FOLDERNODE);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);

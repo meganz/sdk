@@ -439,7 +439,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
+    error parsepubliclink(const char *link, handle &ph, byte *key, nodetype_t type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -2099,6 +2099,7 @@ public:
     { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
 
 private:
+    static inline bool validTypeForPublicLinkURL(nodetype_t type);
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
