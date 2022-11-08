@@ -7405,7 +7405,6 @@ void MegaClient::sc_delscheduledmeeting()
 {
     bool done = false;
     handle schedId = UNDEF;
-    handle i = UNDEF;
     handle ou = UNDEF;
 
     while(!done)

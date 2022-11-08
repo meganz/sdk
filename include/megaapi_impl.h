@@ -4221,7 +4221,7 @@ public:
 
     // getters
     unsigned long getNumericValue() const override;
-    bool EmailsDisabled() const;
+    bool emailsDisabled() const;
     bool isEmpty() const override;
     ScheduledFlags* getSdkScheduledFlags() const;
 

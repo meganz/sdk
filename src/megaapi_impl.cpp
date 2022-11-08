@@ -33735,7 +33735,7 @@ void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
 }
 
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
-bool MegaScheduledFlagsPrivate::EmailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+bool MegaScheduledFlagsPrivate::emailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }
 ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
 
