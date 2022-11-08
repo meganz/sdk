@@ -18015,30 +18015,41 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
 
     // decrypt data
     size_t elCount = 0; // Elements related to known Sets and successfully decrypted
-    for (auto& s : newSets)
+    for (auto itS = newSets.begin(); itS != newSets.end();)
     {
-        error e = decryptSetData(s.second);
+        error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            return e;
+            assert(false); // failed to decrypt Set attributes
+
+            // skip this Set and its Elements
+            newElements.erase(itS->first);
+            itS = newSets.erase(itS);
+            continue;
         }
 
-        auto itEls = newElements.find(s.first);
+        auto itEls = newElements.find(itS->first);
         if (itEls != newElements.end())
         {
-            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end();)
             {
                 // decrypt element key and attrs
-                e = decryptElementData(itE->second, s.second.key());
+                e = decryptElementData(itE->second, itS->second.key());
                 if (e != API_OK)
                 {
-                    return e;
+                    assert(false); // failed to decrypt Element attributes
+
+                    itE = itEls->second.erase(itE);
+                    continue;
                 }
                 ++elCount;
+                ++itE;
             }
         }
+
+        ++itS;
     }
-    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
+    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
 
     return API_OK;
 }
@@ -18060,7 +18071,7 @@ error MegaClient::decryptSetData(Set& s)
         auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
         if (!s.decryptAttributes(decryptFunc))
         {
-            LOG_err << "Sets: Unable to decrypt Set attrs";
+            LOG_err << "Sets: Unable to decrypt Set attrs " << toHandle(s.id());
             return API_EINTERNAL;
         }
     }
@@ -18085,6 +18096,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
         auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
         if (!el.decryptAttributes(decryptFunc))
         {
+            LOG_err << "Sets: Unable to decrypt Element attrs " << toHandle(el.id());
             return API_EINTERNAL;
         }
     }
