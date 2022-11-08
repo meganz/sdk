@@ -19014,18 +19014,21 @@ void MegaApiImpl::sendPendingRequests()
                 [this, request](Error e)
                 {
                     auto sid = request->getTotalBytes();
-                    bool isExportSet = request->getFlag();
                     if (e == API_OK)
                     {
                         const Set* updatedSet = client->getSet(sid);
                         assert(updatedSet);
                         assert(updatedSet->publicId() != UNDEF);
 
-                        request->setLink(client->getPublicSetLink(updatedSet->publicId(), isExportSet, updatedSet->key()).c_str());
-
-                        auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
-                        fireOnSetsUpdate(updatedSetList);
-                        delete updatedSetList;
+                        string url;
+                        std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
+                        if (e == API_OK)
+                        {
+                            request->setLink(url.c_str());
+                            auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
+                            fireOnSetsUpdate(updatedSetList);
+                            delete updatedSetList;
+                        }
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });

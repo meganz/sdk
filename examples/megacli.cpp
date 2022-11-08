@@ -255,6 +255,11 @@ const char* errorstring(error e)
     }
 }
 
+string verboseErrorString(error e)
+{
+    return (string("Error message: ") + errorstring(e)
+            + string(" (error code ") + std::to_string(e) + ")");
+}
 
 struct ConsoleLock
 {
@@ -4268,10 +4273,10 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("removeelement"), param("sid"), param("eid")),
-                        sequence(text("export"), param("id"), opt(flag("-disable"))),
+                        sequence(text("export"), param("sid"), opt(flag("-disable"))),
+                        sequence(text("getpubliclink"), param("sid")),
                         sequence(text("previewmode"), param("publicsetlink"), opt(flag("-on")), opt(flag("-status"))),
-                        sequence(text("getpubliclink"), param("psid"), param("skey")),
-                        sequence(text("getelement"), param("sid"), param("eid"))
+                        sequence(text("downloadelement"), param("sid"), param("eid"))
                         )));
 
     return autocompleteTemplate = std::move(p);
@@ -10479,6 +10484,29 @@ void printElements(const map<handle, SetElement>* elems)
     cout << endl;
 }
 
+void startSetPreviewMode(const string& publicSetLink)
+{
+    if (client->inSetPreviewMode())
+    {
+        cout << "\tPreview mode failed: client already with Set preview mode enabled; "
+             << "please, disable it first.";
+        return;
+    }
+    client->startSetPreview(publicSetLink.c_str(), [](Error e, Set* s, map<handle, SetElement>* elements)
+       {
+           if (e == API_OK)
+           {
+               if (s) cout << "\tPreview mode ready for set " << toHandle(s->id()) <<"\n";
+               else cout << "\tPreview mode seems ready but !s\n";
+
+               printSet(s);
+               printElements(elements);
+           }
+           else
+               cout << "\tPreview mode failed: " + verboseErrorString(e) << endl;
+       });
+}
+
 void exec_setsandelements(autocomplete::ACState& s)
 {
     // Are we logged in?
@@ -10623,166 +10651,137 @@ void exec_setsandelements(autocomplete::ACState& s)
         string buf;
         bool isExportSet = !(s.extractflagparam("-disable", buf) || s.extractflag("-disable"));
         buf.clear();
+        cout << (isExportSet ? "En" : "Dis") << "abling export for Set " << toHandle(sid) << "\n";
 
         client->exportSet(sid, isExportSet, [sid, isExportSet](Error e)
-            {
-                string msg = (isExportSet ? "en" : "dis") + string("able");
-                if (e == API_OK)
-                    cout << "Set " << toHandle(sid) << " export " << msg << " successfully\n";
-                else
-                    cout << "Error " << msg << " export for Set " << toHandle(sid) << endl;
-            });
-    }
-
-    else if (command == "previewmode")
-    {
-        if (s.words.size() > 2)
-        {
-            string publicSetLink = s.words[2].s.c_str();
-            string buf;
-            bool setPreviewMode = (s.extractflagparam("-on", buf) || s.extractflag("-on"));
-            buf.clear();
-            bool showActiveMode = (s.extractflagparam("-status", buf) || s.extractflag("-status"));
-            buf.clear();
-
-            if (setPreviewMode)
-            {
-                client->startSetPreview(publicSetLink.c_str(),
-                                        [](Error e, Set* s, map<handle, SetElement>* elements)
-                  {
-                      if (e == API_OK)
-                      {
-                          if (s)
-                          {
-                              cout << "\tPreview mode ready for set " << toHandle(s->id()) <<"\n";
-
-                          }
-                          else cout << "\tPreview mode seems ready but !s\n";
-
-                          printSet(s);
-                          printElements(elements);
-                      }
-                      else
-                          cout << "Preview mode failed\n";
-                  });
-            }
-            else if (client->inSetPreviewMode())
-            {
-                client->stopSetPreview();
-                cout << "Preview mode stopped\n";
-            }
-
-            if (showActiveMode) cout << "\tCurrently, Set preview mode is "
-                                     << (client->inSetPreviewMode() ? "en" : "dis") << "abled\n";
-        }
+           {
+               string msg = (isExportSet ? "en" : "dis") + string("abled");
+               cout << "\tSet " << toHandle(sid) << " export "
+                    << (isExportSet ? "en" : "dis") << "abled "
+                    << (e == API_OK ? "" : "un") << " successfully"
+                    << (e == API_OK ? "" : ". " + verboseErrorString(e))
+                    << endl;
+           });
     }
 
     else if (command == "getpubliclink")
     {
-        if (s.words.size() == 4)
-        {
-            handle id = 0; // must have remaining bits set to 0
-            Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-            auto setKey = s.words[3].s.c_str();
+        handle sid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        cout << "Requesting public link for Set " << toHandle(sid) << endl;
 
-            auto url = client->publicLinkURL(true, SETNODE, id, setKey);
-            std::cout << url << std::endl;
-        }
+        error e; string url;
+        std::tie(e, url) = client->getPublicSetLink(sid);
+
+        cout << "\tPublic link generated " << (e == API_OK ? "" : "un") << "successfully"
+             << (e == API_OK ? " " + url : ". " + verboseErrorString(e))
+             << endl;
     }
 
-    else if (command == "getelement")
+    else if (command == "previewmode")
     {
-        if (s.words.size() == 4)
+        string publicSetLink = s.words[2].s.c_str();
+        string buf;
+        bool setPreviewMode = (s.extractflagparam("-on", buf) || s.extractflag("-on"));
+        buf.clear();
+        bool showActiveMode = (s.extractflagparam("-status", buf) || s.extractflag("-status"));
+        buf.clear();
+
+        if (showActiveMode)
         {
-            handle sid = 0, eid = 0;
-            Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
-            Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
-
-            client->fetchSet(sid, [sid, eid](Error e, Set* s, map<handle, SetElement>* els)
-               {
-                   if (e == API_OK)
-                   {
-                       cout << "Fetched Set " << toHandle(sid) << endl;
-                       printSet(s);
-                       printElements(els);
-
-                       if (s->id() != sid) cout << "WTF?! It was just fetched\n";
-                       if (els->find(eid) == end(*els))
-                       {
-                           cout << "Element with id |" << toHandle(eid) << "| is not part of stated Set\n";
-                           return;
-                       }
-
-                       bool devAux = false;
-                       if (devAux)
-                           client->stopSetPreview();
-
-                       auto& element = (*els)[eid];
-                       //array<byte,SETNODEKEYLENGTH> key;
-                       byte key[FILENODEKEYLENGTH];
-                       handle enode = element.node();
-                       //memcpy(key.data(), element.key.c_str(), key.size());
-                       memcpy(key, element.key().c_str(), FILENODEKEYLENGTH);
-                       { // CommandGetFile
-                           client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, enode, true /*private*/, nullptr, nullptr, nullptr, false,
-                                                           [key, enode](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
-                                                                     std::string* filename, std::string* fingerprint, std::string* fileattrstring,
-                                                                     const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
-                          {
-                              if (!fingerprint) // failed processing the command
-                              {
-                                  if (e == API_ETOOMANY && e.hasExtraInfo())
-                                  {
-                                      cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e) << endl;
-                                  }
-                                  else
-                                  {
-                                      cout << "Link check failed: " << errorstring(e) << endl;
-                                  }
-                                  return true;
-                              }
-
-                              { // echo of the file
-                                  cout << "Name: " << *filename << ", size: " << size;
-
-                                  if (fingerprint->size())
-                                  {
-                                      cout << ", fingerprint available";
-                                  }
-
-                                  if (fileattrstring->size())
-                                  {
-                                      cout << ", has attributes";
-                                  }
-                                  cout << endl;
-                              }
-
-                              if (e)
-                              {
-                                  cout << "Not available: " << errorstring(e) << endl;
-                              }
-                              else
-                              {
-                                  cout << "Initiating download..." << endl;
-
-                                  TransferDbCommitter committer(client->tctable);
-                                  auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(enode), (byte*)key, size, tm, filename, fingerprint);
-                                  file->hprivate = true;
-                                  file->hforeign = true;
-                                  startxfer(committer, std::move(file), *filename);
-
-                              }
-
-                              return true;
-                          }));
-                       }
-                   }
-                   else
-                   {
-                       cout << "Error fetching Set " << toHandle(sid) << ' ' << e << endl;
-                   }
-               });
+            cout << "Requesting preview mode status info\n\tCurrently, Set preview mode is "
+                 << (client->inSetPreviewMode() ? "en" : "dis") << "abled\n";
+            return;
         }
+
+        cout << "Requesting to " << (setPreviewMode ? "en" : "dis") << "able preview mode for Set "
+             << "link " << publicSetLink << endl;
+        if (setPreviewMode)
+        {
+            startSetPreviewMode(publicSetLink);
+        }
+        else if (client->inSetPreviewMode())
+        {
+            client->stopSetPreview();
+            cout << "\tPreview mode stopped\n";
+        }
+        else cout << "\tPreview mode wasn't enabled\n";
+    }
+
+    else if (command == "downloadelement")
+    {
+        handle sid = 0, eid = 0;
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
+        cout << "Requesting to download Element " << toHandle(eid) << " from Set " << toHandle(sid)
+             << endl;
+
+        cout << "\tSet preview mode " << (client->inSetPreviewMode() ? "en" : "dis") << "abled\n";
+        const SetElement* element = nullptr;
+        if (client->inSetPreviewMode())
+        {
+            element = client->getPreviewSetElement(eid);
+            if (element) cout << "\tElement found in preview Set\n";
+        }
+        if (!element)
+        {
+            element = client->getSetElement(sid, eid);
+            if (element) cout << "\tElement found in owned Set\n";
+        }
+
+        if (!element)
+        {
+            cout << "\tElement not found as part of provided Set\n";
+            return;
+        }
+
+        std::array<byte, FILENODEKEYLENGTH> ekey;
+        handle enode = element->node();
+        memcpy(ekey.data(), element->key().c_str(), ekey.size());
+        auto commandCB =
+            [ekey, enode] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
+                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
+                          const std::vector<std::string> &/*ips*/)
+        {
+            if (!fingerprint) // failed processing the command
+            {
+                if (e == API_ETOOMANY && e.hasExtraInfo())
+                {
+                    cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
+                         << endl;
+                }
+                else cout << "Link check failed: " << errorstring(e) << endl;
+
+                return true;
+            }
+
+            cout << "\tName: " << *filename << ", size: " << size;
+            if (fingerprint->size()) cout << ", fingerprint available";
+            if (fileattrstring->size()) cout << ", has attributes";
+            cout << endl;
+
+            if (e) cout << "Not available: " << errorstring(e) << endl;
+            else
+            {
+                cout << "\tInitiating download..." << endl;
+
+                TransferDbCommitter committer(client->tctable);
+                auto file = ::mega::make_unique<AppFileGet>(nullptr,
+                                                            NodeHandle().set6byte(enode),
+                                                            (byte*)ekey.data(), size, tm,
+                                                            filename, fingerprint);
+                file->hprivate = true;
+                file->hforeign = true;
+                startxfer(committer, std::move(file), *filename);
+            }
+
+            return true;
+        };
+
+        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
+                                            true /*private*/, nullptr, nullptr, nullptr, false,
+                                            commandCB));
     }
 
     else // create or update element

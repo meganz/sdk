@@ -2087,7 +2087,8 @@ public:
 
     void exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion);
 
-    string getPublicSetLink(handle sid, bool isExportSet, const string& key) const;
+    // returns result of the operation and the link created
+    pair<error, string> getPublicSetLink(handle sid) const;
 
     // returns error code and public handle for the link provided as a param
     error startSetPreview(const char* publicSetLink, std::function<void(Error, Set*, map<handle, SetElement>*)>);
@@ -2149,6 +2150,7 @@ private:
 
     bool isElementInPreviewSet(handle eid) const
     { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
+    inline bool isExportedSet(const Set& s) const;
 // -------- end of Sets and Elements
 
 };

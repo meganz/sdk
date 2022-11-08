@@ -1473,7 +1473,7 @@ std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handl
     assert(validTypeForPublicLinkURL(type));
     if (!validTypeForPublicLinkURL(type))
     {
-        LOG_warn << "Public link URL requested for non-valid type " << type;
+        LOG_err << "Public link URL requested for non-valid type " << type;
         return string{};
     }
 
@@ -1486,6 +1486,11 @@ std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handl
                                                           ,{SETNODE, "collection/"}
                                                           };
         nodeType = typeSchema.at(type);
+    }
+    else if (type == SETNODE)
+    {
+        LOG_err << "Requesting old link format URL for Set type";
+        return string{};
     }
     else
     {
@@ -18676,10 +18681,15 @@ void MegaClient::sc_ass()
     }
 }
 
+bool MegaClient::isExportedSet(const Set& s) const
+{
+    return s.publicId() != UNDEF;
+}
+
 bool MegaClient::isExportedSet(handle sid) const
 {
     auto s = getSet(sid);
-    return s && (s->publicId() != UNDEF);
+    return s && isExportedSet(*s);
 }
 
 void MegaClient::exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion)
@@ -18697,18 +18707,29 @@ void MegaClient::exportSet(handle sid, bool isExportSet, std::function<void(Erro
     }
 }
 
-string MegaClient::getPublicSetLink(handle publicId, bool isExportSet, const string& setKey) const
+pair<error,string> MegaClient::getPublicSetLink(handle sid) const
 {
-    string ret{""};
-    if (isExportSet)
+    const string paramErrMsg = "Incorrect parameters to create a public link for Set " + toHandle(sid);
+    const auto& setIt = mSets.find(sid);
+    if (setIt == end(mSets))
     {
-        // create URL and save it at ret
-        ret = publicLinkURL(true /*newLinkFormat*/,
-                            SETNODE /*nodetype_t type*/,
-                            publicId /*handle ph*/,
-                            setKey.c_str() /*const char *key*/);
+        LOG_err << paramErrMsg << ". Provided Set id doesn't match any owned Set";
+        return make_pair(API_ENOENT, string{});
     }
-    return ret;
+
+    const Set& s = setIt->second;
+    if (!isExportedSet(s))
+    {
+        LOG_err << paramErrMsg << ". Provided Set is not exported";
+        return make_pair(API_ENOENT, string{});
+    }
+
+    error e = API_OK;
+    string url = publicLinkURL(true /*newLinkFormat*/, SETNODE, s.publicId(), Base64::btoa(s.key()).c_str());
+
+    if (url.empty()) e = API_EINTERNAL;
+
+    return make_pair(e, url);
 }
 
 error MegaClient::startSetPreview(const char* publicSetLink,
