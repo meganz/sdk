@@ -631,7 +631,7 @@ void moveToTrash(const fs::path& p)
             fs::rename(p, newpath, e);
             if (e)
             {
-                LOG_err << "Failed to trash-rename " << p << " to " << newpath << ": " << e.message();
+                LOG_err << "Failed to trash-rename " << p.u8string() << " to " << newpath.u8string() << ": " << e.message();
                 WaitMillisec(500);
                 errcount += 1;
             }
