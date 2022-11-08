@@ -631,7 +631,7 @@ void moveToTrash(const fs::path& p)
             fs::rename(p, newpath, e);
             if (e)
             {
-                LOG_err << "Failed to trash-rename " << p << " to " << newpath << ": " << e.message();
+                LOG_err << "Failed to trash-rename " << p.u8string() << " to " << newpath.u8string() << ": " << e.message();
                 WaitMillisec(500);
                 errcount += 1;
             }
@@ -651,7 +651,7 @@ fs::path makeNewTestRoot()
 
     std::error_code e;
     bool b = fs::create_directories(p, e);
-    if (!b) { out() << "Failed to create base directory for test at: " << p << ", error: " << e.message(); }
+    if (!b) { out() << "Failed to create base directory for test at: " << p.u8string() << ", error: " << e.message(); }
     assert(b);
     return p;
 }
