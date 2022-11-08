@@ -4729,6 +4729,7 @@ class MegaRequest
          */
         virtual MegaStringList* getMegaStringList() const;
 
+#ifdef ENABLE_CHAT
         /**
          * @brief Returns the scheduled meeting list
          *
@@ -4738,6 +4739,17 @@ class MegaRequest
          * @return scheduled meeting list
          */
         virtual MegaScheduledMeetingList* getMegaScheduledMeetingList() const;
+
+        /**
+         * @brief Returns the scheduled meeting associated to the chatroom if any
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return MegaScheduledMeeting
+         */
+        virtual MegaScheduledMeeting* getScheduledMeeting() const;
+#endif
 
         /**
          * @brief Returns the MegaHandle list
@@ -4765,16 +4777,6 @@ class MegaRequest
          * @return MegaRecentActionBucketList list
          */
         virtual MegaRecentActionBucketList *getRecentActions() const;
-
-        /**
-         * @brief Returns the scheduled meeting associated to the chatroom if any
-         *
-         * The SDK retains the ownership of the returned value. It will be valid until
-         * the MegaRequest object is deleted.
-         *
-         * @return MegaScheduledMeeting
-         */
-        virtual MegaScheduledMeeting* getScheduledMeeting() const;
 
          /**
          * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)

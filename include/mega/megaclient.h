@@ -447,9 +447,6 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
-    // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
-
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
 
@@ -926,6 +923,9 @@ public:
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
     void setchatretentiontime(handle chatid, unsigned period);
+
+    // parse scheduled meeting or scheduled meeting occurrences
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
 #endif
 
     // get mega achievements
@@ -1501,6 +1501,9 @@ public:
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
     void notifychat(TextChat *);
+
+    // process mcsm array at fetchnodes
+    void procmcsm(JSON*);
 #endif
 
 #ifdef USE_MEDIAINFO
@@ -1728,9 +1731,6 @@ public:
 
     void procmcf(JSON*);
     void procmcna(JSON*);
-
-    // process mcsm array at fetchnodes
-    void procmcsm(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);

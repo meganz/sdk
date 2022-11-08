@@ -3326,10 +3326,7 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
-MegaScheduledMeetingList* MegaRequestPrivate::getMegaScheduledMeetingList() const
-{
-    return mScheduledMeetingList.get();
-}
+
 
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
@@ -3361,6 +3358,31 @@ void MegaRequestPrivate::setMegaTextChatList(MegaTextChatList *chatList)
         delete this->chatList;
 
     this->chatList = chatList->copy();
+}
+
+MegaScheduledMeetingList* MegaRequestPrivate::getMegaScheduledMeetingList() const
+{
+    return mScheduledMeetingList.get();
+}
+
+void MegaRequestPrivate::setMegaScheduledMeetingList(const MegaScheduledMeetingList* schedMeetingList)
+{
+    mScheduledMeetingList.reset();
+
+    if (schedMeetingList)
+    {
+       mScheduledMeetingList = unique_ptr<MegaScheduledMeetingList>(schedMeetingList->copy());
+    }
+}
+
+MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
+{
+    return mScheduledMeeting.get();
+}
+
+void MegaRequestPrivate::setScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting)
+{
+    mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
 }
 #endif
 
@@ -3456,16 +3478,6 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     if (stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
-    }
-}
-
-void MegaRequestPrivate::setMegaScheduledMeetingList(const MegaScheduledMeetingList* schedMeetingList)
-{
-    mScheduledMeetingList.reset();
-
-    if (schedMeetingList)
-    {
-       mScheduledMeetingList = unique_ptr<MegaScheduledMeetingList>(schedMeetingList->copy());
     }
 }
 
@@ -3864,16 +3876,6 @@ MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
 void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
 {
     mRecentActions.reset(recentActionBucketList.release());
-}
-
-MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
-{
-    return mScheduledMeeting.get();
-}
-
-void MegaRequestPrivate::setScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting)
-{
-    mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
 }
 
 MegaSet* MegaRequestPrivate::getMegaSet() const
@@ -23557,6 +23559,8 @@ void MegaApiImpl::sendPendingRequests()
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
            break;
         }
+
+#ifdef ENABLE_CHAT
         case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
         {
             MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeeting());
@@ -23669,6 +23673,7 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
+#endif
         default:
         {
             e = API_EINTERNAL;

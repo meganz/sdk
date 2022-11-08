@@ -1450,13 +1450,15 @@ class MegaRequestPrivate : public MegaRequest
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
-        MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
         MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
+        MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
+        MegaScheduledMeeting *getScheduledMeeting() const override;
+        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
@@ -1483,8 +1485,6 @@ class MegaRequestPrivate : public MegaRequest
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
-        MegaScheduledMeeting *getScheduledMeeting() const override;
-        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 
         MegaSet* getMegaSet() const override;
         void setMegaSet(std::unique_ptr<MegaSet> s);
@@ -4203,6 +4203,7 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
+#endif
 
 #ifdef ENABLE_CHAT
 class MegaScheduledFlagsPrivate: public MegaScheduledFlags
@@ -4383,7 +4384,6 @@ public:
 private:
     std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
 };
-#endif
 #endif
 
 }
