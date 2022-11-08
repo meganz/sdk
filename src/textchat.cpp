@@ -218,11 +218,17 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     rules_vector byWeekDay;
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
-    unsigned char expansions[8];
+    constexpr unsigned int flagsSize = 5;
+    unsigned char expansions[flagsSize];
+    uint32_t auxSize = 0;
 
     CacheableReader w(in);
-    w.unserializei32(freq);
-    w.unserializeexpansionflags(expansions, 5);
+    if (!w.unserializei32(freq) || !w.unserializeexpansionflags(expansions, flagsSize))
+    {
+       assert(false);
+       LOG_err << "Failure at schedule meeting rules unserialization";
+       return nullptr;
+    }
 
     bool hasInterval        = expansions[0];
     bool hasUntil           = expansions[1];
@@ -230,52 +236,57 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     bool hasByMonthDay      = expansions[3];
     bool hasByMonthWeekDay  = expansions[4];
 
-    if (hasInterval) { w.unserializei32(interval); }
-    if (hasUntil)    { w.unserializestring(until); }
-    if (hasByWeekDay)
+    if (hasInterval && !w.unserializei32(interval))
     {
-        uint32_t auxSize = 0;
-        size_t vectorSize = 0;
-        int8_t element = 0;
-        w.unserializeu32(auxSize);
-        vectorSize = auxSize;
-        for (size_t i = 0; i < vectorSize; i++)
+        assert(false);
+        LOG_err << "Failure at schedule meeting rules unserialization interval";
+        return nullptr;
+    }
+
+    if (hasUntil && !w.unserializestring(until))
+    {
+        assert(false);
+        LOG_err << "Failure at schedule meeting rules unserialization until";
+        return nullptr;
+    }
+
+    auxSize = 0;
+    if (hasByWeekDay && w.unserializeu32(auxSize))
+    {
+        for (size_t i = 0; i < auxSize; i++)
         {
-           element = 0;
-           w.unserializei8(element);
-           byWeekDay.emplace_back(element);
+           int8_t element = 0;
+           if (w.unserializei8(element))
+           {
+               byWeekDay.emplace_back(element);
+           }
         }
     }
 
-    if (hasByMonthDay)
+    auxSize = 0;
+    if (hasByMonthDay && w.unserializeu32(auxSize))
     {
-        uint32_t auxSize = 0;
-        size_t vectorSize = 0;
-        int8_t element = 0;
-        w.unserializeu32(auxSize);
-        vectorSize = auxSize;
-        for (size_t i = 0; i < vectorSize; i++)
+        for (size_t i = 0; i < auxSize; i++)
         {
-           element = 0;
-           w.unserializei8(element);
-           byMonthDay.emplace_back(element);
+           int8_t element = 0;
+           if (w.unserializei8(element))
+           {
+               byMonthDay.emplace_back(element);
+           }
         }
     }
 
-    if (hasByMonthWeekDay)
+    auxSize = 0;
+    if (hasByMonthWeekDay && w.unserializeu32(auxSize))
     {
-        uint32_t auxSize = 0;
-        size_t mapSize = 0;
-        int8_t key = 0;
-        int8_t value = 0;
-        w.unserializeu32(auxSize);
-        mapSize = auxSize;
-        for (size_t i = 0; i < mapSize / 2; i++)
+        for (size_t i = 0; i < auxSize / 2; i++)
         {
-           key = value = 0;
-           w.unserializei8(key);
-           w.unserializei8(value);
-           byMonthWeekDay.emplace(key, value);
+           int8_t key = 0;
+           int8_t value = 0;
+           if (w.unserializei8(key) && w.unserializei8(value))
+           {
+              byMonthWeekDay.emplace(key, value);
+           }
         }
     }
 
@@ -427,12 +438,18 @@ bool ScheduledMeeting::serialize(string& out) const
     if (hasflags)
     {
         std::string flagsStr;
-        if (flags()->serialize(flagsStr)) { w.serializestring(flagsStr); }
+        if (flags()->serialize(flagsStr))
+        {
+            w.serializestring(flagsStr);
+        }
     }
     if (hasRules)
     {
         std::string rulesStr;
-        if (rules()->serialize(rulesStr)) { w.serializestring(rulesStr); }
+        if (rules()->serialize(rulesStr))
+        {
+            w.serializestring(rulesStr);
+        }
     }
     return true;
 }
@@ -455,17 +472,23 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     int cancelled = -1;
     std::unique_ptr<ScheduledFlags> flags;
     std::unique_ptr<ScheduledRules> rules;
-    unsigned char expansions[8];
+    constexpr unsigned int flagsSize = 6;
+    unsigned char expansions[flagsSize];
 
     CacheableReader w(in);
-    w.unserializehandle(schedId);
-    w.unserializehandle(organizerUserid);
-    w.unserializestring(timezone);
-    w.unserializestring(startDateTime);
-    w.unserializestring(endDateTime);
-    w.unserializestring(title);
-    w.unserializestring(description);
-    w.unserializeexpansionflags(expansions, 6);
+    if (!w.unserializehandle(schedId) ||
+            !w.unserializehandle(organizerUserid) ||
+            !w.unserializestring(timezone) ||
+            !w.unserializestring(startDateTime) ||
+            !w.unserializestring(endDateTime) ||
+            !w.unserializestring(title) ||
+            !w.unserializestring(description) ||
+            !w.unserializeexpansionflags(expansions, flagsSize))
+    {
+        assert(false);
+        LOG_err << "Failure at schedule meeting unserialization";
+        return nullptr;
+    }
 
     bool hasParentSchedId   = expansions[0];
     bool hasAttributes      = expansions[1];
@@ -474,24 +497,54 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     bool hasflags           = expansions[4];
     bool hasRules           = expansions[5];
 
-    if (hasParentSchedId)   { w.unserializehandle(parentSchedId); }
-    if (hasAttributes)      { w.unserializestring(attributes); }
-    if (hasOverrides)       { w.unserializestring(overrides); }
-    if (hasCancelled)       { w.unserializei32(cancelled); }
-    if (hasflags)
+    if (hasParentSchedId && !w.unserializehandle(parentSchedId))
     {
-        if (w.unserializestring(flagsStr))
-        {
-           flags.reset(ScheduledFlags::unserialize(flagsStr));
-        }
+        assert(false);
+        LOG_err << "Failure at schedule meeting unserialization parent Schedule id";
+        return nullptr;
     }
 
-    if (hasRules)
+    if (hasAttributes && !w.unserializestring(attributes))
     {
-        if (w.unserializestring(rulesStr))
-        {
-           rules.reset(ScheduledRules::unserialize(rulesStr));
-        }
+        assert(false);
+        LOG_err << "Failure at schedule meeting unserialization attributes";
+        return nullptr;
+    }
+
+    if (hasOverrides && !w.unserializestring(overrides))
+    {
+       assert(false);
+       LOG_err << "Failure at schedule meeting unserialization override";
+       return nullptr;
+    }
+
+    if (hasCancelled && !w.unserializei32(cancelled))
+    {
+        assert(false);
+        LOG_err << "Failure at schedule meeting unserialization cancelled";
+        return nullptr;
+    }
+
+    if (hasflags && w.unserializestring(flagsStr))
+    {
+       flags.reset(ScheduledFlags::unserialize(flagsStr));
+       if (!flags)
+       {
+           assert(false);
+           LOG_err << "Failure at schedule meeting unserialization flags";
+           return nullptr;
+       }
+    }
+
+    if (hasRules && w.unserializestring(rulesStr))
+    {
+       rules.reset(ScheduledRules::unserialize(rulesStr));
+       if (!rules)
+       {
+           assert(false);
+           LOG_err << "Failure at schedule meeting unserialization rules";
+           return nullptr;
+       }
     }
 
     return new ScheduledMeeting(chatid, timezone, startDateTime, endDateTime,
@@ -992,7 +1045,7 @@ bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
         assert(false);
         return false;
     }
-
+    assert(id == sm->chatid());
     handle schedId = sm->schedId();
     if (mScheduledMeetings.find(schedId) != mScheduledMeetings.end())
     {
