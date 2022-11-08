@@ -3428,9 +3428,9 @@ void MegaApi::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState ta
     pImpl->setSyncRunState(backupId, targetState, listener);
 }
 
-void MegaApi::rescanSync(MegaHandle backupId)
+void MegaApi::rescanSync(MegaHandle backupId, bool reFingerprint)
 {
-    pImpl->rescanSync(backupId);
+    pImpl->rescanSync(backupId, reFingerprint);
 }
 
 void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
@@ -3486,6 +3486,10 @@ bool MegaApi::isSyncing()
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
+}
+
+MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
+    return pImpl->isNodeSyncableWithError(node);
 }
 
 void MegaApi::setLegacyExcludedNames(vector<string> *excludedNames)

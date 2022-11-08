@@ -662,11 +662,16 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
                 readstatecache();
             }
         }
-    }
-    us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
+        us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
 
-    mCaseInsensitive = determineCaseInsenstivity(false);
-    LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+        mCaseInsensitive = determineCaseInsenstivity(false);
+        LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
+    }
+    else
+    {
+        LOG_err << "Could not open sync root folder: " << mLocalPath;
+        us.mConfig.mRunState = SyncRunState::Disable;
+    }
 }
 
 Sync::~Sync()
@@ -3253,6 +3258,13 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
+
+    if (us.mConfig.mRunState == SyncRunState::Disable)
+    {
+        LOG_err << "Could not determine fsid of sync root folder.";
+        return fail(API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID);
+    }
+
     debugLogHeapUsage();
 
     us.mSync->purgeStaleDownloads();
@@ -6488,7 +6500,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                     {
                                         row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(fullPath.localPath, this));
                                         syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
-                                        syncs.mClient.app->syncupdate_filter_error(getConfig());
                                     }
                                 }
                             }
@@ -6649,7 +6660,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             // Is it waiting for a putnodes request to complete?
             if (u->putnodesStarted && !u->wasPutnodesCompleted)
             {
-                LOG_debug << "Waiting for putnodes to complete: "
+                LOG_debug << "Waiting for putnodes to complete, defer move checking: "
                           << logTriplet(row, fullPath);
 
                 // Then come back later.
@@ -7752,6 +7763,17 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     // then its ok, we've confirmed it really isn't part of a move.
 
 
+    if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP))
+    {
+        if (u->putnodesStarted && !u->wasPutnodesCompleted)
+        {
+            // if we delete the LocalNode now, then the appearance of the uploaded file will cause a download which would be incorrect
+            // if it hadn't started putnodes, it would be ok to delete (which should also cancel the transfer)
+            SYNC_verbose << "This LocalNode is a candidate for deletion, but was also uploading a file and putnodes is in progress." << logTriplet(row, fullPath);
+            return false;
+        }
+    }
+
     // setting on the first pass, or restoring on subsequent (part of the auto-reset if it's no longer routed to _delSyncNode)
     row.syncNode->confirmDeleteCount = 1;
 
@@ -8431,6 +8453,8 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
             if (row.syncNode->rare().moveFromHere) immediateStall = false;
             if (row.syncNode->rare().moveToHere) immediateStall = false;
         }
+
+        SYNC_verbose << "both sides mismatch. Immediate: " << immediateStall << " at " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
             SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, immediateStall, true,
@@ -10757,7 +10781,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
         });
 }
 
-void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
+void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)
 {
     assert(!onSyncThread());
     queueSync([=](){
@@ -10773,6 +10797,10 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, handle backupId)
                 if (andFullScan)
                 {
                     us->mSync->localroot->setScanAgain(false, true, true, 0);
+                    if (andReFingerprint)
+                    {
+                        us->mSync->localroot->setSubtreeNeedsRefingerprint();
+                    }
                 }
             }
         }
@@ -11012,9 +11040,6 @@ void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
     // Record the failure.
     mIgnoreFileFailureContext.mBackupID = sync.getConfig().mBackupId;
     mIgnoreFileFailureContext.mPath = path;
-
-    // Let the application know an ignore file has failed to load.
-    mClient.app->syncupdate_filter_error(sync.getConfig());
 }
 
 bool Syncs::hasIgnoreFile(const SyncConfig& config)

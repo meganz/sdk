@@ -2932,7 +2932,7 @@ class MegaApiImpl : public MegaApp
 
         void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
 
-        void rescanSync(MegaHandle backupId);
+        void rescanSync(MegaHandle backupId, bool reFingerprint);
         MegaSyncList *getSyncs();
 
         void setLegacyExcludedNames(vector<string> *excludedNames);

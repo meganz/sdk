@@ -92,7 +92,7 @@ struct MEGA_API MegaApp
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
 
-    // nodes have been updated
+    // new actionpackets arrived with a new sequence tag
     virtual void sequencetag_update(const string&) { }
 
     // nodes have been updated
@@ -287,7 +287,6 @@ struct MEGA_API MegaApp
     // ----- (other callbacks occur on the client thread)
 
     // sync status updates and events
-    virtual void syncupdate_filter_error(const SyncConfig& config) { }
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }

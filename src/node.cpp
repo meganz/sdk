@@ -2479,6 +2479,22 @@ bool LocalNode::isBelow(const LocalNode& other) const
     return false;
 }
 
+void LocalNode::setSubtreeNeedsRefingerprint()
+{
+    // Re-calculate fingerprints on disk
+    // setScanAgain should be called separately
+    recomputeFingerprint = true;
+    oneTimeUseSyncedFingerprintInScan = false;
+
+    for (auto& child : children)
+    {
+        if (type != FILENODE)  // no need to set it for file versions
+        {
+            child.second->setSubtreeNeedsRefingerprint();
+        }
+    }
+}
+
 LocalPath LocalNode::getLocalPath() const
 {
     LocalPath lp;

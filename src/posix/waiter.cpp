@@ -154,16 +154,13 @@ int PosixWaiter::wait()
     uint8_t buf;
     bool external = false;
 
-    while (mAtomicBytesSent > 0)
     {
-        auto ret = read(m_pipe[0], &buf, 1);
-        if (ret == 1)
+        std::lock_guard<std::mutex> g(mMutex);
+        while (read(m_pipe[0], &buf, sizeof buf) > 0)
         {
-            --mAtomicBytesSent;
             external = true;
-            continue;
         }
-        break;
+        alreadyNotified = false;
     }
 
     // timeout or error
@@ -192,10 +189,11 @@ int PosixWaiter::wait()
 
 void PosixWaiter::notify()
 {
-    if (mAtomicBytesSent == 0)
+    std::lock_guard<std::mutex> g(mMutex);
+    if (!alreadyNotified)
     {
-        ++mAtomicBytesSent;
         write(m_pipe[1], "0", 1);
+        alreadyNotified = true;
     }
 }
 } // namespace

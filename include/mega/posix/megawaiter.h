@@ -24,7 +24,6 @@
 
 #include "mega/waiter.h"
 #include <mutex>
-#include <atomic>
 
 #ifndef USE_POLL
     #define MEGA_FD_ZERO FD_ZERO
@@ -81,7 +80,8 @@ struct PosixWaiter : public Waiter
 
 protected:
     int m_pipe[2];
-    std::atomic<int> mAtomicBytesSent { 0 };
+    std::mutex mMutex;
+    bool alreadyNotified = false;
 };
 } // namespace
 
