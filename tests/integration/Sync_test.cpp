@@ -1039,21 +1039,12 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
         string obfuscatedPass;
         for (auto c : pass)
         {
-            obfuscatedPass += "*";
+            obfuscatedPass += "/";
             obfuscatedPass += c;
-            obfuscatedPass += "&";
+            obfuscatedPass += "\\";
         }
 
-        string obfuscatedUser;
-        for (auto c : user)
-        {
-            obfuscatedUser += "%";
-            obfuscatedUser += c;
-            obfuscatedUser += "$";
-        }
-
-        cout << "[       OK ] " << clientname << " is on " << obfuscatedUser << " " << obfuscatedPass << endl;
-        LOG_info << clientname << " is on " << obfuscatedUser << " " << obfuscatedPass;
+        cout << "Using test account " << loginIndex << " " << user << " " << obfuscatedPass << endl;
         declaredTestAccounts.insert(user);
     }
 
