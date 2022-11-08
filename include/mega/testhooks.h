@@ -52,6 +52,7 @@ namespace mega {
         std::function<void(error e)> onUploadChunkFailed;
         std::function<bool(Transfer*, TransferDbCommitter&)> onUploadChunkSucceeded;
         std::function<void(error e)> onDownloadFailed;
+        std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
     };
 
     extern MegaTestHooks globalMegaTestHooks;

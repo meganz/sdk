@@ -549,8 +549,8 @@ struct StandardClient : public MegaApp
 
     std::function<void (StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
 
-    void fetchnodes(bool noCache, PromiseBoolSP pb);
-    bool fetchnodes(bool noCache = false);
+    void fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession, PromiseBoolSP pb);
+    bool fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession);
     NewNode makeSubfolder(const string& utf8Name);
 
     void catchup(std::function<void(error)> completion);

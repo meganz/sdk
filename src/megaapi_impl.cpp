@@ -15261,7 +15261,7 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     // chain a fetchnodes to get waitlink for ephemeral account
     int creqtag = client->reqtag;
     client->reqtag = client->restag;
-    client->fetchnodes();
+    client->fetchnodes(false, false, false);
     client->reqtag = creqtag;
 }
 
@@ -19581,7 +19581,7 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
-            client->fetchnodes();
+            client->fetchnodes(false, false, nocache);
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:

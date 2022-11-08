@@ -3924,6 +3924,28 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+void exec_simulatecondition(autocomplete::ACState& s)
+{
+    auto condition = s.words[1].s;
+    if (condition == "ETOOMANY")
+    {
+        globalMegaTestHooks.interceptSCRequest = [](std::unique_ptr<HttpReq>& pendingsc){
+            pendingsc.reset(new HttpReq);
+            pendingsc->status = REQ_SUCCESS;
+            pendingsc->in = "-6";
+            globalMegaTestHooks.interceptSCRequest = nullptr;
+            cout << "ETOOMANY prepared and reset" << endl;
+        };
+        client->waiter->notify();
+    }
+    else
+    {
+        cout << "unknown condition: " << condition << endl;
+    }
+}
+#endif
+
 #ifdef ENABLE_SYNC
 void exec_syncoutput(autocomplete::ACState& s)
 {
@@ -4137,6 +4159,9 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
+#endif
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
 #endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
@@ -7193,7 +7218,7 @@ void exec_reload(autocomplete::ACState& s)
 
     cwd = NodeHandle();
     client->cachedscsn = UNDEF;
-    client->fetchnodes(nocache);
+    client->fetchnodes(nocache, false, true);
 }
 
 void exec_logout(autocomplete::ACState& s)
@@ -8251,7 +8276,7 @@ void DemoApp::login_result(error e)
     {
         login.reset();
         cout << "Login successful, retrieving account..." << endl;
-        client->fetchnodes();
+        client->fetchnodes(false, true, false);
     }
     else if (e == API_EMFAREQUIRED)
     {
@@ -8492,7 +8517,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes();
+    client->fetchnodes(false, true, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -9817,7 +9842,7 @@ void DemoAppFolder::login_result(error e)
     else
     {
         cout << "Folder link loaded, retrieving account..." << endl;
-        clientFolder->fetchnodes();
+        clientFolder->fetchnodes(false, true, false);
     }
 }
 

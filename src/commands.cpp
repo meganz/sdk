@@ -5801,6 +5801,17 @@ bool CommandFetchNodes::procresult(Result r)
         return true;
     }
 
+    if (client->sctable)
+    {
+        // reset sc database for brand new node tree (note that we may be reloading mid-session)
+        LOG_debug << "Resetting sc database";
+        client->sctable->truncate();
+        client->sctable->commit();
+        assert(!client->sctable->inTransaction());
+        client->sctable->begin();
+        client->pendingsccommit = false;
+    }
+
     for (;;)
     {
         switch (client->json.getnameid())

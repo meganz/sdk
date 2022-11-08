@@ -2107,10 +2107,10 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                versioningPolicy);
 }
 
-void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
+void StandardClient::fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession, PromiseBoolSP pb)
 {
     resultproc.prepresult(FETCHNODES, ++next_request_tag,
-        [&](){ client.fetchnodes(noCache); },
+        [&](){ client.fetchnodes(noCache, loadSyncs, reloadingMidSession); },
         [this, pb](error e)
         {
             if (e)
@@ -2136,12 +2136,12 @@ void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
         });
 }
 
-bool StandardClient::fetchnodes(bool noCache)
+bool StandardClient::fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidSession)
 {
     auto result =
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.fetchnodes(noCache, result);
+                            client.fetchnodes(noCache, loadSyncs, reloadingMidSession, result);
                         }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(180));
@@ -3603,7 +3603,7 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         out() << "loginFromEnv failed";
         return false;
     }
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); }, __FILE__, __LINE__);
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, true, false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1)) {
         out() << "fetchnodes failed";
         return false;
@@ -3927,7 +3927,7 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); }, __FILE__, __LINE__);
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, true, false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
@@ -3944,7 +3944,7 @@ bool StandardClient::login_fetchnodes(const string& session)
     future<bool> p2;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); }, __FILE__, __LINE__);
+    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, true, false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
@@ -5152,6 +5152,20 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
+
+    // reload the Nodes from server, similar to an ETOOMANY error,
+    // just so we are excercising most of that code path somewhere
+    clientA1->fetchnodes(false, false, true);
+
+    clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent; }, std::chrono::seconds(60));
+
+    ASSERT_TRUE(CatchupClients(clientA1, clientA2));
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
+
+
 
     out() << "----- making sync change to test, now -----";
     clientA1->received_node_actionpackets = false;
@@ -6965,7 +6979,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     })();
 
     // Fetch nodes (and resume syncs.)
-    ASSERT_TRUE(c1.fetchnodes());
+    ASSERT_TRUE(c1.fetchnodes(false, true, false));
 
     // Wait for the syncs to be resumed.
     notify.get_future().get();

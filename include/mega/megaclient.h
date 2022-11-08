@@ -480,7 +480,7 @@ public:
     error changepw(const char *password, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes(bool nocache = false, bool loadSyncs = true);
+    void fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSession);
 
     // fetchnodes stats
     FetchNodesStats fnstats;
@@ -1316,6 +1316,9 @@ public:
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
+
+    // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
+    bool syncsAlreadyLoadedOnStatecurrent = false;
 
     // File Attribute upload system.  These can come from:
     //  - upload transfers

@@ -27,6 +27,7 @@
 #include <functional>
 #include <future>
 #include "mega/heartbeats.h"
+#include "mega/testhooks.h"
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -2209,6 +2210,13 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc /*&& !loggingout*/)
         {
+            #ifdef DEBUG
+                if (globalMegaTestHooks.interceptSCRequest)
+                {
+                    globalMegaTestHooks.interceptSCRequest(pendingsc);
+                }
+            #endif
+
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
@@ -2246,7 +2254,7 @@ void MegaClient::exec()
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
                         fetchnodestag = 0;
-                        fetchnodes(true, false);
+                        fetchnodes(false, false, true);
                         reqtag = creqtag;
                     }
                     else if (e == API_EAGAIN || e == API_ERATELIMIT)
@@ -3947,6 +3955,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
+    syncsAlreadyLoadedOnStatecurrent = false;
+
 
     init();
 
@@ -4188,7 +4198,11 @@ bool MegaClient::procsc()
                         // Don't start sync activity until `statecurrent` as it could take actions based on old state
                         // The reworked sync code can figure out what to do once fully up to date.
                         nodeTreeIsChanging.unlock();
-                        syncs.resumeSyncsOnStateCurrent();
+                        if (!syncsAlreadyLoadedOnStatecurrent)
+                        {
+                            syncs.resumeSyncsOnStateCurrent();
+                            syncsAlreadyLoadedOnStatecurrent = true;
+                        }
 #endif
 
                         if (notifyStorageChangeOnStateCurrent)
@@ -12287,7 +12301,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
+void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSession)
 {
     if (fetchingnodes)
     {
@@ -12313,10 +12327,13 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
         sctable->truncate();
     }
 
+    syncsAlreadyLoadedOnStatecurrent = reloadingMidSession;
+
     std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     // only initial load from local cache
-    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
+    if (!reloadingMidSession &&
+        (loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
@@ -12333,7 +12350,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
             // upon ug completion
             if (e != API_OK)
             {
-                LOG_err << "Session load failed: unable not get user data";
+                LOG_err << "Session load failed: unable to get user data";
                 app->fetchnodes_result(API_EINTERNAL);
                 return; //from completion function
             }
@@ -12411,18 +12428,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-//#ifdef ENABLE_SYNC
-//        // If there are syncs present at this time, this is a reload-account request.
-//        // We will start by fetching a cached tree which likely won't match our current
-//        // state/scsn.  And then we will apply actionpackets until we are up to date.
-//        // Those actionpackets may be repeats of actionpackets already applied to the sync
-//        // or they may be new ones that were not previously applied.
-//        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
-//        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-//        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
-//#endif
-
-        if (!loggedinfolderlink())
+        if (!loggedinfolderlink() && !reloadingMidSession)
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
@@ -12453,6 +12459,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
         }
         else
         {
+            actionpacketsCurrent = false;
             reqs.add(new CommandFetchNodes(this, reqtag, nocache, loadSyncs));
         }
     }
