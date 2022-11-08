@@ -171,7 +171,7 @@ public:
 
     // serialization
     bool serialize(string& out) const;
-    static ScheduledMeeting* unserialize(const std::string &in);
+    static ScheduledMeeting* unserialize(const std::string &in, handle chatid);
 
 private:
     // chat handle

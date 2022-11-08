@@ -429,7 +429,6 @@ bool ScheduledMeeting::serialize(string& out) const
     bool hasRules = rules();
 
     CacheableWriter w(out);
-    w.serializehandle(chatid());
     w.serializehandle(schedId());
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
@@ -456,10 +455,9 @@ bool ScheduledMeeting::serialize(string& out) const
     return true;
 }
 
-ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
+ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
 {
     if (in.empty())  { return nullptr; }
-    handle chatid = UNDEF;
     handle organizerUserid = UNDEF;
     handle schedId = UNDEF;
     handle parentSchedId = UNDEF;
@@ -478,7 +476,6 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in)
     unsigned char expansions[8];
 
     CacheableReader w(in);
-    w.unserializehandle(chatid);
     w.unserializehandle(schedId);
     w.unserializehandle(organizerUserid);
     w.unserializestring(timezone);
@@ -912,7 +909,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     for (auto i: scheduledMeetingsStr)
     {
-        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i));
+        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i, chat->id));
         if (auxMeet)
         {
             chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
