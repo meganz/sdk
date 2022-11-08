@@ -9585,6 +9585,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         if (chat->removeSchedMeeting(mSchedId))
         {
             chat->removeChildSchedMeetings(mSchedId);
+            chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
@@ -9687,6 +9688,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
 
     // just notify once, for all ocurrences received for the same chat
     chat->changed.schedOcurr = true;
+    chat->setTag(tag ? tag : -1);
     client->notifychat(chat);
 
     if (mCompletion) { mCompletion(API_OK, &schedMeetings); }

@@ -7428,6 +7428,7 @@ void MegaClient::sc_delscheduledmeeting()
                     if (chat->removeSchedMeeting(schedId))
                     {
                         chat->removeChildSchedMeetings(schedId);
+                        chat->setTag(0);    // external change
                         notifychat(chat);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
@@ -7466,6 +7467,7 @@ void MegaClient::sc_scheduledmeetings()
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(sm.get());
+        chat->setTag(0);    // external change
         notifychat(chat);
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
@@ -10183,8 +10185,6 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
 
     return API_EARGS;
 }
-
-
 
 void MegaClient::openStatusTable(bool loadFromCache)
 {
@@ -17732,7 +17732,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
     {
         bool exit = false;
         bool schedParseErr = false;
-        handle i = UNDEF;
         handle organizerUser = UNDEF;
         handle chatid = UNDEF;
         handle organizerUserId = UNDEF;
@@ -17956,7 +17955,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 
                     // note: we need to B64 decode the following params: timezone, title, description, attributes
                     std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting(chatid, Base64::atob(timezone), startDateTime, endDateTime,
-                                         Base64::atob(title), Base64::atob(description), organizerUserId, schedId,
+                                         Base64::atob(title), Base64::atob(description), organizerUser, schedId,
                                          parentSchedId, cancelled, Base64::atob(attributes),
                                          overrides, flags.get(), rules.get()));
 
