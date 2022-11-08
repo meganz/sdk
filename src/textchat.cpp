@@ -288,24 +288,6 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 }
 
 /* class scheduledMeeting */
-ScheduledMeeting::ScheduledMeeting()
-    : mChatid(UNDEF),
-      mOrganizerUserId(UNDEF),
-      mSchedId(UNDEF),
-      mParentSchedId(UNDEF),
-      mTimezone(std::string()),
-      mStartDateTime(std::string()),
-      mEndDateTime(std::string()),
-      mTitle(std::string()),
-      mDescription(std::string()),
-      mAttributes(std::string()),
-      mOverrides(std::string()),
-      mCancelled(-1),
-      mFlags(nullptr),
-      mRules(nullptr)
-{
-}
-
 ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, const std::string &startDateTime, const std::string &endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
