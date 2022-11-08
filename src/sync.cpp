@@ -6660,7 +6660,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             // Is it waiting for a putnodes request to complete?
             if (u->putnodesStarted && !u->wasPutnodesCompleted)
             {
-                LOG_debug << "Waiting for putnodes to complete: "
+                LOG_debug << "Waiting for putnodes to complete, defer move checking: "
                           << logTriplet(row, fullPath);
 
                 // Then come back later.
@@ -7762,6 +7762,17 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     // this node should be deleted on two consecutive passes
     // then its ok, we've confirmed it really isn't part of a move.
 
+
+    if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP))
+    {
+        if (u->putnodesStarted && !u->wasPutnodesCompleted)
+        {
+            // if we delete the LocalNode now, then the appearance of the uploaded file will cause a download which would be incorrect
+            // if it hadn't started putnodes, it would be ok to delete (which should also cancel the transfer)
+            SYNC_verbose << "This LocalNode is a candidate for deletion, but was also uploading a file and putnodes is in progress." << logTriplet(row, fullPath);
+            return false;
+        }
+    }
 
     // setting on the first pass, or restoring on subsequent (part of the auto-reset if it's no longer routed to _delSyncNode)
     row.syncNode->confirmDeleteCount = 1;
