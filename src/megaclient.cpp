@@ -18049,6 +18049,8 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
 
         ++itS;
     }
+
+    // check for orphan Elements, it should not happen
     assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
 
     return API_OK;
