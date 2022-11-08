@@ -12090,8 +12090,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        notifychat(chat);
+        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0,

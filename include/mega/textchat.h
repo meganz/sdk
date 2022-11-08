@@ -289,7 +289,7 @@ public:
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
-    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm);
+    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool removeSchedMeeting(handle schedId);
     unsigned int removeChildSchedMeetings(handle parentSchedId);

@@ -1058,7 +1058,7 @@ bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
     return true;
 }
 
-bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm)
+bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm, bool notify)
 {
     if (!sm)
     {
@@ -1068,7 +1068,7 @@ bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm)
     }
 
     return mScheduledMeetings.find(sm->schedId()) == mScheduledMeetings.end()
-            ? addSchedMeeting(sm)
+            ? addSchedMeeting(sm, notify)
             : updateSchedMeeting(sm);
 }
 
