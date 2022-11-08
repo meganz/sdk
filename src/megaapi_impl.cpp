@@ -19017,8 +19017,10 @@ void MegaApiImpl::sendPendingRequests()
                     if (e == API_OK)
                     {
                         const Set* updatedSet = client->getSet(sid);
+                        bool isExport = request->getFlag();
                         assert(updatedSet);
-                        assert(updatedSet->publicId() != UNDEF);
+                        assert((isExport && updatedSet->publicId() != UNDEF)
+                               || (!isExport && updatedSet->publicId() == UNDEF));
 
                         string url;
                         std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
@@ -23973,6 +23975,8 @@ bool MegaApiImpl::isExportedSet(MegaHandle sid)
 
 void MegaApiImpl::exportSet(MegaHandle sid, bool create, MegaRequestListener* listener)
 {
+    SdkMutexGuard g(sdkMutex);
+
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
     request->setTotalBytes(sid);
     request->setFlag(create);
@@ -23993,6 +23997,8 @@ void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener
 const string MegaApiImpl::SET_PREVIEW_LOGIN = "SET";
 void MegaApiImpl::startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener)
 {
+    SdkMutexGuard g(sdkMutex);
+
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(publicSetLink);
     request->setEmail(SET_PREVIEW_LOGIN.c_str());
@@ -24005,52 +24011,6 @@ void MegaApiImpl::stopPublicSetPreview()
     SdkMutexGuard g(sdkMutex);
 
     client->stopSetPreview();
-}
-
-MegaNode* MegaApiImpl::getNodeFromPublicSetElement(handle eid)
-{
-    SdkMutexGuard g(sdkMutex);
-
-    if (!client->inSetPreviewMode())
-    {
-        LOG_warn << "Trying to reach set element while not in set preview mode";
-        return nullptr;
-    }
-
-    auto element = client->getPreviewSetElement(eid);
-    if (!element)
-    {
-        LOG_warn << "Set element with handle " << toNodeHandle(eid) << " is not in current preview set";
-        return nullptr;
-    }
-
-    // check eid is in the preview set
-    handle nodehandle = element->node();
-    string ekey = element->key();
-    string nodekey, fileattrstring;
-    nodekey.resize(ekey.size() * 3 / 4 + 3);
-    nodekey.resize(Base64::atob(ekey.c_str(), (byte*)nodekey.data(), int(nodekey.size())));
-    return new MegaNodePrivate(""/*name*/,
-                               FILENODE /*node type*/,
-                               0 /*size*/,
-                               0 /*ctime*/,
-                               0 /*mtime*/,
-                               nodehandle,
-                               &nodekey,
-                               &fileattrstring,
-                               nullptr /*fingerprint*/,
-                               nullptr /* originalFingerprint */,
-                               INVALID_HANDLE /*MegaHandle owner*/
-                               /*
-                                 , INVALID_HANDLE // MegaHandle parentHandle
-                                 , nullptr // const char* privateauth
-                                 , nullptr // const char* publicauth
-                                 , false // isPublic
-                                 , false // isForeign
-                                 , nullptr // const char* chatauth
-                                 , true // isNodeDecrypted
-                               */
-                               );
 }
 
 void TreeProcCopy::allocnodes()

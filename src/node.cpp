@@ -924,8 +924,8 @@ string Node::displaypath() const
             return path;
 
         case SETNODE:
-            assert(false);
             LOG_err << "Trying to evaluate displaypath() on a Set node";
+            assert(false);
             return path;
 
         case TYPE_DONOTSYNC:

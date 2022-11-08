@@ -2150,7 +2150,6 @@ private:
 
     bool isElementInPreviewSet(handle eid) const
     { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
-    inline bool isExportedSet(const Set& s) const;
 // -------- end of Sets and Elements
 
 };

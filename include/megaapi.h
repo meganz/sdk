@@ -19790,23 +19790,6 @@ class MegaApi
          */
         void stopPublicSetPreview();
 
-        /**
-         * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
-         *
-         * You can use MegaApi::startDownload with the resulting node with any instance
-         * of MegaApi, even if it's logged into another account, a public folder, or not
-         * logged in.
-         *
-         * If the set element id does not match with any element of current public set
-         * in preview, or SDK instance is not in preview mode, this function returns nullptr.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param node MegaNode to authorize
-         * @return Mega node, or nullptr if the element is unreachable
-         */
-        MegaNode* getNodeFromPublicSetElement(MegaHandle eid);
-
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;

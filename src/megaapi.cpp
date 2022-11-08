@@ -5664,11 +5664,6 @@ void MegaApi::stopPublicSetPreview()
     return pImpl->stopPublicSetPreview();
 }
 
-MegaNode* MegaApi::getNodeFromPublicSetElement(handle eid)
-{
-    return pImpl->getNodeFromPublicSetElement(eid);
-}
-
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
