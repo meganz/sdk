@@ -2243,21 +2243,18 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
         return; // don't just loop `alerts` every time
     }
 
+    // send notification for all current alerts, even if some overflowed already
+    LOG_debug << "Notifying " << useralertnotify.size() << " user alerts";
+    mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
+
     trimAlertsToMaxCount();
 
-    if (!useralertnotify.empty())
+    for (auto a : useralertnotify)
     {
-        // send notification
-        LOG_debug << "Notifying " << useralertnotify.size() << " user alerts";
-        mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
-
-        for (auto a : useralertnotify)
-        {
-            mc.persistAlert(a); // persist to db
-        }
-
-        useralertnotify.clear();
+        mc.persistAlert(a); // persist to db
     }
+
+    useralertnotify.clear();
 }
 
 void UserAlerts::trimAlertsToMaxCount()
