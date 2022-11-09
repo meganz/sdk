@@ -3213,6 +3213,15 @@ void MegaClient::exec()
 
         // Flush changes made to internal configs.
         syncs.syncConfigStoreFlush();
+
+        if (syncscanstate && syncs.getConfigs(false).empty())
+        {
+            // cover the case when the last sync is deleted while scanning
+            LOG_debug << "Scanning finished";
+            app->syncupdate_scanning(false);
+            syncscanstate = false;
+        }
+
 #endif
 
         notifypurge();
