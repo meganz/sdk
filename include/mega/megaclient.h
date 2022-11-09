@@ -527,9 +527,9 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
-#ifdef ENABLE_SYNC
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
+#ifdef ENABLE_SYNC
     void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
 #endif
 
@@ -2026,7 +2026,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);

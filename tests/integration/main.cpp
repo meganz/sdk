@@ -16,6 +16,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
+bool gScanOnly = false; // will be used in SRW
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 
@@ -454,6 +455,11 @@ int main (int argc, char *argv[])
             gOutputToCout = true;
             argc -= 1;
         }
+        else if (std::string(*it) == "--SCANONLY")
+        {
+            gScanOnly = true;
+            argc -= 1;
+        }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
@@ -618,11 +624,26 @@ void moveToTrash(const fs::path& p)
     fs::path trashpath(TestFS::GetTrashFolder());
     fs::create_directory(trashpath);
     fs::path newpath = trashpath / p.filename();
-    for (int i = 2; fs::exists(newpath); ++i)
+    int errcount = 0;
+    for (int i = 2; errcount < 20; ++i)
     {
+        if (!fs::exists(p)) break;
+
         newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+
+        if (!fs::exists(newpath))
+        {
+            std::error_code e;
+            fs::rename(p, newpath, e);
+            if (e)
+            {
+                LOG_err << "Failed to trash-rename " << p.u8string() << " to " << newpath.u8string() << ": " << e.message();
+                WaitMillisec(500);
+                errcount += 1;
+            }
+            else break;
+        }
     }
-    fs::rename(p, newpath);
 }
 
 fs::path makeNewTestRoot()
@@ -633,17 +654,12 @@ fs::path makeNewTestRoot()
     {
         moveToTrash(p);
     }
-    #ifndef NDEBUG
-    bool b =
-    #endif
-    fs::create_directories(p);
+
+    std::error_code e;
+    bool b = fs::create_directories(p, e);
+    if (!b) { out() << "Failed to create base directory for test at: " << p.u8string() << ", error: " << e.message(); }
     assert(b);
     return p;
-}
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
-{
-    return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
 fs::path makeReusableClientFolder(const string& subfolder)

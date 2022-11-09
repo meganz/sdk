@@ -102,10 +102,12 @@ public:
 
     void clear();
 
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     Request deferredRequests;
     std::function<bool(Command*)> deferRequests;
     void sendDeferred();
+#endif
+#ifdef MEGA_MEASURE_CODE
     uint64_t csRequestsSent = 0, csRequestsCompleted = 0;
     uint64_t csBatchesSent = 0, csBatchesReceived = 0;
 #endif

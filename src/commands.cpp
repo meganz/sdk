@@ -9251,7 +9251,9 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+#ifdef DEBUG
     bool isNew = mElement->id() == UNDEF;
+#endif
     const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 
