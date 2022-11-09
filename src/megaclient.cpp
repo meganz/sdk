@@ -8987,7 +8987,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
-                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(sk ? buf : NULL);
+                    if (sk) // only if the key is valid, add it to the repository
+                    {
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                    }
                 }
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
