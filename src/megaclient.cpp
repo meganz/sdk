@@ -19087,7 +19087,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         return nullptr;
     }
 
-    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter));
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
 
     return node;
 }
@@ -19171,7 +19171,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     if (node)
     {
-        node->setCounter(nc);
+        node->setCounter(nc, false);
     }
 
     mTable->updateCounter(nodehandle, nc.serialize());
@@ -20060,7 +20060,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
             nc.storage -= n.size;
             nc.versions++;
             nc.versionStorage += n.size;
-            n.setCounter(nc);
+            n.setCounter(nc, true);
         }
     }
 
