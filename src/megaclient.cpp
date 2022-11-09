@@ -7439,8 +7439,7 @@ void MegaClient::sc_delscheduledmeeting()
 
             case MAKENAMEID2('o', 'u'):  // action packet originator
             {
-                handle ou = UNDEF; // not necessary to store
-                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                jsonsc.gethandle(MegaClient::USERHANDLE); // not necessary to store
                 break;
             }
             case EOO:
@@ -17853,8 +17852,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID2('o', 'u'): // action packet originator
                 {
-                    handle ou = UNDEF; // not necessary to store
-                    ou = jsonsc.gethandle(USERHANDLE);
+                    jsonsc.gethandle(USERHANDLE); // not necessary to store
                     break;
                 }
                 // there are no scheduled meeting rules
