@@ -219,7 +219,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
     constexpr unsigned int flagsSize = 5;
-    unsigned char expansions[flagsSize];
+    unsigned char expansions[8];  // must be defined with size 8
     uint32_t auxSize = 0;
 
     CacheableReader w(in);
@@ -473,7 +473,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     std::unique_ptr<ScheduledFlags> flags;
     std::unique_ptr<ScheduledRules> rules;
     constexpr unsigned int flagsSize = 6;
-    unsigned char expansions[flagsSize];
+    unsigned char expansions[8]; // must be defined with size 8
 
     CacheableReader w(in);
     if (!w.unserializehandle(schedId) ||
