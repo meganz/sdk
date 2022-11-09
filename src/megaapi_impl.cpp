@@ -33629,7 +33629,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPri
 }
 
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules):
-    mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
+    mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
     mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
     mUntil(rules->until()),
     mByWeekDay(rules->byWeekDay() ? new MegaIntegerListPrivate(*rules->byWeekDay()) : nullptr),
