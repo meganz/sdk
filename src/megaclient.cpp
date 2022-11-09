@@ -7405,7 +7405,6 @@ void MegaClient::sc_delscheduledmeeting()
 {
     bool done = false;
     handle schedId = UNDEF;
-    handle ou = UNDEF;
 
     while(!done)
     {
@@ -7415,10 +7414,12 @@ void MegaClient::sc_delscheduledmeeting()
                 schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case MAKENAMEID2('o','u'):
+            case MAKENAMEID2('o', 'u'):  // action packet originator
+            {
+                handle ou = UNDEF; // not necessary to store
                 ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
-
+            }
             case EOO:
             {
                 done = true;
@@ -7428,6 +7429,7 @@ void MegaClient::sc_delscheduledmeeting()
                     if (chat->removeSchedMeeting(schedId))
                     {
                         chat->removeChildSchedMeetings(schedId);
+                        chat->setTag(0);    // external change
                         notifychat(chat);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
@@ -7466,6 +7468,7 @@ void MegaClient::sc_scheduledmeetings()
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(sm.get());
+        chat->setTag(0);    // external change
         notifychat(chat);
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
@@ -10184,8 +10187,6 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-
-
 void MegaClient::openStatusTable(bool loadFromCache)
 {
     if (statusTable)
@@ -12090,8 +12091,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        notifychat(chat);
+        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0,
@@ -17733,8 +17733,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
     {
         bool exit = false;
         bool schedParseErr = false;
-        handle i = UNDEF;
-        handle organizerUser = UNDEF;
         handle chatid = UNDEF;
         handle organizerUserId = UNDEF;
         handle schedId = UNDEF;
@@ -17819,10 +17817,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
                     break;
                 }
-                case MAKENAMEID2('o', 'u'): // organizer user
-                    organizerUser = jsonsc.gethandle(USERHANDLE);
+                case MAKENAMEID2('o', 'u'): // action packet originator
+                {
+                    handle ou = UNDEF; // not necessary to store
+                    ou = jsonsc.gethandle(USERHANDLE);
                     break;
-
+                }
                 // there are no scheduled meeting rules
                 case MAKENAMEID1('r'):
                 {

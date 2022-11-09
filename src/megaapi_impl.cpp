@@ -33473,6 +33473,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         {
             mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
         }
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
     if (!chat->mScheduledMeetingsOcurrences.empty())
@@ -33508,11 +33509,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.options)
     {
         changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
-    }
-
-    if (!chat->mSchedMeetingsChanged.empty())
-    {
-        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
     if (chat->changed.schedOcurr)
@@ -33895,7 +33891,7 @@ ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
         rules.reset(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
     }
     return new ScheduledMeeting(mChatid, mTimezone, mStartDateTime, mEndDateTime,
-                     mTitle, mDescription, INVALID_HANDLE /*organizerUserId*/, mSchedId,
+                     mTitle, mDescription, mOrganizerUserId, mSchedId,
                      mParentSchedId, mCancelled, mAttributes, mOverrides, flags.get(), rules.get());
 }
 

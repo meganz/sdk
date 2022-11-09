@@ -1032,7 +1032,7 @@ MegaScheduledMeetingList* MegaRequest::getMegaScheduledMeetingList() const
 
 MegaScheduledMeeting* MegaRequest::getScheduledMeeting() const
 {
-    return NULL;
+    return nullptr;
 }
 #endif
 

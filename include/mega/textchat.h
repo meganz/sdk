@@ -137,7 +137,6 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
-    ScheduledMeeting();
     ScheduledMeeting(handle chatid, const string& timezone, const string& startDateTime, const string& endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
                      handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
@@ -290,7 +289,7 @@ public:
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
-    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm);
+    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
     bool removeSchedMeeting(handle schedId);
     unsigned int removeChildSchedMeetings(handle parentSchedId);
