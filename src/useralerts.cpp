@@ -2230,7 +2230,7 @@ void UserAlerts::initscalerts() // called after sc50 response has been received
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     for (auto& a : alerts)
     {
-        mc.notifyAlert(a);
+        mc.persistAlert(a);
     }
 }
 
@@ -2253,7 +2253,7 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
 
         for (auto a : useralertnotify)
         {
-            mc.notifyAlert(a); // persist to db
+            mc.persistAlert(a); // persist to db
         }
 
         useralertnotify.clear();
@@ -2274,7 +2274,7 @@ void UserAlerts::trimAlertsToMaxCount()
         {
             if (a->removed())
             {
-                mc.notifyAlert(a); // remove from db
+                mc.persistAlert(a); // remove from db
                 auto dist = std::distance(alerts.rbegin(), it);
                 alerts.erase(it.base() - 1);
                 delete a;
@@ -2292,7 +2292,7 @@ void UserAlerts::trimAlertsToMaxCount()
         {
             // remove from db and release all that overflowed
             a->setRemoved();
-            mc.notifyAlert(a); // remove from db
+            mc.persistAlert(a); // remove from db
             delete a;
             alertsToRemove.insert(a); // keep it to remove from useralertnotify
             ++it; // overflowed, so release it after exiting the loop

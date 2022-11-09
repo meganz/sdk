@@ -7763,7 +7763,7 @@ void MegaClient::notifypurge(void)
     totalNodes = nodes.size();
 }
 
-void MegaClient::notifyAlert(UserAlert::Base* a)
+void MegaClient::persistAlert(UserAlert::Base* a)
 {
     if (!sctable) return;
 
