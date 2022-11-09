@@ -222,10 +222,12 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
-    void syncupdate_active(const SyncConfig& config, bool active) override;
-    void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
+    void sync_added(const SyncConfig&) override;
     void sync_removed(const SyncConfig& config) override;
 
+    void syncs_restored(SyncError syncError) override;
+
+    void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
