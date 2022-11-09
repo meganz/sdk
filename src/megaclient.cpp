@@ -2270,6 +2270,8 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
+
+                        app->reloading();
 #ifdef ENABLE_SYNC
                         // Fail all syncs.
                         // Setting flag for fail rather than disable

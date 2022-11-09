@@ -323,6 +323,9 @@ struct MEGA_API MegaApp
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
 
+    // reload forced automatically by server
+    virtual void reloading() { }
+
     // wipe all users, nodes and shares
     virtual void clearing() { }
 
