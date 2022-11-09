@@ -2238,7 +2238,7 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
 {
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
 
-    if (useralertnotify.empty())
+    if (!catchupdone || useralertnotify.empty())
     {
         return; // don't just loop `alerts` every time
     }
