@@ -4255,7 +4255,10 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate& megaIn
 
 MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap)
 {
-     mIntegerMap.insert(bytesMap.begin(), bytesMap.end());
+    for (const auto& element: bytesMap)
+    {
+        mIntegerMap.emplace(static_cast<int64_t>(element.first), static_cast<int64_t>(element.second));
+    }
 }
 
 MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap)
