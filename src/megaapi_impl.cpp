@@ -4274,7 +4274,10 @@ MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
 MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
 {
     MegaSmallIntMap* byteMap = new MegaSmallIntMap();
-    byteMap->insert(mIntegerMap.begin(), mIntegerMap.end());
+    for (const auto& pair: mIntegerMap)
+    {
+        byteMap->emplace(static_cast<int8_t>(pair.first), static_cast<int8_t>(pair.second));
+    }
     return byteMap;
 }
 
@@ -33619,7 +33622,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
 }
 
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
-        mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
+        mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
         mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
         mUntil(rules->until() ? rules->until() : std::string()),
         mByWeekDay(rules->byWeekDay() ? rules->byWeekDay()->copy() : nullptr),
