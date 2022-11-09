@@ -33891,7 +33891,7 @@ ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
         rules.reset(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
     }
     return new ScheduledMeeting(mChatid, mTimezone, mStartDateTime, mEndDateTime,
-                     mTitle, mDescription, INVALID_HANDLE /*organizerUserId*/, mSchedId,
+                     mTitle, mDescription, mOrganizerUserId, mSchedId,
                      mParentSchedId, mCancelled, mAttributes, mOverrides, flags.get(), rules.get());
 }
 
