@@ -2310,18 +2310,4 @@ void UserAlerts::trimAlertsToMaxCount()
         eraseAlertsFromContainer(useralertnotify, alertsToRemove);
     }
 }
-
-size_t UserAlerts::validAlertCount() const
-{
-    size_t count = 0;
-    for (const auto& a : alerts)
-    {
-        if (!a->removed())
-        {
-            ++count;
-        }
-    }
-
-    return count;
-}
 } // namespace

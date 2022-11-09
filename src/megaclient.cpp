@@ -12666,7 +12666,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     mergenewshares(0);
     useralerts.catchupdone = true;
-    app->useralerts_updated(NULL, int(useralerts.validAlertCount()));
+    app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
 
     return true;
 }

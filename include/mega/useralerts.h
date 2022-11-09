@@ -332,7 +332,6 @@ private:
 public:
     typedef deque<UserAlert::Base*> Alerts;
     Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50; newest go at the end
-    size_t validAlertCount() const;
 
     void purgescalerts(); // persist alerts from action packets
     bool unserializeAlert(string* d, uint32_t dbid);
