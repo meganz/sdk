@@ -7765,6 +7765,8 @@ void MegaClient::notifypurge(void)
 
 void MegaClient::notifyAlert(UserAlert::Base* a)
 {
+    if (!sctable) return;
+
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     if (a->removed())
     {
