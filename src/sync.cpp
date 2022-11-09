@@ -4381,7 +4381,9 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
+#ifdef DEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
+#endif
 
             if (unifiedSync->mConfig.getEnabled())
             {

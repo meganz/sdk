@@ -1275,6 +1275,7 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
         [pb](error e) { pb->set_value(!e);  return true; });
 }
 
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
 void StandardClient::sendDeferredAndReset()
 {
     auto futureResult = thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) {
@@ -1284,6 +1285,7 @@ void StandardClient::sendDeferredAndReset()
     }, __FILE__, __LINE__);
     futureResult.get();
 }
+#endif
 
 bool StandardClient::copy(const CloudItem& source,
                           const CloudItem& target,
