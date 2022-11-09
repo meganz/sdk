@@ -445,7 +445,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris)
 {
-    auto& rootpath = sync.localroot->localname;
+    auto rootpath = sync.localroot->getLocalname();
     LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = fsaccess.newfileaccess(false);
@@ -631,15 +631,17 @@ bool SyncConfig::isInternal() const
     return mExternalDrivePath.empty();
 }
 
-bool SyncConfig::errorOrEnabledChanged()
+bool SyncConfig::stateFieldsChanged()
 {
     bool changed = mError != mKnownError ||
-                   mEnabled != mKnownEnabled;
+                   mEnabled != mKnownEnabled ||
+                   mKnownRunState != mRunState;
 
     if (changed)
     {
         mKnownError = mError;
         mKnownEnabled = mEnabled;
+        mKnownRunState = mRunState;
     }
     return changed;
 }
@@ -757,25 +759,6 @@ SyncBackupState SyncConfig::getBackupState() const
     return mBackupState;
 }
 
-const char* SyncConfig::syncstatename(const syncstate_t state)
-{
-    switch (state)
-    {
-    case SYNC_DISABLED:
-        return "DISABLED";
-    case SYNC_FAILED:
-        return "FAILED";
-    case SYNC_CANCELED:
-        return "CANCELED";
-    case SYNC_INITIALSCAN:
-        return "INITIALSCAN";
-    case SYNC_ACTIVE:
-        return "ACTIVE";
-    default:
-        return "UNKNOWN";
-    }
-}
-
 const char* SyncConfig::synctypename(const SyncConfig::Type type)
 {
     switch (type)
@@ -866,6 +849,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localnodes[FOLDERNODE] = 0;
 
     state() = SYNC_INITIALSCAN;
+    assert(mUnifiedSync.mConfig.mRunState == SyncRunState::Loading);
 
     fullscan = true;
     scanseqno = 0;
@@ -942,6 +926,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             }
         }
     }
+    us.mConfig.mRunState = SyncRunState::Run;
 }
 
 Sync::~Sync()
@@ -977,7 +962,7 @@ Sync::~Sync()
 
 void Sync::backupModified()
 {
-    changestate(SYNC_DISABLED, BACKUP_MODIFIED, false, true);
+    changestate(SYNC_DISABLED, BACKUP_MODIFIED, false, true, false);
 }
 
 bool Sync::isBackup() const
@@ -1025,21 +1010,35 @@ bool Sync::active() const
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
+    assert(syncs.onSyncThread());
+
     auto range = tmap->equal_range(parent_dbid);
 
-    for (auto it = range.first; it != range.second; it++)
+    // remove processed elements as we go, so we can then clean the database at the end.
+    for (auto it = range.first; it != tmap->end() && it->first == parent_dbid; it = tmap->erase(it))
     {
+        LocalNode* const l = it->second;
+
+        auto preExisting = p->children.find(l->getLocalname());
+        if (preExisting != p->children.end())
+        {
+            // tidying up from prior versions of the SDK which might have duplicate LocalNodes
+            LOG_debug << "Removing duplicate LocalNode: " << preExisting->second->debugGetParentList();
+            delete preExisting->second;   // also detaches and preps removal from db
+            assert(p->children.find(l->getLocalname()) == p->children.end());
+            // l will be added in its place.  Later entries were the ones used by the old algorithm
+        }
+
         ScopedLengthRestore restoreLen(localpath);
 
-        localpath.appendWithSeparator(it->second->localname, true);
+        localpath.appendWithSeparator(l->getLocalname(), true);
 
-        LocalNode* l = it->second;
         Node* node = l->node.release_unchecked();
         handle fsid = l->fsid;
         m_off_t size = l->size;
 
         // clear localname to force newnode = true in setnameparent
-        l->localname.clear();
+        l->setLocalname(LocalPath());
 
         // if we already have the shortname from database, use that, otherwise (db is from old code) look it up
         std::unique_ptr<LocalPath> shortname;
@@ -1060,9 +1059,9 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = syncs.fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() &&
-                ((!l->slocalname && (!sn || l->localname == *sn)) ||
-                (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+            assert(!l->getLocalname().empty() &&
+                ((!l->slocalname && (!sn || l->getLocalname() == *sn)) ||
+                (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->getLocalname() && *l->slocalname == *sn)));
         }
 #endif
 
@@ -1076,6 +1075,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
+                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -1097,6 +1097,7 @@ void Sync::readstatecache()
         LocalNode* l;
 
         statecachetable->rewind();
+        unsigned numLocalNodes = 0;
 
         // bulk-load cached nodes into tmap
         while (statecachetable->next(&cid, &cachedata, &client->key))
@@ -1105,12 +1106,29 @@ void Sync::readstatecache()
             {
                 l->dbid = cid;
                 tmap.insert(pair<int32_t,LocalNode*>(l->parent_dbid,l));
+                numLocalNodes += 1;
             }
         }
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
-        addstatecachechildren(0, &tmap, localroot->localname, localroot.get(), 100);
+        {
+            DBTableTransactionCommitter committer(statecachetable);
+            LocalPath pathBuffer = localroot->getLocalname(); // don't let localname be appended during recurse
+            addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
+
+            if (!tmap.empty())
+            {
+                // if there is anything left in tmap, those are orphan nodes - tidy up the db
+                LOG_debug << "Removing " << tmap.size() << " LocalNode orphans from db";
+                for (auto& ln : tmap)
+                {
+                    statecachedel(ln.second);
+                }
+            }
+        }
         cachenodes();
+
+        LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -1131,6 +1149,9 @@ const SyncConfig& Sync::getConfig() const
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
+    assert(syncs.onSyncThread());
+    assert(l->sync == this);
+
     if (state() == SYNC_CANCELED)
     {
         return;
@@ -1142,17 +1163,21 @@ void Sync::statecachedel(LocalNode* l)
     // size of these queues to determine whether a sync is or is not idle.
     //
     // The same reasoning applies to statecacheadd(...) below.
-    insertq.erase(l);
-
-    if (l->dbid)
+    if (l->dbid && statecachetable)
     {
-        deleteq.insert(l->dbid);
+        statecachetable->del(l->dbid);
     }
+    l->dbid = 0;
+
+    insertq.erase(l);
 }
 
 // insert LocalNode into DB cache
 void Sync::statecacheadd(LocalNode* l)
 {
+    assert(syncs.onSyncThread());
+    assert(l->sync == this);
+
     if (state() == SYNC_CANCELED)
     {
         return;
@@ -1163,7 +1188,15 @@ void Sync::statecacheadd(LocalNode* l)
         deleteq.erase(l->dbid);
     }
 
+    if (l->type < 0)
+    {
+        LOG_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
+        return;
+    }
+
     insertq.insert(l);
+    assert(l != localroot.get());
+    assert(l->parent);
 }
 
 void Sync::cachenodes()
@@ -1217,13 +1250,23 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
+void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
 {
-    mUnifiedSync.changeState(newstate, newSyncError, newEnableFlag, notifyApp);
+    mUnifiedSync.changeState(newstate, newSyncError, newEnableFlag, notifyApp, keepSyncDb);
 }
 
-void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
+void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
 {
+    assert(syncs.onSyncThread());
+
+    if (newSyncError != NO_SYNC_ERROR &&
+        newSyncError != UNLOADING_SYNC)
+    {
+        // until sync rework, we only have active and disbled states.
+        // keepSyncDb on error would be Suspended
+        keepSyncDb = false;
+    }
+
     // Transitioning to a 'stopped' state...
     if (newstate < SYNC_INITIALSCAN)
     {
@@ -1231,57 +1274,70 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         newEnableFlag &= mConfig.isInternal();
     }
 
-    if (!newEnableFlag && mSync && mSync->statecachetable)
-    {
-        // make sure db is up to date before we close it.
-        mSync->cachenodes();
+    assert(!(newSyncError == DECONFIGURING_SYNC && keepSyncDb));
+    assert(!(newEnableFlag && !keepSyncDb));
 
-        // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
-        mSync->statecachetable->remove();
+    if (!keepSyncDb)
+    {
+        if (mSync && mSync->statecachetable)
+        {
+            // flush our data structures before we close it.
+            mSync->cachenodes();
+
+            // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
+            mSync->statecachetable->remove();
+            mSync->statecachetable.reset();
+        }
+        else
+        {
+            // delete the database file directly since we don't have an object for it
+            auto fas = syncs.fsaccess->newfileaccess(false);
+            if (fas->fopen(mConfig.mLocalPath, true, false))
+            {
+                string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
+
+                LocalPath dbPath;
+                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+
+                LOG_debug << "Deleting sync database at: " << dbPath;
+                syncs.fsaccess->unlinklocal(dbPath);
+            }
+        }
+        mConfig.mDatabaseExists = false;
+    }
+
+    if (newSyncError != NO_SYNC_ERROR && mSync && mSync->statecachetable)
+    {
+        // if we are keeping the db and unloading the sync,
+        // prevent any more changes to it from this point
+        mSync->cachenodes();
         mSync->statecachetable.reset();
+    }
+
+    if (newstate != mConfig.mRunningState)
+    {
+        mConfig.mRunningState = newstate;
     }
 
     mConfig.mError = newSyncError;
     mConfig.setEnabled(newEnableFlag);
 
-    bool makeActiveCallback = false;
-    bool nowActive = false;
-
-    if (newstate != mConfig.mRunningState)
+    if (newSyncError || !newEnableFlag)
     {
-        auto oldstate = mConfig.mRunningState;
-        mConfig.mRunningState = newstate;
-        if (mSync) mSync->fullscan = false;
-
-        if (notifyApp)
-        {
-            bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            nowActive = newstate == SYNC_ACTIVE;
-            if (wasActive != nowActive)
-            {
-                makeActiveCallback = true;
-            }
-        }
+        mConfig.mRunState = SyncRunState::Disable;
     }
 
-    if (newstate != SYNC_CANCELED)
-    {
-        changedConfigState(notifyApp);
-    }
-
-    if (makeActiveCallback)
-    {
-        // Per MegaApi documentation, this callback occurs after the changed-state callback
-        syncs.mClient.app->syncupdate_active(mConfig, nowActive);
-    }
+    changedConfigState(!!syncs.mSyncConfigStore, notifyApp);
+    mNextHeartbeat->updateSPHBStatus(*this);
 }
 
 // walk localpath and return corresponding LocalNode and its parent
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
 {
+    assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
 
     size_t subpathIndex = 0;
@@ -1290,7 +1346,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (!localroot->localname.isContainingPathOf(localpath, &subpathIndex))
+        if (!localroot->getLocalname().isContainingPathOf(localpath, &subpathIndex))
         {
             if (parent)
             {
@@ -1320,8 +1376,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         localnode_map::iterator it;
-        if ((it = l->children.find(&component)) == l->children.end()
-            && (it = l->schildren.find(&component)) == l->schildren.end())
+        if ((it = l->children.find(component)) == l->children.end()
+            && (it = l->schildren.find(component)) == l->schildren.end())
         {
             // no full match: store residual path, return NULL with the
             // matching component LocalNode in parent
@@ -1357,13 +1413,13 @@ bool Sync::assignfsids()
 
 // scan localpath, add or update child nodes, call recursively for folder nodes
 // localpath must be prefixed with Sync
-bool Sync::scan(LocalPath* localpath, FileAccess* fa)
+bool Sync::scan(LocalPath localpath, FileAccess* fa)
 {
     if (fa)
     {
         assert(fa->type == FOLDERNODE);
     }
-    if (!localdebris.isContainingPathOf(*localpath))
+    if (!localdebris.isContainingPathOf(localpath))
     {
         LocalPath localname;
         string name;
@@ -1377,32 +1433,32 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
        auto da = syncs.fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
-        if ((success = da->dopen(localpath, fa, false)))
+        if ((success = da->dopen(&localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, false))
+            while (da->dnext(localpath, localname, false))
             {
                 name = localname.toName(*syncs.fsaccess);
 
-                ScopedLengthRestore restoreLen(*localpath);
-                localpath->appendWithSeparator(localname, false);
+                ScopedLengthRestore restoreLen(localpath);
+                localpath.appendWithSeparator(localname, false);
 
                 // check if this record is to be ignored
-                if (client->app->sync_syncable(this, name.c_str(), *localpath))
+                if (client->app->sync_syncable(this, name.c_str(), localpath))
                 {
                     // skip the sync's debris folder
-                    if (!localdebris.isContainingPathOf(*localpath))
+                    if (!localdebris.isContainingPathOf(localpath))
                     {
                         LocalNode *l = NULL;
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
+                            l = checkpath(NULL, &localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
                         {
                             // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, false);
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(localpath), false, false);
                         }
                     }
                 }
@@ -1554,7 +1610,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        scan(*localpathNew, fa.get());
                     }
                     else
                     {
@@ -1922,7 +1978,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         if (fullscan)
                         {
                             // immediately scan folder to detect deviations from cached state
-                            scan(localpathNew, fa.get());
+                            scan(*localpathNew, fa.get());
 
                             // consider this folder scanned.
                             it->second->needsRescan = false;
@@ -1963,7 +2019,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             {
                 if (newnode || l->needsRescan)
                 {
-                    scan(localpathNew, fa.get());
+                    scan(*localpathNew, fa.get());
                     l->needsRescan = false;
 
                     if (newnode)
@@ -1987,7 +2043,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 {
                     // root node cannot be a file
                     LOG_err << "The local root node is a file";
-                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE, false, true);
+                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE, false, true, false);
                 }
                 else
                 {
@@ -2445,7 +2501,9 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         // error and enable flag were already changed
         LOG_debug << "Enablesync checks resulted in error: " << e;
 
-        us.changedConfigState(notifyApp);
+        us.mConfig.mRunState = SyncRunState::Disable;
+
+        us.changedConfigState(true, notifyApp);
         if (completion) completion(e, us.mConfig.mError, backupId);
         return;
     }
@@ -2521,7 +2579,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
     auto fail = [&us, &completion](Error e, SyncError se, bool newEnableFlag) -> void {
-        us.changeState(SYNC_FAILED, se, newEnableFlag, true);
+        us.changeState(SYNC_FAILED, se, newEnableFlag, true, true);
         us.mSync.reset();
         LOG_debug << "Final error for sync start: " << e;
         if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
@@ -2533,9 +2591,18 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         return fail(API_EEXIST, REMOTE_NODE_NOT_FOUND, false);
     }
 
+    us.mConfig.mRunState = SyncRunState::Loading;
+    us.changedConfigState(false, true);
+
     us.mSync.reset(new Sync(us, debris, localdebris, remotenode, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
     debugLogHeapUsage();
+
+
+    // this was already set in the Sync constructor
+    assert(us.mConfig.mRunState == SyncRunState::Run);
+
+    us.changedConfigState(false, true);
 
     if (prevFingerprint && prevFingerprint != us.mConfig.mFilesystemFingerprint)
     {
@@ -2544,8 +2611,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
         return fail(API_EEXIST, LOCAL_FILESYSTEM_MISMATCH, false);
     }
-
-    us.mSync->isnetwork = isNetwork;
 
     if (!us.mSync->fsstableids)
     {
@@ -2561,15 +2626,14 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     LOG_debug << "Initial scan sync: " << us.mConfig.getLocalPath();
 
-    auto nonconst_rootpath = rootpath;
-    if (us.mSync->scan(&nonconst_rootpath, openedLocalFolder.get()))
+    if (us.mSync->scan(rootpath, openedLocalFolder.get()))
     {
         mClient.syncsup = false;
         us.mSync->initializing = false;
         LOG_debug << "Initial scan finished. New / modified files: " << us.mSync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
 
         // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
-        mClient.syncs.saveSyncConfig(us.mConfig);
+        saveSyncConfig(us.mConfig);
     }
     else
     {
@@ -2577,22 +2641,33 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         return fail(API_EFAILED, INITIAL_SCAN_FAILED, us.mConfig.getEnabled());
     }
 
+    us.mSync->isnetwork = isNetwork;
+
     mClient.syncactivity = true;
-    us.changedConfigState(notifyApp);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     if (completion) completion(API_OK, us.mConfig.mError, us.mConfig.mBackupId);
 }
 
-void UnifiedSync::changedConfigState(bool notifyApp)
+void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 {
-    if (mConfig.errorOrEnabledChanged())
-    {
-        LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
+    assert(syncs.onSyncThread());
 
-        syncs.saveSyncConfig(mConfig);
+    if (mConfig.stateFieldsChanged())
+    {
+        LOG_debug << "Sync " << toHandle(mConfig.mBackupId)
+                  << " now in runState: " << int(mConfig.mRunState)
+                  << " enabled: " << mConfig.mEnabled
+                  << " error: " << mConfig.mError;
+
+        if (save)
+        {
+            syncs.saveSyncConfig(mConfig);
+        }
+
         if (notifyApp)
         {
+            assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
         syncs.mClient.abortbackoff(false);
@@ -2601,7 +2676,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 
 Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
   : mClient(mc)
-  , fsaccess(fsa)  // reference to MegaClient's for now.  In sync rework, this will be a separate instance
+  , fsaccess(fsa)  // reference to MegaClient's for now, for linux we need it that way ofr notifications.  In sync rework, this will be a separate instance
 {
     fsaccess->initFilesystemNotificationSystem();
 
@@ -2744,7 +2819,7 @@ error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
     for (auto& sc : syncsOnDrive)
     {
         SyncConfig removed;
-        unloadSyncByBackupID(sc.mBackupId, removed);
+        unloadSyncByBackupID(sc.mBackupId, sc.mEnabled, removed);
     }
 
     return result;
@@ -3679,12 +3754,9 @@ void Syncs::clear_inThread()
         mSyncVec.clear();
     }
     mSyncVecIsEmpty = true;
-}
 
-void Syncs::resetSyncConfigStore()
-{
-    mSyncConfigStore.reset();
-    static_cast<void>(syncConfigStore());
+    mSyncsLoaded = false;
+    mSyncsResumed = false;
 }
 
 void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
@@ -3770,6 +3842,8 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 
     saveSyncConfig(c);
 
+    mClient.app->sync_added(c);
+
     if (!startSync)
     {
         if (completion) completion(API_OK, c.mError, c.mBackupId);
@@ -3781,6 +3855,9 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
 {
+    // returning a Sync* is not really thread safe but the tests are using these directly currently.  So long as they only browse the Sync while nothing changes, it should be ok
+
+    lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync && s->mConfig.mBackupId == backupId)
@@ -4011,7 +4088,7 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, 
 
         if (config.mBackupId == backupId)
         {
-            us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+            us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true, newEnabledFlag); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
             mHeartBeatMonitor->updateOrRegisterSync(us);
         }
@@ -4049,7 +4126,7 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
 
     Error e = API_OK;
     SyncConfig configCopy;
-    if (unloadSyncByBackupID(backupId, configCopy))
+    if (unloadSyncByBackupID(backupId, false, configCopy))
     {
         mClient.app->sync_removed(configCopy);
         mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
@@ -4066,7 +4143,7 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
     }
 }
 
-bool Syncs::unloadSyncByBackupID(handle id, SyncConfig& configCopy)
+bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& configCopy)
 {
     assert(onSyncThread());
     LOG_debug << "Unloading sync: " << toHandle(id);
@@ -4081,7 +4158,7 @@ bool Syncs::unloadSyncByBackupID(handle id, SyncConfig& configCopy)
             {
                 // if it was running, the app gets a callback saying it's no longer active
                 // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-                syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
+                syncPtr->changestate(SYNC_CANCELED, UNLOADING_SYNC, newEnabledFlag, false, true);
                 assert(!syncPtr->statecachetable);
                 syncPtr.reset(); // deletes sync
             }
@@ -4196,7 +4273,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     for (auto& sc : getConfigs(false))
     {
         SyncConfig removed;
-        unloadSyncByBackupID(sc.mBackupId, removed);
+        unloadSyncByBackupID(sc.mBackupId, false, removed);
     }
     assert(mSyncVec.empty());
 
@@ -4230,32 +4307,71 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
     }
 }
 
-void Syncs::resumeResumableSyncsOnStartup()
+void Syncs::resumeResumableSyncsOnStartup(bool resetSyncConfigStore)
 {
     if (mClient.loggedin() != FULLACCOUNT) return;
+//    assert(!onSyncThread());
+
+    // Double check the client only calls us once (per session) for this
+    assert(!mSyncsLoaded);
+    if (mSyncsLoaded) return;
+    mSyncsLoaded = true;
+
+    queueSync([this, resetSyncConfigStore]()
+        {
+            loadSyncConfigsOnFetchnodesComplete_inThread(resetSyncConfigStore);
+        });
+}
+void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore)
+{
+    assert(onSyncThread());
+
+    if (resetSyncConfigStore)
+    {
+        mSyncConfigStore.reset();
+        static_cast<void>(syncConfigStore());
+    }
 
     SyncConfigVector configs;
 
     if (syncConfigStoreLoad(configs) != API_OK)
     {
+        mClient.app->syncs_restored(SYNC_CONFIG_READ_FAILURE);
         return;
     }
 
     // There should be no syncs yet.
     assert(mSyncVec.empty());
 
-    for (auto& config : configs)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-        mSyncVecIsEmpty = false;
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (auto& config : configs)
+        {
+            mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
+            mSyncVecIsEmpty = false;
+        }
     }
+
+    for (auto& us : mSyncVec)
+    {
+        mClient.app->sync_added(us->mConfig);
+    }
+
+    // before sync rework, the syncs have to be started before we start processing actionpackets.
+    resumeSyncsOnStateCurrent_inThread();
+}
+
+void Syncs::resumeSyncsOnStateCurrent_inThread()
+{
+    assert(onSyncThread());
 
     for (auto& unifiedSync : mSyncVec)
     {
         if (!unifiedSync->mSync)
         {
-            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty())
             {
+                // this should only happen on initial migraion from from old caches
                 auto node = mClient.nodeByHandle(unifiedSync->mConfig.mRemoteNode);
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
@@ -4265,7 +4381,9 @@ void Syncs::resumeResumableSyncsOnStartup()
                 }
             }
 
+#ifdef DEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
+#endif
 
             if (unifiedSync->mConfig.getEnabled())
             {
@@ -4282,21 +4400,20 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId(unifiedSync->mConfig.mBackupId, false, false, false, false, nullptr, false, "");
-
-                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
-
-                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                    {
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
+                    }, "");
             }
             else
             {
+                unifiedSync->mConfig.mRunState = SyncRunState::Disable;
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
-                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, false, hadAnError);
             }
         }
     }
 
-    mClient.app->syncs_restored();
+    mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
 

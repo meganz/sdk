@@ -83,7 +83,7 @@ extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
-extern int gFseventsFd;
+extern bool gScanOnly;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
@@ -226,6 +226,15 @@ private:
     bool mFromRoot = false;
 }; // CloudItem
 
+struct SyncOptions
+{
+    string drivePath = string(1, '\0');
+    string excludePath;
+    bool legacyExclusionsEligible = false;
+    bool isBackup = false;
+    bool uploadIgnoreFile = false;
+}; // SyncOptions
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -296,20 +305,18 @@ struct StandardClient : public MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+    std::function<void(const SyncConfig&)> onAutoResumeResult;
 
-    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+    void sync_added(const SyncConfig& config) override;
 
     bool received_syncs_restored = false;
-    void syncs_restored() override;
+    void syncs_restored(SyncError syncError) override;
 
     bool received_node_actionpackets = false;
     std::condition_variable nodes_updated_cv;
 
     void nodes_updated(Node** nodes, int numNodes) override;
-
     bool waitForNodesUpdated(unsigned numSeconds);
-
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
     bool received_user_alerts = false;
@@ -420,6 +427,10 @@ struct StandardClient : public MegaApp
     void preloginFromEnv(const string& userenv, PromiseBoolSP pb);
     void loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb);
     void loginFromSession(const string& session, PromiseBoolSP pb);
+
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
+    void sendDeferredAndReset();
+#endif
 
     class BasicPutNodesCompletion
     {
@@ -575,11 +586,13 @@ struct StandardClient : public MegaApp
                                 const bool uploadIgnoreFile,
                                 const string& drivePath = string(1, '\0'));
 
-    void setupSync_inThread(const string& drivePath,
-                            const string& rootPath,
+    handle setupSync_mainthread(const string& rootPath,
+                                const CloudItem& remoteItem,
+                                const SyncOptions& syncOptions);
+
+    void setupSync_inThread(const string& rootPath,
                             const CloudItem& remoteItem,
-                            const bool isBackup,
-                            const bool uploadIgnoreFile,
+                            const SyncOptions& syncOptions,
                             PromiseHandleSP result);
 
     void importSyncConfigs(string configs, PromiseBoolSP result);
@@ -616,7 +629,6 @@ struct StandardClient : public MegaApp
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
     bool enableSyncByBackupId(handle id, const string& logname);
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
-
     handle backupIdForSyncPath(fs::path path);
 
     enum Confirm
@@ -719,6 +731,9 @@ struct StandardClient : public MegaApp
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
+
+    handle getNodeHandle(const CloudItem& item);
+    void getNodeHandle(const CloudItem& item, PromiseHandleSP result);
 
     FileFingerprint fingerprint(const fs::path& fsPath);
 

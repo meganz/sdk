@@ -3381,8 +3381,8 @@ class MegaRequest
             TYPE_QUERY_SIGNUP_LINK                                          = 23,
             TYPE_ADD_SYNC                                                   = 24,
             TYPE_REMOVE_SYNC                                                = 25,
-            TYPE_DISABLE_SYNC                                               = 26,
-            TYPE_ENABLE_SYNC                                                = 27,
+            //TYPE_DISABLE_SYNC                                               = 26,
+            //TYPE_ENABLE_SYNC                                                = 27,
             TYPE_COPY_SYNC_CONFIG                                           = 28,
             TYPE_COPY_CACHED_STATUS                                         = 29,
             TYPE_IMPORT_SYNC_CONFIGS                                        = 30,
@@ -3512,7 +3512,8 @@ class MegaRequest
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
             TYPE_REMOVE_OLD_BACKUP_NODES                                    = 156,
-            TOTAL_OF_REQUEST_TYPES                                          = 157,
+            TYPE_SET_SYNC_RUNSTATE                                          = 157,
+            TOTAL_OF_REQUEST_TYPES                                          = 158,
         };
 
         virtual ~MegaRequest();
@@ -5680,16 +5681,6 @@ public:
         LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
     };
 
-    enum SyncAdded
-    {
-        NEW  = 1, //new sync added and activated
-        FROM_CACHE = 2, // just restored from cache (keeping its former state: active if it was active)
-        FROM_CACHE_FAILED_TO_RESUME = 3, // restored from cache, but activation failed: implies change in state
-        FROM_CACHE_REENABLED  = 4, // restored from cache: reenabled after some failure: implies change in state
-        REENABLED_FAILED = 5, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
-        NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
-    };
-
     enum SyncType
     {
         TYPE_UNKNOWN = 0x00,
@@ -5697,6 +5688,16 @@ public:
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
+
+    enum SyncRunningState
+    {
+        RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
+        RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
+        RUNSTATE_RUNNING,     // Sync DB is loaded and active
+        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
+        RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
 
     virtual ~MegaSync();
@@ -5831,36 +5832,21 @@ public:
     virtual int getType() const;
 
     /**
-     * @brief Returns if the sync is set as enabled by the user
+     * @brief Returns the current run-state of the sync
      *
-     * Notice that this will return true even when the sync is failed (fatal error)
-     * or temporary disabled (transient error/circumstance).
+     * Returns one of the enum values from SyncRunningState
      *
-     * @return if the sync is set as enabled by the user
+     * @return one of the enum values from SyncRunningState.
      */
-    virtual bool isEnabled() const;
-
-    /**
-     * @brief Returns if the sync is active
-     *
-     * This means that the sync is expected to be working.
-     *
-     * It will be false if not disabled nor failed (nor being removed)
-     *
-     * @return If the sync is active
-     */
-    virtual bool isActive() const;
-
-    /**
-     * @brief Returns if the sync is temporary disabled (transient error/circumstance).
-     *
-     * @return If the sync is temporary disabled (transient error/circumstance).
-     */
-    virtual bool isTemporaryDisabled() const;
-
+    virtual int getRunState() const;
 
     /**
      * @brief Returns a readable description of the sync error
+     *
+     * Returns a text equivalent (in english) to getError()
+     *
+     * This gives the reason that the sync is in RUNSTATE_SUSPENDED
+     * or RUNSTATE_DISABLED state.
      *
      * This function returns a pointer to a statically allocated buffer.
      * You don't have to free the returned pointer
@@ -5959,7 +5945,7 @@ class MegaSyncList
 
 
 
-#endif
+#endif // ENABLE_SYNC
 
 
 /**
@@ -7566,26 +7552,6 @@ class MegaListener
      *
      * Notice that adding a sync will not cause onSyncStateChanged to be called.
      *
-     * As to the additionState can be:
-     * - MegaSync::SyncAdded::NEW = 1
-     * Sync added anew and activated
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE = 2
-     * Sync loaded from cache. If the sync was enabled, it will be enabled.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_FAILED_TO_RESUME = 3
-     * Sync loaded from cache, but failed to be resumed.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_REENABLED = 4
-     * Sync loaded from cache, and reenabled. The sync was temporary disabled but could be succesfully
-     * resumed
-     *
-     * - MegaSync::SyncAdded::REENABLED_FAILED = 5
-     * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
-     *
-     * - MegaSync::SyncAdded::NEW_DISABLED = 6
-     * Sync added anew, but set as temporarily disabled due to a temporary error
-     *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
      *
@@ -7593,51 +7559,7 @@ class MegaListener
      * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
      */
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
-
-    /**
-     * @brief This callback will be called when a sync is disabled.
-     *
-     * This can happen in the following situations
-     *
-     * - There’s a condition that cause the sync to fail
-     *
-     * - There’s a condition that cause the sync to be temporarily disabled
-     *
-     * - The users tries to disable a sync that had been previously failed permanently
-     *
-     * - The users tries to disable a sync that had been previously temporarily disabled.
-     *
-     * - The user tries to disable a sync that was active
-     *
-     * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
-     * that the sync is no longer in a temporary error, but in a fatal one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is enabled.
-     *
-     * This can happen in the following situations
-     *
-     * - The users enables a sync that was disabled
-     *
-     * - The sdk tries resumes a sync that had been temporarily disabled
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
 
     /**
      * @brief This callback will be called when a sync is removed.
@@ -7656,11 +7578,8 @@ class MegaListener
      * @brief This function is called when the state of the synchronization changes
      *
      * The SDK calls this function when the state of the synchronization changes. you can use
-     * MegaSync::getState to get the new state of the synchronization
+     * MegaSync::getRunState to get the new state of the synchronization
      * and MegaSync::getError to get the error if any.
-     *
-     * Notice, for changes that imply other callbacks, expect that the SDK
-     * will call onSyncStateChanged first, so that you can update your model only using this one.
      *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
@@ -14280,13 +14199,13 @@ class MegaApi
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
 
         /**
-         * @brief Remove a synced folder
+         * @brief De-configure the sync/backup of a folder
          *
          * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
          *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
+         * The synchronization will stop and the local sync database will be deleted
+         * The backupId of this sync will be invalid going forward.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
@@ -14295,8 +14214,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
@@ -14326,89 +14243,22 @@ class MegaApi
         void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Disable a synced folder
+         * @brief Run/Pause/Suspend/Disable a synced folder
          *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void disableSync(MegaNode *megaFolder, MegaRequestListener *listener=NULL);
+         * Attempt to Start, Pause, Suspend, or Disable a sync.
 
-
-        /**
-         * @brief Disable a synced folder
          *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
+         * Specify the new state to try to move the sync to.  In case there is
+         * a problem, the cause will be returned in the listener callabck.
          *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_SET_SYNC_RUNSTATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
          */
-        void disableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Disable a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         *
-         * @param sync Synchronization to disable
-         * @param listener MegaRequestListener to track this request
-         */
-        void disableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
-
-        /**
-        * @brief Enables a synced folder
-        *
-        * The folder will start being synced. No files in the local nor in the remote folder
-        * will be deleted due to the usage of this function.
-        *
-        * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
-        * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
-        *
-        * @param sync Synchronization to enable
-        * @param listener MegaRequestListener to track this request
-        */
-        void enableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
-
-        /**
-        * @brief Enables a synced folder
-        *
-        * The folder will start being synced. No files in the local nor in the remote folder
-        * will be deleted due to the usage of this function.
-        *
-        * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
-        * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
-        *
-        * @param backupId Identifier of the Sync (unique per user, provided by API)
-        * @param listener MegaRequestListener to track this request
-        */
-        void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener = NULL);
 
         /**
          * @brief

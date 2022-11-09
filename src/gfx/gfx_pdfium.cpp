@@ -124,11 +124,11 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 {
                     if (!w || !h)
                     {
-                        LOG_err << "Error reading PDF page size for " << path.toPath(false).c_str();
+                        LOG_err << "Error reading PDF page size for " << path;
                     }
                     else
                     {
-                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath(false).c_str();
+                        LOG_err << "Page size too large. Skipping PDF preview for " << path;
                     }
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);

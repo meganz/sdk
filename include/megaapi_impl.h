@@ -1283,7 +1283,7 @@ protected:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client);
+    MegaSyncPrivate(const SyncConfig& config, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1311,11 +1311,9 @@ public:
     int getType() const override;
     void setType(SyncType type);
 
-    void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
+    int getRunState() const override;
 
-    bool isEnabled() const override; //enabled by user
-    bool isActive() const override; //not disabled by user nor failed (nor being removed)
-    bool isTemporaryDisabled() const override; //disabled automatically for a transient reason
+    MegaSync::SyncRunningState mRunState = SyncRunningState::RUNSTATE_DISABLED;
 
 protected:
     MegaHandle megaHandle;
@@ -1331,9 +1329,6 @@ protected:
     int mWarning = NO_SYNC_WARNING;
 
     handle mBackupId = UNDEF;
-
-    bool mActive = false;
-    bool mEnabled = false;
 };
 
 
@@ -2698,9 +2693,7 @@ class MegaApiImpl : public MegaApp
         const char* exportSyncConfigs();
         void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
-        void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
-        void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
+        void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
         MegaSyncList *getSyncs();
 
         bool isSynced(MegaNode *n);
@@ -2724,7 +2717,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-#endif
+#endif // ENABLE_SYNC
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
@@ -3143,9 +3136,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
-        void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
-        void fireOnSyncDisabled(MegaSyncPrivate *sync);
-        void fireOnSyncEnabled(MegaSyncPrivate *sync);
+        void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
@@ -3166,7 +3157,7 @@ protected:
         MegaClient *client;
         MegaHttpIO *httpio;
         MegaWaiter *waiter;
-        MegaFileSystemAccess *fsAccess;
+        unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
@@ -3475,17 +3466,14 @@ protected:
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
 
-        // calls firOnSyncDisabled or fireOnSyncEnabled
-        void syncupdate_active(const SyncConfig& config, bool active) override;
-
-        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
+        void sync_added(const SyncConfig& config) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
-        virtual void syncs_restored() override;
+        virtual void syncs_restored(SyncError syncError) override;
 
         // this will call will fire EVENT_SYNCS_DISABLED
         virtual void syncs_disabled(SyncError syncError) override;
@@ -3493,6 +3481,7 @@ protected:
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(const SyncConfig& config) override;
 
+        void syncupdate_syncing(bool syncing) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
         bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
