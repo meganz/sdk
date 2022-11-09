@@ -303,6 +303,7 @@ bool UserAlert::IncomingPendingContact::serialize(string* d)
     w.serializehandle(mPcrHandle);
     w.serializebool(requestWasDeleted);
     w.serializebool(requestWasReminded);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -318,11 +319,13 @@ UserAlert::IncomingPendingContact* UserAlert::IncomingPendingContact::unserializ
     handle pcrHandle = 0;
     bool deleted = false;
     bool reminded = false;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(pcrHandle) &&
         r.unserializebool(deleted) &&
-        r.unserializebool(reminded))
+        r.unserializebool(reminded) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* ipc = new IncomingPendingContact(0, 0, p->userHandle, p->userEmail, p->timestamp, id);
         ipc->mPcrHandle = pcrHandle;
@@ -384,6 +387,7 @@ bool UserAlert::ContactChange::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializeu32(action);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -397,9 +401,11 @@ UserAlert::ContactChange* UserAlert::ContactChange::unserialize(string* d, unsig
     }
 
     int act = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* cc = new ContactChange(act, p->userHandle, p->userEmail, p->timestamp, id);
         cc->setRelevant(p->relevant);
@@ -446,6 +452,7 @@ bool UserAlert::UpdatedPendingContactIncoming::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializeu32(action);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -459,9 +466,11 @@ UserAlert::UpdatedPendingContactIncoming* UserAlert::UpdatedPendingContactIncomi
     }
 
     int act = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* upci = new UpdatedPendingContactIncoming(act, p->userHandle, p->userEmail, p->timestamp, id);
         upci->setRelevant(p->relevant);
@@ -504,6 +513,7 @@ bool UserAlert::UpdatedPendingContactOutgoing::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializeu32(action);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -517,9 +527,11 @@ UserAlert::UpdatedPendingContactOutgoing* UserAlert::UpdatedPendingContactOutgoi
     }
 
     int act = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* upco = new UpdatedPendingContactOutgoing(act, p->userHandle, p->userEmail, p->timestamp, id);
         upco->setRelevant(p->relevant);
@@ -561,6 +573,7 @@ bool UserAlert::NewShare::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializehandle(folderhandle);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -574,9 +587,11 @@ UserAlert::NewShare* UserAlert::NewShare::unserialize(string* d, unsigned id)
     }
 
     handle h = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializehandle(h))
+    if (r.unserializehandle(h) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* ns = new NewShare(h, p->userHandle, p->userEmail, p->timestamp, id);
         ns->setRelevant(p->relevant);
@@ -651,6 +666,7 @@ bool UserAlert::DeletedShare::serialize(string* d)
     w.serializestring(folderPath);
     w.serializestring(folderName);
     w.serializehandle(ownerHandle);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -666,12 +682,14 @@ UserAlert::DeletedShare* UserAlert::DeletedShare::unserialize(string* d, unsigne
     handle h = 0;
     string fp, fn;
     handle o = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(h) &&
         r.unserializestring(fp) &&
         r.unserializestring(fn) &&
-        r.unserializehandle(o))
+        r.unserializehandle(o) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* ds = new DeletedShare(p->userHandle, p->userEmail, o, h, p->timestamp, id);
         ds->folderPath = fp;
@@ -783,6 +801,7 @@ bool UserAlert::NewSharedNodes::serialize(string* d)
         w.serializehandle(h);
     }
 
+    w.serializeexpansionflags();
     return true;
 }
 
@@ -827,6 +846,12 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
                             return nullptr;
                         }
                     }
+                }
+
+                unsigned char expF[8];
+                if (!r.unserializeexpansionflags(expF, 0))
+                {
+                    return nullptr;
                 }
 
                 auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, move(vh1), move(vh2));
@@ -886,6 +911,7 @@ bool UserAlert::RemovedSharedNode::serialize(string* d)
         w.serializehandle(h);
     }
 
+    w.serializeexpansionflags();
     return true;
 }
 
@@ -912,6 +938,12 @@ UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* 
                     break;
                 }
             }
+        }
+
+        unsigned char expF[8];
+        if (!r.unserializeexpansionflags(expF, 0))
+        {
+            return nullptr;
         }
 
         auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, move(vh));
@@ -961,6 +993,7 @@ bool UserAlert::UpdatedSharedNode::serialize(string* d)
         w.serializehandle(h);
     }
 
+    w.serializeexpansionflags();
     return true;
 }
 
@@ -973,6 +1006,7 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
     }
 
     uint64_t n = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializecompressedu64(n))
@@ -987,6 +1021,11 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
                     break;
                 }
             }
+        }
+
+        if (!r.unserializeexpansionflags(expF, 0))
+        {
+            return nullptr;
         }
 
         auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, move(vh));
@@ -1050,6 +1089,7 @@ bool UserAlert::Payment::serialize(string* d)
     CacheableWriter w(*d);
     w.serializebool(success);
     w.serializeu32(planNumber);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -1064,10 +1104,12 @@ UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id)
 
     bool s = false;
     int plan = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializebool(s) &&
-        r.unserializeu32(reinterpret_cast<unsigned&>(plan)))
+        r.unserializeu32(reinterpret_cast<unsigned&>(plan)) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* pmt = new Payment(s, plan, p->timestamp, id);
         pmt->setRelevant(p->relevant);
@@ -1114,6 +1156,7 @@ bool UserAlert::PaymentReminder::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializecompressedi64(expiryTime);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -1127,9 +1170,11 @@ UserAlert::PaymentReminder* UserAlert::PaymentReminder::unserialize(string* d, u
     }
 
     m_time_t exp = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializecompressedi64(exp))
+    if (r.unserializecompressedi64(exp) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* pmr = new PaymentReminder(exp, id);
         pmr->setRelevant(p->relevant);
@@ -1209,6 +1254,7 @@ bool UserAlert::Takedown::serialize(string* d)
     w.serializebool(isTakedown);
     w.serializebool(isReinstate);
     w.serializehandle(nodeHandle);
+    w.serializeexpansionflags();
 
     return true;
 }
@@ -1224,11 +1270,13 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
     bool takedown = false;
     bool reinstate = false;
     handle h = 0;
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializebool(takedown) &&
         r.unserializebool(reinstate) &&
-        r.unserializehandle(h))
+        r.unserializehandle(h) &&
+        r.unserializeexpansionflags(expF, 0))
     {
         auto* td = new Takedown(takedown, reinstate, 0, h, p->timestamp, id);
         td->setRelevant(p->relevant);
