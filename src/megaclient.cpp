@@ -5519,6 +5519,8 @@ void MegaClient::finalizesc(bool complete)
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
+
+        app->reload("Failed to write to database");
     }
 }
 
