@@ -2636,7 +2636,7 @@ public:
      *
      * @return A pointer to the superclass of the private object
      */
-    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
+    static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
                                                      int cancelled, const char* timezone, const char* startDateTime,
                                                      const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                      const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
@@ -2741,7 +2741,7 @@ public:
     /**
      * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
      *
-     * The SDK retains the ownership of the MegaScheduledFlags
+     * You take ownership of the returned MegaScheduledFlags
      *
      * @return A pointer to MegaScheduledFlags that contains the scheduled meetings flags
      */
@@ -2750,7 +2750,7 @@ public:
     /**
      * @brief Returns a pointer to MegaScheduledRules that contains the scheduled meetings rules
      *
-     * The SDK retains the ownership of the MegaScheduledRules
+     * You take ownership of the returned MegaScheduledRules
      *
      * @return A pointer to MegaScheduledRules that contains the scheduled meetings rules
      */

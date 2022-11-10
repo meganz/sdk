@@ -1604,7 +1604,7 @@ class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;

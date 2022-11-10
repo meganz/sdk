@@ -9435,8 +9435,8 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
-CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, ScheduledMeeting * schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
-    : mScheduledMeeting(schedMeeting ? schedMeeting->copy() : nullptr), mCompletion(completion)
+CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, const ScheduledMeeting *schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
+    : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
     assert(schedMeeting);
     handle chatid = schedMeeting->chatid();

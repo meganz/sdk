@@ -4286,66 +4286,27 @@ public:
     MegaScheduledMeetingPrivate(const ScheduledMeeting* scheduledMeeting);
 
     virtual ~MegaScheduledMeetingPrivate();
-    MegaScheduledMeetingPrivate* copy() const;
+    MegaScheduledMeetingPrivate* copy() const override;
 
-    MegaHandle chatid() const;
-    MegaHandle schedId() const;
-    MegaHandle parentSchedId() const;
-    MegaHandle organizerUserid() const;
-    const char* timezone() const;
-    const char* startDateTime() const;
-    const char* endDateTime() const;
-    const char* title() const;
-    const char* description() const;
-    const char* attributes() const;
-    const char* overrides() const;
-    int cancelled() const;
-    MegaScheduledFlags* flags() const;
-    MegaScheduledRules* rules() const;
-    ScheduledMeeting* getSdkScheduledMeeting() const;
+    MegaHandle chatid() const override;
+    MegaHandle schedId() const override;
+    MegaHandle parentSchedId() const override;
+    MegaHandle organizerUserid() const override;
+    const char* timezone() const override;
+    const char* startDateTime() const override;
+    const char* endDateTime() const override;
+    const char* title() const override;
+    const char* description() const override;
+    const char* attributes() const override;
+    const char* overrides() const override;
+    int cancelled() const override;
+    MegaScheduledFlags* flags() const override;
+    MegaScheduledRules* rules() const override;
+
+    const ScheduledMeeting* scheduledMeeting() const;
 
 private:
-    // chat handle
-    MegaHandle mChatid;
-
-    // scheduled meeting handle
-    MegaHandle mSchedId;
-
-    // parent scheduled meeting handle
-    MegaHandle mParentSchedId;
-
-    // organizer user handle
-    handle mOrganizerUserId;
-
-    // timeZone
-    std::string mTimezone;
-
-    // start dateTime (format: 20220726T133000)
-    std::string mStartDateTime;
-
-    // end dateTime (format: 20220726T133000)
-    std::string mEndDateTime;
-
-    // meeting title
-    std::string mTitle;
-
-    // meeting description
-    std::string mDescription;
-
-    // attributes to store any additional data
-    std::string mAttributes;
-
-    // start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
-    std::string mOverrides;
-
-    // cancelled flag
-    int mCancelled;
-
-    // flags bitmask (used to store additional boolean settings as a bitmask)
-    std::unique_ptr<MegaScheduledFlags> mFlags;
-
-    // scheduled meetings rules
-    std::unique_ptr<MegaScheduledRules> mRules;
+    unique_ptr<ScheduledMeeting> mScheduledMeeting;
 };
 
 class MegaScheduledMeetingListPrivate: public MegaScheduledMeetingList
