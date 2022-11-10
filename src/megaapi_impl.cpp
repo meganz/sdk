@@ -1835,6 +1835,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     , tag(b->tag)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
+    , removed(b->removed())
 {
     b->text(heading, title, mc);
     timestamps.push_back(b->ts());
@@ -2114,6 +2115,11 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
 bool MegaUserAlertPrivate::isOwnChange() const
 {
     return tag != 0;
+}
+
+bool mega::MegaUserAlertPrivate::isRemoved() const
+{
+    return removed;
 }
 
 MegaNode *MegaNodePrivate::fromNode(Node *node)

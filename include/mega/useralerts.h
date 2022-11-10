@@ -333,9 +333,6 @@ public:
     typedef deque<UserAlert::Base*> Alerts;
     Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50; newest go at the end
 
-    void purgescalerts(); // persist alerts from action packets
-    bool unserializeAlert(string* d, uint32_t dbid);
-
     // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
     useralert_vector useralertnotify; // alerts to be notified to the app (new/updated/removed)
 
@@ -381,6 +378,11 @@ private:
     bool isConvertReadyToAdd(handle originatinguser) const;
     void convertNotedSharedNodes(bool added);
     void clearNotedSharedMembers();
+
+    void trimAlertsToMaxCount(); // mark as removed the excess from 200
+    void notifyAlert(UserAlert::Base* alert, bool seen, int tag);
+
+    bool canBeCombinedAs(const UserAlert::Base* a, nameid t) const;
 
     bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
     // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise
@@ -435,8 +437,8 @@ public:
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
 
     void initscalerts(); // persist alerts received from sc50
-    bool canBeCombinedAs(const UserAlert::Base* a, nameid t) const;
-    void trimAlertsToMaxCount();
+    void purgescalerts(); // persist alerts from action packets
+    bool unserializeAlert(string* d, uint32_t dbid);
 
     // stash removal-alert noted nodes
     void convertStashedDeletedSharedNodes();

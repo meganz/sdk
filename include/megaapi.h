@@ -2054,6 +2054,22 @@ public:
      * request sent by this instance of the SDK.
      */
     virtual bool isOwnChange() const;
+
+    /**
+     * @brief Indicates that the alert is about to be removed
+     *
+     * This value is useful to clean existing alerts that are not valid anymore.
+     * In example, a TYPE_REMOVEDSHAREDNODES may become TYPE_UPDATEDSHAREDNODES. In
+     * that case, the former will be notified as removed, and a new alert is added for
+     * the latter.
+     *
+     * The SDK purge old alerts in order to keep the list limited to maximum amount
+     * (currently up to 200). In result, the SDK may notify alerts as removed.
+     *
+     * @return True if the alert is about to be removed
+     */
+    virtual bool isRemoved() const;
+
 };
 
 /**

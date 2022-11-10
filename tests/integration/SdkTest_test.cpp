@@ -8534,8 +8534,15 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about contact request creation not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "IncomingPendingContact  --  request created";
-    const auto* a = B1dtls.userAlertList->get(0);
+    size_t count = 0;
+    const MegaUserAlert* a = nullptr;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "IncomingPendingContact  --  request created";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
     ASSERT_STRCASEEQ(a->getTitle(), "Sent you a contact request") << "IncomingPendingContact  --  request created";
     ASSERT_GT(a->getId(), 0u) << "IncomingPendingContact  --  request created";
@@ -8569,8 +8576,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
         << "Alert about contact request accepted not received by A1 after " << maxTimeout << " seconds";
     ASSERT_NE(A1dtls.userAlertList, nullptr) << "ContactChange  --  contact request accepted";
-    ASSERT_EQ(A1dtls.userAlertList->size(), 1) << "ContactChange  --  contact request accepted";
-    a = A1dtls.userAlertList->get(0);
+    count = 0; a = nullptr;
+    for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
+    {
+        if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = A1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "ContactChange  --  contact request accepted";
     ASSERT_STRCASEEQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
     ASSERT_STRCASEEQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
     ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact request accepted";
@@ -8654,8 +8667,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about new share not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewShare";
+    count = 0; a = nullptr;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewShare";
-    a = B1dtls.userAlertList->get(0);
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewShare";
     string title = "New shared folder from " + A1dtls.email;
     ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewShare";
@@ -8688,8 +8707,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about removed shared node not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "RemovedSharedNode";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "RemovedSharedNode";
-    a = B1dtls.userAlertList->get(0);
+    count = 0; a = nullptr;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "RemovedSharedNode";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "RemovedSharedNode";
     title = "Removed item from shared folder";
     ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "RemovedSharedNode";
@@ -8727,8 +8752,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about node added to share not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewSharedNodes";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewSharedNodes";
-    a = B1dtls.userAlertList->get(0);
+    count = 0; a = nullptr;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "NewSharedNodes";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewSharedNodes";
     title = A1dtls.email + " added 1 file";
     ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewSharedNodes";
@@ -8772,8 +8803,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about node updated in share not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode";
-    a = B1dtls.userAlertList->get(0);
+    count = 0; a = nullptr;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "UpdatedSharedNode";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode";
     ASSERT_STRCASEEQ(a->getTitle(), "Updated 1 item in shared folder") << "UpdatedSharedNode";
     ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode";
@@ -8812,8 +8849,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about node updated, again, in share not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode (combined)";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode (combined)";
-    a = B1dtls.userAlertList->get(0);
+    count = 0;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "UpdatedSharedNode (combined)";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
     ASSERT_STRCASEEQ(a->getTitle(), "Updated 2 items in shared folder") << "UpdatedSharedNode (combined)";
     ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode (combined)";
@@ -8942,8 +8985,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about deleted share not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "DeletedShare";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "DeletedShare";
-    a = B1dtls.userAlertList->get(0);
+    count = 0;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "DeletedShare";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "DeletedShare";
     title = "Access to folders shared by " + A1dtls.email + " was removed";
     ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "DeletedShare";
@@ -8979,8 +9028,14 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about contact removal not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "ContactChange  --  contact deleted";
-    ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "ContactChange  --  contact deleted";
-    a = B1dtls.userAlertList->get(0);
+    count = 0;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = B1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "ContactChange  --  contact deleted";
     ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
     ASSERT_STRCASEEQ(a->getTitle(), "Deleted you as a contact") << "ContactChange  --  contact deleted";
     ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact deleted";

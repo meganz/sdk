@@ -1455,13 +1455,8 @@ void UserAlerts::add(UserAlert::Base* unb)
                                              begin(np->folderNodeHandles), end(np->folderNodeHandles));
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != op))
-                {
-                    op->setSeen(false);
-                    op->tag = 0;
-                    useralertnotify.push_back(op);
-                    LOG_debug << "Updated user alert added to notify queue";
-                }
+                notifyAlert(op, false, 0);
+
                 delete unb;
                 return;
             }
@@ -1481,13 +1476,8 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != od))
-                {
-                    od->setSeen(false);
-                    od->tag = 0;
-                    useralertnotify.push_back(od);
-                    LOG_debug << "Updated user alert added to notify queue";
-                }
+                notifyAlert(od, false, 0);
+
                 delete unb;
                 return;
             }
@@ -1507,13 +1497,8 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != od))
-                {
-                    od->setSeen(false);
-                    od->tag = 0;
-                    useralertnotify.push_back(od);
-                    LOG_debug << "Updated user alert added to notify queue";
-                }
+                notifyAlert(od, false, 0);
+
                 delete unb;
                 return;
             }
@@ -1524,15 +1509,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received
-        for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
+        for (auto& a : alerts)
         {
-            if ((*i)->type == UserAlert::type_pses && (*i)->relevant())
+            if (a->type == UserAlert::type_pses && a->relevant())
             {
-                (*i)->setRelevant(false);
-                if (catchupdone)
-                {
-                    useralertnotify.push_back(*i);
-                }
+                a->setRelevant(false);
+                notifyAlert(a, a->seen(), a->tag);
             }
         }
     }
@@ -1541,12 +1523,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     alerts.push_back(unb);
     LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->ts();
 
-    if (catchupdone)
-    {
-        unb->tag = 0;
-        useralertnotify.push_back(unb);
-        LOG_debug << "New user alert added to notify queue";
-    }
+    notifyAlert(unb, unb->seen(), 0);   // do not touch seen here, but tag
 }
 
 void UserAlerts::startprovisional()
@@ -1874,10 +1851,8 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             {
                 pNewSN->setRemoved();
             }
-            else if (std::find(useralertnotify.rbegin(), useralertnotify.rend(), pNewSN) == useralertnotify.rend())
-            {
-                useralertnotify.push_back(pNewSN); // was updated, so persist it
-            }
+
+            notifyAlert(pNewSN, pNewSN->seen(), pNewSN->tag);
         }
         else if (auto pRemovedSN = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck))
         {
@@ -1886,10 +1861,8 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             {
                 pRemovedSN->setRemoved();
             }
-            else if (std::find(useralertnotify.rbegin(), useralertnotify.rend(), pRemovedSN) == useralertnotify.rend())
-            {
-                useralertnotify.push_back(pRemovedSN); // was updated, so persist it
-            }
+
+            notifyAlert(pRemovedSN, pRemovedSN->seen(), pRemovedSN->tag); // do not touch seen or tag // was updated, so persist it
         }
     }
 
@@ -2137,19 +2110,11 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
 
 void UserAlerts::acknowledgeAll()
 {
-    for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
+    for (auto& a : alerts)
     {
-        if (!(*i)->seen())
+        if (!a->seen())
         {
-            (*i)->setSeen(true);
-            if ((*i)->tag != 0)
-            {
-                (*i)->tag = mc.reqtag;
-            }
-            if (!(*i)->removed() && std::find(useralertnotify.begin(), useralertnotify.end(), *i) == useralertnotify.end())
-            {
-                useralertnotify.push_back(*i);
-            }
+            notifyAlert(a, true, mc.reqtag);
         }
     }
 
@@ -2159,19 +2124,11 @@ void UserAlerts::acknowledgeAll()
 
 void UserAlerts::onAcknowledgeReceived()
 {
-    if (catchupdone)
+    for (auto& a : alerts)
     {
-        for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
+        if (!a->seen())
         {
-            if (!(*i)->seen())
-            {
-                (*i)->setSeen(true);
-                (*i)->tag = 0;
-                if (!(*i)->removed() && std::find(useralertnotify.begin(), useralertnotify.end(), *i) == useralertnotify.end())
-                {
-                    useralertnotify.push_back(*i);
-                }
-            }
+            notifyAlert(a, true, 0);
         }
     }
 }
@@ -2284,22 +2241,34 @@ void UserAlerts::initscalerts() // called after sc50 response has been received
 
 void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
 {
-    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
-
-    if (!catchupdone || useralertnotify.empty())
+    if (useralertnotify.empty())
     {
         return; // don't just loop `alerts` every time
     }
+    assert(catchupdone);
+
+    trimAlertsToMaxCount();
 
     // send notification for all current alerts, even if some overflowed already
     LOG_debug << "Notifying " << useralertnotify.size() << " user alerts";
     mc.app->useralerts_updated(&useralertnotify[0], (int)useralertnotify.size());
 
-    trimAlertsToMaxCount();
-
     for (auto a : useralertnotify)
     {
-        mc.persistAlert(a); // persist to db
+        mc.persistAlert(a); // persist to db (add/update/remove)
+
+        if (a->removed())
+        {
+            auto it = find(alerts.begin(), alerts.end(), a);
+            assert(it != alerts.end());
+            alerts.erase(it);
+
+            delete a;
+        }
+        else
+        {
+            a->notified = false;
+        }
     }
 
     useralertnotify.clear();
@@ -2308,51 +2277,39 @@ void UserAlerts::purgescalerts() // called from MegaClient::notifypurge()
 void UserAlerts::trimAlertsToMaxCount()
 {
     static constexpr size_t maxAlertCount = 200; // value mentioned in the requirements
-    size_t kept = 0;
-    set<UserAlert::Base*> alertsToRemove;
 
-    for (auto it = alerts.rbegin(); it != alerts.rend();)
+    if (alerts.size() < maxAlertCount)  return;
+
+    size_t kept = 0;
+    for (auto& a : alerts)
     {
-        auto a = *it;
+        if (a->removed())   continue; // it's going to be removed, don't take it into account
 
         if (kept < maxAlertCount)
         {
-            if (a->removed())
-            {
-                mc.persistAlert(a); // remove from db
-                auto dist = std::distance(alerts.rbegin(), it);
-                alerts.erase(it.base() - 1);
-                delete a;
-                alertsToRemove.insert(a); // keep it to remove from useralertnotify
-                it = alerts.rbegin() + dist;
-            }
-            else
-            {
-                ++kept;
-                ++it;
-            }
+            ++kept;
         }
-
         else
         {
-            // remove from db and release all that overflowed
             a->setRemoved();
-            mc.persistAlert(a); // remove from db
-            delete a;
-            alertsToRemove.insert(a); // keep it to remove from useralertnotify
-            ++it; // overflowed, so release it after exiting the loop
+            notifyAlert(a, a->seen(), a->tag);
         }
     }
+}
 
-    if (alerts.size() > maxAlertCount)
-    {
-        // erase all that overflowed
-        alerts.erase(alerts.begin(), alerts.begin() + (alerts.size() - maxAlertCount));
-    }
+void UserAlerts::notifyAlert(UserAlert::Base *alert, bool seen, int tag)
+{
+    // skip notifications until up to date
+    if (!catchupdone)   return;
 
-    if (!alertsToRemove.empty())
+    alert->setSeen(seen);
+    alert->tag = tag;
+
+    if (!alert->notified)
     {
-        eraseAlertsFromContainer(useralertnotify, alertsToRemove);
+
+        alert->notified = true;
+        useralertnotify.push_back(alert);
     }
 }
 } // namespace
