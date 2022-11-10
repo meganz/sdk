@@ -23474,9 +23474,7 @@ void MegaApiImpl::sendPendingRequests()
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, 0, [] (Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
-                    {
-                    }));
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, 0, nullptr));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

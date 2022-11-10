@@ -9591,8 +9591,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1,
-                                                            [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1, nullptr));
         }
     }
 
@@ -9639,7 +9638,7 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
 
 CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
-   mCompletion(completion)
+   mCompletion(completion ? completion : [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){})
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
