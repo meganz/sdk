@@ -9545,7 +9545,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setSchedId(schedId);
 
-    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
+    bool res = !ISUNDEF(schedId) && chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
