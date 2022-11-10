@@ -3197,10 +3197,9 @@ bool CommandPutUAVer::procresult(Result r)
     return true;
 }
 
-CommandPutUA::CommandPutUA(MegaClient* cl, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
-    this->client = cl; // used in the lambda completion
     this->at = at;
     this->av.assign((const char*)av, avl);
 
