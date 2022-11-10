@@ -19566,22 +19566,10 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_NODES:
         {
-            if (nocache)
-            {
-                client->opensctable();
+            bool forceLoadFromServers = nocache;
+            nocache = false;
 
-                if (client->sctable)
-                {
-                    client->sctable->remove();
-                    client->sctable.reset();
-                    client->pendingsccommit = false;
-                    client->cachedscsn = UNDEF;
-                }
-
-                nocache = false;
-            }
-
-            client->fetchnodes(false, false, nocache);
+            client->fetchnodes(false, !forceLoadFromServers, forceLoadFromServers);
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:

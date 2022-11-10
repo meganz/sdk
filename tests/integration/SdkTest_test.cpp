@@ -7409,6 +7409,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     handle backupId = sync->getBackupId();
+    ASSERT_NE(backupId, UNDEF);
     std::string remoteFolder(sync->getLastKnownMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
@@ -7426,6 +7427,55 @@ TEST_F(SdkTest, SyncPersistence)
     sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
+
+    // perform fetchnodes (via megaapi_impl) while nodes are alrady loaded
+    // and a sync is running
+    // and check that the Nodes don't seem to disappear while it happens
+    // (similar dealing with an ETOOMANY error)
+    // just so we are exercising most of that code path somewhere
+
+    RequestTracker fnrt(megaApi[0].get());
+    megaApi[0]->invalidateCache();
+    megaApi[0]->fetchNodes(&fnrt);
+
+    while (!fnrt.finished)
+    {
+        // actually we can't check for the node yet - we may load a treecache that
+        // doesn't include it.  We have to wait until actionpackets catch up
+        //std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
+        //if (!remoteBaseNode2.get())
+        //{
+        //    remoteBaseNode2.reset();
+        //}
+        //ASSERT_NE(remoteBaseNode2.get(), (MegaNode*)nullptr);
+        WaitMillisec(10);
+    }
+    // fetchnodes result is only called after statecurrent, which should mean
+    // the last actionpacket indicated it was the last.
+    megaApi[0]->removeRequestListener(&fnrt);
+
+    std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
+    if (!remoteBaseNode2)
+    {
+        // see if more actionpackets bring it back (even though the last one did not have ir:1)
+        for (int i = 0; i < 10; ++i)
+        {
+            WaitMillisec(1000);
+            remoteBaseNode2.reset(megaApi[0]->getNodeByHandle(nh));
+            if (remoteBaseNode2)
+            {
+                // this does currently occur. commenting for now but we should bring it back once the API delivers ir:1 correctly
+                //ASSERT_FALSE(true) << "extra actionpackets delivered missing node after the server said there were no more";
+
+                // at least we are now up to date
+                break;
+            }
+        }
+    }
+
+    remoteBaseNode2.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode2.get(), (MegaNode*)nullptr);
+
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));

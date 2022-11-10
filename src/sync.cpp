@@ -439,8 +439,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
-    case WHOLE_ACCOUNT_REFETCHED:
-        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    //case WHOLE_ACCOUNT_REFETCHED:
+    //    return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
     case MISSING_PARENT_NODE:
         return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
@@ -9312,7 +9312,7 @@ void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
     assert(drivePath.isAbsolute() || drivePath.empty());
 
     // Drive should be known.
-    assert(mKnownDrives.count(drivePath));
+    assert(mKnownDrives.count(drivePath) || drivePath.empty()); // internal path is implicitly known
 
     mKnownDrives[drivePath].dirty = true;
 }
@@ -9360,6 +9360,8 @@ LocalPath SyncConfigStore::dbPath(const LocalPath& drivePath) const
 bool SyncConfigStore::driveKnown(const LocalPath& drivePath) const
 {
     assert(drivePath.isAbsolute() || drivePath.empty());
+
+    if (drivePath.empty()) return true; // internal drive
 
     return mKnownDrives.count(drivePath) > 0;
 }

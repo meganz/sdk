@@ -5792,14 +5792,15 @@ bool CommandFetchNodes::procresult(Result r)
     WAIT_CLASS::bumpds();
     client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
-    client->purgenodesusersabortsc(true);
-
     if (r.wasErrorOrOK())
     {
         client->fetchingnodes = false;
         client->app->fetchnodes_result(r.errorOrOK());
         return true;
     }
+
+    std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
+    client->purgenodesusersabortsc(true);
 
     if (client->sctable)
     {
