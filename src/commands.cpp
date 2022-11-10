@@ -9601,7 +9601,8 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 }
 
 CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
-    : mChatId(chatid), mSchedId(schedMeeting), mCompletion(completion)
+    : mChatId(chatid),
+      mCompletion(completion)
 {
     cmd("mcsmf");
     if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
@@ -9638,9 +9639,6 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
 
 CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
-   mSince(since ? since : string()),
-   mUntil(until ? until : string()),
-   mCount(count),
    mCompletion(completion)
 {
     cmd("mcsmfo");
