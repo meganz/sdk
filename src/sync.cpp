@@ -9312,7 +9312,7 @@ void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
     assert(drivePath.isAbsolute() || drivePath.empty());
 
     // Drive should be known.
-    assert(mKnownDrives.count(drivePath) || drivePath.empty()); // internal path is implicitly known
+    assert(mKnownDrives.count(drivePath));
 
     mKnownDrives[drivePath].dirty = true;
 }
@@ -9360,8 +9360,6 @@ LocalPath SyncConfigStore::dbPath(const LocalPath& drivePath) const
 bool SyncConfigStore::driveKnown(const LocalPath& drivePath) const
 {
     assert(drivePath.isAbsolute() || drivePath.empty());
-
-    if (drivePath.empty()) return true; // internal drive
 
     return mKnownDrives.count(drivePath) > 0;
 }
