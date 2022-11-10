@@ -8534,7 +8534,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about contact request creation not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
-    size_t count = 0;
+    int count = 0;
     const MegaUserAlert* a = nullptr;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
