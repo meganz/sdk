@@ -3277,30 +3277,6 @@ bool CommandPutUA::procresult(Result r)
         }
         u->setattr(at, &av, &v);
         u->setTag(tag ? tag : -1);
-
-        if (User::isAuthring(at))
-        {
-            client->mAuthRings.erase(at);
-            const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
-            if (tlvRecords)
-            {
-                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-            }
-            else
-            {
-                LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('up')";
-            }
-        }
-        else if (at == ATTR_UNSHAREABLE_KEY)
-        {
-            LOG_info << "Unshareable key successfully created";
-            client->unshareablekey.swap(av);
-        }
-        else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
-        {
-            LOG_info << "JSON config data successfully created.";
-        }
-
         client->notifyuser(u);
 
         if (at == ATTR_DISABLE_VERSIONS)
