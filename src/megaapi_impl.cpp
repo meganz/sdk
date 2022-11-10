@@ -33338,7 +33338,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         {
             mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
         }
-        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
     if (!chat->mScheduledMeetingsOcurrences.empty())
@@ -33357,6 +33356,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         {
             mSchedMeetingsChanged->addMegaHandle(*it);
         }
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
     if (chat->changed.attachments)
