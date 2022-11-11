@@ -719,7 +719,7 @@ bool TextChat::serialize(string *d)
                 // records should fit in 64KB (unsigned short max), since the API restricts
                 // the size of description/title to 4K/256 chars, but just in case it happened
                 // to have a larger record, just throw an error
-                if (schedMeetingStr.size() < std::numeric_limits<unsigned short>::max())
+                if (schedMeetingStr.size() > std::numeric_limits<unsigned short>::max())
                 {
                     assert(false);
                     LOG_err << "Scheduled meeting record too long. Skipping";
@@ -1007,6 +1007,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         if (auxMeet)
         {
             chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
+            // TODO: probably can give ownership to this method, avoiding a copy
         }
         // else -> FIXME: should return nullptr and force a full reload?
     }
@@ -1100,12 +1101,11 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
 
 bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
 {
-    if (!sm)
+    if (!sm || id != sm->chatid())
     {
         assert(false);
         return false;
     }
-    assert(id == sm->chatid());
     handle schedId = sm->schedId();
     if (mScheduledMeetings.find(schedId) != mScheduledMeetings.end())
     {
