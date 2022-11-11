@@ -708,7 +708,7 @@ bool TextChat::serialize(string *d)
     if (hasSheduledMeetings)
     {
         // serialize the number of scheduledMeetings
-        ll = (unsigned short) mScheduledMeetings.size();
+        ll = static_cast<unsigned short>(mScheduledMeetings.size());
         d->append((char *)&ll, sizeof ll);
 
         for (auto i = mScheduledMeetings.begin(); i != mScheduledMeetings.end(); i++)
@@ -716,7 +716,20 @@ bool TextChat::serialize(string *d)
             std::string schedMeetingStr;
             if (i->second->serialize(schedMeetingStr))
             {
-                ll = (unsigned short) schedMeetingStr.size();
+                // records should fit in 64KB (unsigned short max), since the API restricts
+                // the size of description/title to 4K/256 chars, but just in case it happened
+                // to have a larger record, just throw an error
+                if (schedMeetingStr.size() < std::numeric_limits<unsigned short>::max())
+                {
+                    assert(false);
+                    LOG_err << "Scheduled meeting record too long. Skipping";
+
+                    ll = 0;
+                    d->append((char *)&ll, sizeof ll);
+                    continue;
+                }
+
+                ll = static_cast<unsigned short>(schedMeetingStr.size());
                 d->append((char *)&ll, sizeof ll);
                 d->append((char *)schedMeetingStr.data(), schedMeetingStr.size());
             }
@@ -933,7 +946,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         schedMeetingsSize = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof schedMeetingsSize;
 
-        for (auto i = 0; i < schedMeetingsSize; i++)
+        for (auto i = 0; i < schedMeetingsSize; ++i)
         {
             unsigned short len = 0;
             if (ptr + sizeof len > end)
