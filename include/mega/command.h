@@ -1604,7 +1604,7 @@ class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
@@ -1623,7 +1623,6 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetch : public Command
 {
     handle mChatId;
-    handle mSchedId;
     CommandScheduledMeetingFetchCompletion mCompletion;
 
 public:
@@ -1635,9 +1634,6 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetchEvents : public Command
 {
     handle mChatId;
-    string mSince;
-    string mUntil;
-    unsigned mCount;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:

@@ -9435,8 +9435,8 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
-CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, ScheduledMeeting * schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
-    : mScheduledMeeting(schedMeeting ? schedMeeting->copy() : nullptr), mCompletion(completion)
+CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, const ScheduledMeeting *schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
+    : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
     assert(schedMeeting);
     handle chatid = schedMeeting->chatid();
@@ -9535,24 +9535,29 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 
     assert(mScheduledMeeting);
     auto it = client->chats.find(mScheduledMeeting->chatid());
-    if (it == client->chats.end() || !r.hasJsonItem())
+    handle schedId = r.hasJsonItem() ? client->json.gethandle(MegaClient::CHATHANDLE) : UNDEF;
+    if (it == client->chats.end() || ISUNDEF(schedId))
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
 
-    TextChat* chat = it->second;
-    handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
-    mScheduledMeeting->setSchedId(schedId);
+    ScheduledMeeting* result = nullptr;
+    error e = API_EINTERNAL;
 
+    TextChat* chat = it->second;
+    mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
         client->notifychat(chat);
+
+        result = mScheduledMeeting.get();
+        e = API_OK;
     }
 
-    if (mCompletion) { mCompletion(res ? API_OK : API_EINTERNAL, mScheduledMeeting.get()); }
+    if (mCompletion) { mCompletion(e, result); }
     return res;
 }
 
@@ -9591,8 +9596,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1,
-                                                            [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1, nullptr));
         }
     }
 
@@ -9601,7 +9605,8 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 }
 
 CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
-    : mChatId(chatid), mSchedId(schedMeeting), mCompletion(completion)
+    : mChatId(chatid),
+      mCompletion(completion)
 {
     cmd("mcsmf");
     if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
@@ -9638,10 +9643,7 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
 
 CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
-   mSince(since ? since : string()),
-   mUntil(until ? until : string()),
-   mCount(count),
-   mCompletion(completion)
+   mCompletion(completion ? completion : [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){})
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
