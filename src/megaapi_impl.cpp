@@ -24249,10 +24249,10 @@ void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequest
                     else
                     {
                         auto ekeyStr = string((char*)ekey.data());
-                        auto ret = make_unique<MegaNodePrivate>(filename->c_str(), FILENODE, size, ts, tm,
+                        unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
                                                        nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
-                                                       false /*isPublic*/, true /*isForeign*/);
+                                                       false /*isPublic*/, true /*isForeign*/));
                         request->setPublicNode(ret.get());
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

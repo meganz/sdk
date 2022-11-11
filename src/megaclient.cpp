@@ -19252,7 +19252,7 @@ error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
 void MegaClient::sc_ass()
 {
     Set s;
-    auto exportRemoved = std::make_pair(false, 0l);
+    auto exportRemoved = std::make_pair(false, static_cast<m_off_t>(0));
     error e = readExportSet(jsonsc, s, exportRemoved);
 
     if (e != API_OK)
