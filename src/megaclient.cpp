@@ -4282,8 +4282,8 @@ bool MegaClient::procsc()
                         bool scTagNotCaughtUp =  !mScDbStateRecord.seqTag.empty() &&
                                                  !mLargestEverSeenScSeqTag.empty() &&
                                                  (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
-                                                  mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
-                                                  mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag);
+                                                  (mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
+                                                  mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag));
 
                         bool ac = statecurrent && !insca_notlast && !scTagNotCaughtUp;
 
@@ -5203,7 +5203,8 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     {
         mLastReceivedScSeqTag = tag;
         if (mLastReceivedScSeqTag.size() > mLargestEverSeenScSeqTag.size() ||
-            mLastReceivedScSeqTag > mLargestEverSeenScSeqTag)
+            (mLastReceivedScSeqTag.size() == mLargestEverSeenScSeqTag.size() &&
+             mLastReceivedScSeqTag > mLargestEverSeenScSeqTag))
         {
             mLargestEverSeenScSeqTag = mLastReceivedScSeqTag;
         }
