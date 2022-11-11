@@ -15,10 +15,6 @@
  */
 package nz.mega.sdk;
 
-import nz.mega.sdk.MegaApi;
-import nz.mega.sdk.MegaApiJava;
-import nz.mega.sdk.MegaRequest;
-
 import java.util.ArrayList;
 
 /**
@@ -368,6 +364,30 @@ class DelegateMegaListener extends MegaListener {
             megaApi.runCallback(new Runnable() {
                 public void run() {
                     listener.onEvent(megaApi, megaEvent);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSetsUpdate(MegaApi api, MegaSetList setList){
+        if (listener != null) {
+            final ArrayList<MegaSet> sets = MegaApiJava.megaSetListToArray(setList);
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSetsUpdate(megaApi, sets);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSetElementsUpdate(MegaApi api, MegaSetElementList elementList){
+        if (listener != null) {
+            final ArrayList<MegaSetElement> elements = MegaApiJava.megaSetElementListToArray(elementList);
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSetElementsUpdate(megaApi, elements);
                 }
             });
         }

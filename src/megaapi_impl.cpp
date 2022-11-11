@@ -9674,21 +9674,18 @@ void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 {
-    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(httpServer && httpServer->isCurrentThread());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -12190,7 +12187,7 @@ bool SearchTreeProcessor::processNode(Node* node)
     if (node->type <= FOLDERNODE && (!mSearch || strcasestr(node->displayname(), mSearch) != NULL))
     {
         // If no search string provided (filter by node type), or search string match with node name
-        if (node->getMimeType() == mMimeType)
+        if (mMimeType == MimeType_t::MIME_TYPE_UNKNOWN || node->getMimeType() == mMimeType)
         {
             mResults.push_back(node);
         }
@@ -14579,6 +14576,12 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 void MegaApiImpl::reload(const char*)
 {
     fireOnReloadNeeded();
+}
+
+void MegaApiImpl::reloading()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_RELOADING);
+    fireOnEvent(event);
 }
 
 // nodes have been modified
@@ -33235,6 +33238,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_SYNCS_RESTORED: return "SYNCS_RESTORED";
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
+        case MegaEvent::EVENT_RELOADING: return "RELOADING";
     }
 
     return "UNKNOWN";
