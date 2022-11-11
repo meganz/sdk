@@ -24,16 +24,13 @@ public:
         OnNodesUpdate,
         OnAccountUpdate,
         OnReloadNeeded,
-        OnEvent
+        OnEvent,
 #if ENABLE_SYNC
-        ,
         OnSyncStateChanged,
         OnFileSyncStateChanged,
         OnSyncAdded,
-        OnSyncDisabled,
-        OnSyncEnabled,
         OnSyncDeleted,
-        OnGlobalSyncStateChanged
+        OnGlobalSyncStateChanged,
 #endif
     };
 

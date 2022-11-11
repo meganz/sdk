@@ -282,7 +282,7 @@ struct MEGA_API MegaApp
 
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
-    virtual void syncupdate_active(const SyncConfig& config, bool) { }
+    virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
@@ -308,20 +308,23 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all (enabled) syncs have been restored on startup
-    virtual void syncs_restored() { }
+    // after all sync configs have been loaded on startup
+    virtual void syncs_restored(SyncError) { }
 
     // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
-    // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) { }
+    // the sync could be auto-loaded on start, or one the user added
+    virtual void sync_added(const SyncConfig& config) { }
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
+
+    // reload forced automatically by server
+    virtual void reloading() { }
 
     // wipe all users, nodes and shares
     virtual void clearing() { }
@@ -400,6 +403,9 @@ struct MEGA_API MegaApp
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
 
     virtual void dismissbanner_result(error) { }
+
+    // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
+    virtual void reqstat_progress(int) { }
 
     virtual ~MegaApp() { }
 

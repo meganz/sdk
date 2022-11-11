@@ -2391,7 +2391,8 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 3);
-    arg("b", 1);
+    arg("b", 1);    // support for Business accounts
+    arg("p", 1);    // support for Pro Flexi
     tag = client->reqtag;
 }
 
@@ -2488,6 +2489,11 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
+//                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
+//                    {
+//                        bool isProFlexi = client->json.getbool();
+//                    }
+//                    break;
                 case MAKENAMEID2('i', 'd'):
                     product = client->json.gethandle(8);
                     break;
@@ -4115,6 +4121,8 @@ bool CommandGetUserData::procresult(Result r)
             break;
 #endif
 
+        case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -4274,6 +4282,11 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(cookieSettings, versionCookieSettings);
             break;
 
+//        case MAKENAMEID1('p'):  // plan: 101 for Pro Flexi
+//            {
+//                int proPlan = client->json.getint32();
+//            }
+//            break;
         case EOO:
         {
             assert(me == client->me);
@@ -4563,7 +4576,7 @@ bool CommandGetUserData::procresult(Result r)
             {
                 // integrity checks
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN && !client->isProFlexi()))  // master flag not received or invalid (or Pro Flexi, not business)
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
@@ -5897,26 +5910,6 @@ bool CommandFetchNodes::procresult(Result r)
     }
 }
 
-// report event to server logging facility
-CommandReportEvent::CommandReportEvent(MegaClient *client, const char *event, const char *details)
-{
-    cmd("cds");
-    arg("c", event);
-
-    if (details)
-    {
-        arg("v", details);
-    }
-
-    tag = client->reqtag;
-}
-
-bool CommandReportEvent::procresult(Result r)
-{
-    client->app->reportevent_result(r.errorOrOK());
-    return r.wasErrorOrOK();
-}
-
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");
@@ -6142,7 +6135,7 @@ bool CommandGetPaymentMethods::procresult(Result r)
     return true;
 }
 
-CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
+CommandSendReport::CommandSendReport(MegaClient *client, const char *type, const char *blob, const char *uid)
 {
     cmd("clog");
 
@@ -6161,7 +6154,7 @@ CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const cha
     tag = client->reqtag;
 }
 
-bool CommandUserFeedbackStore::procresult(Result r)
+bool CommandSendReport::procresult(Result r)
 {
     client->app->userfeedbackstore_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6838,7 +6831,7 @@ bool CommandSetChatOptions::procresult(Result r)
         if (it == client->chats.end())
         {
             mCompletion(API_EINTERNAL);
-            return true;
+            return false;
         }
 
         // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
@@ -9271,7 +9264,9 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+#ifdef DEBUG
     bool isNew = mElement->id() == UNDEF;
+#endif
     const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 

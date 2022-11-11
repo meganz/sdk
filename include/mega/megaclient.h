@@ -313,6 +313,12 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+private:
+    // Pro Flexi plan is enabled
+    bool mProFlexi = false;
+public:
+    bool isProFlexi() const { return mProFlexi; }
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -520,6 +526,12 @@ public:
 
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
+
+    void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
+#ifdef ENABLE_SYNC
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+#endif
 
     // delete all versions
     void unlinkversions();
@@ -965,6 +977,14 @@ public:
     // flag to request an extra loop of the SDK to finish something pending
     bool looprequested;
 
+private:
+    // flag to start / stop the request status monitor
+    bool mReqStatEnabled = false;
+public:
+    bool requestStatusMonitorEnabled() { return mReqStatEnabled; }
+    void startRequestStatusMonitor() { mReqStatEnabled = true; }
+    void stopRequestStatusMonitor() { mReqStatEnabled = false; }
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -1011,6 +1031,9 @@ public:
 
     // root URL for chat stats
     static const string SFUSTATSURL;
+
+    // root URL for reqstat requests
+    static const string REQSTATURL;
 
     // root URL for Website
     static const string MEGAURL;
@@ -1070,6 +1093,7 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+    BackoffTimer btreqstat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1090,6 +1114,11 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+private:
+    // Request status monitor
+    unique_ptr<HttpReq> mReqStatCS;
+
+public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
@@ -1192,7 +1221,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1304,7 +1333,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1701,6 +1730,7 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procreqstat();
 
     // API warnings
     void warn(const char*);
@@ -1997,7 +2027,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);

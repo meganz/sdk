@@ -163,7 +163,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * - EventStorage: when the status of the storage changes.
  *
- * For this event type, MegaEvent::getNumber provides the current status of the storage
+ * For this event type, [MEGAEvent number] provides the current status of the storage
  *
  * There are four possible storage states:
  *     - StorageStateGreen = 0
@@ -191,15 +191,34 @@ NS_ASSUME_NONNULL_BEGIN
  * - EventMediaInfoReady: when codec-mappings have been received
  *
  * - EventBusinessStatus: when the status of a business account has changed.
+ *
+ * For this event type, [MEGAEvent number] provides the new business status.
+ *
  * The posible values are:
  *   - BusinessStatusExpired = -1
  *   - BusinessStatusInactive = 0
  *   - BusinessStatusActive = 1
  *   - BusinessStatusGracePeriod = 2
  *
- *  Valid data in the MEGAEvent object received in the callback:
- *    - [MEGAEvent number] returns the new business status.
+ * - EventKeyModified: when the key of a user has changed.
  *
+ * For this event type, [MEGAEvent handle] provides the handle of the user whose key has been modified.
+ * For this event type, [MEGAEvent number] provides type of key that has been modified.
+ *
+ * The posible values are:
+ *  - Public chat key (Cu25519)     = 0
+ *  - Public signing key (Ed25519)  = 1
+ *  - Public RSA key                = 2
+ *  - Signature of chat key         = 3
+ *  - Signature of RSA key          = 4
+ *
+ * - EventMiscFlagsReady: when the miscellaneous flags are available/updated.
+ *
+ * - EventReqStatProgress: Provides the per mil progress of a long-running API operation
+ *  in [MEGAEvent number], or -1 if there isn't any operation in progress.
+ *
+ * - EventReloading: when the API server has forced a full reload. The app should show a
+ * similar UI to the one displayed during the initial load (fetchnodes).
  *
  * @param api MEGASdk object connected to the account
  * @param event Details about the event

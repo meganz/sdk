@@ -1288,12 +1288,12 @@ protected:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client);
+    MegaSyncPrivate(const SyncConfig& config, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
 
-    virtual MegaSync *copy();
+    MegaSync *copy() override;
 
     MegaHandle getMegaHandle() const override;
     void setMegaHandle(MegaHandle handle);
@@ -1316,11 +1316,9 @@ public:
     int getType() const override;
     void setType(SyncType type);
 
-    void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
+    int getRunState() const override;
 
-    bool isEnabled() const override; //enabled by user
-    bool isActive() const override; //not disabled by user nor failed (nor being removed)
-    bool isTemporaryDisabled() const override; //disabled automatically for a transient reason
+    MegaSync::SyncRunningState mRunState = SyncRunningState::RUNSTATE_DISABLED;
 
 protected:
     MegaHandle megaHandle;
@@ -1336,9 +1334,6 @@ protected:
     int mWarning = NO_SYNC_WARNING;
 
     handle mBackupId = UNDEF;
-
-    bool mActive = false;
-    bool mEnabled = false;
 };
 
 
@@ -1372,9 +1367,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
 
-        // Set this action to be executed in sendPendingRequests()
-        // instead of the huge switch, as a structural improvement
-        std::function<void()> action;
+        // Set the function to be executed in sendPendingRequests()
+        // instead of adding more code to the huge switch there
+        std::function<error()> performRequest;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -2254,12 +2249,11 @@ class SearchTreeProcessor : public TreeProcessor
     public:
         SearchTreeProcessor(MegaClient *client, const char *search, int type);
         virtual bool processNode(Node* node);
-        bool isValidTypeNode(Node *node);
         virtual ~SearchTreeProcessor() {}
         vector<Node *> &getResults();
 
     protected:
-        int mFileType;
+        MimeType_t mMimeType;
         const char *mSearch;
         vector<Node *> mResults;
         MegaClient *mClient;
@@ -2386,9 +2380,7 @@ class TransferQueue
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -2514,6 +2506,7 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         char* getMyRSAPrivateKey();
+        void setLogExtraForModules(bool networking, bool syncs);
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
@@ -2711,14 +2704,11 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void removeSync(handle nodehandle, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
-        void removeSyncById(handle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
-        void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
-        void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
+        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
+        void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
@@ -2740,7 +2730,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
-#endif
+#endif // ENABLE_SYNC
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
@@ -3103,6 +3093,9 @@ class MegaApiImpl : public MegaApp
         void stopDriveMonitor();
         bool driveMonitorEnabled();
 
+        void enableRequestStatusMonitor(bool enable);
+        bool requestStatusMonitorEnabled();
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3156,9 +3149,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
-        void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
-        void fireOnSyncDisabled(MegaSyncPrivate *sync);
-        void fireOnSyncEnabled(MegaSyncPrivate *sync);
+        void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
@@ -3179,7 +3170,7 @@ protected:
         MegaClient *client;
         MegaHttpIO *httpio;
         MegaWaiter *waiter;
-        MegaFileSystemAccess *fsAccess;
+        unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
         string basePath;
@@ -3453,6 +3444,7 @@ protected:
         void getbanners_result(error e) override;
         void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
         void dismissbanner_result(error e) override;
+        void reqstat_progress(int permilprogress) override;
 
         // for internal use - for worker threads to run something on MegaApiImpl's thread, such as calls to onFire() functions
         void executeOnThread(shared_ptr<ExecuteOnce>);
@@ -3487,17 +3479,14 @@ protected:
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
 
-        // calls firOnSyncDisabled or fireOnSyncEnabled
-        void syncupdate_active(const SyncConfig& config, bool active) override;
-
-        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
+        void sync_added(const SyncConfig& config) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
-        virtual void syncs_restored() override;
+        virtual void syncs_restored(SyncError syncError) override;
 
         // this will call will fire EVENT_SYNCS_DISABLED
         virtual void syncs_disabled(SyncError syncError) override;
@@ -3505,6 +3494,7 @@ protected:
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(const SyncConfig& config) override;
 
+        void syncupdate_syncing(bool syncing) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
         bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
@@ -3522,6 +3512,9 @@ protected:
 protected:
         // suggest reload due to possible race condition with other clients
         void reload(const char*) override;
+
+        // reload forced automatically by server
+        void reloading() override;
 
         // wipe all users, nodes and shares
         void clearing() override;
@@ -4173,8 +4166,6 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
-
-
 
 #endif
 

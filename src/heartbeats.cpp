@@ -256,6 +256,8 @@ BackupMonitor::BackupMonitor(Syncs& s)
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
 #ifdef DEBUG
     handle backupId = us.mConfig.mBackupId;
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
@@ -264,8 +266,10 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
     if (!us.mBackupInfo || currentInfo != *us.mBackupInfo)
     {
-        // Send if anything changed, or it's the first time we're considering for this sync (gets around Backup Centre continuing to show Disabled even though we sent sphb)
-        syncs.mClient.reqs.add(new CommandBackupPut(&syncs.mClient, currentInfo, nullptr));
+        syncs.queueClient([currentInfo](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(new CommandBackupPut(&mc, currentInfo, nullptr));
+            });
     }
     us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
 }
@@ -290,6 +294,8 @@ bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
 
 void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
+    assert(syncs.onSyncThread());
+
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
@@ -343,13 +349,16 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         auto lastAction = hbs->lastAction();
         auto lastItemUpdated = hbs->lastItemUpdated();
 
-        syncs.mClient.reqs.add(
-                    new CommandBackupPutHeartBeat(&syncs.mClient, backupId, status,
+        syncs.queueClient([=](MegaClient& mc, DBTableTransactionCommitter& committer)
+            {
+                mc.reqs.add(
+                    new CommandBackupPutHeartBeat(&mc, backupId, status,
                         progress, pendingUps, pendingDowns,
                         lastAction, lastItemUpdated,
                         [hbs](Error){
                             hbs->mSending = false;
                         }));
+            });
 
         if (progress >= 100)
         {
@@ -361,6 +370,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
 void BackupMonitor::beat()
 {
+    assert(syncs.onSyncThread());
+
     // Only send heartbeats for enabled active syncs.
     for (auto& us : syncs.mSyncVec)
     {

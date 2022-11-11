@@ -87,10 +87,6 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-#ifdef __APPLE__
-int gFilesystemEventsFd = -1;
-#endif
-
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
@@ -317,7 +313,7 @@ static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> fi
         conlock(cout) << "Unable to download file: "
                       << path
                       << " -> "
-                      << file->localname.toPath(false)
+                      << file->getLocalname().toPath(false)
                       << ": "
                       << errorstring(result)
                       << endl;
@@ -409,7 +405,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess);
+    *dname = getLocalname().toName(*transfer->client->fsaccess);
 }
 
 // transfer progress callback
@@ -503,48 +499,58 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId)
+        << " state: " << int(config.mRunState)
+        << " error: " << config.mError
+        << endl;
 }
 
-
-void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
-{
-    conlock(cout) << "Sync is now active: " << active << endl;
-}
-
-void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    if (attempted)
-    {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(false)  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.mError
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
-            << config.getEnabled() << " syncError: " << config.mError
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
+    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState) << endl;
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)
 {
-    conlock(cout) << "Sync - about to remove " << toHandle(config.mBackupId) << endl;
+    conlock(cout) << "Sync - removed: " << toHandle(config.mBackupId) << endl;
+
+}
+
+void DemoApp::syncs_restored(SyncError syncError)
+{
+    conlock(cout) << "Sync - restoration "
+                  << (syncError != NO_SYNC_ERROR ? "failed" : "completed")
+                  << ": "
+                  << SyncConfig::syncErrorToStr(syncError)
+                  << endl;
 }
 
 void DemoApp::syncupdate_scanning(bool active)
 {
     if (active)
     {
-        cout << "Sync - scanning local files and folders" << endl;
+        conlock(cout) << "Sync - scanning local files and folders" << endl;
     }
     else
     {
-        cout << "Sync - scan completed" << endl;
+        conlock(cout) << "Sync - scan completed" << endl;
     }
 }
+
+void DemoApp::syncupdate_syncing(bool active)
+{
+    if (active)
+    {
+        conlock(cout) << "Sync - syncs are busy" << endl;
+    }
+    else
+    {
+        conlock(cout) << "Sync - syncs are idle" << endl;
+    }
+}
+
 // flags to turn off cout output that can be too volumnous/time consuming
 bool syncout_local_change_detection = true;
 bool syncout_remote_change_detection = true;
@@ -648,13 +654,13 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
     auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, fstype);
     ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
-    localname = ln;
+    setLocalname(ln);
 }
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
     // full local path
-    localname = clocalname;
+    setLocalname(clocalname);
 
     // target parent node
     h = ch;
@@ -3045,7 +3051,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 Transfer::unserialize(client, &serialized, client->cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
-                auto fpstr = t->files.front()->localname.toPath(false);
+                auto fpstr = t->files.front()->getLocalname().toPath(false);
                 auto countpos = fpstr.find_last_of('_');
                 auto count = atoi(fpstr.c_str() + countpos + 1);
                 fpstr.resize(countpos);
@@ -4083,13 +4089,10 @@ autocomplete::ACN autocompleteSyntax()
                                     remoteFSFolder(client, &cwd))),
                     opt(param("backupdestinationfolder"))));
 
-    p->Add(exec_syncxable,
-           sequence(text("sync"),
-                    either(sequence(either(text("disable"), text("fail")),
-                                    backupID(*client),
-                                    opt(param("error"))),
-                           sequence(text("enable"),
-                                    backupID(*client)))));
+    p->Add(exec_syncxable, sequence(text("sync"),
+            either(text("run"), text("pause"), text("suspend"), text("disable")),
+            opt(sequence(flag("-error"), param("errorID"))),
+            param("id")));
 
     p->Add(exec_syncoutput,
            sequence(text("sync"),
@@ -4106,6 +4109,8 @@ autocomplete::ACN autocompleteSyntax()
 #endif
 
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_encryptLink, sequence(text("encryptlink"), param("link"), param("password")));
+    p->Add(exec_decryptLink, sequence(text("decryptlink"), param("link"), param("password")));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -4278,6 +4283,8 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("previewmode"), param("publicsetlink"), opt(flag("-on")), opt(flag("-status"))),
                         sequence(text("downloadelement"), param("sid"), param("eid"))
                         )));
+
+    p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -5295,7 +5302,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath(false);
+    return itemlocalname.leafName().toPath(true);  // true since it's used for upload
 }
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions)
@@ -5637,14 +5644,11 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          move(fsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -7091,6 +7095,41 @@ void exec_export(autocomplete::ACState& s)
     {
         cout << s.words[1].s << ": Not found" << endl;
     }
+}
+
+void exec_encryptLink(autocomplete::ACState& s)
+{
+    string link = s.words[1].s;
+    string password = s.words[2].s;
+    string encryptedLink;
+
+    error e = client->encryptlink(link.c_str(), password.c_str(), &encryptedLink);
+    if (e)
+    {
+        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Password encrypted link: " << encryptedLink << endl;
+    }
+}
+
+void exec_decryptLink(autocomplete::ACState &s)
+{
+    string link = s.words[1].s;
+    string password = s.words[2].s;
+    string decryptedLink;
+
+    error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
+    if (e)
+    {
+        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+    }
+    else
+    {
+        cout << "Password encrypted link: " << decryptedLink << endl;
+    }
+
 }
 
 void exec_import(autocomplete::ACState& s)
@@ -8843,6 +8882,11 @@ void DemoApp::reload(const char* reason)
     cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
 }
 
+void DemoApp::reloading()
+{
+    cout << "Reload forced from server. Waiting for response..." << endl;
+}
+
 // reload initiated
 void DemoApp::clearing()
 {
@@ -9681,6 +9725,8 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
+    fsAccess.reset();
+
     auto httpIO = new HTTPIO_CLASS;
 
 #ifdef WIN32
@@ -9704,7 +9750,6 @@ int main(int argc, char* argv[])
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            move(fsAccess),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",
@@ -9942,10 +9987,11 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    string drive, syncname;
+    string drive, syncname, scanInterval;
     bool backup = s.extractflag("-backup");
-    s.extractflagparam("-external", drive);
+    bool external = s.extractflagparam("-external", drive);
     bool named = s.extractflagparam("-name", syncname);
+
     LocalPath sourcePath = localPathArg(s.words[2].s);
 
     if (!named)
@@ -9954,7 +10000,7 @@ void exec_syncadd(autocomplete::ACState& s)
     }
 
     // sync add source target
-    LocalPath drivePath = localPathArg(drive);
+    LocalPath drivePath = external ? localPathArg(drive) : LocalPath();
 
     // Create a suitable sync config.
     auto config =
@@ -10227,13 +10273,21 @@ void exec_synclist(autocomplete::ACState& s)
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
             << "\n";
 
-        //if (sync)
-        //{
-        //    // Display status info.
-        //    cout << "  State: "
-        //        << SyncConfig::syncstatename(sync->state)
-        //        << (sync->isSyncPaused() ? " (paused)" : "")
-        //        << "\n";
+
+        string runStateName;
+        switch (config.mRunState)
+        {
+        case SyncRunState::Pending: runStateName = "PENDING"; break;
+        case SyncRunState::Loading: runStateName = "LOADING"; break;
+        case SyncRunState::Run: runStateName = "RUNNING"; break;
+        case SyncRunState::Pause: runStateName = "PAUSED"; break;
+        case SyncRunState::Suspend: runStateName = "SUSPENDED"; break;
+        case SyncRunState::Disable: runStateName = "DISABLED"; break;
+        }
+
+        // Display status info.
+        cout << "  State: " << runStateName << " "
+            << "\n";
 
         //    // Display some usage stats.
         //    cout << "  Statistics: "
@@ -10337,8 +10391,15 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.removeSelectedSyncs(std::move(predicate),
-        [=](Error e)
+    auto v = client->syncs.selectedSyncConfigs(predicate);
+
+    if (v.size() != 1)
+    {
+        cerr << "Found " << v.size() << " matching syncs." << endl;
+        return;
+    }
+
+    std::function<void(Error e)> completion = [=](Error e)
         {
             if (e == API_OK)
             {
@@ -10353,29 +10414,19 @@ void exec_syncremove(autocomplete::ACState& s)
             {
                 cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
-        }, isBackup, NodeHandle().set6byte(bkpDest));
+        };
 
-    if (!found)
+    if (v[0].isBackup())
     {
-        ostringstream ostream;
-
-        ostream << "No sync config found with the ";
-
-        if (byLocal)
-        {
-            ostream << "local path: " << localPath;
-        }
-        else if (byRemote)
-        {
-            ostream << "remote path: " << remotePath;
-        }
-        else
-        {
-            ostream << "backup ID: " << s.words[2].s;
-        }
-
-        cerr << ostream.str() << endl;
+        // unlink the backup's Vault nodes after deregistering it
+        NodeHandle source = v[0].mRemoteNode;
+        NodeHandle destination = NodeHandle().set6byte(bkpDest);
+        completion = [completion, source, destination](Error e){
+            client->unlinkOrMoveBackupNodes(source, destination, completion);
+        };
     }
+
+    client->deregisterThenRemoveSync(v[0].mBackupId, completion);
 }
 
 void exec_syncxable(autocomplete::ACState& s)
@@ -10388,61 +10439,79 @@ void exec_syncxable(autocomplete::ACState& s)
         return;
     }
 
-    const auto command = s.words[1].s;
+    string errIdString;
+    bool withError = s.extractflagparam("-error", errIdString);
+
+    auto targetState = SyncRunState::Run;
+
+    if (s.words[1].s == "run") targetState = SyncRunState::Run;
+    else if (s.words[1].s == "pause") targetState = SyncRunState::Pause;
+    else if (s.words[1].s == "suspend") targetState = SyncRunState::Suspend;
+    else if (s.words[1].s == "disable") targetState = SyncRunState::Disable;
 
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
-    if (command == "enable")
+    SyncConfig config;
+    if (!client->syncs.configById(backupId, config))
     {
-
-        client->syncs.enableSyncByBackupId(backupId, false, false, true, true, [](Error e, SyncError, handle){
-
-            if (e)
-            {
-                cerr << "Unable to enable sync: "
-                     << errorstring(e)
-                     << endl;
-            }
-
-        }, true, "");
+        cout << "No sync found with id: " << Base64Str<sizeof(handle)>(backupId) << endl;
         return;
     }
 
-    // sync disable id [error]
-    // sync fail id [error]
-
-    int error = NO_SYNC_ERROR;
-
-    // Has the user provided a specific error code?
-    if (s.words.size() > 3)
+    if (config.mRunState == targetState)
     {
-        // Yep, use it.
-        error = atoi(s.words[3].s.c_str());
+        cout << "Sync is already in that state" << endl;
+        return;
     }
 
-    // Disable or fail?
-    if (command == "fail")
+
+    switch (targetState)
+    {
+    case SyncRunState::Pending:
+    case SyncRunState::Loading:
+    case SyncRunState::Run:
+    case SyncRunState::Pause:
+    {
+        // sync enable id
+        bool pause = targetState == SyncRunState::Pause;
+        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
+            {
+                if (err)
+                {
+                    cerr << "Unable to enable sync: "
+                        << errorstring(err)
+                        << endl;
+                }
+                else
+                {
+                    cout << (pause ? "Sync Paused." : "Sync Running.") << endl;
+                }
+            }, true, "");
+
+        break;
+    }
+    case SyncRunState::Suspend:
+    {
+        cout << "not supported yet" << endl;
+        break;
+    }
+    case SyncRunState::Disable:
     {
         client->syncs.disableSyncByBackupId(
             backupId,
-            true, // disable is fail
-            static_cast<SyncError>(error),
-            false, nullptr);
-
-        cout << "Failing of syncs complete." << endl;
+            withError,
+            static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
+            false,
+            [targetState](){
+                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
+                });
+        break;
     }
-    else    // command == "disable"
-    {
-        client->syncs.disableSyncByBackupId(
-          backupId,
-          false,
-          static_cast<SyncError>(error),
-          false, nullptr);
-
-        cout << "disablement complete." << endl;
     }
 }
+
+#endif // ENABLE_SYNC
 
 void printSet(const Set* s)
 {
@@ -10849,4 +10918,24 @@ void exec_setsandelements(autocomplete::ACState& s)
     }
 }
 
-#endif // ENABLE_SYNC
+void exec_reqstat(autocomplete::ACState &s)
+{
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        client->startRequestStatusMonitor();
+    }
+    else if (turnoff)
+    {
+        client->stopRequestStatusMonitor();
+    }
+
+    cout << "Request status monitor: " << (client->requestStatusMonitorEnabled() ? "on" : "off") << endl;
+}
+
+void DemoApp::reqstat_progress(int permilprogress)
+{
+    cout << "Progress (per mille) of request: " << permilprogress << endl;
+}

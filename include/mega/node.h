@@ -29,15 +29,7 @@
 
 namespace mega {
 
-struct LocalPathPtrCmp
-{
-    bool operator()(const LocalPath* a, const LocalPath* b) const
-    {
-        return *a < *b;
-    }
-};
-
-typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
+typedef map<LocalPath, LocalNode*> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
 struct MEGA_API NodeCore
@@ -143,6 +135,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // If this is a file, and has a file for a parent, it's not the latest version
     const Node* latestFileVersion() const;
 
+    // Node's depth, counting from the cloud root.
+    unsigned depth() const;
+
     // try to resolve node key string
     bool applykey();
 
@@ -158,8 +153,14 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
 
+    // check if this node has a name.
+    bool hasName() const;
+
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
+
+    // return mimetype type
+    MimeType_t getMimeType(bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;
@@ -290,11 +291,24 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
 
+    Node* childbyname(const string& name);
+
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    bool getExtension(std::string& ext) const;
+    bool isPhoto(const std::string& ext, bool checkPreview) const;
+    bool isVideo(const std::string& ext) const;
+    bool isAudio(const std::string& ext) const;
+    bool isDocument(const std::string& ext) const;
+
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const
@@ -400,7 +414,10 @@ struct MEGA_API LocalNode : public File
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
 
-    // return child node by name
+    // For debugging duplicate LocalNodes from older SDK versions
+    string debugGetParentList();
+
+    // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);
 
 #ifdef USE_INOTIFY

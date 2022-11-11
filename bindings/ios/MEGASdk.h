@@ -256,6 +256,51 @@ typedef NS_ENUM(NSUInteger, BackUpState) {
     BackUpStatePauseFull = 7
 };
 
+typedef NS_ENUM(NSUInteger, BackUpSubState) {
+    BackUpSubStateNoSyncError = 0,
+    BackUpSubStateUnknownError = 1,
+    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
+    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
+    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
+    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
+    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
+    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
+    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
+    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
+    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
+    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
+    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
+    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
+    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
+    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
+    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
+    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
+    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
+    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
+    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
+    BackUpSubStateAccountBlocked = 23, // Account blocked
+    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
+    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
+    BackUpSubStateLoggedOut = 26, // Logged out
+    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
+    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
+    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
+    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
+    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
+    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
+    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
+    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
+    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
+    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
+    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
+    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
+    BackUpSubStateInsufficientDiskSpace = 42,
+};
+
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
     BackupHeartbeatStatusUpToDate = 1,
     BackupHeartbeatStatusSyncing = 2,
@@ -9255,9 +9300,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param node MEGA target node folder to hold the backups
  * @param path Local path of the folder
  * @param state BackUpState type backup state
+ * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre

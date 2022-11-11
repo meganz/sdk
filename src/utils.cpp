@@ -94,6 +94,7 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
 
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
 {
+    // when logging, do not normalize the string, or we can't diagnose failures to match differently encoded utf8 strings
     return s << lp.toPath(false);
 }
 

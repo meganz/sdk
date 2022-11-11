@@ -65,6 +65,7 @@
  * - MEGAAccountTypeProIII = 3
  * - MEGAAccountTypeLite = 4
  * - MEGAAccountTypeBusiness = 100
+ * - MEGAAccountTypeProFlexi = 101
  */
 - (MEGAAccountType)proLevelAtProductIndex:(NSInteger)index;
 

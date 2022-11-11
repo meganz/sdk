@@ -2029,6 +2029,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -3404,8 +3405,8 @@ class MegaRequest
             TYPE_QUERY_SIGNUP_LINK                                          = 23,
             TYPE_ADD_SYNC                                                   = 24,
             TYPE_REMOVE_SYNC                                                = 25,
-            TYPE_DISABLE_SYNC                                               = 26,
-            TYPE_ENABLE_SYNC                                                = 27,
+            //TYPE_DISABLE_SYNC                                               = 26,
+            //TYPE_ENABLE_SYNC                                                = 27,
             TYPE_COPY_SYNC_CONFIG                                           = 28,
             TYPE_COPY_CACHED_STATUS                                         = 29,
             TYPE_IMPORT_SYNC_CONFIGS                                        = 30,
@@ -3534,9 +3535,11 @@ class MegaRequest
             TYPE_FETCH_SET                                                  = 153,
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
-            TYPE_EXPORT_SET                                                 = 156,
-            TYPE_GET_EXPORTED_SET_ELEMENT                                   = 157,
-            TOTAL_OF_REQUEST_TYPES                                          = 158,
+            TYPE_REMOVE_OLD_BACKUP_NODES                                    = 156,
+            TYPE_SET_SYNC_RUNSTATE                                          = 157,
+            TYPE_EXPORT_SET                                                 = 158,
+            TYPE_GET_EXPORTED_SET_ELEMENT                                   = 159,
+            TOTAL_OF_REQUEST_TYPES                                          = 160,
         };
 
         virtual ~MegaRequest();
@@ -4392,6 +4395,9 @@ public:
         EVENT_SYNCS_DISABLED            = 13, // Syncs were bulk-disabled due to a situation encountered, eg storage overquota
         EVENT_SYNCS_RESTORED            = 14, // Indicate to the app that the process of starting existing syncs after login+fetchnodes is complete.
 #endif
+        EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
+                                              // or -1 if there isn't any operation in progress.
+        EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
     };
 
     virtual ~MegaEvent();
@@ -4429,6 +4435,9 @@ public:
      * @brief Returns a number relative to this event
      *
      * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
+     *
+     * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
+     * a long-running API operation, or -1 if there isn't any operation in progress.
      *
      * @return Number relative to this event
      */
@@ -5659,7 +5668,7 @@ public:
         LOCAL_PATH_UNAVAILABLE = 7, //Local path is not available (can't be open)
         REMOTE_NODE_NOT_FOUND = 8, //Remote node does no longer exists
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
-        BUSINESS_EXPIRED = 10, //Business account expired
+        ACCOUNT_EXPIRED = 10, //Account expired (business or pro flexi)
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -5701,16 +5710,6 @@ public:
         LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
     };
 
-    enum SyncAdded
-    {
-        NEW  = 1, //new sync added and activated
-        FROM_CACHE = 2, // just restored from cache (keeping its former state: active if it was active)
-        FROM_CACHE_FAILED_TO_RESUME = 3, // restored from cache, but activation failed: implies change in state
-        FROM_CACHE_REENABLED  = 4, // restored from cache: reenabled after some failure: implies change in state
-        REENABLED_FAILED = 5, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
-        NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
-    };
-
     enum SyncType
     {
         TYPE_UNKNOWN = 0x00,
@@ -5718,6 +5717,16 @@ public:
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
+
+    enum SyncRunningState
+    {
+        RUNSTATE_PENDING,     // Sync config has loaded but we have not attempted to start it yet
+        RUNSTATE_LOADING,     // Sync DB is in the process of loading from disk
+        RUNSTATE_RUNNING,     // Sync DB is loaded and active
+        RUNSTATE_PAUSED,      // Sync DB is loaded but sync logic is suspended for now (useful for debugging)
+        RUNSTATE_SUSPENDED,   // Sync DB is not loaded, but it is on disk with the last known sync state.
+        RUNSTATE_DISABLED,    // Sync DB does not exist.  Starting it is like configuring a brand new sync with those settings.
     };
 
     virtual ~MegaSync();
@@ -5803,7 +5812,7 @@ public:
      *  - LOCAL_PATH_UNAVAILABLE = 7: Local path is not available (can't be open)
      *  - REMOTE_NODE_NOT_FOUND = 8: Remote node does no longer exists
      *  - STORAGE_OVERQUOTA = 9: Account reached storage overquota
-     *  - BUSINESS_EXPIRED = 10: Business account expired
+     *  - ACCOUNT_EXPIRED = 10: Account expired (business or pro flexi)
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
@@ -5852,36 +5861,21 @@ public:
     virtual int getType() const;
 
     /**
-     * @brief Returns if the sync is set as enabled by the user
+     * @brief Returns the current run-state of the sync
      *
-     * Notice that this will return true even when the sync is failed (fatal error)
-     * or temporary disabled (transient error/circumstance).
+     * Returns one of the enum values from SyncRunningState
      *
-     * @return if the sync is set as enabled by the user
+     * @return one of the enum values from SyncRunningState.
      */
-    virtual bool isEnabled() const;
-
-    /**
-     * @brief Returns if the sync is active
-     *
-     * This means that the sync is expected to be working.
-     *
-     * It will be false if not disabled nor failed (nor being removed)
-     *
-     * @return If the sync is active
-     */
-    virtual bool isActive() const;
-
-    /**
-     * @brief Returns if the sync is temporary disabled (transient error/circumstance).
-     *
-     * @return If the sync is temporary disabled (transient error/circumstance).
-     */
-    virtual bool isTemporaryDisabled() const;
-
+    virtual int getRunState() const;
 
     /**
      * @brief Returns a readable description of the sync error
+     *
+     * Returns a text equivalent (in english) to getError()
+     *
+     * This gives the reason that the sync is in RUNSTATE_SUSPENDED
+     * or RUNSTATE_DISABLED state.
      *
      * This function returns a pointer to a statically allocated buffer.
      * You don't have to free the returned pointer
@@ -5980,7 +5974,7 @@ class MegaSyncList
 
 
 
-#endif
+#endif // ENABLE_SYNC
 
 
 /**
@@ -7268,6 +7262,12 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -7587,26 +7587,6 @@ class MegaListener
      *
      * Notice that adding a sync will not cause onSyncStateChanged to be called.
      *
-     * As to the additionState can be:
-     * - MegaSync::SyncAdded::NEW = 1
-     * Sync added anew and activated
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE = 2
-     * Sync loaded from cache. If the sync was enabled, it will be enabled.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_FAILED_TO_RESUME = 3
-     * Sync loaded from cache, but failed to be resumed.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_REENABLED = 4
-     * Sync loaded from cache, and reenabled. The sync was temporary disabled but could be succesfully
-     * resumed
-     *
-     * - MegaSync::SyncAdded::REENABLED_FAILED = 5
-     * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
-     *
-     * - MegaSync::SyncAdded::NEW_DISABLED = 6
-     * Sync added anew, but set as temporarily disabled due to a temporary error
-     *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
      *
@@ -7614,51 +7594,7 @@ class MegaListener
      * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
      */
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
-
-    /**
-     * @brief This callback will be called when a sync is disabled.
-     *
-     * This can happen in the following situations
-     *
-     * - There’s a condition that cause the sync to fail
-     *
-     * - There’s a condition that cause the sync to be temporarily disabled
-     *
-     * - The users tries to disable a sync that had been previously failed permanently
-     *
-     * - The users tries to disable a sync that had been previously temporarily disabled.
-     *
-     * - The user tries to disable a sync that was active
-     *
-     * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
-     * that the sync is no longer in a temporary error, but in a fatal one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is enabled.
-     *
-     * This can happen in the following situations
-     *
-     * - The users enables a sync that was disabled
-     *
-     * - The sdk tries resumes a sync that had been temporarily disabled
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
 
     /**
      * @brief This callback will be called when a sync is removed.
@@ -7677,11 +7613,8 @@ class MegaListener
      * @brief This function is called when the state of the synchronization changes
      *
      * The SDK calls this function when the state of the synchronization changes. you can use
-     * MegaSync::getState to get the new state of the synchronization
+     * MegaSync::getRunState to get the new state of the synchronization
      * and MegaSync::getError to get the error if any.
-     *
-     * Notice, for changes that imply other callbacks, expect that the SDK
-     * will call onSyncStateChanged first, so that you can update your model only using this one.
      *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
@@ -7915,6 +7848,12 @@ class MegaListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -9829,7 +9768,7 @@ class MegaApi
          *
          * The verification email will be resent to the same address as it was previously sent to.
          *
-         * This function can be called if the the reason for being blocked is:
+         * This function can be called if the reason for being blocked is:
          *      700: the account is supended for Weak Account Protection.
          *
          * If the logged in account is not suspended or is suspended for some other reason,
@@ -10200,6 +10139,8 @@ class MegaApi
         /**
          * @brief Check if the account is a business account.
          *
+         * For accounts under Pro Flexi plans, this method also returns true.
+         *
          * @return returns true if it's a business account, otherwise false
          */
         bool isBusinessAccount();
@@ -10380,6 +10321,19 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
 
         /**
          * @brief Set the limit of size to requests payload
@@ -14286,118 +14240,66 @@ class MegaApi
         void closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener);
 
         /**
-         * @brief Remove a synced folder
+         * @brief De-configure the sync/backup of a folder
          *
          * The folder will stop being synced. No files in the local nor in the remote folder
          * will be deleted due to the usage of this function.
          *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
+         * The synchronization will stop and the local sync database will be deleted
+         * The backupId of this sync will be invalid going forward.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
-         */
-        MEGA_DEPRECATED
-        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Disable a synced folder
+         * @brief Move or Remove the nodes that used to be part of backup.
          *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
          *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
          *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
          *
-         * @param megaFolder MEGA folder
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void disableSync(MegaNode *megaFolder, MegaRequestListener *listener=NULL);
-
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Disable a synced folder
+         * @brief Run/Pause/Suspend/Disable a synced folder
          *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
+         * Attempt to Start, Pause, Suspend, or Disable a sync.
+
          *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
+         * Specify the new state to try to move the sync to.  In case there is
+         * a problem, the cause will be returned in the listener callabck.
          *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_SET_SYNC_RUNSTATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
          */
-        void disableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Disable a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop but the cache of local files won't be deleted.
-         * If you want to also delete the local cache use MegaApi::removeSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         *
-         * @param sync Synchronization to disable
-         * @param listener MegaRequestListener to track this request
-         */
-        void disableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
-
-        /**
-        * @brief Enables a synced folder
-        *
-        * The folder will start being synced. No files in the local nor in the remote folder
-        * will be deleted due to the usage of this function.
-        *
-        * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
-        * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
-        *
-        * @param sync Synchronization to enable
-        * @param listener MegaRequestListener to track this request
-        */
-        void enableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
-
-        /**
-        * @brief Enables a synced folder
-        *
-        * The folder will start being synced. No files in the local nor in the remote folder
-        * will be deleted due to the usage of this function.
-        *
-        * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
-        * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
-        *
-        * @param backupId Identifier of the Sync (unique per user, provided by API)
-        * @param listener MegaRequestListener to track this request
-        */
-        void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener = NULL);
 
         /**
          * @brief
@@ -14423,23 +14325,6 @@ class MegaApi
          * @see importSyncConfigs
          */
         const char* exportSyncConfigs();
-
-        /**
-         * @brief Remove all active synced folders
-         *
-         * All folders will stop being synced. Nothing in the local folders
-         * will be deleted due to the usage of this function. In the remote folders,
-         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
-         *
-         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -17760,7 +17645,7 @@ class MegaApi
          * When this feature is enabled, the HTTP proxy server will check if there are files with that name
          * in the same folder as the node corresponding to the handle in the link.
          *
-         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * If a matching file is found, the name is exactly the same as the node with the specified handle
          * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
          * the HTTP proxy server will serve that file.
          *
@@ -19846,6 +19731,23 @@ class MegaApi
          */
         int getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL);
 
+        /**
+         * @brief Enable or disable the request status monitor
+         *
+         * When it's enabled, the request status monitor generates events of type
+         * MegaEvent::EVENT_REQSTAT_PROGRESS with the per mille progress in
+         * the field MegaEvent::getNumber(), or -1 if there isn't any operation in progress.
+         *
+         * @param enable True to enable the request status monitor, or false to disable it
+         */
+        void enableRequestStatusMonitor(bool enable);
+
+        /**
+         * @brief Get the status of the request status monitor
+         * @return True when the request status monitor is enabled, or false if it's disabled
+         */
+        bool requestStatusMonitorEnabled();
+
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -20102,7 +20004,8 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
-        ACCOUNT_TYPE_BUSINESS = 100
+        ACCOUNT_TYPE_BUSINESS = 100,
+        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
 
     enum
@@ -20123,6 +20026,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel();
 
@@ -20520,6 +20424,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel(int productIndex);
 
@@ -20598,9 +20503,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business plan
+     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     *
+     * You can check if the plan is pure buiness or Pro Flexi by calling
+     * the method MegaApi::getProLevel
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business plan, otherwise return false
+     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
 
