@@ -8792,8 +8792,11 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
 
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
     arg("s", uint8_t(status));
-    if (progress != -1)
+    if (status == SPHBStatus::SYNCING || status == SPHBStatus::UPTODATE)
     {
+        // so don't send 0 out of 0 0% initially
+        assert(progress >= 0);
+        assert(progress <= 100);
         arg("p", progress);
     }
     arg("qu", uploads);
@@ -9310,7 +9313,9 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+#ifdef DEBUG
     bool isNew = mElement->id() == UNDEF;
+#endif
     const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 

@@ -31,6 +31,8 @@ vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL https://pdfium.googlesource.com/pdfium.git
     REF ee44620f2b58999b0d272d58fa0b994d5935f688 # chromium/5247
+    PATCHES
+        "fix_win_build.patch"
 )
 
 message(STATUS "Working on submodules and other dependencies...")

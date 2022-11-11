@@ -908,7 +908,7 @@ void Sync::statecacheadd(LocalNode* l)
 
     if (l->type < 0)
     {
-        SYNC_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
+        LOG_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
         return;
     }
 
