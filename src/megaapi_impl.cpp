@@ -10698,10 +10698,12 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
     return true;
 }
 
-void MegaApiImpl::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, int sfuId, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
     request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+    request->setAccess(sfuId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23337,7 +23339,10 @@ void MegaApiImpl::sendPendingRequests()
                break;
             }
 
-            client->reqs.add(new CommandMeetingStart(client, chatid, [request, this](Error e, std::string sfuUrl, handle callid)
+            handle schedId = request->getParentHandle();
+            int sfuId = request->getAccess();
+
+            client->reqs.add(new CommandMeetingStart(client, chatid, sfuId, schedId, [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {

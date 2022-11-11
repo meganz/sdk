@@ -5438,9 +5438,9 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
-void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApi::startChatCall(MegaHandle chatid, MegaHandle schedId, int sfuId, MegaRequestListener* listener)
 {
-    pImpl->startChatCall(chatid, listener);
+    pImpl->startChatCall(chatid, schedId, sfuId, listener);
 }
 
 void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)

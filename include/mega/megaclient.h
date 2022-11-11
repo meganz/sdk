@@ -1174,6 +1174,11 @@ public:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
+#ifdef ENABLE_CHAT
+    // invalid SFU id
+    static constexpr int SFU_INVALID = -1;
+#endif
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 

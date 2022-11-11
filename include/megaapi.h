@@ -8742,6 +8742,11 @@ class MegaApi
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
 
+#ifdef ENABLE_CHAT
+        // invalid SFU id
+        static constexpr int SFU_INVALID = -1;
+#endif
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -19263,6 +19268,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle() - Returns the scheduled meeting id;
+         * - MegaChatRequest::getAccess() - Returns the SFU id
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -19274,9 +19281,11 @@ class MegaApi
          * - MegaError::API_EEXIST - If there is a call in the chatroom
          *
          * @param chatid MegaHandle that identifies the chat room
+         * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
+         * @param sfuId Id that identifies the SFU where we want to start the call
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = false, int sfuId = SFU_INVALID, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call
