@@ -33715,8 +33715,8 @@ const char* MegaScheduledMeetingPrivate::description() const                    
 const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->description().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
 const char* MegaScheduledMeetingPrivate::overrides() const                      { return mScheduledMeeting->overrides().size() ? mScheduledMeeting->overrides().c_str() : nullptr; }
 int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
-MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()); }
-MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return new MegaScheduledRulesPrivate(mScheduledMeeting->rules()); }
+MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}
+MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return mScheduledMeeting->rules() ? new MegaScheduledRulesPrivate(mScheduledMeeting->rules()) : nullptr;}
 
 const ScheduledMeeting* MegaScheduledMeetingPrivate::scheduledMeeting() const
 {
