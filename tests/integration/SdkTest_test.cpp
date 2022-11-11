@@ -1209,25 +1209,6 @@ void SdkTest::getCountryCallingCodes(const int timeout)
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
-void SdkTest::setUserAttribute(int type, string value, int timeout)
-{
-    int apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER] = false;
-
-    if (type == MegaApi::USER_ATTR_AVATAR)
-    {
-        megaApi[apiIndex]->setAvatar(value.empty() ? NULL : value.c_str());
-    }
-    else
-    {
-        megaApi[apiIndex]->setUserAttribute(type, value.c_str());
-    }
-
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER], timeout) )
-            << "User attribute setup not finished after " << timeout  << " seconds";
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "User attribute setup failed (error: " << mApi[apiIndex].lastError << ")";
-}
-
 void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
@@ -2504,13 +2485,12 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Modify firstname ---
 
-    string firstname = "My firstname";
+    string firstname1 = "My firstname1"; // change it twice to make sure we get a change notification (in case it was already the first one)
+    string firstname2 = "My firstname2";
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
-    ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname1.c_str()));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname2.c_str()));
 
     // --- Check firstname of a contact
 
@@ -2520,7 +2500,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
-    ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
+    ASSERT_EQ( firstname2, attributeValue) << "Firstname is wrong";
 
     delete u;
 
@@ -2547,7 +2527,7 @@ TEST_F(SdkTest, SdkTestContacts)
     u = megaApi[0]->getMyUser();
 
     string langCode = "es";
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_LANGUAGE, langCode.c_str()));
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
     string language = attributeValue;
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
@@ -2560,7 +2540,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_TRUE(fileexists(AVATARSRC)) <<  "File " +AVATARSRC+ " is needed in folder " << cwd();
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, nullptr));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, AVATARSRC.c_str()));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
@@ -2587,7 +2568,7 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Delete avatar ---
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
+    ASSERT_EQ(API_OK, synchronousSetAvatar(0, nullptr));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
