@@ -4031,6 +4031,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
         case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
         case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
+        case TYPE_GET_EXPORTED_SET_ELEMENT: return "TYPE_GET_EXPORTED_SET_ELEMENT";
 
     }
     return "UNKNOWN";
@@ -23944,7 +23945,6 @@ void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequest
         if (!client->inSetPreviewMode())
         {
             LOG_err << paramErr << "Public Set preview mode disable";
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EACCESS));
             return API_EACCESS;
         }
 
@@ -23953,7 +23953,6 @@ void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequest
         {
             LOG_err << paramErr << "Element not found in preview mode Set "
                     << toHandle(client->getPreviewSet()->id());
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
             return API_EARGS;
         }
 
@@ -23980,11 +23979,11 @@ void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequest
                     else
                     {
                         auto ekeyStr = string((char*)ekey.data());
-                        auto ret = new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
+                        auto ret = make_unique<MegaNodePrivate>(filename->c_str(), FILENODE, size, ts, tm,
                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
                                                        nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
                                                        false /*isPublic*/, true /*isForeign*/);
-                        request->setPublicNode(ret); // ownership transferred
+                        request->setPublicNode(ret.get());
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                     return true;

@@ -8765,7 +8765,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     };
     auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
     {
-        string downloadPath = (fs::current_path() / "willBeTrimmed").u8string();
+        string downloadPath = (fs::current_path() / UPFILE.c_str()).u8string();
         gTestingInvalidArgs = expectedResult != API_OK;
         ASSERT_EQ(expectedResult,
                   doStartDownload(1, validForeignNode,
