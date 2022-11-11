@@ -2329,6 +2329,11 @@ void MegaClient::exec()
                     pendingsc.reset();
                     btsc.reset();
                 }
+                else if (!hadSCQuietTimeAfterFetchnodes && Waiter::ds >= (pendingsc->lastdata + 50))
+                {
+                    LOG_debug << "sc quiet time after fetchnodes has elapsed at ds: " << Waiter::ds;
+                    hadSCQuietTimeAfterFetchnodes = true;
+                }
                 break;
             default:
                 break;

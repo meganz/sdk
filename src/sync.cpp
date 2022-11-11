@@ -10243,7 +10243,7 @@ void Syncs::syncLoop()
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
         // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
-        if (!mClient.actionpacketsCurrent)
+        if (!mClient.actionpacketsCurrent || !mClient.hadSCQuietTimeAfterFetchnodes)
             continue;
 
         // verify filesystem fingerprints, disable deviating syncs

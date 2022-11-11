@@ -1316,6 +1316,7 @@ public:
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
+    bool hadSCQuietTimeAfterFetchnodes = false;
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool syncsAlreadyLoadedOnStatecurrent = false;

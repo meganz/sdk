@@ -5801,6 +5801,7 @@ bool CommandFetchNodes::procresult(Result r)
 
     std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
     client->purgenodesusersabortsc(true);
+    client->hadSCQuietTimeAfterFetchnodes = false;
 
     if (client->sctable)
     {
