@@ -1375,6 +1375,7 @@ public:
 
     // sc received seqtags to report to app (not tied to requests in this client)
     string mLastReceivedScSeqTag;
+    string mLargestEverSeenScSeqTag;
 
     // records last seqTag, with allowance for future fields also
     ScDbStateRecord mScDbStateRecord;

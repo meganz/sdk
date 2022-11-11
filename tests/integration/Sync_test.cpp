@@ -5154,7 +5154,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // reload the Nodes from server, similar to an ETOOMANY error,
-    // just so we are excercising most of that code path somewhere
+    // just so we are exercising most of that code path somewhere
     clientA1->fetchnodes(false, false, true);
 
     clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent; }, std::chrono::seconds(60));

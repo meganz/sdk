@@ -3865,6 +3865,13 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
+// moved this out of purgenodesusersabortsc as it's not appropriate for the other place it's called (fetchnodes result)
+// but it's not needed anyway as we did syncs.locallogout() above
+//    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
+//#ifdef ENABLE_SYNC
+//    syncs.purgeRunningSyncs();
+//#endif
+
     purgenodesusersabortsc(false);
 
     reqs.clear();
@@ -3916,6 +3923,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
+    mLargestEverSeenScSeqTag.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -4094,6 +4102,7 @@ bool MegaClient::procsc()
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
+    bool originalAC = actionpacketsCurrent;
     actionpacketsCurrent = false;
 
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
@@ -4266,7 +4275,24 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    actionpacketsCurrent = statecurrent && !insca_notlast;
+                    {
+                        // In case a fetchnodes() occurs mid-session.  We should not allow
+                        // the syncs to see the new tree unless we've caught up to at least
+                        // the same scsn/seqTag as we were at before.  ir:1 is not always reliable
+                        bool scTagNotCaughtUp =  !mScDbStateRecord.seqTag.empty() &&
+                                                 !mLargestEverSeenScSeqTag.empty() &&
+                                                 (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
+                                                  mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
+                                                  mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag);
+
+                        bool ac = statecurrent && !insca_notlast && !scTagNotCaughtUp;
+
+                        if (!originalAC && ac)
+                        {
+                            LOG_debug << clientname << "actionpacketsCurrent is true again";
+                        }
+                        actionpacketsCurrent = ac;
+                    }
 
                     if (!insca_notlast)
                     {
@@ -5176,6 +5202,11 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     else
     {
         mLastReceivedScSeqTag = tag;
+        if (mLastReceivedScSeqTag.size() > mLargestEverSeenScSeqTag.size() ||
+            mLastReceivedScSeqTag > mLargestEverSeenScSeqTag)
+        {
+            mLargestEverSeenScSeqTag = mLastReceivedScSeqTag;
+        }
 
         // Also prep this one to be committed to db (if we delay until time to notify the app, we're too late for the commit)
         mScDbStateRecord.seqTag = mLastReceivedScSeqTag;
@@ -13174,17 +13205,14 @@ bool MegaClient::areCredentialsVerified(handle uh)
 
 void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
+    // this function's purpose is to remove from RAM everything that we would populate in FetchNodes.
+
     app->clearing();
 
     while (!hdrns.empty())
     {
         delete hdrns.begin()->second;
     }
-
-    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
-#ifdef ENABLE_SYNC
-    syncs.purgeRunningSyncs();
-#endif
 
     mOptimizePurgeNodes = true;
     mFingerprints.clear();
