@@ -8876,6 +8876,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
                     [this, request](){
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK), true);
                     });
+
                 return API_OK;
             }
 
@@ -13157,11 +13158,6 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_syncing(bool syncing)
-{
-    fireOnGlobalSyncStateChanged();
-}
-
 void MegaApiImpl::syncupdate_stalled(bool stalled)
 {
     receivedStallFlag = stalled;
@@ -13171,6 +13167,11 @@ void MegaApiImpl::syncupdate_stalled(bool stalled)
 void MegaApiImpl::syncupdate_conflicts(bool conflicts)
 {
     receivedNameConflictsFlag = conflicts;
+    fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_syncing(bool syncing)
+{
     fireOnGlobalSyncStateChanged();
 }
 

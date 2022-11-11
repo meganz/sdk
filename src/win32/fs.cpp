@@ -1173,7 +1173,7 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            LocalPath::local2path(&localdata, &utf8data, true);
+            LocalPath::local2path(&localdata, &utf8data, true);  // true becuase that was the case historically
             id->append(utf8data);
         }
         RegCloseKey(hKey);
@@ -1616,7 +1616,7 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     }
 
     string utf8fsname;
-    LocalPath::local2path(&fsname, &utf8fsname, true);
+    LocalPath::local2path(&fsname, &utf8fsname, false);
     LOG_debug << "Filesystem type: " << utf8fsname;
 
     return result;
