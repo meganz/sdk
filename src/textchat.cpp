@@ -1008,6 +1008,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         {
             chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
         }
+        // else -> FIXME: should return nullptr and force a full reload?
     }
 
     memset(&chat->changed, 0, sizeof(chat->changed));
