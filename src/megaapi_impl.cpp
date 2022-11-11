@@ -19019,17 +19019,20 @@ void MegaApiImpl::sendPendingRequests()
                         const Set* updatedSet = client->getSet(sid);
                         bool isExport = request->getFlag();
                         assert(updatedSet);
-                        assert((isExport && updatedSet->publicId() != UNDEF)
-                               || (!isExport && updatedSet->publicId() == UNDEF));
+                        assert((isExport && updatedSet->isExportedSet())
+                                || (!isExport && !updatedSet->isExportedSet()));
 
                         string url;
-                        std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
+                        if (isExport)
+                        {
+                            std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
+                        }
                         if (e == API_OK)
                         {
                             request->setLink(url.c_str());
-                            auto updatedSetList = new MegaSetListPrivate(&updatedSet, 1);
-                            fireOnSetsUpdate(updatedSetList);
-                            delete updatedSetList;
+                            request->setMegaSet(unique_ptr<MegaSet>(new MegaSetPrivate(*updatedSet)));
+                            unique_ptr<MegaSetListPrivate> updatedSetList(new MegaSetListPrivate(&updatedSet, 1));
+                            fireOnSetsUpdate(updatedSetList.get());
                         }
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -19073,7 +19076,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout(false, true);
+            client->locallogout(false, true, string(slogin) == SET_PREVIEW_LOGIN);
             if (sessionKey)
             {
                 client->login(Base64::atob(string(sessionKey)));
@@ -24011,6 +24014,82 @@ void MegaApiImpl::stopPublicSetPreview()
     SdkMutexGuard g(sdkMutex);
 
     client->stopSetPreview();
+}
+
+bool MegaApiImpl::inPublicSetPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return client->inSetPreviewMode();
+}
+
+void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT, listener);
+
+    request->action = [eid, this, request]()
+    {
+        const string paramErr = "Error failed to get MegaNode for Set Element " + toHandle(eid) + ". ";
+        if (!client->inSetPreviewMode())
+        {
+            LOG_err << paramErr << "Public Set preview mode disable";
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EACCESS));
+            return API_EACCESS;
+        }
+
+        auto element = client->getPreviewSetElement(eid);
+        if (!element)
+        {
+            LOG_err << paramErr << "Element not found in preview mode Set "
+                    << toHandle(client->getPreviewSet()->id());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
+            return API_EARGS;
+        }
+
+        {
+            std::array<byte, FILENODEKEYLENGTH> ekey;
+            handle enode = element->node();
+            memcpy(ekey.data(), element->key().c_str(), ekey.size());
+            auto commandCB =
+                [ekey, enode, request, this] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
+                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
+                          const std::vector<std::string> &/*ips*/)
+                {
+                    if (!fingerprint) // failed processing the command
+                    {
+                        LOG_err << "Sets: Link check failed: " << e;
+                        return true;
+                    }
+
+                    if (e)
+                    {
+                        LOG_err << "Sets: Not available: " << e;
+                    }
+                    else
+                    {
+                        auto ekeyStr = string((char*)ekey.data());
+                        auto ret = new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
+                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
+                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
+                                                       false /*isPublic*/, true /*isForeign*/);
+                        request->setPublicNode(ret); // ownership transferred
+                    }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return true;
+                };
+
+            client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
+                                        true /*private*/, nullptr, nullptr, nullptr, false,
+                                        commandCB));
+        }
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void TreeProcCopy::allocnodes()

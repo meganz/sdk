@@ -5664,6 +5664,16 @@ void MegaApi::stopPublicSetPreview()
     return pImpl->stopPublicSetPreview();
 }
 
+bool MegaApi::inPublicSetPreview()
+{
+    return pImpl->inPublicSetPreview();
+}
+
+void MegaApi::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener)
+{
+    return pImpl->getPublicSetPreviewElementMegaNode(eid, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

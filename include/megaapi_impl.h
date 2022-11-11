@@ -715,6 +715,7 @@ public:
     MegaHandle cover() const override { return mCover; }
 
     bool hasChanged(int changeType) const override;
+    bool isExportedSet() const override { return mPublicId != UNDEF; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -2694,7 +2695,8 @@ class MegaApiImpl : public MegaApp
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
         void stopPublicSetPreview();
-
+        bool inPublicSetPreview();
+        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
 #ifdef ENABLE_SYNC
         //Sync

@@ -492,7 +492,8 @@ class MegaNode
             TYPE_ROOT       = 2,
             TYPE_VAULT      = 3,
             TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
-            TYPE_RUBBISH    = 4
+            TYPE_RUBBISH    = 4,
+            TYPE_SET        = 5
 		};
 
         enum {
@@ -561,6 +562,9 @@ class MegaNode
          * The MegaNode object represents root of the MEGA Vault
          *
          * - TYPE_RUBBISH = 4
+         * The MegaNode object represents root of the MEGA Rubbish Bin
+         *
+         * - TYPE_SET = 5
          * The MegaNode object represents root of the MEGA Rubbish Bin
          *
          * @return Type of the node
@@ -1295,6 +1299,15 @@ public:
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns true if this Set is exported (can be accessed via public link)
+     *
+     * Public link is retrieved when the Set becomes exported
+     *
+     * @return true if this Set is exported
+     */
+    virtual bool isExportedSet() const { return false; }
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -3522,7 +3535,8 @@ class MegaRequest
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
             TYPE_EXPORT_SET                                                 = 156,
-            TOTAL_OF_REQUEST_TYPES                                          = 157,
+            TYPE_GET_EXPORTED_SET_ELEMENT                                   = 157,
+            TOTAL_OF_REQUEST_TYPES                                          = 158,
         };
 
         virtual ~MegaRequest();
@@ -3883,6 +3897,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
+         * - MegaApi::getPublicSetPreviewElementMegaNode
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -19721,6 +19736,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - MegaSet including the public id
          * - MegaRequest::getLink - Public link
          *
          * MegaError::API_OK results in onSetsUpdate being triggered as well
@@ -19781,14 +19797,40 @@ class MegaApi
         /**
          * @brief Stops public Set preview mode for current SDK instance
          *
-         * The associated request type with this request is MegaRequest::TYPE_LOGIN
-         * Valid data in the MegaRequest object received on callbacks:
+         * MegaApi instance is no longer useful until a new login
+         *
+         */
+        void stopPublicSetPreview();
+
+        /**
+         * @brief Returns if this MegaApi instance is in a public/exported Set preview mode
+         *
+         * @returns True if public Set preview mode is enabled
+         *
+         */
+        bool inPublicSetPreview();
+
+        /**
+         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPublicMegaNode - Returns the MegaNode (ownership transferred)
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - Public Set preview mode is not enabled
+         * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
+         * in previewed Set
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * @param eid MegaHandle of target SetElement from Set in preview mode
+         * @param listener MegaRequestListener to track this request
          */
-        void stopPublicSetPreview();
+        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;

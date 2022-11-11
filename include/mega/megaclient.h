@@ -767,7 +767,7 @@ public:
     void logout(bool keepSyncConfigsFile, CommandLogout::Completion completion = nullptr);
 
     // free all state information
-    void locallogout(bool removecaches, bool keepSyncsConfigFile);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile, bool keepSetsAndElements = false);
 
     // SDK version
     const char* version();
@@ -2099,6 +2099,8 @@ public:
 
     const SetElement* getPreviewSetElement(handle eid) const
     { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
+
+    const Set* getPreviewSet() const { return inSetPreviewMode() ? &mPreviewSet->mSet : nullptr; }
 
 private:
     static inline bool validTypeForPublicLinkURL(nodetype_t type);
