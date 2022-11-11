@@ -7469,7 +7469,12 @@ void MegaClient::sc_delscheduledmeeting()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    if (parseScheduledMeetings(schedMeetings, false, &jsonsc, /*parseOnce*/true) != API_OK) { return; }
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true);
+    if (e != API_OK)
+    {
+        LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
+        return;
+    }
 
     assert(schedMeetings.size() == 1);
     for (auto &sm: schedMeetings)
