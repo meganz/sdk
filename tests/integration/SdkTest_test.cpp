@@ -8452,6 +8452,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Check if Set is exported
     // U1: Logout / login to retrieve Set
     // U1: Check if Set is exported
+    // U1: Get public Set URL
     // U1: Start Public Set preview mode
     // U1: Fetch Set in public Set mode
     // U1: Stop Public Set preview mode
@@ -8463,6 +8464,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)
     // Releasing MegaApi instances and loging in again U1 and U2
     // U1: Disable Set export (invalidates public link)
+    // U1: Get public Set URL (-9 expected)
     // U1: Check if Set is exported
     // U1: Remove all Sets
 
@@ -8621,6 +8623,29 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh));
 
 
+    LOG_debug << "# U1: Get public Set URL";
+    auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    {
+        char* publicSetURL = nullptr;
+        bool isSuccessExpected = expectedResult == API_OK;
+        gTestingInvalidArgs = !isSuccessExpected;
+        ASSERT_EQ(expectedResult, megaApi[0]->getPublicLinkForExportedSet(sh, &publicSetURL));
+        gTestingInvalidArgs = false;
+        unique_ptr<char[]> publicSetLink(publicSetURL);
+        if (isSuccessExpected)
+        {
+            ASSERT_NE(publicSetLink, nullptr);
+            ASSERT_EQ(publicSetLink.get(), exportedSetURL);
+        }
+        else
+        {
+            ASSERT_EQ(publicSetLink, nullptr);
+        }
+    };
+
+    lCheckSetLink(API_OK);
+
+
     LOG_debug << "# U1: Start Public Set preview mode";
     auto lStartSetPreviewMode = [this, &exportedSetURL, &lIsSameSet, &lIsSameElementList]
                                 (int apiIdx, bool isSetExportExpected)
@@ -8733,6 +8758,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Check if Set is exported";
     ASSERT_FALSE(megaApi[0]->isExportedSet(sh));
 
+    LOG_debug << "# U1: Get public Set URL (expect -9)";
+    lCheckSetLink(API_ENOENT);
 
     LOG_debug << "# U1: Remove all Sets"; userIdx = 0;
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());

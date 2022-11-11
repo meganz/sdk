@@ -5674,6 +5674,11 @@ void MegaApi::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestList
     return pImpl->getPublicSetPreviewElementMegaNode(eid, listener);
 }
 
+int MegaApi::getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL)
+{
+    return pImpl->getPublicLinkForExportedSet(sid, publicSetURL);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

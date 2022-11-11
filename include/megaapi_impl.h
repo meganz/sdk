@@ -2697,6 +2697,7 @@ class MegaApiImpl : public MegaApp
         void stopPublicSetPreview();
         bool inPublicSetPreview();
         void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+        Error getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL);
 
 #ifdef ENABLE_SYNC
         //Sync
