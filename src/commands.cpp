@@ -9535,24 +9535,29 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 
     assert(mScheduledMeeting);
     auto it = client->chats.find(mScheduledMeeting->chatid());
-    if (it == client->chats.end() || !r.hasJsonItem())
+    handle schedId = r.hasJsonItem() ? client->json.gethandle(MegaClient::CHATHANDLE) : UNDEF;
+    if (it == client->chats.end() || ISUNDEF(schedId))
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
 
-    TextChat* chat = it->second;
-    handle schedId = client->json.gethandle(MegaClient::CHATHANDLE);
-    mScheduledMeeting->setSchedId(schedId);
+    ScheduledMeeting* result = nullptr;
+    error e = API_EINTERNAL;
 
-    bool res = !ISUNDEF(schedId) && chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
+    TextChat* chat = it->second;
+    mScheduledMeeting->setSchedId(schedId);
+    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
         client->notifychat(chat);
+
+        result = mScheduledMeeting.get();
+        e = API_OK;
     }
 
-    if (mCompletion) { mCompletion(res ? API_OK : API_EINTERNAL, mScheduledMeeting.get()); }
+    if (mCompletion) { mCompletion(e, result); }
     return res;
 }
 
