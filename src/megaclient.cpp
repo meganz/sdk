@@ -11423,42 +11423,42 @@ void MegaClient::notifynode(Node* n)
 
     if (!fetchingnodes)
     {
-        if (!n->changed.removed && n->attrstring)
-        {
-            // report a "NO_KEY" event
+        //if (!n->changed.removed && n->attrstring)
+        //{
+        //    // report a "NO_KEY" event
 
-            char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
-            Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
+        //    char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
+        //    Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
 
-            int changed = 0;
-            changed |= (int)n->changed.removed;
-            changed |= n->changed.attrs << 1;
-            changed |= n->changed.owner << 2;
-            changed |= n->changed.ctime << 3;
-            changed |= n->changed.fileattrstring << 4;
-            changed |= n->changed.inshare << 5;
-            changed |= n->changed.outshares << 6;
-            changed |= n->changed.pendingshares << 7;
-            changed |= n->changed.parent << 8;
-            changed |= n->changed.publiclink << 9;
-            changed |= n->changed.newnode << 10;
-            changed |= n->changed.name << 11;
-            changed |= n->changed.favourite << 12;
+        //    int changed = 0;
+        //    changed |= (int)n->changed.removed;
+        //    changed |= n->changed.attrs << 1;
+        //    changed |= n->changed.owner << 2;
+        //    changed |= n->changed.ctime << 3;
+        //    changed |= n->changed.fileattrstring << 4;
+        //    changed |= n->changed.inshare << 5;
+        //    changed |= n->changed.outshares << 6;
+        //    changed |= n->changed.pendingshares << 7;
+        //    changed |= n->changed.parent << 8;
+        //    changed |= n->changed.publiclink << 9;
+        //    changed |= n->changed.newnode << 10;
+        //    changed |= n->changed.name << 11;
+        //    changed |= n->changed.favourite << 12;
 
-            int attrlen = int(n->attrstring->size());
-            string base64attrstring;
-            base64attrstring.resize(attrlen * 4 / 3 + 4);
-            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
+        //    int attrlen = int(n->attrstring->size());
+        //    string base64attrstring;
+        //    base64attrstring.resize(attrlen * 4 / 3 + 4);
+        //    base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
 
-            char report[512];
-            Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-            sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+        //    char report[512];
+        //    Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
+        //    sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-            reportevent("NK", report, 0);
-            sendevent(99400, report, 0);
+        //    reportevent("NK", report, 0);
+        //    sendevent(99400, report, 0);
 
-            delete [] buf;
-        }
+        //    delete [] buf;
+        //}
 
 #ifdef ENABLE_SYNC
         // is this a synced node that was moved to a non-synced location? queue for
