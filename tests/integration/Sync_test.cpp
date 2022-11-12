@@ -2453,6 +2453,84 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
 }
 
+handle StandardClient::setupBackup_mainthread(const string& rootPath)
+{
+    SyncOptions options;
+
+    options.drivePath = string(1, '\0');
+    options.isBackup = true;
+    options.uploadIgnoreFile = false;
+
+    return setupBackup_mainthread(rootPath, options);
+}
+
+handle StandardClient::setupBackup_mainthread(const string& rootPath,
+                                            const SyncOptions& syncOptions)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        client.setupBackup_inThread(rootPath, syncOptions, std::move(result));
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(chrono::seconds(45));
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
+}
+
+void StandardClient::setupBackup_inThread(const string& rootPath,
+                                        const SyncOptions& syncOptions,
+                                        PromiseHandleSP result)
+{
+    auto ec = std::error_code();
+    auto rootPath_ = fsBasePath / fs::u8path(rootPath);
+
+    // Try and create the local sync root.
+    fs::create_directories(rootPath_, ec);
+    EXPECT_FALSE(ec);
+
+    if (ec)
+        return result->set_value(UNDEF);
+
+    fs::path excludePath_;
+
+    // Translate exclude path if necessary.
+    if (!syncOptions.excludePath.empty())
+    {
+        excludePath_ = fsBasePath / fs::u8path(syncOptions.excludePath);
+    }
+
+    // Create a suitable sync config.
+    SyncConfig config(LocalPath::fromAbsolutePath(rootPath_.u8string()),
+            rootPath,
+            NodeHandle(),
+            string(),
+            0,
+            LocalPath(),
+            true,
+            SyncConfig::TYPE_BACKUP);
+
+
+    client.preparebackup(config, [result, this](Error err, SyncConfig sc, MegaClient::UndoFunction revertOnError){
+
+        if (err != API_OK)
+        {
+            result->set_value(UNDEF);
+        }
+        else
+        {
+            client.addsync(move(sc), false, [revertOnError, result, this](error e, SyncError se, handle h){
+                if (e && revertOnError) revertOnError(nullptr);
+                result->set_value(e ? UNDEF : h);
+
+            }, "");
+        }
+    });
+}
+
 handle StandardClient::setupSync_mainthread(const string& rootPath,
                                             const CloudItem& remoteItem,
                                             const bool isBackup,
@@ -3749,8 +3827,33 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     {
         out() << "removeSelectedSyncs failed";
     }
-
     assert(client.syncs.getConfigs(false, false).empty());
+
+    // delete everything from Vault
+    std::atomic<int> requestcount{0};
+    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
+
+        if (auto vault = sc.client.nodeByHandle(sc.client.rootnodes.vault))
+        {
+            for (auto n : vault->children)
+            {
+                LOG_debug << "vault child: " << n->displaypath();
+                for (auto n2 : n->children)
+                {
+                    LOG_debug << "Unlinking: " << n2->displaypath();
+                    ++requestcount;
+                    sc.client.unlink(n2, false, 0, true, [&requestcount](NodeHandle, Error){ --requestcount; });
+                }
+            }
+        }
+    }, __FILE__, __LINE__);
+
+    int limit = 100;
+    while (requestcount.load() > 0 && --limit)
+    {
+        WaitMillisec(100);
+    }
+
     mStallDetected = false;
     mConflictsDetected = false;
 
@@ -5222,7 +5325,28 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     waitonsyncs(std::chrono::seconds(4), clientA1, clientA2, clientA3);
     clientA1->logcb = clientA2->logcb = clientA3->logcb = true;
 
+    // also set up backups and move between backup/sync  (to check vw:1 flag is set appropriately both ways)
+    handle backupId3b1 = clientA3->setupBackup_mainthread("backup1");
+    ASSERT_NE(backupId3b1, UNDEF);
+    handle backupId3b2 = clientA3->setupBackup_mainthread("backup2");
+    ASSERT_NE(backupId3b2, UNDEF);
+
+    std::error_code fs_error;
+    fs::create_directory(clientA3->syncSet(backupId3b1).localpath / "backup1subfolder", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+    fs::create_directory(clientA3->syncSet(backupId3b2).localpath / "backup2subfolder", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2, clientA3);
+
     // Create models.
+    Model backup1model;
+    Model backup2model;
+    backup1model.addfolder("backup1subfolder");
+    backup2model.addfolder("backup2subfolder");
+    ASSERT_TRUE(clientA3->confirmModel_mainthread(backup1model.root.get(), backupId3b1));
+    ASSERT_TRUE(clientA3->confirmModel_mainthread(backup2model.root.get(), backupId3b2));
+
+    // Create Sync models.
     Model modelF;
     Model modelF0;
     Model modelF2;
@@ -5280,6 +5404,24 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(modelF0.findnode("f_0"), backupId21));
     ASSERT_TRUE(clientA2->confirmModel_mainthread(modelF2.findnode("f_2"), backupId22));
     ASSERT_TRUE(clientA3->confirmModel_mainthread(modelF.findnode("f"), backupId31));
+
+    // now try moving between syncs and backups
+
+    fs::rename(clientA3->syncSet(backupId3b1).localpath / "backup1subfolder",
+               clientA3->syncSet(backupId31).localpath / "backup1subfolder", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+    fs::rename(clientA3->syncSet(backupId31).localpath / "f_2",
+               clientA3->syncSet(backupId3b1).localpath / "f_2", fs_error);
+    ASSERT_TRUE(!fs_error) << fs_error;
+
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2, clientA3);
+
+    backup1model.root->addkid(modelF.removenode("f/f_2"));
+    modelF.findnode("f")->addkid(backup1model.removenode("backup1subfolder"));
+
+    ASSERT_TRUE(clientA3->confirmModel_mainthread(backup1model.root.get(), backupId3b1));
+    ASSERT_TRUE(clientA3->confirmModel_mainthread(modelF.findnode("f"), backupId31));
+
 }
 
 TEST_F(SyncTest, BasicSync_RenameLocalFile)

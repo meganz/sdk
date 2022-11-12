@@ -584,6 +584,16 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
+    // setupBackup is implicitly in Vault
+    handle setupBackup_mainthread(const string& rootPath);
+    handle setupBackup_mainthread(const string& rootPath,
+                                const SyncOptions& syncOptions);
+
+    void setupBackup_inThread(const string& rootPath,
+                            const SyncOptions& syncOptions,
+                            PromiseHandleSP result);
+
+    // isBackup here allows configuring backups that are not in vault
     handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
                                 const bool isBackup,

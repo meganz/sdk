@@ -2034,6 +2034,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
                         bool canChangeVault = threadSafeState->mCanChangeVault;
+
+                        if (!canChangeVault && sourceSyncNode->sync != this)
+                        {
+                            // possibly we need to move the source out of a backup in Vault, into a non-Vault sync
+                            canChangeVault = sourceSyncNode->sync->threadSafeState->mCanChangeVault;
+                        }
+
                         syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (signalMoveBegin)
@@ -6333,7 +6340,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         bool ignoreFilePresent = sequences.size() > 1;
         bool hasFilter = !!row.syncNode->rareRO().filterChain;
 
-        if (ignoreFilePresent != hasFilter)
+        if (ignoreFilePresent != hasFilter && !sequences.empty())
         {
             row.syncNode->ignoreFilterPresenceChanged(ignoreFilePresent, childRows[sequences.front().first].fsNode);
         }
