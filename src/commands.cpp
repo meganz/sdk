@@ -120,7 +120,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     // 'canChangeVault' is false here because restoration of file attributes is triggered by
                     // downloads, so it cannot be triggered by a Backup operation
                     bool canChangeVault = false;
-                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, canChangeVault);
+                    client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
                 }
             }
 
@@ -930,7 +930,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c, bool canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, Completion&& c, bool canChangeVault)
 {
     cmd("a");
     notself(client);
@@ -950,29 +950,12 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
 
     h = n->nodeHandle();
     tag = 0;
-    syncop = prevattr;
-
-    if(prevattr)
-    {
-        pa = prevattr;
-    }
 
     completion = move(c);
 }
 
 bool CommandSetAttr::procresult(Result r)
 {
-#ifdef ENABLE_SYNC
-    if(r.wasError(API_OK) && syncop)
-    {
-        Node* node = client->nodeByHandle(h);
-        if(node)
-        {
-            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-            LOG_debug << "Sync - remote rename from " << pa << " to " << node->displayname();
-        }
-    }
-#endif
     if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -1258,7 +1241,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             case 'f':
                 empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, &nn, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (client->readnodes(&client->json, 1, source, &nn, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     e = API_OK;
                 }
@@ -1271,7 +1254,7 @@ bool CommandPutNodes::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
                     e = API_EINTERNAL;
@@ -1370,7 +1353,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     client->proctree(n, &tpsk);
     tpsk.get(this);
 
-    tag = client->reqtag;
+    tag = 0;
     completion = move(c);
 }
 
@@ -1435,11 +1418,8 @@ bool CommandMoveNode::procresult(Result r)
                     }
                     else
                     {
-                        int creqtag = client->reqtag;
-                        client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
                         client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, mCanChangeVault, nullptr);
-                        client->reqtag = creqtag;
                     }
                 }
             }
@@ -5786,7 +5766,7 @@ bool CommandFetchNodes::procresult(Result r)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -5796,7 +5776,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -9120,7 +9100,7 @@ bool CommandPutSet::procresult(Result r)
             s = client->addSet(move(*mSet));
         }
         else // update existing
-        {            
+        {
             assert(mSet->id() == sId);
 
             if (!client->updateSet(move(*mSet)))

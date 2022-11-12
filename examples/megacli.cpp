@@ -3724,7 +3724,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                 sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
                 const string& sdsValue = Node::toSdsString(sdsBkps);
 
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
+                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), move(attrCompl), true);
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
@@ -4710,7 +4710,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             LocalPath::utf8_normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result, false)))
+                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result, false)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -4741,7 +4741,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), 0, nullptr, setattr_result, false);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result, false);
 
                             if (e)
                             {

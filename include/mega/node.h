@@ -269,9 +269,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     unlink_or_debris_set::iterator tounlink_it;
 #endif
 
-    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
-    int tag = 0;
-
     // check if node is below this node
     bool isbelow(Node*) const;
     bool isbelow(NodeHandle) const;

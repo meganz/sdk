@@ -2959,7 +2959,7 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                                 if (!node)
                                     return result->set_value(false);
 
-                                client.setattr(node, attr_map(updates), client.reqtag, nullptr,
+                                client.setattr(node, attr_map(updates),
                                     [result](NodeHandle, error e) { result->set_value(!e); }, false);
                             }, nullptr);
 }
@@ -9102,7 +9102,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr, false);
+        auto e = changeClient().client.setattr(n, move(updates), nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
