@@ -1712,7 +1712,7 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool applykeys);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);

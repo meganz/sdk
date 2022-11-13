@@ -1241,7 +1241,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             case 'f':
                 empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, &nn, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (client->readnodes(&client->json, 1, source, &nn, true, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     e = API_OK;
                 }
@@ -1254,7 +1254,7 @@ bool CommandPutNodes::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, false, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
                     e = API_EINTERNAL;
@@ -5766,7 +5766,7 @@ bool CommandFetchNodes::procresult(Result r)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false, false))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -5776,7 +5776,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false, false))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);

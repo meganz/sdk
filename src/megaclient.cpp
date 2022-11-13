@@ -6009,11 +6009,11 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
-                    readnodes(j, 1, PUTNODES_APP, NULL, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    readnodes(j, 1, PUTNODES_APP, NULL, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case 'u':
@@ -7938,6 +7938,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
+                n->changed.modifiedByThisClient = false;
             }
         }
 
@@ -8400,6 +8401,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     n->attrs.applyUpdates(updates);
 
     n->changed.attrs = true;
+    n->changed.modifiedByThisClient = true;
     notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, move(c), canChangeVault));
@@ -8732,6 +8734,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         }
 
         n->changed.parent = true;
+        n->changed.modifiedByThisClient = true;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -8916,6 +8919,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             Node *olderversion = n->children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
+            olderversion->changed.modifiedByThisClient = true;
             notifynode(olderversion);
         }
     }
@@ -9110,7 +9114,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -9349,6 +9353,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
+                n->changed.modifiedByThisClient = modifiedByThisClient;
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
@@ -11423,42 +11428,42 @@ void MegaClient::notifynode(Node* n)
 
     if (!fetchingnodes)
     {
-        //if (!n->changed.removed && n->attrstring)
-        //{
-        //    // report a "NO_KEY" event
+        if (n->changed.modifiedByThisClient && !n->changed.removed && n->attrstring)
+        {
+            // report a "NO_KEY" event
 
-        //    char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
-        //    Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
+            char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
+            Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
 
-        //    int changed = 0;
-        //    changed |= (int)n->changed.removed;
-        //    changed |= n->changed.attrs << 1;
-        //    changed |= n->changed.owner << 2;
-        //    changed |= n->changed.ctime << 3;
-        //    changed |= n->changed.fileattrstring << 4;
-        //    changed |= n->changed.inshare << 5;
-        //    changed |= n->changed.outshares << 6;
-        //    changed |= n->changed.pendingshares << 7;
-        //    changed |= n->changed.parent << 8;
-        //    changed |= n->changed.publiclink << 9;
-        //    changed |= n->changed.newnode << 10;
-        //    changed |= n->changed.name << 11;
-        //    changed |= n->changed.favourite << 12;
+            int changed = 0;
+            changed |= (int)n->changed.removed;
+            changed |= n->changed.attrs << 1;
+            changed |= n->changed.owner << 2;
+            changed |= n->changed.ctime << 3;
+            changed |= n->changed.fileattrstring << 4;
+            changed |= n->changed.inshare << 5;
+            changed |= n->changed.outshares << 6;
+            changed |= n->changed.pendingshares << 7;
+            changed |= n->changed.parent << 8;
+            changed |= n->changed.publiclink << 9;
+            changed |= n->changed.newnode << 10;
+            changed |= n->changed.name << 11;
+            changed |= n->changed.favourite << 12;
 
-        //    int attrlen = int(n->attrstring->size());
-        //    string base64attrstring;
-        //    base64attrstring.resize(attrlen * 4 / 3 + 4);
-        //    base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
+            int attrlen = int(n->attrstring->size());
+            string base64attrstring;
+            base64attrstring.resize(attrlen * 4 / 3 + 4);
+            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
 
-        //    char report[512];
-        //    Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-        //    sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+            char report[512];
+            Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
+            sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-        //    reportevent("NK", report, 0);
-        //    sendevent(99400, report, 0);
+            reportevent("NK", report, 0);
+            sendevent(99400, report, 0);
 
-        //    delete [] buf;
-        //}
+            delete [] buf;
+        }
 
 #ifdef ENABLE_SYNC
         // is this a synced node that was moved to a non-synced location? queue for

@@ -226,6 +226,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        // this field also only used internally, for reporting new NO_KEY occurrences
+        bool modifiedByThisClient : 1;
 
     } changed;
 
