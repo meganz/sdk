@@ -429,6 +429,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
@@ -457,6 +460,8 @@ enum ScanResult
 }; // ScanResult
 
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
@@ -518,7 +523,7 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
 struct UnlinkOrDebris {
     bool unlink = false;
@@ -704,8 +709,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
-
 
 // user attribute types
 typedef enum {
@@ -1043,7 +1048,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:

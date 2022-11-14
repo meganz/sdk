@@ -222,10 +222,12 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
-    void syncupdate_active(const SyncConfig& config, bool active) override;
-    void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
+    void sync_added(const SyncConfig&) override;
     void sync_removed(const SyncConfig& config) override;
 
+    void syncs_restored(SyncError syncError) override;
+
+    void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
@@ -264,6 +266,7 @@ struct DemoApp : public MegaApp
     void reqstat_progress(int) override;
 
     void reload(const char*) override;
+    void reloading() override;
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
@@ -322,6 +325,8 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);

@@ -244,6 +244,7 @@ public:
 
 private:
     static int instanceCount;
+    friend class MegaClient;
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
     CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
