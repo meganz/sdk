@@ -19264,6 +19264,9 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
+         * - Note: Scheduled meeting id: When a scheduled meeting exists for a chatroom, and a call is started in that scheduled meeting context, it won't
+         * ring the participants.
+         *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
          * Valid data in the MegaRequest object received on all callbacks:
@@ -19285,7 +19288,7 @@ class MegaApi
          * @param sfuId Id that identifies the SFU where we want to start the call
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaHandle schedId = false, int sfuId = SFU_INVALID, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, int sfuId = SFU_INVALID, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call
