@@ -10958,6 +10958,32 @@ public class MegaApiJava {
         return result;
     }
 
+    static ArrayList<MegaSet> megaSetListToArray(MegaSetList megaSetList) {
+        if (megaSetList == null) {
+            return null;
+        }
+
+        ArrayList<MegaSet> result = new ArrayList<>((int) megaSetList.size());
+        for (int i = 0; i < megaSetList.size(); i++) {
+            result.add(megaSetList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    static ArrayList<MegaSetElement> megaSetElementListToArray(MegaSetElementList megaSetElementList) {
+        if (megaSetElementList == null) {
+            return null;
+        }
+
+        ArrayList<MegaSetElement> result = new ArrayList<>((int) megaSetElementList.size());
+        for (int i = 0; i < megaSetElementList.size(); i++) {
+            result.add(megaSetElementList.get(i).copy());
+        }
+
+        return result;
+    }
+
     /**
      * Creates a copy of MegaRecentActionBucket required for its usage in the app.
      *

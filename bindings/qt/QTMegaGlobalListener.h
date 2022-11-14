@@ -20,6 +20,10 @@ public:
     virtual void onReloadNeeded(MegaApi* api);
     virtual void onEvent(MegaApi* api, MegaEvent *e);
 
+#ifdef ENABLE_SYNC
+    virtual void onGlobalSyncStateChanged(MegaApi* api);
+#endif
+
 protected:
     virtual void customEvent(QEvent * event);
 

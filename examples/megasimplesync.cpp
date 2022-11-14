@@ -525,24 +525,25 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Needed so we can get our hands on the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
-    // Where are we?
     LocalPath currentDir;
-    bool result = fsAccess->cwd(currentDir);
 
-    if (!result)
+    // Determine the current working directory.
     {
-        cerr << "Unable to determine current working directory." << endl;
-        return EXIT_FAILURE;
+        // Needed so we can get our hands on the cwd.
+        auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+        // Where are we?
+        if (!fsAccess->cwd(currentDir))
+        {
+            cerr << "Unable to determine current working directory." << endl;
+            return EXIT_FAILURE;
+        }
     }
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app,
                             new WAIT_CLASS,
                             new HTTPIO_CLASS,
-                            move(fsAccess),
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),
                         #else
