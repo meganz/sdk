@@ -755,6 +755,8 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
         return;
     }
 
+    checkTransaction();
+
     int sqlResult = SQLITE_OK;
     if (!mStmtUpdateNode)
     {

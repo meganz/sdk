@@ -5519,6 +5519,8 @@ void MegaClient::finalizesc(bool complete)
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
+
+        app->reload("Failed to write to database");
     }
 }
 
@@ -8985,7 +8987,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
-                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(sk ? buf : NULL);
+                    if (sk) // only if the key is valid, add it to the repository
+                    {
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                    }
                 }
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
@@ -19085,7 +19090,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         return nullptr;
     }
 
-    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter));
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
 
     return node;
 }
@@ -19169,7 +19174,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     if (node)
     {
-        node->setCounter(nc);
+        node->setCounter(nc, false);
     }
 
     mTable->updateCounter(nodehandle, nc.serialize());
@@ -20058,7 +20063,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
             nc.storage -= n.size;
             nc.versions++;
             nc.versionStorage += n.size;
-            n.setCounter(nc);
+            n.setCounter(nc, true);
         }
     }
 
