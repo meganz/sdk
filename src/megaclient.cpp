@@ -17905,7 +17905,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vWeek.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vWeek.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17917,7 +17917,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vMonth.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17929,14 +17929,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->enterarray())
                                         {
-                                            int key = -1;
-                                            int value = -1;
+                                            int8_t key = -1;
+                                            int8_t value = -1;
                                             int i = 0;
                                             while (auxJson->isnumeric())
                                             {
-                                                int val = static_cast<int>(auxJson->getint());
-                                                if (i == 0) { key = static_cast<int>(val); }
-                                                if (i == 1) { value = static_cast<int>(val); }
+                                                int val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = static_cast<int8_t>(val); }
+                                                if (i == 1) { value = static_cast<int8_t>(val); }
                                                 i++;
                                             }
 
