@@ -2778,13 +2778,9 @@ public:
     static MegaScheduledFlags* createInstance();
 
     /**
-     * @brief Creates a new instance of MegaScheduledFlags
-     *
-     * @param emailsDisabled If this flag is enabled, API won't send out calendar emails for this meeting
-     *
-     * @return A pointer to the superclass of the private object
+     * @brief Imports scheduled meetings flags from numeric value
      */
-    static MegaScheduledFlags* createInstance(bool emailsDisabled);
+    virtual void importFlagsValue(unsigned long);
 
     /**
      * @brief Creates a copy of this virtual MegaScheduledFlags object
