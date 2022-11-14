@@ -647,6 +647,11 @@ const char* MegaNode::getDeviceId() const
     return nullptr;
 }
 
+const char* MegaNode::getS4() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -2657,6 +2662,11 @@ void MegaApi::setUserAttribute(int type, const MegaStringMap *value, MegaRequest
 void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener)
 {
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
+}
+
+void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setNodeS4(node, value, listener);
 }
 
 void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)

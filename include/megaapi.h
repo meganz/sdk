@@ -1178,6 +1178,17 @@ class MegaNode
          */
         virtual const char* getDeviceId() const;
 
+
+        /**
+         * @brief Returns the S4 metadata stored as a Node attribute.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The s4 attribute associated with the Node.
+         */
+        virtual const char* getS4() const;
+
         /**
          * @brief Provides a serialization of the MegaNode object
          *
@@ -8325,6 +8336,7 @@ class MegaApi
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4,
+            NODE_ATTR_S4 = 5,
         };
 
         enum {
@@ -11757,6 +11769,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set s4 attribute for the node
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         *
+         * The attribute name must be an UTF8 string with between 1 and 7 bytes
+         * If the attribute already has a value, it will be replaced
+         * If value is NULL, the attribute will be removed from the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the attribute
+         * @param value Value for the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
 
         /**
          * @brief Set the duration of audio/video files as a node attribute.
