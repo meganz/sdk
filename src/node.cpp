@@ -40,7 +40,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     client = cclient;
     outshares = NULL;
     pendingshares = NULL;
-    tag = 0;
     appdata = NULL;
 
     nodehandle = h.as8byte();
@@ -1531,7 +1530,19 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, canChangeVault);
+                    auto client = sync->client;
+                    sync->client->setattr(node, attr_map('n', name),
+                        [prevname, client](NodeHandle h, Error e){
+                            if (!e)
+                            {
+                                if (Node* node = client->nodeByHandle(h))
+                                {
+                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                                    LOG_debug << "Sync - remote rename from " << prevname << " to " << node->displayname();
+                                }
+                            }
+                        },
+                        canChangeVault);
                 }
             }
         }

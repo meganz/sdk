@@ -6009,11 +6009,11 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case 'u':
@@ -7844,8 +7844,6 @@ void MegaClient::notifypurge(void)
                     // Update the attribute.
                     setattr(node,
                             attr_map(Node::sdsId(), Node::toSdsString(commands)),
-                            0,
-                            nullptr,
                             std::move(completion),
                             true);
                 };
@@ -7940,7 +7938,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
+                n->changed.modifiedByThisClient = false;
             }
         }
 
@@ -8365,7 +8363,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c, bool canChangeVault)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -8403,10 +8401,10 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->attrs.applyUpdates(updates);
 
     n->changed.attrs = true;
-    n->tag = tag;
+    n->changed.modifiedByThisClient = true;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, cipher, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -8736,7 +8734,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         }
 
         n->changed.parent = true;
-        n->tag = reqtag;
+        n->changed.modifiedByThisClient = true;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -8746,7 +8744,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr, canChangeVault);
+            setattr(n, std::move(attrUpdates), nullptr, canChangeVault);
         }
     }
 
@@ -8817,7 +8815,7 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
             attr_map m;
             m[AttrMap::string2nameid("dev-id")] = "";
             m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
+            setattr(n, move(m), [](NodeHandle, Error e){
                 if (e)
                 {
                     LOG_warn << "Failed to remove dev-id/drv-id: " << e;
@@ -8921,7 +8919,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             Node *olderversion = n->children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
-            olderversion->tag = reqtag;
+            olderversion->changed.modifiedByThisClient = true;
             notifynode(olderversion);
         }
     }
@@ -9116,7 +9114,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -9355,8 +9353,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
-
-                n->tag = tag;
+                n->changed.modifiedByThisClient = modifiedByThisClient;
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
@@ -11431,7 +11428,7 @@ void MegaClient::notifynode(Node* n)
 
     if (!fetchingnodes)
     {
-        if (n->tag && !n->changed.removed && n->attrstring)
+        if (n->changed.modifiedByThisClient && !n->changed.removed && n->attrstring)
         {
             // report a "NO_KEY" event
 
@@ -16525,7 +16522,6 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink, bool canChangeVault)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode.reset();
     }
 
@@ -16628,7 +16624,7 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag, iter->second.canChangeVault, nullptr);
+            unlink(tn, false, 0, iter->second.canChangeVault, nullptr);
             // 'canChangeVault' is false because here unlink() is only
             // for inshares syncs, which is not possible for backups
         }
@@ -16707,11 +16703,8 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
-                    int creqtag = reqtag;
-                    reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                     rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, it->second.canChangeVault, nullptr);
-                    reqtag = creqtag;
                     it++;
                 }
                 else

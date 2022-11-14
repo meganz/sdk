@@ -19702,7 +19702,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string sname = newName;
             LocalPath::utf8_normalize(&sname);
-            e = client->setattr(node, attr_map('n', sname), client->reqtag, nullptr,
+            e = client->setattr(node, attr_map('n', sname),
                 [request, this](NodeHandle h, Error e)
                 {
                     request->setNodeHandle(h.as8byte());
@@ -20631,11 +20631,11 @@ void MegaApiImpl::sendPendingRequests()
                         for (Node* n = current->children.empty() ? nullptr : current->children.back();
                               n;   n = n->children.empty() ? nullptr : n->children.back())
                         {
-                            client->setattr(n, attr_map(attrUpdates), 0, nullptr, nullptr, false); // no callback for these
+                            client->setattr(n, attr_map(attrUpdates), nullptr, false); // no callback for these
                         }
                     }
 
-                    e = client->setattr(current, move(attrUpdates), client->reqtag, nullptr,
+                    e = client->setattr(current, move(attrUpdates),
                         [request, this](NodeHandle h, Error e)
                         {
                             request->setNodeHandle(h.as8byte());
@@ -20680,7 +20680,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e && !attrUpdates.empty())
             {
-                e = client->setattr(node, std::move(attrUpdates), client->reqtag, nullptr,
+                e = client->setattr(node, std::move(attrUpdates),
                     [request, this](NodeHandle h, Error e)
                     {
                         request->setNodeHandle(h.as8byte());

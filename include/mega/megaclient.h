@@ -510,7 +510,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
+    error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -1712,7 +1712,7 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
