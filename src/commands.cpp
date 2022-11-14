@@ -9576,7 +9576,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, 0, nullptr));
         }
     }
 
@@ -9629,7 +9629,7 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
     if (since)      { arg("cf", since); }
     if (until)      { arg("ct", until); }
-    if (count > 0)  { arg("cc", count); }
+    if (count)      { arg("cc", count); }
     tag = client->reqtag;
 }
 
