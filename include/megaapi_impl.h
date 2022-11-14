@@ -646,6 +646,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string* getSharekey();
         MegaHandle getOwner() const override;
         const char* getDeviceId() const override;
+        const char* getS4() const override;
 
         static MegaNode *fromNode(Node *node);
         MegaNode *copy() override;
@@ -672,6 +673,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string privateAuth;
         std::string publicAuth;
         std::string mDeviceId;
+        std::string mS4;
         const char *chatAuth;
         int changed;
         struct {
@@ -2571,6 +2573,7 @@ class MegaApiImpl : public MegaApp
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
+        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
