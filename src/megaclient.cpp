@@ -18510,9 +18510,12 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         case MAKENAMEID1('p'):
         {
             // precondition: sets which ph is coming are already read and in memory
-            error e = readSetPublicHandles(j, newSets);
-            if (e != API_OK)
-                return e;
+            if (!newSets.empty())
+            {
+                error e = readSetsPublicHandles(j, newSets);
+                if (e != API_OK)
+                    return e;
+            }
             break;
         }
 
@@ -19191,62 +19194,68 @@ error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemov
 
 error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
 {
+    handle item = UNDEF, itemPH = UNDEF;
+    m_off_t ts = 0;
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('s'):
+            item = j.gethandle(MegaClient::SETHANDLE);
+            break;
+
+        case MAKENAMEID2('p', 'h'):
+            itemPH = j.gethandle(MegaClient::PUBLICSETHANDLE);
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            ts = j.getint();
+            assert(item != UNDEF && itemPH != UNDEF);
+            if (sets.find(item) != end(sets))
+            {
+                sets[item].setPublicId(itemPH);
+                sets[item].setTs(ts);
+            }
+            else
+            {
+                LOG_warn << "Sets: Set handle " << toHandle(item) << " not found in user's Sets";
+            }
+            break;
+
+        default: // skip any unknown/unexpected member
+        {
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse public handles for Sets";
+                return API_EINTERNAL;
+            }
+
+            LOG_debug << "Sets: Unknown member received in 'aesp' for an 'f' command";
+            break;
+        }
+
+        case EOO:
+            return API_OK;
+
+        }
+    }
+}
+
+error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
+{
     if (!j.enterarray()) return API_EINTERNAL;
 
+    error e = API_OK;
     while (j.enterobject())
     {
-        handle item = UNDEF, itemPH = UNDEF;
-        m_off_t ts = 0;
-        for (;;)
-        {
-            switch (jsonsc.getnameid())
-            {
-            case MAKENAMEID1('s'):
-                item = j.gethandle(MegaClient::SETHANDLE);
-                break;
-
-            case MAKENAMEID2('p', 'h'):
-                itemPH = j.gethandle(MegaClient::PUBLICSETHANDLE);
-                break;
-
-            case MAKENAMEID2('t', 's'):
-                ts = j.getint();
-                assert(item != UNDEF && itemPH != UNDEF);
-                if (sets.find(item) != end(sets))
-                {
-                    sets[item].setPublicId(itemPH);
-                    sets[item].setTs(ts);
-                }
-                else
-                {
-                    LOG_err << "Sets: Set handle |" << toHandle(item) << "| not found in user's Sets";
-                }
-                item = UNDEF;
-                itemPH = UNDEF;
-                break;
-
-            default: // skip any unknown/unexpected member
-            {
-                if (!j.storeobject())
-                {
-                    LOG_err << "Sets: Failed to parse public handles for Sets";
-                    return API_EINTERNAL;
-                }
-
-                LOG_debug << "Sets: Unknown member received in 'aesp' for an 'f' command";
-                break;
-            }
-
-            case EOO:
-                return API_OK;
-
-            }
-        }
+        e = readSetPublicHandles(j, sets);
         j.leaveobject();
+
+        if (e != API_OK) break;
     }
 
     j.leavearray();
-    return API_OK;
+    return e;
 }
 
 void MegaClient::sc_ass()

@@ -439,8 +439,11 @@ public:
     template<typename ... requestArgs> int doExportSet(unsigned apiIndex, MegaSet** s, string& url, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->exportSet(args..., &rt); rt.waitForResult();
-        if (s) *s = rt.request->getMegaSet()->copy();
-        if (rt.request->getLink()) url.assign(rt.request->getLink());
+        if (rt.result == API_OK)
+        {
+            if (s) *s = rt.request->getMegaSet()->copy();
+            if (rt.request->getLink()) url.assign(rt.request->getLink());
+        }
         return rt.result;
     }
     template<typename ... requestArgs> int doDisableExportSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExportSet(args..., &rt); rt.waitForResult(); return rt.result; }
@@ -448,8 +451,11 @@ public:
     {
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->startPublicSetPreview(args..., &rt); rt.waitForResult();
-        if (s) *s = rt.request->getMegaSet()->copy();
-        if (els) *els = rt.request->getMegaSetElementList()->copy();
+        if (rt.result == API_OK)
+        {
+            if (s) *s = rt.request->getMegaSet()->copy();
+            if (els) *els = rt.request->getMegaSetElementList()->copy();
+        }
         return rt.result;
     }
     template<typename ... requestArgs> int doGetPublicSetPreviewElementMegaNode(unsigned apiIndex, MegaNode** n, requestArgs... args)
