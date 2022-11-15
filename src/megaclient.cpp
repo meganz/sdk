@@ -17934,9 +17934,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                             int i = 0;
                                             while (auxJson->isnumeric())
                                             {
-                                                int val = static_cast<int8_t>(auxJson->getint());
-                                                if (i == 0) { key = static_cast<int8_t>(val); }
-                                                if (i == 1) { value = static_cast<int8_t>(val); }
+                                                int8_t val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = val; }
+                                                if (i == 1) { value = val; }
                                                 i++;
                                             }
 
