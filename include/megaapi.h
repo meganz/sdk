@@ -2612,6 +2612,15 @@ public:
     virtual int size() const;
 };
 
+/**
+ * @brief This class represents a scheduled meeting. Scheduled Meetings allows the user to specify an event that will occur in the future.
+ * The user can also specify a set of rules for repetition, these rules enable an event to reoccur periodically.
+ *
+ * Important consideration:
+ * A Chatroom only should have one root scheduled meeting associated, it means that just one scheduled meeting for a chatroom,
+ * should have an invalid parent sched Id (MegaScheduledMeeting::parentSchedId)
+ *
+ */
 class MegaScheduledMeeting
 {
 public:
@@ -2919,20 +2928,75 @@ public:
     static bool isValidInterval(int interval);
 };
 
+/**
+ * @brief List of MegaScheduledMeeting objects
+ */
 class MegaScheduledMeetingList
 {
 public:
-    static MegaScheduledMeetingList* createInstance();
     virtual ~MegaScheduledMeetingList();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledMeetingList
+     *
+     * You take the ownership of the returned object
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledMeetingList* createInstance();
+
+    /**
+     * @brief Creates a copy of this MegaScheduledMeetingList object
+     *
+     * The resulting object is fully independent of the source MegaScheduledMeetingList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaScheduledMeetingList object
+     */
     virtual MegaScheduledMeetingList *copy() const;
 
-    // getters
+    /**
+     * @brief Returns the number of elements in the list
+     * @return Number of elements in the list
+     */
     virtual unsigned long size() const;
+
+    /**
+     * @brief Returns the MegaScheduledMeeting at the position i in the MegaScheduledMeetingList
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the element that we want to get for the list
+     * @return MegaScheduledMeeting at the position i in the MegaScheduledMeetingList
+     */
     virtual MegaScheduledMeeting* at(unsigned long i) const;
+
+    /**
+     * @brief Get a MegaScheduledMeeting object in the list, that has a specific scheduled meeting id
+     * If no scheduled meeting is found with the provided id, this method will returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param h Scheduled meeting id
+     * @return MegaScheduledMeeting with scheduled meeting id equal to h, or NULL
+     */
     virtual MegaScheduledMeeting* getBySchedId(MegaHandle h) const;
 
-    // setters
+    /**
+     * @brief Add element to the MegaScheduledMeetingList
+     *
+     * The SDK adquires the ownership of provided MegaScheduledMeeting
+     *
+     * @param sm MegaScheduledMeeting to add to list
+     */
     virtual void insert(MegaScheduledMeeting* sm);
+
+    /**
+     * @brief Clears the MegaScheduledMeetingList
+     */
     virtual void clear();
 };
 
@@ -2954,14 +3018,25 @@ protected:
     MegaStringMap();
 
 public:
+    virtual ~MegaStringMap();
+
     /**
      * @brief Creates a new instance of MegaStringMap
      * @return A pointer to the superclass of the private object
      */
     static MegaStringMap *createInstance();
 
-    virtual ~MegaStringMap();
-
+    /**
+     * @brief Creates a copy of this MegaStringMap object
+     *
+     * The resulting object is fully independent of the source MegaStringMap,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaStringMap object
+     */
     virtual MegaStringMap *copy() const;
 
     /**
@@ -18653,8 +18728,8 @@ class MegaApi
          * - 0x02:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
          * - 0x04:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
          *
-         * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
-         * Valid data in the MegaChatRequest object received on callbacks:
+         * The associated request type with this request is MegaRequest::TYPE_SET_CHAT_OPTIONS
+         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::Access  - Returns the chat option we want to enable disable
          * - MegaRequest::getFlag - Returns true if enabled was set true, otherwise it will return false
@@ -18667,30 +18742,90 @@ class MegaApi
          * @param chatid MegaHandle that identifies the chat room
          * @param option Chat option that we want to enable/disable
          * @param enabled True if we want to enable the option, otherwise false.
-         * @param listener MegaChatRequestListener to track this request
+         * @param listener MegaRequestListener to track this request
          */
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
+        /**
+         * @brief Creates or updates a scheduled meeting
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         * - MegaRequest::getScheduledMeeting - returns a MegaScheduledMeeting (with definitive ScheduledMeeting updated from API)
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - if no scheduled meeting is provided
+         * - MegaError::API_ENOENT - if the chatroom does not exists
+         *
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
+         * @param listener MegaRequestListener to track this request
+         */
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Removes a scheduled meeting
+         * @brief Removes a scheduled meeting by scheduled meeting id and chatid
          *
-         * TODO complete documentation
+         * The associated request type with this request is MegaRequest::TYPE_DEL_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getParentHandle - Returns the scheduled meeting id
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom or scheduled meeting does not exists
+         *
+         * @param chatid MegaHandle that identifies a chat room
+         * @param schedId MegaHandle that identifies a scheduled meeting
+         * @param listener MegaRequestListener to track this request
          */
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Fetch for scheduled meeting
+         * @brief Get a list of all scheduled meeting for a chatroom, or a specific scheduled meeting (given a scheduled meeting id)
          *
-         * TODO complete documentation
+         * Important consideration:
+         * For every chatroom there should only exist one root scheduled meeting associated, it means that for all scheduled meeting
+         * returned by this method, there should be just one scheduled meeting, with an invalid parent sched Id (MegaScheduledMeeting::parentSchedId),
+         * for every different chatid.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getParentHandle - Returns the scheduled meeting id
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies a chatroom
+         * @param schedId MegaHandle that identifies a scheduled meeting
+         * @param listener MegaRequestListener to track this request
          */
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Fetch for scheduled meeting events
+         * @brief Get a list of scheduled meeting occurrences for a chatroom
          *
-         * TODO complete documentation
+         * A scheduled meetings occurrence, is a call that will happen in the future
+         * A scheduled meeting can produce one or multiple scheduled meeting occurrences
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getName - Returns the dateTime from which we want to fetch occurrences
+         * - MegaRequest::getEmail - Returns the dateTime until we want to fetch occurrences
+         * - MegaRequest::getNumber - Returns the number of occurrences we want to fetch
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies a chat room
+         * @param since DateTime from which we want to fetch occurrences
+         * @param until Datetime until we want to fetch occurrences
+         * @param count Number of occurrences we want to fetch
+         * @param listener MegaChatRequestListener to track this request
          */
         void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 
