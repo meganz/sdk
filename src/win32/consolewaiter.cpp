@@ -51,7 +51,7 @@ int WinConsoleWaiter::wait()
     if (console)
     {
 
-        addhandle(console->inputAvailableHandle(), 0);
+        addhandle(console->inputAvailableHandle(), HAVESTDIN);
     }
 #else
     addhandle(hInput, 0);
@@ -63,6 +63,18 @@ int WinConsoleWaiter::wait()
     // is it a network- or filesystem-triggered wakeup?
     if (r)
     {
+
+#ifdef WIN32
+        if (console)
+        {
+            // don't let console processing be locked out when the SDK core is busy
+            if (WAIT_OBJECT_0 == WaitForSingleObjectEx(console->inputAvailableHandle(), 0, FALSE))
+            {
+                r |= HAVESTDIN;
+            }
+        }
+#endif
+
         return r;
     }
 

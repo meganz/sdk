@@ -54,7 +54,6 @@ void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
     n->changed.removed = true;
-    n->tag = client->reqtag;
     client->notifynode(n);
     handle userHandle = ISUNDEF(mOriginatingUser) ? n->owner : mOriginatingUser;
 

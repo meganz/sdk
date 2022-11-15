@@ -66,6 +66,12 @@ SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
 SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
+typedef enum
+{
+    FORMAT_SCHEDULED_COPY = 0,  // 20221205123045
+    FORMAT_ISO8601        = 1,  // 20221205T123045
+} date_time_format_t;
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -464,6 +470,7 @@ extern m_time_t m_mktime(struct tm*);
 extern int m_clock_getmonotonictime(struct timespec *t);
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
+extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
@@ -559,9 +566,13 @@ struct CacheableWriter
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
     void serializecompressedu64(uint64_t field);
-    void serializecompressedi64(int64_t field) { serializecompressedu64(field); }
+    void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
+
+    void serializei8(int8_t field);
+    void serializei32(int32_t field);
     void serializei64(int64_t field);
     void serializesize_t(size_t field);
+    void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
@@ -589,9 +600,13 @@ struct CacheableReader
     bool unserializestring(string& s);
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
+
+    bool unserializei8(int8_t& s);
+    bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
     bool unserializesize_t(size_t& s);
     bool unserializeu32(uint32_t& s);
+    bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);

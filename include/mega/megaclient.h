@@ -754,7 +754,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
+    error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -771,9 +771,9 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
-#ifdef ENABLE_SYNC
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
+#ifdef ENABLE_SYNC
     void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
 #endif
 
@@ -1167,6 +1167,9 @@ public:
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
     void setchatretentiontime(handle chatid, unsigned period);
+
+    // parse scheduled meeting or scheduled meeting occurrences
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
 #endif
 
     // get mega achievements
@@ -1462,6 +1465,8 @@ public:
     void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
+    void sc_scheduledmeetings();
+    void sc_delscheduledmeeting();
 #endif
     void sc_uac();
     void sc_la();
@@ -1751,6 +1756,9 @@ public:
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
     void notifychat(TextChat *);
+
+    // process mcsm array at fetchnodes
+    void procmcsm(JSON*);
 #endif
 
 #ifdef USE_MEDIAINFO
@@ -1952,7 +1960,7 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -2273,7 +2281,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);

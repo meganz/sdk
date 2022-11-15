@@ -55,6 +55,7 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
+
     SyncConfig() = default;
 
     SyncConfig(LocalPath localPath,
@@ -91,7 +92,7 @@ public:
     bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
-    bool errorOrEnabledChanged();
+    bool stateFieldsChanged();
 
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
@@ -141,6 +142,9 @@ public:
     // If the database exists then its running/paused/suspended.  Not serialized.
     bool mDatabaseExists = false;
 
+    // Maintained as we transition
+    SyncRunState mRunState = SyncRunState::Pending;
+
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
@@ -148,7 +152,6 @@ public:
     syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
 
     // enum to string conversion
-    static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
 
@@ -158,6 +161,7 @@ private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;
+    SyncRunState mKnownRunState = SyncRunState::Pending;
 };
 
 // Convenience.
@@ -184,15 +188,15 @@ struct UnifiedSync
     // ctor/dtor
     UnifiedSync(Syncs&, const SyncConfig&);
 
-    // Try to create and start the Sync
-    void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
+    // Update state and signal to application
+    void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
     // Update remote location
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
-    void changedConfigState(bool notifyApp);
+    void changedConfigState(bool save, bool notifyApp);
 };
 
 class SyncThreadsafeState
@@ -282,7 +286,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
+    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -300,7 +304,7 @@ public:
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr, bool fromOutsideThreadAlreadyLocked = false);
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
     // The fs IDs of unmatched nodes are invalidated.
@@ -308,7 +312,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(LocalPath*, FileAccess*);
+    bool scan(LocalPath, FileAccess*);
 
     // rescan sequence number (incremented when a full rescan or a new
     // notification batch starts)
@@ -598,7 +602,7 @@ struct Syncs
 
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
-    void resumeResumableSyncsOnStartup();
+    void resumeResumableSyncsOnStartup(bool resetSyncConfigStore);
     void enableResumeableSyncs();
     void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
@@ -615,9 +619,6 @@ struct Syncs
     void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
 
     void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
-
-    void resetSyncConfigStore();
-
 
     Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
     ~Syncs();
@@ -688,6 +689,9 @@ public:
         return true;
     }
 
+    bool mSyncsLoaded = false;
+    bool mSyncsResumed = false;
+
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
 
@@ -716,6 +720,8 @@ private:
         std::function<void(error, SyncError, handle)> completion, std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname, bool notifyApp);
     void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
+    void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
+    void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
@@ -745,7 +751,7 @@ private:
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
-    bool unloadSyncByBackupID(handle id, SyncConfig&);
+    bool unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig&);
 
     // shutdown safety
     bool mExecutingLocallogout = false;
