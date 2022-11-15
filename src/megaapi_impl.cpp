@@ -33749,7 +33749,7 @@ MegaScheduledMeetingListPrivate::~MegaScheduledMeetingListPrivate()
 
 unsigned long MegaScheduledMeetingListPrivate::size() const
 {
-    return mList.size();
+    return static_cast<unsigned long>(mList.size());
 }
 
 MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy() const
