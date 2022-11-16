@@ -1269,7 +1269,7 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         changedConfigState(notifyApp);
     }
 
-    if (makeActiveCallback)
+    if (makeActiveCallback && !mConfig.mRemovingSyncBySds)
     {
         // Per MegaApi documentation, this callback occurs after the changed-state callback
         syncs.mClient.app->syncupdate_active(mConfig, nowActive);
@@ -2591,7 +2591,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
         LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
 
         syncs.saveSyncConfig(mConfig);
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
@@ -4136,6 +4136,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){

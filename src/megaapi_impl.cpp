@@ -21910,7 +21910,7 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->deregisterThenRemoveSync(backupId, completion);
+            client->deregisterThenRemoveSync(backupId, completion, false);
             break;
         }
         case MegaRequest::TYPE_DISABLE_SYNC:
