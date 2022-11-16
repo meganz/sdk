@@ -305,8 +305,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
 
-    Node* childbyname(const string& name);
-
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
 
