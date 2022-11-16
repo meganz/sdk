@@ -1079,7 +1079,7 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 // folder nodes take precedence over file nodes
 // To improve performance, if this method is called several times over same folder
 // getChildren should be call before the first call to this method,
-// watch NodeManager::getNodeByNameFirstLevel
+// watch NodeManager::childNodeByNameType
 Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
@@ -1110,7 +1110,7 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 // folder nodes take precedence over file nodes
 // To improve performance, if this method is called several times over same folder
 // getChildren should be call before the first call to this method,
-// watch NodeManager::getNodeByNameFirstLevel
+// watch NodeManager::childNodeByNameType
 Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t mustBeType)
 {
     string nname = name;
