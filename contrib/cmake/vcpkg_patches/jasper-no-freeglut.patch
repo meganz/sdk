@@ -1,27 +1,28 @@
 diff --git a/portfile.cmake b/portfile.cmake
-index f02b2db..ab21b0e 100644
+index 69efaaef3..16887bb97 100644
 --- a/portfile.cmake
 +++ b/portfile.cmake
-@@ -16,6 +16,7 @@ vcpkg_cmake_configure(
+@@ -23,7 +23,7 @@ vcpkg_cmake_configure(
+     OPTIONS
+         -DJAS_ENABLE_AUTOMATIC_DEPENDENCIES=OFF
+         -DJAS_ENABLE_LIBJPEG=ON
+-        -DJAS_ENABLE_OPENGL=${JAS_ENABLE_OPENGL}
++        -DJAS_ENABLE_OPENGL=OFF
          -DJAS_ENABLE_DOC=OFF
          -DJAS_ENABLE_PROGRAMS=OFF
          -DJAS_ENABLE_SHARED=${JAS_ENABLE_SHARED}
-+        -DJAS_ENABLE_OPENGL=OFF
-     OPTIONS_DEBUG
-         -DCMAKE_DEBUG_POSTFIX=d # Due to CMakes FindJasper
- )
 diff --git a/vcpkg.json b/vcpkg.json
-index 124a009..729cab0 100644
+index 92429c150..b1e44ea77 100644
 --- a/vcpkg.json
 +++ b/vcpkg.json
-@@ -4,10 +4,6 @@
-   "description": "Open source implementation of the JPEG-2000 Part-1 standard",
-   "homepage": "https://github.com/mdadams/jasper",
-   "dependencies": [
--    {
--      "name": "freeglut",
--      "platform": "!osx"
--    },
-     "libjpeg-turbo",
-     "opengl",
-     {
+@@ -36,10 +36,6 @@
+     "opengl": {
+       "description": "Enable the use of the OpenGL/GLUT Library",
+       "dependencies": [
+-        {
+-          "name": "freeglut",
+-          "platform": "!osx & !(windows & arm) & !uwp"
+-        },
+         {
+           "name": "opengl",
+           "platform": "!(windows & arm) & !uwp"

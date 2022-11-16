@@ -138,6 +138,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->mFavourite = np->mFavourite;
         this->mLabel = np->mLabel;
         this->mDeviceId = np->mDeviceId;
+        this->mS4 = np->mS4;
     }
     else
     {
@@ -406,6 +407,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                      it->first == AttrMap::string2nameid("drv-id"))
             {
                 mDeviceId = it->second;
+            }
+            else if (it->first == AttrMap::string2nameid("s4"))
+            {
+                mS4 = it->second;
             }
         }
     }
@@ -976,6 +981,11 @@ MegaHandle MegaNodePrivate::getOwner() const
 const char* MegaNodePrivate::getDeviceId() const
 {
     return mDeviceId.c_str();
+}
+
+const char* MegaNodePrivate::getS4() const
+{
+    return mS4.c_str();
 }
 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
@@ -7095,6 +7105,18 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     requestQueue.push(request);
     waiter->notify();
 }
+
+void MegaApiImpl::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_S4);
+    request->setText(value);
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 
 void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
 {
@@ -20558,6 +20580,11 @@ void MegaApiImpl::sendPendingRequests()
 
                     break;
                 }
+                else if (type == MegaApi::NODE_ATTR_S4)
+                {
+                    const char* attrValue = request->getText();
+                    attrUpdates[AttrMap::string2nameid("s4")] = attrValue ? attrValue : "";
+                }
                 else
                 {
                     e = API_EARGS;
@@ -33602,7 +33629,7 @@ MegaScheduledMeetingListPrivate::~MegaScheduledMeetingListPrivate()
 
 unsigned long MegaScheduledMeetingListPrivate::size() const
 {
-    return mList.size();
+    return static_cast<unsigned long>(mList.size());
 }
 
 MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy() const
@@ -34931,4 +34958,4 @@ bool MegaCancelTokenPrivate::isCancelled() const
     return cancelFlag.isCancelled();
 }
 
-}
+} // namespace mega
