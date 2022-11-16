@@ -774,7 +774,7 @@ public:
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
 #ifdef ENABLE_SYNC
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
 #endif
 
     // delete all versions
