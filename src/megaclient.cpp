@@ -2250,6 +2250,8 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
+
+                        app->reloading();
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
@@ -4496,6 +4498,16 @@ bool MegaClient::procsc()
                                 // granted / revoked access to a node
                                 sc_chatnode();
                                 break;
+
+                            case MAKENAMEID5('m', 'c', 's', 'm', 'p'):
+                                // scheduled meetings updates
+                                sc_scheduledmeetings();
+                                break;
+
+                            case MAKENAMEID5('m', 'c', 's', 'm', 'r'):
+                                // scheduled meetings removal
+                                sc_delscheduledmeeting();
+                                break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
                                 sc_uac();
@@ -5377,8 +5389,8 @@ void MegaClient::sc_updatenode()
                         {
                             if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
                             {
-                                // keep the node's tag updated with the tag of the last command to modify it.
-                                n->tag = mCurrentSeqtagCmdtag;
+                                // if this change by this client resulted in NO_KEY, report it
+                                n->changed.modifiedByThisClient = true;
                             }
                             notifynode(n);
                         }
@@ -5485,7 +5497,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
                     }
                     break;
 
@@ -5497,7 +5509,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, false, false, nullptr, nullptr);
                     }
                     break;
 
@@ -6937,6 +6949,78 @@ void MegaClient::sc_chatflags()
     }
 }
 
+// process mcsmr action packet
+void MegaClient::sc_delscheduledmeeting()
+{
+    bool done = false;
+    handle schedId = UNDEF;
+
+    while(!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('i','d'):
+                schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case EOO:
+            {
+                done = true;
+                for (auto auxit = chats.begin(); auxit != chats.end(); auxit++)
+                {
+                    TextChat* chat = auxit->second;
+                    if (chat->removeSchedMeeting(schedId))
+                    {
+                        chat->removeChildSchedMeetings(schedId);
+                        chat->setTag(0);    // external change
+                        notifychat(chat);
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+                        break;
+                    }
+                }
+                break;
+            }
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+                break;
+        }
+    }
+}
+
+// process mcsmp action packet (parse just 1 scheduled meeting per AP)
+void MegaClient::sc_scheduledmeetings()
+{
+    std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true);
+    if (e != API_OK)
+    {
+        LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
+        return;
+    }
+
+    assert(schedMeetings.size() == 1);
+    for (auto &sm: schedMeetings)
+    {
+        textchat_map::iterator it = chats.find(sm->chatid());
+        if (it == chats.end())
+        {
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            continue;
+        }
+
+        // update scheduled meeting with updated record received at mcsmp AP
+        TextChat* chat = it->second;
+        chat->addOrUpdateSchedMeeting(sm.get());
+        chat->setTag(0);    // external change
+        notifychat(chat);
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+    }
+}
+
 #endif
 
 void MegaClient::sc_uac()
@@ -7182,7 +7266,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
+                n->changed.modifiedByThisClient = false;
             }
         }
 
@@ -7290,6 +7374,7 @@ void MegaClient::notifypurge(void)
             chat->notified = false;
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
+            chat->mSchedMeetingsChanged.clear();
         }
 
         chatnotify.clear();
@@ -8313,7 +8398,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
 {
     if (!j->enterarray())
     {
@@ -8568,8 +8653,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
-
-                n->tag = tag;
+                n->changed.modifiedByThisClient = modifiedByThisClient;
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
@@ -10598,7 +10682,7 @@ void MegaClient::notifynode(Node* n)
 
     if (!fetchingnodes)
     {
-        if (n->tag && !n->changed.removed && n->attrstring)
+        if (n->changed.modifiedByThisClient && !n->changed.removed && n->attrstring)
         {
             // report a "NO_KEY" event
 
@@ -11199,6 +11283,37 @@ void MegaClient::procmcna(JSON *j)
             j->leaveobject();
         }
         j->leavearray();
+    }
+}
+
+// process mcsm array at fetchnodes
+void MegaClient::procmcsm(JSON *j)
+{
+    std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+    if (j && j->enterarray())
+    {
+        error err = parseScheduledMeetings(schedMeetings, false, j);
+        j->leavearray();
+        if (err || schedMeetings.empty()) { return; }
+    }
+
+    for (auto &sm: schedMeetings)
+    {
+        textchat_map::iterator it = chats.find(sm->chatid());
+        if (it == chats.end())
+        {
+            assert(false);
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            continue;
+        }
+
+        // add scheduled meeting
+        handle h = sm->chatid();
+        TextChat* chat = it->second;
+        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
+
+        // fetch scheduled meetings occurences (no previous events occurrences cached)
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));
     }
 }
 #endif
@@ -13669,6 +13784,13 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
             return API_EARGS;
         }
+    }
+
+    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        syncConfig.mError = INVALID_REMOTE_TYPE;
+        syncConfig.mEnabled = false;
+        return API_EARGS;
     }
 
     if (syncConfig.isExternal())
@@ -16314,6 +16436,273 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 {
     reqs.add(new CommandSetChatRetentionTime(this, chatid, period));
 }
+
+error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
+                                         bool parsingOccurrences, JSON *j, bool parseOnce)
+{
+    JSON* auxJson = j
+            ? j         // custom Json provided
+            : &json;    // MegaClient-Server response JSON
+
+    bool parse = parseOnce
+            ? true                      // parse a single object
+            : auxJson->enterobject();   // parse an array of objects
+
+    while (parse)
+    {
+        bool exit = false;
+        bool schedParseErr = false;
+        handle chatid = UNDEF;
+        handle organizerUserId = UNDEF;
+        handle schedId = UNDEF;
+        handle parentSchedId = UNDEF;
+        std::string timezone;
+        std::string startDateTime;
+        std::string endDateTime;
+        std::string title;
+        std::string description;
+        std::string attributes;
+        std::string overrides;
+        int cancelled = 0;
+        std::unique_ptr<ScheduledFlags> flags;
+        std::unique_ptr<ScheduledRules> rules;
+
+        while (!exit)
+        {
+            switch (auxJson->getnameid())
+            {
+                case MAKENAMEID3('c', 'i', 'd'): // chatid
+                {
+                    chatid = auxJson->gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
+                case MAKENAMEID2('i', 'd'):  // scheduled meeting id
+                {
+                    schedId = auxJson->gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
+                case MAKENAMEID1('p'):  // parent callid
+                {
+                    parentSchedId = auxJson->gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
+                case MAKENAMEID1('u'): // organizer user Handle
+                {
+                    organizerUserId = auxJson->gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
+                case MAKENAMEID2('t', 'z'): // timezone
+                {
+                    auxJson->storeobject(&timezone);
+                    break;
+                }
+                case MAKENAMEID1('s'): // start date time
+                {
+                    auxJson->storeobject(&startDateTime);
+                    break;
+                }
+                case MAKENAMEID1('e'): // end date time
+                {
+                    auxJson->storeobject(&endDateTime);
+                    break;
+                }
+                case MAKENAMEID1('t'):  // title
+                {
+                    auxJson->storeobject(&title);
+                    break;
+                }
+                case MAKENAMEID1('d'): // description
+                {
+                    auxJson->storeobject(&description);
+                    break;
+                }
+                case MAKENAMEID2('a', 't'): // attributes
+                {
+                    auxJson->storeobject(&attributes);
+                    break;
+                }
+                case MAKENAMEID1('o'): // override
+                {
+                    auxJson->storeobject(&overrides);
+                    break;
+                }
+                case MAKENAMEID1('c'): // cancelled
+                {
+                    cancelled = static_cast<int>(auxJson->getint());
+                    break;
+                }
+                case MAKENAMEID1('f'): // flags
+                {
+                    flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
+                    break;
+                }
+                // there are no scheduled meeting rules
+                case MAKENAMEID1('r'):
+                {
+                    if (parsingOccurrences)
+                    {
+                       /* if parsingOccurrences is true, we are parsing meeting occurrences (meeting calls events generated due to a scheduled meeting information)
+                        * associated to a scheduled meeting. This meeting ocurrences should contain scheduled rules as it doesn't represent the scheduled meeting
+                        * but an event generated by this one.
+                        */
+                       assert(false);
+                       schedParseErr = true;
+                       LOG_err << "scheduled meetings occurrence contain repetition rules";
+                       if (!auxJson->storeobject())
+                       {
+                           return API_EINTERNAL;
+                       }
+                       break;
+                    }
+
+                    string freq;
+                    string until;
+                    int interval = ScheduledRules::INTERVAL_INVALID;
+                    ScheduledRules::rules_vector vWeek;
+                    ScheduledRules::rules_vector vMonth;
+                    ScheduledRules::rules_map mMonth;
+
+                    if (auxJson->enterobject())
+                    {
+                        bool exitRules = false;
+                        while (!exitRules)
+                        {
+                            switch (auxJson->getnameid())
+                            {
+                                case MAKENAMEID1('f'):
+                                {
+                                    auxJson->storeobject(&freq);
+                                    break;
+                                }
+                                case MAKENAMEID1('i'):
+                                {
+                                    interval = static_cast<int>(auxJson->getint());
+                                    break;
+                                }
+                                case MAKENAMEID1('u'):
+                                {
+                                    auxJson->storeobject(&until);
+                                    break;
+                                }
+                                case MAKENAMEID2('w', 'd'):
+                                {
+                                    if (auxJson->enterarray())
+                                    {
+                                        while(auxJson->isnumeric())
+                                        {
+                                            vWeek.emplace_back(static_cast<int8_t>(auxJson->getint()));
+                                        }
+                                        auxJson->leavearray();
+                                    }
+                                    break;
+                                }
+                                case MAKENAMEID2('m', 'd'):
+                                {
+                                    if (auxJson->enterarray())
+                                    {
+                                        while(auxJson->isnumeric())
+                                        {
+                                            vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
+                                        }
+                                        auxJson->leavearray();
+                                    }
+                                    break;
+                                }
+                                case MAKENAMEID3('m', 'w', 'd'):
+                                {
+                                    if (auxJson->enterarray())
+                                    {
+                                        while(auxJson->enterarray())
+                                        {
+                                            int8_t key = -1;
+                                            int8_t value = -1;
+                                            int i = 0;
+                                            while (auxJson->isnumeric())
+                                            {
+                                                int8_t val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = val; }
+                                                if (i == 1) { value = val; }
+                                                i++;
+                                            }
+
+                                            if (i > 2 || key == -1 || value == -1) // ensure that each array just contains a pair of elemements
+                                            {
+                                                LOG_err << "scheduled meetings rules component BYMONTHWEEKDAY, is malformed";
+                                            }
+                                            else
+                                            {
+                                                mMonth.emplace(key, value);
+                                                auxJson->leavearray();
+                                            }
+                                        }
+                                        auxJson->leavearray();
+                                    }
+                                    break;
+                                }
+                                case EOO:
+                                {
+                                    exitRules = true;
+                                    break;
+                                }
+                                default:
+                                {
+                                    if (!auxJson->storeobject())
+                                    {
+                                        return API_EINTERNAL;
+                                    }
+                                }
+                            }
+                        }
+                        auxJson->leaveobject();
+                    }
+
+                    rules.reset(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
+                                                                            until, &vWeek, &vMonth, &mMonth));
+                    break;
+                }
+                case EOO:
+                {
+                    exit = true;
+                    if (!parseOnce)
+                    {
+                        auxJson->leaveobject();
+                    }
+
+                    // note: we need to B64 decode the following params: timezone, title, description, attributes
+                    std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting(chatid, Base64::atob(timezone), startDateTime, endDateTime,
+                                         Base64::atob(title), Base64::atob(description), organizerUserId, schedId,
+                                         parentSchedId, cancelled, Base64::atob(attributes),
+                                         overrides, flags.get(), rules.get()));
+
+                    if (!auxMeet->isValid() || schedParseErr)
+                    {
+                        // this object is malformed, so we don't want to store it
+                        assert(false);
+                        LOG_err << "Invalid scheduled meeting received from API";
+                    }
+                    else
+                    {
+                        schedMeetings.emplace_back(std::move(auxMeet));
+                    }
+
+                    break;
+                }
+                default:
+                {
+                    if (!auxJson->storeobject())
+                    {
+                        return API_EINTERNAL;
+                    }
+                }
+            }
+        }
+
+        parse = parseOnce
+                    ? false
+                    : auxJson->enterobject();
+    }
+    return API_OK;
+}
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
@@ -16752,30 +17141,43 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
 
     // decrypt data
     size_t elCount = 0; // Elements related to known Sets and successfully decrypted
-    for (auto& s : newSets)
+    for (auto itS = newSets.begin(); itS != newSets.end();)
     {
-        error e = decryptSetData(s.second);
+        error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            return e;
+            assert(false); // failed to decrypt Set attributes
+
+            // skip this Set and its Elements
+            newElements.erase(itS->first);
+            itS = newSets.erase(itS);
+            continue;
         }
 
-        auto itEls = newElements.find(s.first);
+        auto itEls = newElements.find(itS->first);
         if (itEls != newElements.end())
         {
-            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end();)
             {
                 // decrypt element key and attrs
-                e = decryptElementData(itE->second, s.second.key());
+                e = decryptElementData(itE->second, itS->second.key());
                 if (e != API_OK)
                 {
-                    return e;
+                    assert(false); // failed to decrypt Element attributes
+
+                    itE = itEls->second.erase(itE);
+                    continue;
                 }
                 ++elCount;
+                ++itE;
             }
         }
+
+        ++itS;
     }
-    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
+
+    // check for orphan Elements, it should not happen
+    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
 
     return API_OK;
 }
@@ -16797,7 +17199,7 @@ error MegaClient::decryptSetData(Set& s)
         auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
         if (!s.decryptAttributes(decryptFunc))
         {
-            LOG_err << "Sets: Unable to decrypt Set attrs";
+            LOG_err << "Sets: Unable to decrypt Set attrs " << toHandle(s.id());
             return API_EINTERNAL;
         }
     }
@@ -16822,6 +17224,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
         auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
         if (!el.decryptAttributes(decryptFunc))
         {
+            LOG_err << "Sets: Unable to decrypt Element attrs " << toHandle(el.id());
             return API_EINTERNAL;
         }
     }

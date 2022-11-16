@@ -111,6 +111,9 @@ class MegaHTTPServer;
 class MegaFTPServer;
 #endif
 
+typedef std::vector<int8_t> MegaSmallIntVector;
+typedef std::multimap<int8_t, int8_t> MegaSmallIntMap;
+
 class MegaDbAccess
   : public SqliteDbAccess
 {
@@ -500,7 +503,6 @@ protected:
     long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
 
     std::string epochdsToString(int64_t rawtimeds) const;
-    int64_t stringTimeTods(string stime) const;
 
     void clearCurrentBackupData();
 
@@ -646,6 +648,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string* getSharekey();
         MegaHandle getOwner() const override;
         const char* getDeviceId() const override;
+        const char* getS4() const override;
 
         static MegaNode *fromNode(Node *node);
         MegaNode *copy() override;
@@ -672,6 +675,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string privateAuth;
         std::string publicAuth;
         std::string mDeviceId;
+        std::string mS4;
         const char *chatAuth;
         int changed;
         struct {
@@ -876,12 +880,16 @@ private:
 class MegaIntegerListPrivate : public MegaIntegerList
 {
 public:
-    MegaIntegerListPrivate(const vector<int64_t> &integers);
+    MegaIntegerListPrivate();
+    MegaIntegerListPrivate(const vector<int8_t>& bytesList);
+    MegaIntegerListPrivate(const vector<int64_t>& integerList);
     virtual ~MegaIntegerListPrivate();
-
+    MegaSmallIntVector* toByteList() const;
     MegaIntegerList *copy() const override;
+    void add(long long i) override;
     int64_t get(int i) const override;
     int size() const override;
+    const vector<int64_t>* getList() const;
 
 private:
     vector<int64_t> mIntegers;
@@ -1450,6 +1458,9 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
         MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
+        MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
+        MegaScheduledMeeting *getScheduledMeeting() const override;
+        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
@@ -1465,6 +1476,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
+        void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
 
         MegaScheduledCopyListener *getBackupListener() const;
         void setBackupListener(MegaScheduledCopyListener *value);
@@ -1474,6 +1486,7 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
+
 
         MegaSet* getMegaSet() const override;
         void setMegaSet(std::unique_ptr<MegaSet> s);
@@ -1518,6 +1531,8 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
+        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
+        unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
         MegaStringListMap *mStringListMap;
@@ -1847,6 +1862,9 @@ public:
     bool hasChanged(int changeType) const override;
     int getChanges() const override;
     int isOwnChange() const override;
+    const MegaScheduledMeetingList* getScheduledMeetingList() const override;
+    const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
+    const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
     handle id;
@@ -1865,6 +1883,15 @@ private:
     int64_t ts;
     bool meeting;
     ChatOptions_t chatOptions;
+
+    // list of scheduled meetings
+    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetings;
+
+    // list of scheduled meetings Id's that have changed
+    std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
+
+    // list of scheduled meetings occurrences
+    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1935,6 +1962,24 @@ protected:
     string_map strMap;
 };
 
+class MegaIntegerMapPrivate : public MegaIntegerMap
+{
+public:
+    MegaIntegerMapPrivate();
+    MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap);
+    MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap);
+    virtual ~MegaIntegerMapPrivate();
+    MegaSmallIntMap* toByteMap() const;
+    MegaIntegerMap* copy() const override;
+    bool at(size_t index, long long& key, long long& value) const override;
+    MegaIntegerList* getKeys() const override;
+    unsigned long long size() const override;
+    void set(const long long& key, const long long& value) override;
+    const integer_map* getMap() const;
+private:
+    MegaIntegerMapPrivate(const MegaIntegerMapPrivate &megaIntegerMap);
+    integer_map mIntegerMap;
+};
 
 class MegaStringListPrivate : public MegaStringList
 {
@@ -2671,7 +2716,7 @@ class MegaApiImpl : public MegaApp
         void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
 
-        void fetchTimeZone(MegaRequestListener *listener = NULL);
+        void fetchTimeZone(bool forceApiFetch = true, MegaRequestListener *listener = NULL);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
@@ -2807,6 +2852,7 @@ class MegaApiImpl : public MegaApp
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
+        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
@@ -3267,6 +3313,10 @@ class MegaApiImpl : public MegaApp
         void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+        void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
+        void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -3732,6 +3782,9 @@ protected:
 protected:
         // suggest reload due to possible race condition with other clients
         void reload(const char*) override;
+
+        // reload forced automatically by server
+        void reloading() override;
 
         // wipe all users, nodes and shares
         void clearing() override;
@@ -4378,7 +4431,148 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
+#endif
 
+#ifdef ENABLE_CHAT
+class MegaScheduledFlagsPrivate: public MegaScheduledFlags
+{
+public:
+    MegaScheduledFlagsPrivate();
+    MegaScheduledFlagsPrivate(unsigned long numericValue);
+    MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate* flags);
+    virtual ~MegaScheduledFlagsPrivate();
+    MegaScheduledFlagsPrivate(const ScheduledFlags* flags);
+    MegaScheduledFlagsPrivate* copy() const override;
+
+    // setters
+    void reset() override;
+    void setEmailsDisabled(bool enabled);
+
+    // getters
+    unsigned long getNumericValue() const override;
+    bool emailsDisabled() const;
+    bool isEmpty() const override;
+    ScheduledFlags* getSdkScheduledFlags() const;
+
+private:
+    std::bitset<FLAGS_SIZE> mFlags = 0;
+};
+
+class MegaScheduledRulesPrivate : public MegaScheduledRules
+{
+public:
+    MegaScheduledRulesPrivate(int freq,
+                                  int interval = INTERVAL_INVALID,
+                                  const char* until = nullptr,
+                                  const mega::MegaIntegerList* byWeekDay = nullptr,
+                                  const mega::MegaIntegerList* byMonthDay = nullptr,
+                                  const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
+
+    MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate* rules);
+    MegaScheduledRulesPrivate(const ScheduledRules* rules);
+    virtual ~MegaScheduledRulesPrivate();
+
+    MegaScheduledRulesPrivate* copy() const override;
+    int freq() const override;
+    int interval() const override;
+    const char* until() const override;
+    const mega::MegaIntegerList* byWeekDay() const override;
+    const mega::MegaIntegerList* byMonthDay() const override;
+    const mega::MegaIntegerMap* byMonthWeekDay() const override;
+    static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
+    static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+    ScheduledRules* getSdkScheduledRules() const;
+
+private:
+    // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
+    int mFreq = FREQ_INVALID;
+
+    // repetition interval in relation to the frequency
+    int mInterval = INTERVAL_INVALID;
+
+    // specifies when the repetitions should end
+    std::string mUntil;
+
+    // allows us to specify that an event will only occur on given week day/s
+    std::unique_ptr<mega::MegaIntegerList> mByWeekDay;
+
+    // allows us to specify that an event will only occur on a given day/s of the month
+    std::unique_ptr<mega::MegaIntegerList> mByMonthDay;
+
+    // allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
+    std::unique_ptr<mega::MegaIntegerMap> mByMonthWeekDay;
+};
+
+class MegaScheduledMeetingPrivate: public MegaScheduledMeeting
+{
+public:
+    MegaScheduledMeetingPrivate(MegaHandle chatid,
+                                    const char* timezone,
+                                    const char* startDateTime,
+                                    const char* endDateTime,
+                                    const char* title,
+                                    const char* description,
+                                    MegaHandle schedId = INVALID_HANDLE,
+                                    MegaHandle parentSchedId = INVALID_HANDLE,
+                                    MegaHandle organizerUserId = INVALID_HANDLE,
+                                    int cancelled = -1,
+                                    const char* attributes = nullptr,
+                                    const char* overrides = nullptr,
+                                    MegaScheduledFlags* flags = nullptr,
+                                    MegaScheduledRules* rules = nullptr);
+
+    MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate *scheduledMeeting);
+    MegaScheduledMeetingPrivate(const ScheduledMeeting* scheduledMeeting);
+
+    virtual ~MegaScheduledMeetingPrivate();
+    MegaScheduledMeetingPrivate* copy() const override;
+
+    MegaHandle chatid() const override;
+    MegaHandle schedId() const override;
+    MegaHandle parentSchedId() const override;
+    MegaHandle organizerUserid() const override;
+    const char* timezone() const override;
+    const char* startDateTime() const override;
+    const char* endDateTime() const override;
+    const char* title() const override;
+    const char* description() const override;
+    const char* attributes() const override;
+    const char* overrides() const override;
+    int cancelled() const override;
+    MegaScheduledFlags* flags() const override;
+    MegaScheduledRules* rules() const override;
+
+    const ScheduledMeeting* scheduledMeeting() const;
+
+private:
+    unique_ptr<ScheduledMeeting> mScheduledMeeting;
+};
+
+class MegaScheduledMeetingListPrivate: public MegaScheduledMeetingList
+{
+public:
+    MegaScheduledMeetingListPrivate();
+    MegaScheduledMeetingListPrivate(const MegaScheduledMeetingListPrivate &);
+    ~MegaScheduledMeetingListPrivate();
+
+    MegaScheduledMeetingListPrivate *copy() const override;
+
+    // getters
+    unsigned long size() const override;
+    MegaScheduledMeeting* at(unsigned long i) const override;
+
+    // returns the first MegaScheduledMeeting, whose schedId matches with h
+    // note that schedId is globally unique for all chats (in case of scheduled meetings), but this class
+    // can be used to store scheduled meetings occurrences (it can contains multiple items with the same schedId)
+    MegaScheduledMeeting* getBySchedId(MegaHandle h) const override;
+
+    // setters
+    void insert(MegaScheduledMeeting *sm) override;
+    void clear() override;
+
+private:
+    std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
+};
 #endif
 
 }

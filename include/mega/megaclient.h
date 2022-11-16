@@ -931,6 +931,9 @@ public:
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
     void setchatretentiontime(handle chatid, unsigned period);
+
+    // parse scheduled meeting or scheduled meeting occurrences
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
 #endif
 
     // get mega achievements
@@ -1217,6 +1220,8 @@ public:
     void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
+    void sc_scheduledmeetings();
+    void sc_delscheduledmeeting();
 #endif
     void sc_uac();
     void sc_la();
@@ -1521,6 +1526,9 @@ public:
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
     void notifychat(TextChat *);
+
+    // process mcsm array at fetchnodes
+    void procmcsm(JSON*);
 #endif
 
 #ifdef USE_MEDIAINFO
@@ -1677,7 +1685,7 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
 
     void readok(JSON*);
     void readokelement(JSON*);

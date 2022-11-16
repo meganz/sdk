@@ -717,6 +717,7 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef pair<string, string> string_pair;
 typedef string_map TLV_map;
 
@@ -748,13 +749,13 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
@@ -1057,7 +1058,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:

@@ -908,7 +908,7 @@ void Sync::statecacheadd(LocalNode* l)
 
     if (l->type < 0)
     {
-        SYNC_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
+        LOG_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath();
         return;
     }
 
@@ -5130,7 +5130,11 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
                 syncError = UNLOADING_SYNC;
             }
 
-            us.changeState(syncError, newEnabledFlag, true, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+            // if we are logging out, we don't need to bother the user about
+            // syncs stopping, the user expects everything to stop
+            bool notifyApp = !mClient.loggingout;
+
+            us.changeState(syncError, newEnabledFlag, notifyApp, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
             mHeartBeatMonitor->updateOrRegisterSync(us);
         }

@@ -1209,25 +1209,6 @@ void SdkTest::getCountryCallingCodes(const int timeout)
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
-void SdkTest::setUserAttribute(int type, string value, int timeout)
-{
-    int apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER] = false;
-
-    if (type == MegaApi::USER_ATTR_AVATAR)
-    {
-        megaApi[apiIndex]->setAvatar(value.empty() ? NULL : value.c_str());
-    }
-    else
-    {
-        megaApi[apiIndex]->setUserAttribute(type, value.c_str());
-    }
-
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER], timeout) )
-            << "User attribute setup not finished after " << timeout  << " seconds";
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "User attribute setup failed (error: " << mApi[apiIndex].lastError << ")";
-}
-
 void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
@@ -2504,13 +2485,12 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Modify firstname ---
 
-    string firstname = "My firstname";
+    string firstname1 = "My firstname1"; // change it twice to make sure we get a change notification (in case it was already the first one)
+    string firstname2 = "My firstname2";
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
-    ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname1.c_str()));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname2.c_str()));
 
     // --- Check firstname of a contact
 
@@ -2520,7 +2500,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
-    ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
+    ASSERT_EQ( firstname2, attributeValue) << "Firstname is wrong";
 
     delete u;
 
@@ -2547,7 +2527,7 @@ TEST_F(SdkTest, SdkTestContacts)
     u = megaApi[0]->getMyUser();
 
     string langCode = "es";
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_LANGUAGE, langCode.c_str()));
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
     string language = attributeValue;
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
@@ -2560,7 +2540,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_TRUE(fileexists(AVATARSRC)) <<  "File " +AVATARSRC+ " is needed in folder " << cwd();
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, nullptr));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, AVATARSRC.c_str()));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
@@ -2587,7 +2568,7 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Delete avatar ---
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
+    ASSERT_EQ(API_OK, synchronousSetAvatar(0, nullptr));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
@@ -5376,8 +5357,282 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
 }
 
+
+TEST_F(SdkTest, SdkLocalPath_leafOrParentName)
+{
+    char pathSep = LocalPath::localPathSeparator_utf8;
+
+    string rootName;
+    string rootDrive;
+#ifdef WIN32
+    rootName = "D";
+    rootDrive = rootName + ':';
+#endif
+
+    // "D:\\foo\\bar.txt" or "/foo/bar.txt"
+    LocalPath lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar.txt");
+    ASSERT_EQ(lp.leafOrParentName(), "bar.txt");
+
+    // "D:\\foo\\" or "/foo/"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\foo" or "/foo"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\" or "/"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+
+#ifdef WIN32
+    // "D:"
+    lp = LocalPath::fromAbsolutePath(rootDrive);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+
+    // "D"
+    lp = LocalPath::fromAbsolutePath(rootName);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+
+    // Current implementation prevents the following from working correctly on *nix platforms
+
+    // "D:\\foo\\bar\\.\\" or "/foo/bar/./"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.' + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "bar");
+
+    // "D:\\foo\\bar\\." or "/foo/bar/."
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.');
+    ASSERT_EQ(lp.leafOrParentName(), "bar");
+
+    // "D:\\foo\\bar\\..\\" or "/foo/bar/../"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + ".." + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\foo\\bar\\.." or "/foo/bar/.."
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + "..");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+#endif
+
+    // ".\\foo\\" or "./foo/"
+    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo" + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // ".\\foo" or "./foo"
+    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+}
+
+TEST_F(SdkTest, SdkSimpleCommands)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SimpleCommands___";
+
+    // fetchTimeZone() test
+    auto err = synchronousFetchTimeZone(0);
+    ASSERT_EQ(API_OK, err) << "Fetch time zone failed (error: " << err << ")";
+    ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
+
+    // getMiscFlags() -- not logged in
+    logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getUserEmail() test
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
+    ASSERT_TRUE(!!user); // some simple validation
+
+    err = synchronousGetUserEmail(0, user->getHandle());
+    ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
+    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
+    // cleanRubbishBin() test (accept both success and already empty statuses)
+    err = synchronousCleanRubbishBin(0);
+    ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+
+    // getMiscFlags() -- not logged in
+    logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+}
+
+TEST_F(SdkTest, SdkHeartbeatCommands)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST HeartbeatCommands___";
+    std::vector<std::pair<string, MegaHandle>> backupNameToBackupId;
+
+    // setbackup test
+    fs::path localtestroot = makeNewTestRoot();
+    string localFolder = localtestroot.string();
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    int backupType = BackupType::CAMERA_UPLOAD;
+    int state = 1;
+    int subState = 3;
+
+    size_t numBackups = 3;
+    vector<string> backupNames {"/SdkBackupNamesTest1", "/SdkBackupNamesTest2", "/SdkBackupNamesTest3" };
+    vector<string> folderNames {"CommandBackupPutTest1", "CommandBackupPutTest2", "CommandBackupPutTest3" };
+    vector<MegaHandle> targetNodes;
+
+    // create remote folders for each backup
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        auto h = createFolder(0, folderNames[i].c_str(), rootnode.get());
+        ASSERT_NE(h, UNDEF);
+        targetNodes.push_back(h);
+    }
+
+    // set all backups, only wait for completion of the third one
+    size_t lastIndex = numBackups - 1;
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState,
+            new OneShotListener([&](MegaError& e, MegaRequest& r) {
+                if (e.getErrorCode() == API_OK)
+                {
+                    backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+                }
+            }));
+    }
+
+    auto err = synchronousSetBackup(0,
+        [&](MegaError& e, MegaRequest& r) {
+            if (e.getErrorCode() == API_OK)
+            {
+                backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+            }
+        },
+        backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState);
+
+    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
+    ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
+
+    // update backup
+    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    ASSERT_EQ(API_OK, err) << "updateBackup failed (error: " << err << ")";
+
+    // now remove all backups, only wait for completion of the third one
+    // (automatically updates the user's attribute, removing the entry for the backup id)
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->removeBackup(backupNameToBackupId[i].second);
+    }
+    synchronousRemoveBackup(0, backupNameToBackupId[lastIndex].second);
+
+    // add a backup again
+    err = synchronousSetBackup(0,
+            [&](MegaError& e, MegaRequest& r) {
+                if (e.getErrorCode() == API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+            },
+            backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState);
+    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    // check heartbeat
+    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
+    ASSERT_EQ(API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
+
+
+    // --- negative test cases ---
+    gTestingInvalidArgs = true;
+
+    // register the same backup twice: should work fine
+    err = synchronousSetBackup(0,
+        [&](MegaError& e, MegaRequest& r) {
+            if (e.getErrorCode() == API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+        },
+        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState);
+
+    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    // update a removed backup: should throw an error
+    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    ASSERT_EQ(API_OK, err) << "updateBackup for deleted backup should succeed now, and revive the record. But, error: " << err;
+
+    // We can't test this, as reviewer wants an assert to fire for EARGS
+    //// create a backup with a big status: should report an error
+    //err = synchronousSetBackup(0,
+    //        nullptr,
+    //        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState);
+    //ASSERT_NE(API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    gTestingInvalidArgs = false;
+}
+
+TEST_F(SdkTest, SdkFavouriteNodes)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SDKFavourites___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+
+    ASSERT_TRUE(rootnodeA);
+
+    auto nh = createFolder(0, "folder-A", rootnodeA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_TRUE(!!folderA);
+
+    nh = createFolder(0, "sub-folder-A", folderA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_TRUE(!!subFolderA);
+
+    string filename1 = UPFILE;
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
+
+    MegaHandle h = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &h, filename1.c_str(),
+                                                        subFolderA.get(),
+                                                        nullptr /*fileName*/,
+                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                        nullptr /*appData*/,
+                                                        false   /*isSourceTemporary*/,
+                                                        false   /*startFirst*/,
+                                                        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(h));
+
+    bool null_pointer = (n1.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    err = synchronousSetNodeFavourite(0, n1.get(), true);
+
+    err = synchronousGetFavourites(0, subFolderA.get(), 0);
+    ASSERT_EQ(API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
+    ASSERT_EQ(mMegaFavNodeList->size(), 2u) << "synchronousGetFavourites failed...";
+    err = synchronousGetFavourites(0, nullptr, 1);
+    ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
+}
+
+TEST_F(SdkTest, SdkDeviceNames)
+{
+    /// Run this before other tests that use device name, like SdkBackupFolder
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkDeviceNames___";
+
+    // test setter/getter
+    string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
+    auto err = synchronousSetDeviceName(0, deviceName.c_str());
+    ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
+    err = synchronousGetDeviceName(0);
+    ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+}
+
+
 TEST_F(SdkTest, SdkBackupFolder)
 {
+    /// Run this after SdkDeviceNames test that changes device name.
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
@@ -5561,212 +5816,6 @@ TEST_F(SdkTest, SdkBackupFolder)
 #endif
 }
 
-TEST_F(SdkTest, SdkSimpleCommands)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST SimpleCommands___";
-
-    // fetchTimeZone() test
-    auto err = synchronousFetchTimeZone(0);
-    ASSERT_EQ(API_OK, err) << "Fetch time zone failed (error: " << err << ")";
-    ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
-
-    // getMiscFlags() -- not logged in
-    logout(0, false, maxTimeout);
-    gSessionIDs[0] = "invalid";
-    err = synchronousGetMiscFlags(0);
-    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
-
-    // getUserEmail() test
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-    ASSERT_TRUE(!!user); // some simple validation
-
-    err = synchronousGetUserEmail(0, user->getHandle());
-    ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
-    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
-
-    // cleanRubbishBin() test (accept both success and already empty statuses)
-    err = synchronousCleanRubbishBin(0);
-    ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
-
-    // getMiscFlags() -- not logged in
-    logout(0, false, maxTimeout);
-    gSessionIDs[0] = "invalid";
-    err = synchronousGetMiscFlags(0);
-    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
-}
-
-TEST_F(SdkTest, SdkHeartbeatCommands)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST HeartbeatCommands___";
-    std::vector<std::pair<string, MegaHandle>> backupNameToBackupId;
-
-    // setbackup test
-    fs::path localtestroot = makeNewTestRoot();
-    string localFolder = localtestroot.string();
-    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    int backupType = BackupType::CAMERA_UPLOAD;
-    int state = 1;
-    int subState = 3;
-
-    size_t numBackups = 3;
-    vector<string> backupNames {"/SdkBackupNamesTest1", "/SdkBackupNamesTest2", "/SdkBackupNamesTest3" };
-    vector<string> folderNames {"CommandBackupPutTest1", "CommandBackupPutTest2", "CommandBackupPutTest3" };
-    vector<MegaHandle> targetNodes;
-
-    // create remote folders for each backup
-    for (size_t i = 0; i < numBackups; i++)
-    {
-        auto h = createFolder(0, folderNames[i].c_str(), rootnode.get());
-        ASSERT_NE(h, UNDEF);
-        targetNodes.push_back(h);
-    }
-
-    // set all backups, only wait for completion of the third one
-    size_t lastIndex = numBackups - 1;
-    for (size_t i = 0; i < lastIndex; i++)
-    {
-        megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState,
-            new OneShotListener([&](MegaError& e, MegaRequest& r) {
-                if (e.getErrorCode() == API_OK)
-                {
-                    backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
-                }
-            }));
-    }
-
-    auto err = synchronousSetBackup(0,
-        [&](MegaError& e, MegaRequest& r) {
-            if (e.getErrorCode() == API_OK)
-            {
-                backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
-            }
-        },
-        backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState);
-
-    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
-    ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
-
-    // update backup
-    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
-    ASSERT_EQ(API_OK, err) << "updateBackup failed (error: " << err << ")";
-
-    // now remove all backups, only wait for completion of the third one
-    // (automatically updates the user's attribute, removing the entry for the backup id)
-    for (size_t i = 0; i < lastIndex; i++)
-    {
-        megaApi[0]->removeBackup(backupNameToBackupId[i].second);
-    }
-    synchronousRemoveBackup(0, backupNameToBackupId[lastIndex].second);
-
-    // add a backup again
-    err = synchronousSetBackup(0,
-            [&](MegaError& e, MegaRequest& r) {
-                if (e.getErrorCode() == API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
-            },
-            backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState);
-    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
-
-    // check heartbeat
-    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
-    ASSERT_EQ(API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
-
-
-    // --- negative test cases ---
-    gTestingInvalidArgs = true;
-
-    // register the same backup twice: should work fine
-    err = synchronousSetBackup(0,
-        [&](MegaError& e, MegaRequest& r) {
-            if (e.getErrorCode() == API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
-        },
-        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState);
-
-    ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
-
-    // update a removed backup: should throw an error
-    err = synchronousRemoveBackup(0, mBackupId, nullptr);
-    ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
-    ASSERT_EQ(API_ENOENT, err) << "updateBackup for deleted backup should have produced ENOENT but got error: " << err;
-
-    // We can't test this, as reviewer wants an assert to fire for EARGS
-    //// create a backup with a big status: should report an error
-    //err = synchronousSetBackup(0,
-    //        nullptr,
-    //        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState);
-    //ASSERT_NE(API_OK, err) << "setBackup failed (error: " << err << ")";
-
-    gTestingInvalidArgs = false;
-}
-
-TEST_F(SdkTest, SdkFavouriteNodes)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST SDKFavourites___";
-
-    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
-
-    ASSERT_TRUE(rootnodeA);
-
-    auto nh = createFolder(0, "folder-A", rootnodeA.get());
-    ASSERT_NE(nh, UNDEF);
-    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_TRUE(!!folderA);
-
-    nh = createFolder(0, "sub-folder-A", folderA.get());
-    ASSERT_NE(nh, UNDEF);
-    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_TRUE(!!subFolderA);
-
-    string filename1 = UPFILE;
-    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
-
-    MegaHandle h = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &h, filename1.c_str(),
-                                                        subFolderA.get(),
-                                                        nullptr /*fileName*/,
-                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                        nullptr /*appData*/,
-                                                        false   /*isSourceTemporary*/,
-                                                        false   /*startFirst*/,
-                                                        nullptr /*cancelToken*/)) << "Cannot upload a test file";
-
-    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(h));
-
-    bool null_pointer = (n1.get() == nullptr);
-    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
-
-    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
-    err = synchronousSetNodeFavourite(0, n1.get(), true);
-
-    err = synchronousGetFavourites(0, subFolderA.get(), 0);
-    ASSERT_EQ(API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
-    ASSERT_EQ(mMegaFavNodeList->size(), 2u) << "synchronousGetFavourites failed...";
-    err = synchronousGetFavourites(0, nullptr, 1);
-    ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
-    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
-    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
-}
-
-TEST_F(SdkTest, SdkDeviceNames)
-{
-    /// Run this before other tests that use device name, like SdkBackupFolder
-
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    LOG_info << "___TEST SdkDeviceNames___";
-
-    // test setter/getter
-    string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    auto err = synchronousSetDeviceName(0, deviceName.c_str());
-    ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
-    err = synchronousGetDeviceName(0);
-    ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
-}
-
 #ifdef ENABLE_SYNC
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
@@ -5904,6 +5953,14 @@ TEST_F(SdkTest, SdkUserAlias)
     // test setter/getter
     string alias = "UserAliasTest";
     auto err = synchronousSetUserAlias(0, uh, alias.c_str());
+    ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+
+    // test setter/getter for different value
+    alias = "UserAliasTest_changed";
+    err = synchronousSetUserAlias(0, uh, alias.c_str());
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
