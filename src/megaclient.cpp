@@ -4292,6 +4292,7 @@ bool MegaClient::procsc()
                         if (!originalAC && ac)
                         {
                             LOG_debug << clientname << "actionpacketsCurrent is true again";
+                            actionpacketsCurrentDs = Waiter::ds;
                         }
                         actionpacketsCurrent = ac;
                     }
