@@ -17884,11 +17884,6 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
     return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
-MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *, int )
-{
-    return new MegaChildrenListsPrivate();
-}
-
 bool MegaApiImpl::hasChildren(MegaNode *parent)
 {
     if (!parent || parent->getType() == MegaNode::TYPE_FILE)

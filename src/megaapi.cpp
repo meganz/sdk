@@ -4319,11 +4319,6 @@ MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, Meg
     return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
-MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
-{
-    return pImpl->getFileFolderChildren(p, order);
-}
-
 bool MegaApi::hasChildren(MegaNode *parent)
 {
     return pImpl->hasChildren(parent);
