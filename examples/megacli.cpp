@@ -10412,7 +10412,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->deregisterThenRemoveSync(v[0].mBackupId, completion);
+    client->deregisterThenRemoveSync(v[0].mBackupId, completion, false);
 }
 
 void exec_syncxable(autocomplete::ACState& s)
