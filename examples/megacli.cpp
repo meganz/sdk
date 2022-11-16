@@ -1771,11 +1771,6 @@ static void listnodeshares(Node* n)
     }
 }
 
-void TreeProcListOutShares::proc(MegaClient*, Node* n)
-{
-    listnodeshares(n);
-}
-
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
     std::ostream& stream = toFile ? *toFile : cout;
@@ -5821,13 +5816,13 @@ void exec_share(autocomplete::ACState& s)
     {
     case 1:		// list all shares (incoming and outgoing)
     {
-        TreeProcListOutShares listoutshares;
-
         cout << "Shared folders:" << endl;
 
-        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()), &listoutshares);
-        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeVault()), &listoutshares);
-        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()), &listoutshares);
+        node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+        for (auto& share : outshares)
+        {
+            listnodeshares(share);
+        }
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)

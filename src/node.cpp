@@ -210,12 +210,6 @@ void Node::detach(const bool recreate)
 
 #endif // ENABLE_SYNC
 
-
-Node* Node::childbyname(const string& name)
-{
-    return client->childnodebyname(this, name.c_str());
-}
-
 bool Node::hasChildWithName(const string& name) const
 {
     return client->childnodebyname(this, name.c_str()) ? true : false;

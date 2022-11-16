@@ -222,6 +222,8 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     result = sqlite3_exec(*db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
+        string err = string(" Error: ") + (sqlite3_errmsg(*db) ? sqlite3_errmsg(*db) : std::to_string(result));
+        LOG_debug << "Failed to create table 'statecache'" << err;
         sqlite3_close(*db);
         return false;
     }
@@ -237,7 +239,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
         return false;
     }
 
-    auto fileAccess = fsAccess.newfileaccess();
+    std::unique_ptr<FileAccess> fileAccess = fsAccess.newfileaccess();
 
 #if !(TARGET_OS_IPHONE)
     auto suffix = LocalPath::fromRelativePath("-shm");
