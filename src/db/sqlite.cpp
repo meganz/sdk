@@ -222,6 +222,8 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     result = sqlite3_exec(*db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
+        string err = string(" Error: ") + (sqlite3_errmsg(*db) ? sqlite3_errmsg(*db) : std::to_string(result));
+        LOG_debug << "Failed to create table 'statecache'" << err;
         sqlite3_close(*db);
         return false;
     }
