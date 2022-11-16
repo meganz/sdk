@@ -578,7 +578,7 @@ else {
 
         LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
         -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
         -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
         -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
