@@ -8736,8 +8736,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userAlertsUpdated = false;
-    A1dtls.userAlertList.reset();
 
     // --- Move sub-folder from Root (owned) back to share ---
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nSubfolder.get(), nSharedFolder.get())) << "Moving sub-folder from Root (owned) to share failed";
@@ -8748,6 +8746,15 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(nfile2, nullptr);
     ASSERT_EQ(API_OK, doMoveNode(A1idx, nullptr, nfile2.get(), nSubfolder.get())) << "Moving file from Root (owned) to shared folder failed";
 
+    // ignore notification about single TYPE_REMOVEDSHAREDNODES alert marked as removed
+    if (B1dtls.userAlertList && B1dtls.userAlertList->size() == 1 &&
+        B1dtls.userAlertList->get(0)->getType() == MegaUserAlert::TYPE_REMOVEDSHAREDNODES &&
+        B1dtls.userAlertList->get(0)->isRemoved())
+    {
+        B1dtls.userAlertsUpdated = false;
+        B1dtls.userAlertList.reset();
+    }
+
     // NewSharedNodes
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about node added to share not received by B1 after " << maxTimeout << " seconds";
@@ -8755,8 +8762,9 @@ TEST_F(SdkTest, SdkUserAlerts)
     count = 0; a = nullptr;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
         a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved())
+            continue;
         count++;
     }
     ASSERT_EQ(count, 1) << "NewSharedNodes";
