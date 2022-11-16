@@ -717,6 +717,7 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef pair<string, string> string_pair;
 typedef string_map TLV_map;
 
@@ -1057,7 +1058,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:

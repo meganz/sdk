@@ -3308,6 +3308,8 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
+
+
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
     return mHandleList.get();
@@ -3352,6 +3354,31 @@ void MegaRequestPrivate::setMegaTextChatList(MegaTextChatList *chatList)
         delete this->chatList;
 
     this->chatList = chatList->copy();
+}
+
+MegaScheduledMeetingList* MegaRequestPrivate::getMegaScheduledMeetingList() const
+{
+    return mScheduledMeetingList.get();
+}
+
+void MegaRequestPrivate::setMegaScheduledMeetingList(const MegaScheduledMeetingList* schedMeetingList)
+{
+    mScheduledMeetingList.reset();
+
+    if (schedMeetingList)
+    {
+       mScheduledMeetingList = unique_ptr<MegaScheduledMeetingList>(schedMeetingList->copy());
+    }
+}
+
+MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
+{
+    return mScheduledMeeting.get();
+}
+
+void MegaRequestPrivate::setScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting)
+{
+    mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
 }
 #endif
 
@@ -4019,7 +4046,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
         case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
-        case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
+        case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
         case TYPE_PUT_SET: return "PUT_SET";
         case TYPE_REMOVE_SET: return "REMOVE_SET";
@@ -4027,6 +4054,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
         case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
         case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
+        case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
+        case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
+        case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
+        case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
@@ -4209,6 +4240,88 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     }
 
     delete keys;
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate()
+{
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate& megaIntegerMap)
+    :mIntegerMap(megaIntegerMap.getMap() ? *megaIntegerMap.getMap() : integer_map())
+{
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int8_t, int8_t>& bytesMap)
+{
+    for (const auto& element: bytesMap)
+    {
+        mIntegerMap.emplace(static_cast<int64_t>(element.first), static_cast<int64_t>(element.second));
+    }
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t>& integerMap)
+    :mIntegerMap(integerMap)
+{
+}
+
+MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
+{
+}
+
+
+MegaSmallIntMap* MegaIntegerMapPrivate::toByteMap() const
+{
+    MegaSmallIntMap* byteMap = new MegaSmallIntMap();
+    for (const auto& pair: mIntegerMap)
+    {
+        byteMap->emplace(static_cast<int8_t>(pair.first), static_cast<int8_t>(pair.second));
+    }
+    return byteMap;
+}
+
+MegaIntegerMap* MegaIntegerMapPrivate::copy() const
+{
+    return new MegaIntegerMapPrivate(*this);
+}
+
+bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
+{
+    if (index >= mIntegerMap.size())
+    {
+        return false;
+    }
+
+    auto it = mIntegerMap.begin();
+    std::advance(it, index);
+    key = it->first;
+    value = it->second;
+    return true;
+}
+
+MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
+{
+    vector<int64_t> keys;
+    for (auto& it : mIntegerMap)
+    {
+        keys.push_back(it.first);
+    }
+
+    return new MegaIntegerListPrivate(keys);
+}
+
+unsigned long long MegaIntegerMapPrivate::size() const
+{
+    return mIntegerMap.size();
+}
+
+void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
+{
+    mIntegerMap.emplace(key, value);
+}
+
+const integer_map* MegaIntegerMapPrivate::getMap() const
+{
+    return &mIntegerMap;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
@@ -6093,9 +6206,10 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fetchTimeZone(MegaRequestListener *listener)
+void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
+    request->setFlag(forceApiFetch);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10447,6 +10561,43 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
     waiter->notify();
 }
 
+
+void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
+    request->setScheduledMeeting(scheduledMeeting);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
+    request->setNodeHandle(chatid);
+    request->setName(since);
+    request->setEmail(until);
+    request->setNumber(count);
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
 
 void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *listener)
@@ -18876,7 +19027,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_TIMEZONE:
         {
-            client->fetchtimezone();
+            if (!mTimezones || request->getFlag() /*forceApiFetch*/)
+            {
+                client->fetchtimezone();
+            }
+            else
+            {
+                request->setTimeZoneDetails(mTimezones);
+                e = API_OK;
+            }
             break;
         }
         case MegaRequest::TYPE_CREATE_FOLDER:
@@ -23115,6 +23274,118 @@ void MegaApiImpl::sendPendingRequests()
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
            break;
         }
+
+#ifdef ENABLE_CHAT
+        case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
+        {
+            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeeting());
+            if (!schedMeeting)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            handle chatid = schedMeeting->chatid();
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), [chatid, request, this] (Error e, const ScheduledMeeting* sm)
+            {
+                if (sm)
+                {
+                    std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
+                    request->setScheduledMeeting(auxsm.get());
+                }
+                textchat_map::iterator it = client->chats.find(chatid);
+                if (!e && it != client->chats.end())
+                {
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, 0, nullptr));
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
+        {
+            handle chatid = request->getNodeHandle();
+            handle schedId = request->getParentHandle();
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedId, [request, this] (Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING:
+        {
+            handle chatid = request->getNodeHandle();
+            handle schedId = request->getParentHandle();
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            {
+                if (result && !result->empty())
+                {
+                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                    for (auto const& sm: *result)
+                    {
+                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                    }
+                    request->setMegaScheduledMeetingList(l.get());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES:
+        {
+            handle chatid = request->getNodeHandle();
+            const char* since = request->getName();
+            const char* until = request->getEmail();
+            unsigned int count = static_cast<unsigned int>(request->getNumber());
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            {
+                if (result && !result->empty())
+                {
+                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                    for (auto const& sm: *result)
+                    {
+                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                    }
+                    request->setMegaScheduledMeetingList(l.get());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+#endif
         default:
         {
             e = API_EINTERNAL;
@@ -25970,7 +26241,7 @@ int64_t MegaScheduledCopyController::getTimeOfBackup(string localname) const
     string rest = localname.substr(pos + 4).c_str();
 
 //    int64_t toret = atol(rest.c_str());
-    int64_t toret = stringTimeTods(rest);
+    int64_t toret = stringToTimestamp(rest, FORMAT_SCHEDULED_COPY);
     return toret;
 }
 
@@ -26140,37 +26411,6 @@ std::string MegaScheduledCopyController::epochdsToString(const int64_t rawtimeds
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 
     return std::string(buffer);
-}
-
-int64_t MegaScheduledCopyController::stringTimeTods(string stime) const
-{
-    struct tm dt;
-    memset(&dt, 0, sizeof(struct tm));
-#ifdef _WIN32
-    if (stime.size() != 14)
-    {
-        return 0; //better control of this?
-    }
-    for(int i=0;i<14;i++)
-    {
-        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
-        {
-            return 0; //better control of this?
-        }
-    }
-
-    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
-    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
-    dt.tm_mday = atoi(stime.substr(6,2).c_str());
-    dt.tm_hour = atoi(stime.substr(8,2).c_str());
-    dt.tm_min = atoi(stime.substr(10,2).c_str());
-    dt.tm_sec = atoi(stime.substr(12,2).c_str());
-#else
-    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
-#endif
-    dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
-                        //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
-    return (mktime(&dt))*10;
 }
 
 void MegaScheduledCopyController::clearCurrentBackupData()
@@ -32872,6 +33112,21 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
     this->meeting = chat->isMeeting();
     this->chatOptions = chat->getChatOptions();
+
+    if (chat->getScheduledMeetingList() && chat->getScheduledMeetingList()->size())
+    {
+        mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
+    }
+
+    if (chat->getScheduledMeetingOccurrencesList() && chat->getScheduledMeetingOccurrencesList()->size())
+    {
+        mScheduledMeetingsOcurrences.reset(chat->getScheduledMeetingOccurrencesList()->copy());
+    }
+
+    if (chat->getSchedMeetingsChanged() && chat->getSchedMeetingsChanged()->size())
+    {
+        mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
+    }
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -32892,6 +33147,34 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
+    if (!chat->mScheduledMeetings.empty())
+    {
+        mScheduledMeetings.reset(MegaScheduledMeetingList::createInstance());
+        for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
+        {
+            mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        }
+    }
+
+    if (!chat->mScheduledMeetingsOcurrences.empty())
+    {
+        mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
+        for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
+        {
+            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        }
+    }
+
+    if (!chat->mSchedMeetingsChanged.empty())
+    {
+        mSchedMeetingsChanged.reset(MegaHandleList::createInstance());
+        for (auto it = chat->mSchedMeetingsChanged.begin(); it != chat->mSchedMeetingsChanged.end(); it++)
+        {
+            mSchedMeetingsChanged->addMegaHandle(*it);
+        }
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
+    }
+
     if (chat->changed.attachments)
     {
         changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
@@ -32907,6 +33190,13 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.options)
     {
         changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
+    }
+
+    if (chat->changed.schedOcurr)
+    {
+        // we do not need a list of changed scheduled occurrences, as we manage (retrieve, update and clear) them
+        // in block (all occurrences for the chat)
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
     }
 }
 
@@ -33009,6 +33299,21 @@ int MegaTextChatPrivate::getChanges() const
     return changed;
 }
 
+const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
+{
+    return mScheduledMeetings.get();
+}
+
+const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
+{
+    return mScheduledMeetingsOcurrences.get();
+}
+
+const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const
+{
+    return mSchedMeetingsChanged.get();
+}
+
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
 {
     for (unsigned int i = 0; i < (unsigned int) size(); i++)
@@ -33070,6 +33375,228 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
         megaChat = new MegaTextChatPrivate(it->second);
         this->list.push_back(megaChat);
     }
+}
+/* Class MegaScheduledFlagsPrivate */
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate()
+    : mFlags(0)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(unsigned long numericValue)
+    : mFlags(numericValue)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
+    : mFlags(flags ? flags->getNumericValue() : 0)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
+    : mFlags(flags ? flags->getNumericValue() : 0)
+{
+}
+
+MegaScheduledFlagsPrivate::~MegaScheduledFlagsPrivate()
+{
+}
+
+MegaScheduledFlagsPrivate* MegaScheduledFlagsPrivate::copy() const
+{
+    return new MegaScheduledFlagsPrivate(this);
+}
+
+void MegaScheduledFlagsPrivate::reset()
+{
+    mFlags.reset();
+}
+
+void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
+{
+    mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
+}
+
+unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
+bool MegaScheduledFlagsPrivate::emailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }
+ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
+
+/* Class MegaScheduledRulesPrivate */
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
+                              int interval,
+                              const char* until,
+                              const ::mega::MegaIntegerList* byWeekDay,
+                              const ::mega::MegaIntegerList* byMonthDay,
+                              const ::mega::MegaIntegerMap* byMonthWeekDay):
+    mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
+    mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
+    mUntil(until ? until : std::string()),
+    mByWeekDay(byWeekDay ? byWeekDay->copy() : nullptr),
+    mByMonthDay (byMonthDay ? byMonthDay->copy() : nullptr),
+    mByMonthWeekDay(byMonthWeekDay ? byMonthWeekDay->copy() : nullptr)
+{
+}
+
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
+        mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
+        mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
+        mUntil(rules->until() ? rules->until() : std::string()),
+        mByWeekDay(rules->byWeekDay() ? rules->byWeekDay()->copy() : nullptr),
+        mByMonthDay (rules->byMonthDay() ? rules->byMonthDay()->copy() : nullptr),
+        mByMonthWeekDay(rules->byMonthWeekDay() ? rules->byMonthWeekDay()->copy() : nullptr)
+{
+}
+
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules):
+    mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
+    mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
+    mUntil(rules->until()),
+    mByWeekDay(rules->byWeekDay() ? new MegaIntegerListPrivate(*rules->byWeekDay()) : nullptr),
+    mByMonthDay(rules->byMonthDay() ? new MegaIntegerListPrivate(*rules->byMonthDay()) : nullptr),
+    mByMonthWeekDay(rules->byMonthWeekDay() ? new MegaIntegerMapPrivate(*rules->byMonthWeekDay()) : nullptr)
+{
+}
+
+MegaScheduledRulesPrivate::~MegaScheduledRulesPrivate()
+{
+}
+
+MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy() const
+{
+    return new MegaScheduledRulesPrivate(this);
+}
+
+int MegaScheduledRulesPrivate::freq() const                                     { return mFreq; }
+int MegaScheduledRulesPrivate::interval() const                                 { return mInterval; }
+const char* MegaScheduledRulesPrivate::until() const                            { return !mUntil.empty() ? mUntil.c_str() : nullptr; }
+const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const     { return mByWeekDay.get(); }
+const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const    { return mByMonthDay.get(); }
+const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const { return mByMonthWeekDay.get(); }
+
+ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
+{
+    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (static_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (static_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
+    return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
+}
+
+/* Class MegaScheduledMeetingPrivate */
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
+                                                                  const char* title, const char* description, MegaHandle schedId, MegaHandle parentSchedId,
+                                                                  MegaHandle organizerUserId, int cancelled, const char* attributes, const char* overrides,
+                                                                  MegaScheduledFlags* flags, MegaScheduledRules* rules)
+    : mScheduledMeeting(new ScheduledMeeting(chatid,
+                                             timezone ? timezone : std::string(),
+                                             startDateTime ? startDateTime : std::string(),
+                                             endDateTime ? endDateTime : std::string(),
+                                             title ? title : std::string(),
+                                             description ? description : std::string(),
+                                             organizerUserId,
+                                             schedId,
+                                             parentSchedId,
+                                             cancelled,
+                                             attributes ? attributes : std::string(),
+                                             overrides ? overrides : std::string(),
+                                             flags ? static_cast<MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags() : nullptr,
+                                             rules ? static_cast<MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules() : nullptr))
+{
+}
+
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate* sm)
+    : mScheduledMeeting(sm->mScheduledMeeting->copy())
+{
+}
+
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const ScheduledMeeting *scheduledMeeting)
+    : mScheduledMeeting(scheduledMeeting->copy())
+{
+}
+
+MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
+{
+}
+
+MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy() const
+{
+   return new MegaScheduledMeetingPrivate(this);
+}
+
+MegaHandle MegaScheduledMeetingPrivate::chatid() const                          { return mScheduledMeeting->chatid(); }
+MegaHandle MegaScheduledMeetingPrivate::schedId() const                         { return mScheduledMeeting->schedId(); }
+MegaHandle MegaScheduledMeetingPrivate::parentSchedId() const                   { return mScheduledMeeting->parentSchedId(); }
+MegaHandle MegaScheduledMeetingPrivate::organizerUserid() const                 { return mScheduledMeeting->organizerUserid(); }
+const char* MegaScheduledMeetingPrivate::timezone() const                       { return mScheduledMeeting->timezone().size() ? mScheduledMeeting->timezone().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::startDateTime() const                  { return mScheduledMeeting->startDateTime().size() ? mScheduledMeeting->startDateTime().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::endDateTime() const                    { return mScheduledMeeting->endDateTime().size() ? mScheduledMeeting->endDateTime().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::title() const                          { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::description() const                    { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->description().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::overrides() const                      { return mScheduledMeeting->overrides().size() ? mScheduledMeeting->overrides().c_str() : nullptr; }
+int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
+MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}
+MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return mScheduledMeeting->rules() ? new MegaScheduledRulesPrivate(mScheduledMeeting->rules()) : nullptr;}
+
+const ScheduledMeeting* MegaScheduledMeetingPrivate::scheduledMeeting() const
+{
+    return mScheduledMeeting.get();
+}
+
+MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate()
+{
+}
+
+MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate(const MegaScheduledMeetingListPrivate& l)
+{
+    mList.reserve(l.size());
+    for (unsigned long i = 0; i < l.size(); i++)
+    {
+        mList.emplace_back(l.at(i)->copy());
+    }
+}
+
+MegaScheduledMeetingListPrivate::~MegaScheduledMeetingListPrivate()
+{
+    // all objects managed by unique_ptr's containted in mList will be deallocated when mList is destroyed
+}
+
+unsigned long MegaScheduledMeetingListPrivate::size() const
+{
+    return static_cast<unsigned long>(mList.size());
+}
+
+MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy() const
+{
+   return new MegaScheduledMeetingListPrivate(*this);
+}
+
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i) const
+{
+    return mList.at(i).get();
+}
+
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedId(handle h) const
+{
+    auto it = std::find_if(mList.begin(),
+                   mList.end(),
+                   [h](const std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
+                   {
+                       return h == sm ->schedId();
+                   });
+
+    return (it != mList.end())
+        ? it->get()
+        : nullptr;
+}
+
+void MegaScheduledMeetingListPrivate::insert(MegaScheduledMeeting* sm)
+{
+    mList.emplace_back(sm);
+}
+
+void MegaScheduledMeetingListPrivate::clear()
+{
+     mList.clear();
 }
 #endif
 
@@ -33344,8 +33871,19 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
     mList.push_back(h);
 }
 
-MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
-    : mIntegers(integers)
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int8_t>& bytesList)
+{
+    mIntegers.reserve(bytesList.size());
+    std::transform(bytesList.begin(), bytesList.end(), std::back_inserter(mIntegers), [](int8_t x) { return static_cast<int64_t>(x);});
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t>& integerList)
+    : mIntegers(integerList)
+{
+
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate()
 {
 
 }
@@ -33353,6 +33891,14 @@ MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
 MegaIntegerListPrivate::~MegaIntegerListPrivate()
 {
 
+}
+
+MegaSmallIntVector* MegaIntegerListPrivate::toByteList() const
+{
+    MegaSmallIntVector* bytesList= new MegaSmallIntVector();
+    bytesList->reserve(mIntegers.size());
+    std::transform(mIntegers.begin(), mIntegers.end(), std::back_inserter(*bytesList), [](int64_t x) { return static_cast<int8_t>(x);});
+    return bytesList;
 }
 
 MegaIntegerList* MegaIntegerListPrivate::copy() const
@@ -33370,9 +33916,19 @@ int64_t MegaIntegerListPrivate::get(int i) const
     return mIntegers.at(i);
 }
 
+void MegaIntegerListPrivate::add(long long i)
+{
+    mIntegers.emplace_back(i);
+}
+
 int MegaIntegerListPrivate::size() const
 {
     return static_cast<int>(mIntegers.size());
+}
+
+const vector<int64_t>* MegaIntegerListPrivate::getList() const
+{
+    return &mIntegers;
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
@@ -34393,5 +34949,4 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 {
     return handles;
 }
-
 } // namespace mega

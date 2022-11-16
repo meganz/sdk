@@ -40,7 +40,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     client = cclient;
     outshares = NULL;
     pendingshares = NULL;
-    tag = 0;
     appdata = NULL;
 
     nodehandle = h.as8byte();
