@@ -382,7 +382,7 @@ private:
     void trimAlertsToMaxCount(); // mark as removed the excess from 200
     void notifyAlert(UserAlert::Base* alert, bool seen, int tag);
 
-    bool canBeCombinedAs(const UserAlert::Base* a, nameid t) const;
+    UserAlert::Base* findAlertToCombineWith(const UserAlert::Base* a, nameid t) const;
 
     bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
     // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise

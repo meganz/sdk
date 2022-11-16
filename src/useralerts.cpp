@@ -1405,12 +1405,15 @@ void UserAlerts::add(UserAlertRaw& un)
     }
 }
 
-bool UserAlerts::canBeCombinedAs(const UserAlert::Base* a, nameid t) const
+UserAlert::Base* UserAlerts::findAlertToCombineWith(const UserAlert::Base* a, nameid t) const
 {
-    return !alerts.empty() &&
-           !alerts.back()->removed() &&
-           a->type == t &&
-           alerts.back()->type == t;
+    if (a->type == t)
+    {
+        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [t](UserAlert::Base* b) { return !b->removed(); });
+        return ait != alerts.rend() && (*ait)->type == t ? *ait : nullptr;
+    }
+
+    return nullptr;
 }
 
 void UserAlerts::add(UserAlert::Base* unb)
@@ -1440,11 +1443,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous NewSharedNodes
-    if (canBeCombinedAs(unb, UserAlert::type_put))
+    UserAlert::Base* cmb = findAlertToCombineWith(unb, UserAlert::type_put);
+    if (cmb)
     {
         // If it's file/folders added, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::NewSharedNodes* np = dynamic_cast<UserAlert::NewSharedNodes*>(unb);
-        UserAlert::NewSharedNodes* op = dynamic_cast<UserAlert::NewSharedNodes*>(alerts.back());
+        UserAlert::NewSharedNodes* op = dynamic_cast<UserAlert::NewSharedNodes*>(cmb);
         if (np && op)
         {
             if (np->user() == op->user() && np->ts() - op->ts() < 300 &&
@@ -1464,11 +1468,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous RemovedSharedNode
-    if (canBeCombinedAs(unb, UserAlert::type_d))
+    cmb = findAlertToCombineWith(unb, UserAlert::type_d);
+    if (cmb)
     {
         // If it's file/folders removed, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::RemovedSharedNode* nd = dynamic_cast<UserAlert::RemovedSharedNode*>(unb);
-        UserAlert::RemovedSharedNode* od = dynamic_cast<UserAlert::RemovedSharedNode*>(alerts.back());
+        UserAlert::RemovedSharedNode* od = dynamic_cast<UserAlert::RemovedSharedNode*>(cmb);
         if (nd && od)
         {
             if (nd->user() == od->user() && nd->ts() - od->ts() < 300)
@@ -1485,11 +1490,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 
     // attempt to combine with previous UpdatedSharedNode
-    if (canBeCombinedAs(unb, UserAlert::type_u))
+    cmb = findAlertToCombineWith(unb, UserAlert::type_u);
+    if (cmb)
     {
         // If it's file/folders updated, and the prior one is for the same user and within 5 mins then we can combine instead
         UserAlert::UpdatedSharedNode* nd = dynamic_cast<UserAlert::UpdatedSharedNode*>(unb);
-        UserAlert::UpdatedSharedNode* od = dynamic_cast<UserAlert::UpdatedSharedNode*>(alerts.back());
+        UserAlert::UpdatedSharedNode* od = dynamic_cast<UserAlert::UpdatedSharedNode*>(cmb);
         if (nd && od)
         {
             if (nd->user() == od->user() && nd->ts() - od->ts() < 300)
