@@ -19076,6 +19076,11 @@ void NodeManager::addNodeWithMissingParent(Node *node)
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
+    if (mNodes.empty())
+    {
+        return nullptr;
+    }
+
     Node* node = getNodeInRAM(handle);
     if (!node)
     {
@@ -19175,7 +19180,7 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 
 node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         return node_vector();
     }
@@ -19193,7 +19198,7 @@ node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type
 
 node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         return node_vector();
     }
@@ -19242,7 +19247,7 @@ uint64_t NodeManager::getNodeCount()
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19258,7 +19263,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19312,7 +19317,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint, Node *parent)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19328,7 +19333,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 {
     Node* node = nullptr;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node;
@@ -19356,7 +19361,7 @@ Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 
 Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &name, nodetype_t nodeType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nullptr;
@@ -19482,7 +19487,7 @@ node_vector NodeManager::getNodesWithLinks()
 
 node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node_vector();
@@ -19496,7 +19501,7 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
 
 node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node_vector();
@@ -19613,7 +19618,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, uint32_t count)
 {
     std::vector<NodeHandle> nodeHandles;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodeHandles;
@@ -19625,7 +19630,7 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 
 size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return 0;
@@ -19643,7 +19648,7 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 
 size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return 0;
