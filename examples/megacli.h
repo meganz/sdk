@@ -98,12 +98,6 @@ struct AppReadContext
     SymmCipher key;
 };
 
-class TreeProcListOutShares : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
-
 struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
