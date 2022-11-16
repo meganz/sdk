@@ -2628,7 +2628,9 @@ void MegaClient::exec()
             if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
                 fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
-                if (sync->fsfp != current)
+                // 0 indicates it couldn't get the filesystem fingerprint, so skip checking on this iteration
+                // on Mac, it seems this can happen while a file is replaced in the sync root folder.
+                if (current != 0 && sync->fsfp != current)
                 {
                     LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
@@ -8500,12 +8502,23 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 #ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     // Try and deregister this sync's backup ID first.
     // If later removal operations fail, the heartbeat record will be resurrected
 
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->getConfig().mBackupId == backupId)
+        {
+            // prevent any sp or sphb messages being queued after
+            sync->getConfig().mSyncDeregisterSent = true;
+
+            // Prevent notifying the client app for this sync's state changes
+            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
+        }
+    });
 
     reqs.add(new CommandBackupRemove(this, backupId,
             [backupId, completion, this](Error e){
@@ -8516,27 +8529,6 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
                 }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
-
-    // while we are on the client thread, also tidy up dev-id, drv-id
-    SyncConfig sc;
-    if (syncs.configById(backupId, sc) &&
-        sc.isBackup())
-    {
-        if (auto n = nodeByHandle(sc.mRemoteNode))
-        {
-            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
-
-            attr_map m;
-            m[AttrMap::string2nameid("dev-id")] = "";
-            m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), [](NodeHandle, Error e){
-                if (e)
-                {
-                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
-                }
-            }, true);
-        }
-    }
 }
 #endif // ENABLE_SYNC
 
@@ -17577,7 +17569,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vWeek.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vWeek.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17589,7 +17581,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vMonth.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17601,14 +17593,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->enterarray())
                                         {
-                                            int key = -1;
-                                            int value = -1;
+                                            int8_t key = -1;
+                                            int8_t value = -1;
                                             int i = 0;
                                             while (auxJson->isnumeric())
                                             {
-                                                int val = static_cast<int>(auxJson->getint());
-                                                if (i == 0) { key = static_cast<int>(val); }
-                                                if (i == 1) { value = static_cast<int>(val); }
+                                                int8_t val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = val; }
+                                                if (i == 1) { value = val; }
                                                 i++;
                                             }
 
@@ -19076,6 +19068,11 @@ void NodeManager::addNodeWithMissingParent(Node *node)
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
+    if (mNodes.empty())
+    {
+        return nullptr;
+    }
+
     Node* node = getNodeInRAM(handle);
     if (!node)
     {
@@ -19088,7 +19085,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
 node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 {
     node_list childrenList;
-    if (!parent)
+    if (!parent || !mTable || mNodes.empty())
     {
         return childrenList;
     }
@@ -19175,7 +19172,7 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 
 node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         return node_vector();
     }
@@ -19193,7 +19190,7 @@ node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type
 
 node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         return node_vector();
     }
@@ -19242,7 +19239,7 @@ uint64_t NodeManager::getNodeCount()
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19258,7 +19255,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19312,7 +19309,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint, Node *parent)
 {
     node_vector nodes;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodes;
@@ -19328,7 +19325,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 {
     Node* node = nullptr;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node;
@@ -19356,7 +19353,7 @@ Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 
 Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &name, nodetype_t nodeType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nullptr;
@@ -19482,7 +19479,7 @@ node_vector NodeManager::getNodesWithLinks()
 
 node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node_vector();
@@ -19496,7 +19493,7 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
 
 node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return node_vector();
@@ -19613,7 +19610,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, uint32_t count)
 {
     std::vector<NodeHandle> nodeHandles;
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return nodeHandles;
@@ -19625,7 +19622,7 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 
 size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return 0;
@@ -19643,7 +19640,7 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 
 size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
 {
-    if (!mTable)
+    if (!mTable || mNodes.empty())
     {
         assert(false);
         return 0;
@@ -20166,7 +20163,7 @@ void NodeManager::notifyPurge()
 
                 // Try and remove the sync.
                 mClient.deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                                 move(completion));
+                                                 move(completion), true);
             }
 
             //update sync root node location and trigger failing cases
@@ -20221,6 +20218,9 @@ void NodeManager::notifyPurge()
 #endif
 
         TransferDbCommitter committer(mClient.tctable);
+
+        unsigned removed = 0;
+        unsigned added = 0;
 
         // check all notified nodes for removed status and purge
         for (size_t i = 0; i < mNodeNotify.size(); i++)
@@ -20290,6 +20290,8 @@ void NodeManager::notifyPurge()
                 mNodes.erase(n->mNodePosition);
 
                 mTable->remove(h);
+
+                removed += 1;
             }
             else
             {
@@ -20297,7 +20299,18 @@ void NodeManager::notifyPurge()
                 // is 'changed.newnode', since the node is already written to DB
                 // when it is received from API, in 'saveNodeInRam()'
                 mTable->put(n);
+
+                added += 1;
             }
+        }
+
+        if (removed)
+        {
+            LOG_verbose << mClient.clientname << "Removed " << removed << " nodes from database";
+        }
+        if (added)
+        {
+            LOG_verbose << mClient.clientname << "Added " << added << " nodes to database";
         }
 
         mNodeNotify.clear();
