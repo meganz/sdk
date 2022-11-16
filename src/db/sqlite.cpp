@@ -239,7 +239,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
         return false;
     }
 
-    auto fileAccess = fsAccess.newfileaccess();
+    std::unique_ptr<FileAccess> fileAccess = fsAccess.newfileaccess();
 
 #if !(TARGET_OS_IPHONE)
     auto suffix = LocalPath::fromRelativePath("-shm");
