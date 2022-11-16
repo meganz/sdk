@@ -141,6 +141,12 @@ public:
     // If the database exists then its running/paused/suspended.  Not serialized.
     bool mDatabaseExists = false;
 
+    // not serialized.  Prevent re-enabling sync after removal
+    bool mSyncDeregisterSent = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mRemovingSyncBySds = false;
+
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
