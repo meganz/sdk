@@ -19502,7 +19502,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
 
-    return processUnserializedNodes(nodesFromTable);;
+    return processUnserializedNodes(nodesFromTable);
 }
 
 Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
