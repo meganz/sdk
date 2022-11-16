@@ -19093,7 +19093,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
 node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 {
     node_list childrenList;
-    if (!parent)
+    if (!parent || !mTable || mNodes.empty())
     {
         return childrenList;
     }
