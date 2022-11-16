@@ -6220,7 +6220,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
-    ASSERT_EQ(API_ENOENT, err) << "updateBackup for deleted backup should have produced ENOENT but got error: " << err;
+    ASSERT_EQ(API_OK, err) << "updateBackup for deleted backup should succeed now, and revive the record. But, error: " << err;
 
     // We can't test this, as reviewer wants an assert to fire for EARGS
     //// create a backup with a big status: should report an error
@@ -6605,6 +6605,14 @@ TEST_F(SdkTest, SdkUserAlias)
     // test setter/getter
     string alias = "UserAliasTest";
     auto err = synchronousSetUserAlias(0, uh, alias.c_str());
+    ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+
+    // test setter/getter for different value
+    alias = "UserAliasTest_changed";
+    err = synchronousSetUserAlias(0, uh, alias.c_str());
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
