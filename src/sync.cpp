@@ -3329,7 +3329,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -5259,6 +5259,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
@@ -10241,7 +10242,7 @@ void Syncs::syncLoop()
                 if (sync->fsfp)
                 {
                     fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
-                    if (sync->fsfp != current)
+                    if (current != 0 && sync->fsfp != current)
                     {
                         LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;

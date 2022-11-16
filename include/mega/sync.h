@@ -166,6 +166,12 @@ public:
 
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
+	
+    // not serialized.  Prevent re-enabling sync after removal
+    bool mSyncDeregisterSent = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mRemovingSyncBySds = false;
 
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
