@@ -7537,7 +7537,8 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
-    ASSERT_EQ(unique_ptr<MegaSyncList>(megaApi[0]->getSyncs())->size(), size_t(0));
+    size_t syncCount = unique_ptr<MegaSyncList>(megaApi[0]->getSyncs())->size();
+    ASSERT_EQ(syncCount, 0u);
     gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
