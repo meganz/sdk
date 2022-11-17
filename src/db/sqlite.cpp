@@ -1500,7 +1500,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         }
     }
 
-    if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
+    if (sqlResult != SQLITE_OK)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get nodes by name and type from database: " << dbfile << err;
