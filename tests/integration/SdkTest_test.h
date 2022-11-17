@@ -331,8 +331,8 @@ public:
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
-    void purgeTree(MegaNode *p, bool depthfirst = true);
-    void purgeVaultTree(MegaNode *vault);
+    void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
+    void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
