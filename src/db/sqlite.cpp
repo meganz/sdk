@@ -653,6 +653,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtIsAncestor);
     sqlite3_finalize(mStmtNumChild);
     sqlite3_finalize(mStmtRecents);
+    sqlite3_finalize(mStmtFavourites);
 }
 
 int SqliteAccountState::progressHandler(void *param)
@@ -889,6 +890,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtRecents);
     mStmtRecents = nullptr;
+
+    sqlite3_finalize(mStmtFavourites);
+    mStmtFavourites = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -1424,21 +1428,25 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         return false;
     }
 
-    // exclude previous versions <- n2.type != FILENODE
-    sqlite3_stmt *stmt = nullptr;
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
-                           "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
-                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT n1.nodehandle "
-                           "FROM nodesCTE AS n1 INNER JOIN nodes n2 on n1.parenthandle = n2.nodehandle AND n1.fav=1 AND n2.type!=" + std::to_string(FILENODE);
+    int sqlResult = SQLITE_OK;
+    if (!mStmtFavourites)
+    {
+        // exclude previous versions <- n2.type != FILENODE
+        std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
+                               "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
+                               "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT n1.nodehandle "
+                               "FROM nodesCTE AS n1 INNER JOIN nodes n2 on n1.parenthandle = n2.nodehandle AND n1.fav=1 AND n2.type!=" + std::to_string(FILENODE);
 
-    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtFavourites, NULL);
+    }
+
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtFavourites, 1, node.as8byte())) == SQLITE_OK)
         {
-            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW && (nodes.size() < count || count == 0))
+            while ((sqlResult = sqlite3_step(mStmtFavourites)) == SQLITE_ROW && (nodes.size() < count || count == 0))
             {
-                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(stmt, 0)));
+                nodes.push_back(NodeHandle().set6byte(sqlite3_column_int64(mStmtFavourites, 0)));
             }
         }
     }
@@ -1450,7 +1458,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         assert(!"Unable to get favourites from database.");
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtFavourites);
 
     return sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
 }
@@ -1479,22 +1487,13 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
             {
                 if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 3, nodeType)) == SQLITE_OK)
                 {
-                    if((sqlResult = sqlite3_step(mStmtChildNode)) == SQLITE_ROW)
+                    std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+                    processSqlQueryNodes(mStmtChildNode, nodes);
+                    if (nodes.size())
                     {
-                        node.first.set6byte(sqlite3_column_int64(mStmtChildNode, 0));
-
-                        const void* dataNodeCounter = sqlite3_column_blob(mStmtChildNode, 1);
-                        int sizeNodeCounter = sqlite3_column_bytes(mStmtChildNode, 1);
-
-                        const void* dataNodeSerialized = sqlite3_column_blob(mStmtChildNode, 2);
-                        int sizeNodeSerialized = sqlite3_column_bytes(mStmtChildNode, 2);
-
-                        if (dataNodeCounter && sizeNodeCounter && dataNodeSerialized && sizeNodeSerialized)
-                        {
-                            node.second.mNodeCounter.assign(static_cast<const char*>(dataNodeCounter), sizeNodeCounter);
-                            node.second.mNode.assign(static_cast<const char*>(dataNodeSerialized), sizeNodeSerialized);
-                            success = true;
-                        }
+                        node.first = nodes.begin()->first;
+                        node.second = nodes.begin()->second;
+                        success = true;
                     }
                 }
             }
