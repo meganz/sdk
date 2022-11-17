@@ -2628,9 +2628,7 @@ void MegaClient::exec()
             if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
                 fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
-                // 0 indicates it couldn't get the filesystem fingerprint, so skip checking on this iteration
-                // on Mac, it seems this can happen while a file is replaced in the sync root folder.
-                if (current != 0 && sync->fsfp != current)
+                if (sync->fsfp != current)
                 {
                     LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
