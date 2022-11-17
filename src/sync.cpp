@@ -3382,9 +3382,9 @@ void Syncs::queueSync(std::function<void()>&& f)
     waiter.notify();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
 {
-    assert(onSyncThread());
+    assert(onSyncThread() || fromAnyThread);
     clientThreadActions.pushBack(move(f));
     mClient.waiter->notify();
 }
@@ -5199,7 +5199,7 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
 
                     queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
                 }));
-    });
+    }, true);
 
 }
 

@@ -1076,7 +1076,7 @@ public:
 
     void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
-    void queueClient(QueuedClientFunc&&);
+    void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
