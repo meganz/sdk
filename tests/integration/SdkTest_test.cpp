@@ -316,11 +316,6 @@ void SdkTest::Cleanup()
 
     if (!megaApi.empty() && megaApi[0])
     {
-        // Remove nodes in Cloud & Rubbish
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
-        purgeVaultTree(std::unique_ptr<MegaNode>{megaApi[0]->getVaultNode()}.get());
-
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
@@ -333,23 +328,30 @@ void SdkTest::Cleanup()
         }
     }
 
-    for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
-        // Remove pending contact requests
-        std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
-        for (int i = 0; i < crl->size(); i++)
+        if (megaApi[nApi])
         {
-            MegaContactRequest *cr = crl->get(i);
-            synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
-        }
+            // Remove nodes in Cloud & Rubbish
+            purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
+            purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
+            purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 
-        crl.reset(megaApi[nApi]->getIncomingContactRequests());
-        for (int i = 0; i < crl->size(); i++)
-        {
-            MegaContactRequest *cr = crl->get(i);
-            synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
-        }
+            // Remove pending contact requests
+            std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
+            for (int i = 0; i < crl->size(); i++)
+            {
+                MegaContactRequest *cr = crl->get(i);
+                synchronousInviteContact(nApi, cr->getTargetEmail(), "Test cleanup removing outgoing contact request", MegaContactRequest::INVITE_ACTION_DELETE);
+            }
 
+            crl.reset(megaApi[nApi]->getIncomingContactRequests());
+            for (int i = 0; i < crl->size(); i++)
+            {
+                MegaContactRequest *cr = crl->get(i);
+                synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+            }
+        }
     }
 }
 
@@ -783,10 +785,9 @@ void SdkTest::resumeSession(const char *session, int timeout)
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
+void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
 {
-    int apiIndex = 0;
-    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(p)};
+    std::unique_ptr<MegaNodeList> children{megaApi[apiIndex]->getChildren(p)};
 
     for (int i = 0; i < children->size(); i++)
     {
@@ -794,7 +795,7 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 
         // removing the folder removes the children anyway
         if (depthfirst && n->isFolder())
-            purgeTree(n);
+            purgeTree(apiIndex, n);
 
         string nodepath = n->getName() ? n->getName() : "<no name>";
         auto result = synchronousRemove(apiIndex, n);
@@ -809,21 +810,21 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 }
 
 
-void SdkTest::purgeVaultTree(MegaNode *vault)
+void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
 {
-    std::unique_ptr<MegaNodeList> vc{megaApi[0]->getChildren(vault)};
+    std::unique_ptr<MegaNodeList> vc{megaApi[apiIndex]->getChildren(vault)};
     if (vc->size())
     {
         if (MegaNode* myBackups = vc->get(0))
         {
-            std::unique_ptr<MegaNodeList> devices{megaApi[0]->getChildren(myBackups)};
+            std::unique_ptr<MegaNodeList> devices{megaApi[apiIndex]->getChildren(myBackups)};
             for (int i = 0; i < devices->size(); ++i)
             {
-                std::unique_ptr<MegaNodeList> backupRoots{megaApi[0]->getChildren(devices->get(i))};
+                std::unique_ptr<MegaNodeList> backupRoots{megaApi[apiIndex]->getChildren(devices->get(i))};
                 for (int j = 0; j < backupRoots->size(); ++j)
                 {
-                    RequestTracker rt(megaApi[0].get());
-                    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(backupRoots->get(j)->getHandle(), INVALID_HANDLE, &rt);
+                    RequestTracker rt(megaApi[apiIndex].get());
+                    megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(backupRoots->get(j)->getHandle(), INVALID_HANDLE, &rt);
                     rt.waitForResult();
                 }
             }
