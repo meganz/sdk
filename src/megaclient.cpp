@@ -2205,6 +2205,17 @@ void MegaClient::exec()
             default:
                 break;
             }
+
+            if (!pendingscUserAlerts)
+            {
+                // If we wait for the next actionpacket to set this,
+                // we might be waiting 30 seconds.  Instead, set
+                // optimistically now.  If actionpackets come back
+                // within a 3 second window, it'l be reset without
+                // syncs starting
+                actionpacketsCurrent = true;
+                actionpacketsCurrentDs = Waiter::ds + 20;
+            }
         }
 
         // handle API server-client requests
@@ -4281,7 +4292,7 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    if (!fetchingnodes)
+                    if (!fetchingnodes && useralerts.catchupdone)
                     {
                         // In case a fetchnodes() occurs mid-session.  We should not allow
                         // the syncs to see the new tree unless we've caught up to at least
@@ -4297,10 +4308,12 @@ bool MegaClient::procsc()
                         if (!originalAC && ac)
                         {
                             LOG_debug << clientname << "actionpacketsCurrent is true again";
-                            actionpacketsCurrentDs = Waiter::ds;
+
                         }
                         actionpacketsCurrent = ac;
                     }
+
+                    actionpacketsCurrentDs = Waiter::ds + (actionpacketsCurrent ? 0 : 100);
 
                     if (!insca_notlast)
                     {
