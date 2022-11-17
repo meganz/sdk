@@ -3329,7 +3329,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -3382,9 +3382,9 @@ void Syncs::queueSync(std::function<void()>&& f)
     waiter.notify();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
 {
-    assert(onSyncThread());
+    assert(onSyncThread() || fromAnyThread);
     clientThreadActions.pushBack(move(f));
     mClient.waiter->notify();
 }
@@ -5159,11 +5159,48 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     assert(!onSyncThread());
 
-    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    {
+        // since we are only setting flags, we can actually do this off-thread
+        // (but using mSyncVecMutex and hidden inside Syncs class)
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (size_t i = 0; i < mSyncVec.size(); ++i)
+        {
+            auto& config = mSyncVec[i]->mConfig;
+            if (config.mBackupId == backupId)
+            {
+                // prevent any sp or sphb messages being queued after
+                config.mSyncDeregisterSent = true;
+
+                // Prevent notifying the client app for this sync's state changes
+                config.mRemovingSyncBySds = removingSyncBySds;
+            }
+        }
+    }
+
+    // use queueClient since we are not certain to be locked on client thread
+    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+
+        mc.reqs.add(new CommandBackupRemove(&mc, backupId,
+                [backupId, completion, this](Error e){
+                    if (e)
+                    {
+                        // de-registering is not critical - we continue anyway
+                        LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                    }
+
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                }));
+    }, true);
+
 }
 
 void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
@@ -5259,6 +5296,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
@@ -10272,7 +10310,7 @@ void Syncs::syncLoop()
                 if (sync->fsfp)
                 {
                     fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
-                    if (sync->fsfp != current)
+                    if (current != 0 && sync->fsfp != current)
                     {
                         LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;

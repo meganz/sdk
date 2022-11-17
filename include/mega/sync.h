@@ -167,6 +167,12 @@ public:
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
 
+    // not serialized.  Prevent re-enabling sync after removal
+    bool mSyncDeregisterSent = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mRemovingSyncBySds = false;
+
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
@@ -949,7 +955,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1070,7 +1076,7 @@ public:
 
     void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
-    void queueClient(QueuedClientFunc&&);
+    void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
