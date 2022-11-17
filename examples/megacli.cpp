@@ -1448,6 +1448,27 @@ static NodeHandle cwd;
 // Where we were on the local filesystem when megacli started.
 static unique_ptr<LocalPath> startDir(new LocalPath);
 
+static void nodestats(int* c, const char* action)
+{
+    if (c[FILENODE])
+    {
+        cout << c[FILENODE] << ((c[FILENODE] == 1) ? " file" : " files");
+    }
+    if (c[FILENODE] && c[FOLDERNODE])
+    {
+        cout << " and ";
+    }
+    if (c[FOLDERNODE])
+    {
+        cout << c[FOLDERNODE] << ((c[FOLDERNODE] == 1) ? " folder" : " folders");
+    }
+
+    if (c[FILENODE] || c[FOLDERNODE])
+    {
+        cout << " " << action << endl;
+    }
+}
+
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
@@ -8878,8 +8899,40 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** /*n*/, int /*count*/)
+void DemoApp::nodes_updated(Node** n, int count)
 {
+    int c[2][6] = { { 0 } };
+
+    if (n)
+    {
+        while (count--)
+        {
+            if ((*n)->type < 6)
+            {
+                c[!(*n)->changed.removed][(*n)->type]++;
+                n++;
+            }
+        }
+    }
+    else
+    {
+        node_vector nodes = client->mNodeManager.getRootNodes();
+        node_vector inshares = client->mNodeManager.getNodesWithInShares();
+        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : nodes)
+        {
+            if (!node->parent) // No take account nested inshares
+            {
+                c[1][node->type] ++;
+                c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
+                c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
+            }
+        }
+    }
+
+    nodestats(c[1], "added or updated");
+    nodestats(c[0], "removed");
+
     if (cwd.isUndef())
     {
         cwd = client->mNodeManager.getRootNodeFiles();
@@ -9794,8 +9847,34 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node** /*n*/, int /*count*/)
+void DemoAppFolder::nodes_updated(Node** n, int count)
 {
+    int c[2][6] = { { 0 } };
+
+    if (n)
+    {
+        while (count--)
+        {
+            if ((*n)->type < 6)
+            {
+                c[!(*n)->changed.removed][(*n)->type]++;
+                n++;
+            }
+        }
+    }
+    else
+    {
+        node_vector nodes = client->mNodeManager.getRootNodes();
+        for (auto& node : nodes)
+        {
+            c[1][node->type] ++;
+            c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
+            c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
+        }
+    }
+
+    cout << "The folder link contains ";
+    nodestats(c[1], "");
 }
 
 void exec_metamac(autocomplete::ACState& s)
@@ -10710,6 +10789,8 @@ void exec_numberofnodes(autocomplete::ACState &s)
     }
     cout << "Total nodes: " << numberOfNodes << endl;
     cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
+
+    cout << "Number of outShares: " << client->mNodeManager.getNodesWithOutShares().size();
 }
 
 void exec_numberofchildren(autocomplete::ACState &s)
