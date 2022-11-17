@@ -135,7 +135,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int) override;
+    void nodes_updated(Node**, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
@@ -278,7 +278,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **, int);
+    void nodes_updated(Node **n, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
