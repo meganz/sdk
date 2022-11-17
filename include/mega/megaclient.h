@@ -1322,6 +1322,9 @@ public:
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool syncsAlreadyLoadedOnStatecurrent = false;
 
+    // subsequent fetchnodes should use the 'nocache' flag, so that we don't have difficulties with actionpackets getting to a later SCSN than we had before
+    bool fetchnodesAlreadyCompletedThisSession = false;
+
     // File Attribute upload system.  These can come from:
     //  - upload transfers
     //  - app requests to attach a thumbnail/preview to a node

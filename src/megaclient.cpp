@@ -3981,7 +3981,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
     syncsAlreadyLoadedOnStatecurrent = false;
-
+    fetchnodesAlreadyCompletedThisSession = false;
 
     init();
 
@@ -4205,6 +4205,7 @@ bool MegaClient::procsc()
                             enabletransferresumption();
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
+                            fetchnodesAlreadyCompletedThisSession = true;
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -12510,6 +12511,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
             enabletransferresumption();
             app->fetchnodes_result(API_OK);
+            fetchnodesAlreadyCompletedThisSession = true;
 
             loadAuthrings();
 

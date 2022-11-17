@@ -5463,13 +5463,13 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 {
     assert(onSyncThread());
 
-    while (!mClient.actionpacketsCurrent ||
-           Waiter::ds - mClient.actionpacketsCurrentDs < 10)
-    {
-        LOG_debug << "resumeSyncsOnStateCurrent waiting for actionpacketsCurrent and quiet time";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        Waiter::bumpds();
-    }
+    //while (!mClient.actionpacketsCurrent ||
+    //       Waiter::ds - mClient.actionpacketsCurrentDs < 10)
+    //{
+    //    LOG_debug << "resumeSyncsOnStateCurrent waiting for actionpacketsCurrent and quiet time";
+    //    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //    Waiter::bumpds();
+    //}
 
     for (auto& unifiedSync : mSyncVec)
     {
