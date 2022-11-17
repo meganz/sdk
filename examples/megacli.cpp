@@ -9865,16 +9865,11 @@ void DemoAppFolder::nodes_updated(Node** n, int count)
     else
     {
         node_vector nodes = client->mNodeManager.getRootNodes();
-        node_vector inshares = client->mNodeManager.getNodesWithInShares();
-        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
         for (auto& node : nodes)
         {
-            if (!node->parent) // No take account nested inshares
-            {
-                c[1][node->type] ++;
-                c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
-                c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
-            }
+            c[1][node->type] ++;
+            c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
+            c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
         }
     }
 
