@@ -2696,8 +2696,8 @@ string StandardClient::exportSyncConfigs()
 
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    client.deregisterThenRemoveSync(backupId,
-      [=](Error error) { result->set_value(error == API_OK); });
+    client.syncs.deregisterThenRemoveSync(backupId,
+      [=](Error error) { result->set_value(error == API_OK); }, false);
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)

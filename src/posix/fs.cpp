@@ -1951,6 +1951,8 @@ fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
     // FIXME: statfs() does not really do what we want.
     if (statfs(path.localpath.c_str(), &statfsbuf))
     {
+        int e = errno;
+        LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
         return 0;
     }
     fsfp_t tmp;

@@ -264,6 +264,8 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
     assert(syncs.onSyncThread());
 
+    if (us.mConfig.mSyncDeregisterSent) return;
+
 #ifdef DEBUG
     handle backupId = us.mConfig.mBackupId;
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
@@ -301,6 +303,8 @@ bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
 void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
     assert(syncs.onSyncThread());
+
+    if (us.mConfig.mSyncDeregisterSent) return;
 
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
