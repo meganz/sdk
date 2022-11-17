@@ -5434,8 +5434,9 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 
     SyncConfigVector configs;
 
-    if (syncConfigStoreLoad(configs) != API_OK)
+    if (error e = syncConfigStoreLoad(configs))
     {
+        LOG_warn << "syncConfigStoreLoad failed: " << e;
         mClient.app->syncs_restored(SYNC_CONFIG_READ_FAILURE);
         return;
     }

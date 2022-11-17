@@ -2256,6 +2256,10 @@ void MegaClient::exec()
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
                         fetchnodestag = 0;
+
+                        // reloading mid-session so we definitely go to the servers
+                        // the node tree will be replaced when the reply arrives
+                        // actionpacketsCurrent will be reset at that time
                         fetchnodes(false, false, true);
                         reqtag = creqtag;
                     }
@@ -4277,6 +4281,7 @@ bool MegaClient::procsc()
                         }
                     }
 
+                    if (!fetchingnodes)
                     {
                         // In case a fetchnodes() occurs mid-session.  We should not allow
                         // the syncs to see the new tree unless we've caught up to at least
