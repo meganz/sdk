@@ -12426,7 +12426,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSession)
+void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)
 {
     if (fetchingnodes)
     {
@@ -12452,12 +12452,10 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSessi
         sctable->truncate();
     }
 
-    syncsAlreadyLoadedOnStatecurrent = reloadingMidSession;
-
     std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     // only initial load from local cache
-    if (!reloadingMidSession &&
+    if (!forceLoadFromServers &&
         (loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
@@ -12553,7 +12551,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSessi
         // don't allow to start new sc requests yet
         scsn.clear();
 
-        if (!loggedinfolderlink() && !reloadingMidSession)
+        if (!loggedinfolderlink() && !forceLoadFromServers)
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;

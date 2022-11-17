@@ -7418,6 +7418,27 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
+TEST_F(SdkTest, MidSessionFetchnodes)
+{
+    LOG_info << "___TEST MidSessionFetchnodes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    for (int i = 0; i < 20; ++i)
+    {
+
+        MegaNode *rootnode = megaApi[0]->getRootNode();
+        char name1[64] = "New folder";
+
+        auto nh = createFolder(0, ("new-folder-for-test" + std::to_string(i)).c_str(), rootnode);
+
+        megaApi[0]->invalidateCache();
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+        std::unique_ptr<MegaNode> justCreatedNode(megaApi[0]->getNodeByHandle(nh));
+        ASSERT_TRUE(justCreatedNode != nullptr);
+    }
+}
+
 /**
  * @brief TEST_F SyncPersistence
  *
