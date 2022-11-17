@@ -8041,37 +8041,6 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     }
 }
 
-#ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
-{
-    // Try and deregister this sync's backup ID first.
-    // If later removal operations fail, the heartbeat record will be resurrected
-
-    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
-
-    syncs.forEachRunningSync([&](Sync* sync) {
-        if (sync->getConfig().mBackupId == backupId)
-        {
-            // prevent any sp or sphb messages being queued after
-            sync->getConfig().mSyncDeregisterSent = true;
-
-            // Prevent notifying the client app for this sync's state changes
-            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
-        }
-    });
-
-    reqs.add(new CommandBackupRemove(this, backupId,
-            [backupId, completion, this](Error e){
-                if (e)
-                {
-                    // de-registering is not critical - we continue anyway
-                    LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
-                }
-                syncs.removeSyncAfterDeregistration(backupId, completion);
-            }));
-}
-#endif // ENABLE_SYNC
-
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
     Node* n = nodeByHandle(backupRootNode);
