@@ -20421,9 +20421,6 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
 
 void NodeManager::checkOrphanNodes()
 {
-    size_t count = 0;
-    Node *sample;
-
     // detect if there's any orphan node and report to API
     for (const auto& it : mNodesWithMissingParent)
     {
@@ -20432,8 +20429,6 @@ void NodeManager::checkOrphanNodes()
             // top-level inshares have no parent (nested ones have)
             if (!orphan->inshare)
             {
-                ++count;
-
                 // At this point, all nodes have been already parsed, so the parent should never arrive.
                 // The orphan node won't be reachable anymore, and could have a whole tree inside.
                 // This can happen if the local instance of the SDK deletes a folder, receives the response
@@ -20443,17 +20438,14 @@ void NodeManager::checkOrphanNodes()
                 // action packets and Speculative Instant Completion (SIC) is gone.
                 TreeProcDel td;
                 mClient.proctree(orphan, &td);
-                sample = orphan;
+
+                // TODO: Change this warning to an error when Speculative Instant Completion (SIC) is gone
+               LOG_warn << "Detected orphan node: " << toNodeHandle(orphan->nodehandle)
+                        << " Parent: " << toNodeHandle(orphan->parentHandle());
+
+               mClient.sendevent(99455, "Orphan node(s) detected");
             }
         }
-    }
-
-    if (count)
-    {
-        // TODO: Change this warning to an error when Speculative Instant Completion (SIC) is gone
-       LOG_warn << "Detected orphan nodes: " << count << " SampleChild: " << LOG_NODEHANDLE(sample->nodehandle)
-                << " Parent: " << LOG_NODEHANDLE(sample->parentHandle());
-       mClient.sendevent(99455, "Orphan node(s) detected");
     }
 
     // If parent hasn't arrived, it wont' arrive never
