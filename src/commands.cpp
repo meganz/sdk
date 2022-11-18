@@ -9546,6 +9546,9 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     error e = API_EINTERNAL;
 
     TextChat* chat = it->second;
+
+    // remove children scheduled meetings (API requirement)
+    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
     mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
     if (res)
@@ -9555,6 +9558,12 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 
         result = mScheduledMeeting.get();
         e = API_OK;
+    }
+    else if (deletedChildren)
+    {
+        // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(e, result); }
@@ -9591,6 +9600,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         TextChat* chat = it->second;
         if (chat->removeSchedMeeting(mSchedId))
         {
+            // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);

@@ -7450,6 +7450,7 @@ void MegaClient::sc_delscheduledmeeting()
                     TextChat* chat = auxit->second;
                     if (chat->removeSchedMeeting(schedId))
                     {
+                        // remove children scheduled meetings (API requirement)
                         chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
@@ -7488,9 +7489,16 @@ void MegaClient::sc_scheduledmeetings()
 
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        chat->setTag(0);    // external change
-        notifychat(chat);
+
+        // remove children scheduled meetings (API requirement)
+        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        bool res = chat->addOrUpdateSchedMeeting(sm.get());
+        if (res || deletedChildren)
+        {
+            // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            chat->setTag(0);    // external change
+            notifychat(chat);
+        }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
 }
