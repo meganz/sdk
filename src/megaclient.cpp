@@ -2205,17 +2205,6 @@ void MegaClient::exec()
             default:
                 break;
             }
-
-            if (!pendingscUserAlerts)
-            {
-                // If we wait for the next actionpacket to set this,
-                // we might be waiting 30 seconds.  Instead, set
-                // optimistically now.  If actionpackets come back
-                // within a 3 second window, it'l be reset without
-                // syncs starting
-                actionpacketsCurrent = true;
-                actionpacketsCurrentDs = Waiter::ds + 20;
-            }
         }
 
         // handle API server-client requests
@@ -2271,7 +2260,9 @@ void MegaClient::exec()
                         // reloading mid-session so we definitely go to the servers
                         // the node tree will be replaced when the reply arrives
                         // actionpacketsCurrent will be reset at that time
-                        fetchnodes(false, false, true);
+                        // nocache = true so that we get to an equal or later SCSN
+                        // right away.  The ir:1 mechanism is not reliable for this
+                        fetchnodes(true, false, true);
                         reqtag = creqtag;
                     }
                     else if (e == API_EAGAIN || e == API_ERATELIMIT)
@@ -4313,8 +4304,6 @@ bool MegaClient::procsc()
                         }
                         actionpacketsCurrent = ac;
                     }
-
-                    actionpacketsCurrentDs = Waiter::ds + (actionpacketsCurrent ? 0 : 100);
 
                     if (!insca_notlast)
                     {

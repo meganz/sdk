@@ -1826,6 +1826,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ import the link
     importHandle = importPublicLink(1, nodelink2, std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get());
     nimported = std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(importHandle)};
+    ASSERT_TRUE(nimported != nullptr);
 
     // ___ confirm other user cannot read them
     lat = nimported->getLatitude();
