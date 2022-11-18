@@ -68,6 +68,13 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
 
 bool FileFingerprint::serialize(string *d)
 {
+    // TODO: adjust Cacheable::serialize() so this wrapper is not needed anymore
+    const FileFingerprint* constObject = static_cast<const FileFingerprint*>(this);
+    return constObject->serialize(d);
+}
+
+bool FileFingerprint::serialize(string *d) const
+{
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
     d->append((const char*)crc.data(), sizeof(crc));
@@ -413,6 +420,11 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     }
 
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
+}
+
+bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
+{
+     return operator()(&a, &b);
 }
 
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
