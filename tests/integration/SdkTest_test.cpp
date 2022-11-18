@@ -1207,25 +1207,6 @@ void SdkTest::getCountryCallingCodes(const int timeout)
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
-void SdkTest::setUserAttribute(int type, string value, int timeout)
-{
-    int apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER] = false;
-
-    if (type == MegaApi::USER_ATTR_AVATAR)
-    {
-        megaApi[apiIndex]->setAvatar(value.empty() ? NULL : value.c_str());
-    }
-    else
-    {
-        megaApi[apiIndex]->setUserAttribute(type, value.c_str());
-    }
-
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_SET_ATTR_USER], timeout) )
-            << "User attribute setup not finished after " << timeout  << " seconds";
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "User attribute setup failed (error: " << mApi[apiIndex].lastError << ")";
-}
-
 void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
@@ -2502,13 +2483,12 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Modify firstname ---
 
-    string firstname = "My firstname";
+    string firstname1 = "My firstname1"; // change it twice to make sure we get a change notification (in case it was already the first one)
+    string firstname2 = "My firstname2";
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, firstname));
-    ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
-
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname1.c_str()));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_FIRSTNAME, firstname2.c_str()));
 
     // --- Check firstname of a contact
 
@@ -2518,7 +2498,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
-    ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
+    ASSERT_EQ( firstname2, attributeValue) << "Firstname is wrong";
 
     delete u;
 
@@ -2545,7 +2525,7 @@ TEST_F(SdkTest, SdkTestContacts)
     u = megaApi[0]->getMyUser();
 
     string langCode = "es";
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_LANGUAGE, langCode.c_str()));
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
     string language = attributeValue;
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
@@ -2558,7 +2538,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_TRUE(fileexists(AVATARSRC)) <<  "File " +AVATARSRC+ " is needed in folder " << cwd();
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, AVATARSRC));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, nullptr));
+    ASSERT_EQ(API_OK,synchronousSetAvatar(0, AVATARSRC.c_str()));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
@@ -2585,7 +2566,7 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Delete avatar ---
 
     mApi[1].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_AVATAR, ""));
+    ASSERT_EQ(API_OK, synchronousSetAvatar(0, nullptr));
     ASSERT_TRUE( waitForResponse(&mApi[1].userUpdated) )   // at the target side (auxiliar account)
             << "User attribute update not received after " << maxTimeout << " seconds";
 
@@ -5567,7 +5548,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
-    ASSERT_EQ(API_ENOENT, err) << "updateBackup for deleted backup should have produced ENOENT but got error: " << err;
+    ASSERT_EQ(API_OK, err) << "updateBackup for deleted backup should succeed now, and revive the record. But, error: " << err;
 
     // We can't test this, as reviewer wants an assert to fire for EARGS
     //// create a backup with a big status: should report an error
@@ -5951,6 +5932,14 @@ TEST_F(SdkTest, SdkUserAlias)
     // test setter/getter
     string alias = "UserAliasTest";
     auto err = synchronousSetUserAlias(0, uh, alias.c_str());
+    ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+
+    // test setter/getter for different value
+    alias = "UserAliasTest_changed";
+    err = synchronousSetUserAlias(0, uh, alias.c_str());
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
@@ -8277,6 +8266,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
     ASSERT_EQ(els->get(0)->node(), uploadedNode);
+    ASSERT_EQ(els->get(0)->setId(), sh);
     ASSERT_EQ(els->get(0)->name(), elattrs);
     ASSERT_NE(els->get(0)->ts(), 0);
     ASSERT_EQ(els->get(0)->order(), 1000);
@@ -8285,6 +8275,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp, nullptr);
     ASSERT_EQ(elp->id(), eh);
     ASSERT_EQ(elp->node(), uploadedNode);
+    ASSERT_EQ(elp->setId(), sh);
     ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
@@ -8300,6 +8291,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->id(), elp->id());
     ASSERT_EQ(elp2->node(), elp->node());
+    ASSERT_EQ(elp2->setId(), elp->setId());
     ASSERT_EQ(elp2->name(), elattrs);
     ASSERT_EQ(elp2->ts(), elp->ts());
     ASSERT_EQ(elp2->order(), elp->order());
@@ -8367,6 +8359,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
+    ASSERT_EQ(elfp->setId(), sh);
     ASSERT_STREQ(elfp->name(), "");
     ASSERT_EQ(elfp->ts(), elp2->ts());
     ASSERT_EQ(elfp->order(), elp2->order());
@@ -8383,6 +8376,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elu1p, nullptr);
     ASSERT_EQ(elu1p->id(), eh);
     ASSERT_EQ(elu1p->node(), uploadedNode);
+    ASSERT_EQ(elu1p->setId(), sh);
     ASSERT_STREQ(elu1p->name(), "");
     ASSERT_EQ(elu1p->order(), order);
     ASSERT_NE(elu1p->ts(), 0);
@@ -8466,6 +8460,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
+    ASSERT_EQ(ellp->setId(), elp_b4lo->setId());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), elattrs);
 

@@ -2665,7 +2665,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -4213,6 +4213,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){

@@ -226,6 +226,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        // this field also only used internally, for reporting new NO_KEY occurrences
+        bool modifiedByThisClient : 1;
 
     } changed;
 
@@ -268,9 +270,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // FIXME: merge todebris / tounlink
     unlink_or_debris_set::iterator tounlink_it;
 #endif
-
-    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
-    int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;

@@ -6045,11 +6045,11 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case 'u':
@@ -7881,15 +7881,13 @@ void MegaClient::notifypurge(void)
                     // Update the attribute.
                     setattr(node,
                             attr_map(Node::sdsId(), Node::toSdsString(commands)),
-                            0,
-                            nullptr,
                             std::move(completion),
                             true);
                 };
 
                 // Try and remove the sync.
                 deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                 move(completion));
+                                 move(completion), true);
             }
 
             //update sync root node location and trigger failing cases
@@ -7977,7 +7975,7 @@ void MegaClient::notifypurge(void)
             {
                 n->notified = false;
                 memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
+                n->changed.modifiedByThisClient = false;
             }
         }
 
@@ -8402,7 +8400,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c, bool canChangeVault)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -8440,10 +8438,10 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->attrs.applyUpdates(updates);
 
     n->changed.attrs = true;
-    n->tag = tag;
+    n->changed.modifiedByThisClient = true;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, cipher, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -8773,7 +8771,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         }
 
         n->changed.parent = true;
-        n->tag = reqtag;
+        n->changed.modifiedByThisClient = true;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
@@ -8783,7 +8781,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr, canChangeVault);
+            setattr(n, std::move(attrUpdates), nullptr, canChangeVault);
         }
     }
 
@@ -8825,12 +8823,23 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 #ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     // Try and deregister this sync's backup ID first.
     // If later removal operations fail, the heartbeat record will be resurrected
 
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->getConfig().mBackupId == backupId)
+        {
+            // prevent any sp or sphb messages being queued after
+            sync->getConfig().mSyncDeregisterSent = true;
+
+            // Prevent notifying the client app for this sync's state changes
+            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
+        }
+    });
 
     reqs.add(new CommandBackupRemove(this, backupId,
             [backupId, completion, this](Error e){
@@ -8841,27 +8850,6 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
                 }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
-
-    // while we are on the client thread, also tidy up dev-id, drv-id
-    SyncConfig sc;
-    if (syncs.configById(backupId, sc) &&
-        sc.isBackup())
-    {
-        if (auto n = nodeByHandle(sc.mRemoteNode))
-        {
-            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
-
-            attr_map m;
-            m[AttrMap::string2nameid("dev-id")] = "";
-            m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
-                if (e)
-                {
-                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
-                }
-            }, true);
-        }
-    }
 }
 #endif // ENABLE_SYNC
 
@@ -8958,7 +8946,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             Node *olderversion = n->children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
-            olderversion->tag = reqtag;
+            olderversion->changed.modifiedByThisClient = true;
             notifynode(olderversion);
         }
     }
@@ -9153,7 +9141,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -9392,8 +9380,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
-
-                n->tag = tag;
+                n->changed.modifiedByThisClient = modifiedByThisClient;
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
@@ -11478,7 +11465,7 @@ void MegaClient::notifynode(Node* n)
 
     if (!fetchingnodes)
     {
-        if (n->tag && !n->changed.removed && n->attrstring)
+        if (n->changed.modifiedByThisClient && !n->changed.removed && n->attrstring)
         {
             // report a "NO_KEY" event
 
@@ -16579,7 +16566,6 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink, bool canChangeVault)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode.reset();
     }
 
@@ -16682,7 +16668,7 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag, iter->second.canChangeVault, nullptr);
+            unlink(tn, false, 0, iter->second.canChangeVault, nullptr);
             // 'canChangeVault' is false because here unlink() is only
             // for inshares syncs, which is not possible for backups
         }
@@ -16761,11 +16747,8 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
-                    int creqtag = reqtag;
-                    reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                     rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, it->second.canChangeVault, nullptr);
-                    reqtag = creqtag;
                     it++;
                 }
                 else
@@ -17975,7 +17958,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vWeek.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vWeek.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17987,7 +17970,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vMonth.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17999,14 +17982,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->enterarray())
                                         {
-                                            int key = -1;
-                                            int value = -1;
+                                            int8_t key = -1;
+                                            int8_t value = -1;
                                             int i = 0;
                                             while (auxJson->isnumeric())
                                             {
-                                                int val = static_cast<int>(auxJson->getint());
-                                                if (i == 0) { key = static_cast<int>(val); }
-                                                if (i == 1) { value = static_cast<int>(val); }
+                                                int8_t val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = val; }
+                                                if (i == 1) { value = val; }
                                                 i++;
                                             }
 
