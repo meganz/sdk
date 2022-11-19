@@ -439,8 +439,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
-    case WHOLE_ACCOUNT_REFETCHED:
-        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    //case WHOLE_ACCOUNT_REFETCHED:
+    //    return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
     case MISSING_PARENT_NODE:
         return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
@@ -5434,8 +5434,9 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 
     SyncConfigVector configs;
 
-    if (syncConfigStoreLoad(configs) != API_OK)
+    if (error e = syncConfigStoreLoad(configs))
     {
+        LOG_warn << "syncConfigStoreLoad failed: " << e;
         mClient.app->syncs_restored(SYNC_CONFIG_READ_FAILURE);
         return;
     }
@@ -10265,6 +10266,29 @@ void Syncs::syncLoop()
             f();
         }
 
+        waiter.bumpds();
+
+        // Process filesystem notifications.
+        for (auto& us : mSyncVec)
+        {
+            if (Sync* sync = us->mSync.get())
+            {
+                if (sync->dirnotify)
+                {
+                    sync->procscanq();
+                }
+            }
+        }
+
+        processTriggerHandles();
+
+        waiter.bumpds();
+
+        // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
+        // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
+        if (!mClient.actionpacketsCurrent)
+            continue;
+
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
         for (auto& us : mSyncVec)
@@ -10324,30 +10348,6 @@ void Syncs::syncLoop()
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
-
-        waiter.bumpds();
-
-        // Process filesystem notifications.
-        for (auto& us : mSyncVec)
-        {
-            // Only process active syncs.
-            if (Sync* sync = us->mSync.get())
-            {
-                // And only those that make use of filesystem events.
-                if (sync->dirnotify)
-                {
-                    sync->procscanq();
-                }
-            }
-        }
-
-        processTriggerHandles();
-
-        waiter.bumpds();
-
-        // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-        if (!mClient.actionpacketsCurrent)
-            continue;
 
         // This block is to cater to periodic syncs but it is preventing one last pass
         // over the flag checks at the end of the loop for normal syncs, and so

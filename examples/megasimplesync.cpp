@@ -395,7 +395,7 @@ void SyncApp::login_result(error e)
         exit(1);
     }
     // get the list of nodes
-    client->fetchnodes();
+    client->fetchnodes(false, true, false);
 }
 
 void SyncApp::fetchnodes_result(const Error &e)

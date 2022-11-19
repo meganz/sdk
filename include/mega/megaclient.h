@@ -480,7 +480,7 @@ public:
     error changepw(const char *password, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes(bool nocache = false, bool loadSyncs = true);
+    void fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSession);
 
     // fetchnodes stats
     FetchNodesStats fnstats;
@@ -1318,6 +1318,12 @@ public:
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
 
+    // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
+    bool syncsAlreadyLoadedOnStatecurrent = false;
+
+    // subsequent fetchnodes should use the 'nocache' flag, so that we don't have difficulties with actionpackets getting to a later SCSN than we had before
+    bool fetchnodesAlreadyCompletedThisSession = false;
+
     // File Attribute upload system.  These can come from:
     //  - upload transfers
     //  - app requests to attach a thumbnail/preview to a node
@@ -1373,6 +1379,7 @@ public:
 
     // sc received seqtags to report to app (not tied to requests in this client)
     string mLastReceivedScSeqTag;
+    string mLargestEverSeenScSeqTag;
 
     // records last seqTag, with allowance for future fields also
     ScDbStateRecord mScDbStateRecord;

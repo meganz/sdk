@@ -27,6 +27,7 @@
 #include <functional>
 #include <future>
 #include "mega/heartbeats.h"
+#include "mega/testhooks.h"
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -2209,6 +2210,13 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc /*&& !loggingout*/)
         {
+            #ifdef DEBUG
+                if (globalMegaTestHooks.interceptSCRequest)
+                {
+                    globalMegaTestHooks.interceptSCRequest(pendingsc);
+                }
+            #endif
+
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
@@ -2248,7 +2256,13 @@ void MegaClient::exec()
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
                         fetchnodestag = 0;
-                        fetchnodes(true, false);
+
+                        // reloading mid-session so we definitely go to the servers
+                        // the node tree will be replaced when the reply arrives
+                        // actionpacketsCurrent will be reset at that time
+                        // nocache = true so that we get to an equal or later SCSN
+                        // right away.  The ir:1 mechanism is not reliable for this
+                        fetchnodes(true, false, true);
                         reqtag = creqtag;
                     }
                     else if (e == API_EAGAIN || e == API_ERATELIMIT)
@@ -3859,6 +3873,13 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
+// moved this out of purgenodesusersabortsc as it's not appropriate for the other place it's called (fetchnodes result)
+// but it's not needed anyway as we did syncs.locallogout() above
+//    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
+//#ifdef ENABLE_SYNC
+//    syncs.purgeRunningSyncs();
+//#endif
+
     purgenodesusersabortsc(false);
 
     reqs.clear();
@@ -3910,6 +3931,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
+    mLargestEverSeenScSeqTag.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -3949,6 +3971,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
+    syncsAlreadyLoadedOnStatecurrent = false;
+    fetchnodesAlreadyCompletedThisSession = false;
 
     init();
 
@@ -4086,6 +4110,7 @@ bool MegaClient::procsc()
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
+    bool originalAC = actionpacketsCurrent;
     actionpacketsCurrent = false;
 
     CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
@@ -4171,6 +4196,7 @@ bool MegaClient::procsc()
                             enabletransferresumption();
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
+                            fetchnodesAlreadyCompletedThisSession = true;
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -4190,7 +4216,11 @@ bool MegaClient::procsc()
                         // Don't start sync activity until `statecurrent` as it could take actions based on old state
                         // The reworked sync code can figure out what to do once fully up to date.
                         nodeTreeIsChanging.unlock();
-                        syncs.resumeSyncsOnStateCurrent();
+                        if (!syncsAlreadyLoadedOnStatecurrent)
+                        {
+                            syncs.resumeSyncsOnStateCurrent();
+                            syncsAlreadyLoadedOnStatecurrent = true;
+                        }
 #endif
 
                         if (notifyStorageChangeOnStateCurrent)
@@ -4254,7 +4284,25 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    actionpacketsCurrent = statecurrent && !insca_notlast;
+                    {
+                        // In case a fetchnodes() occurs mid-session.  We should not allow
+                        // the syncs to see the new tree unless we've caught up to at least
+                        // the same scsn/seqTag as we were at before.  ir:1 is not always reliable
+                        bool scTagNotCaughtUp =  !mScDbStateRecord.seqTag.empty() &&
+                                                 !mLargestEverSeenScSeqTag.empty() &&
+                                                 (mScDbStateRecord.seqTag.size() < mLargestEverSeenScSeqTag.size() ||
+                                                  (mScDbStateRecord.seqTag.size() == mLargestEverSeenScSeqTag.size() &&
+                                                  mScDbStateRecord.seqTag < mLargestEverSeenScSeqTag));
+
+                        bool ac = statecurrent && !insca_notlast && !scTagNotCaughtUp;
+
+                        if (!originalAC && ac)
+                        {
+                            LOG_debug << clientname << "actionpacketsCurrent is true again";
+
+                        }
+                        actionpacketsCurrent = ac;
+                    }
 
                     if (!insca_notlast)
                     {
@@ -5174,6 +5222,12 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     else
     {
         mLastReceivedScSeqTag = tag;
+        if (mLastReceivedScSeqTag.size() > mLargestEverSeenScSeqTag.size() ||
+            (mLastReceivedScSeqTag.size() == mLargestEverSeenScSeqTag.size() &&
+             mLastReceivedScSeqTag > mLargestEverSeenScSeqTag))
+        {
+            mLargestEverSeenScSeqTag = mLastReceivedScSeqTag;
+        }
 
         // Also prep this one to be committed to db (if we delay until time to notify the app, we're too late for the commit)
         mScDbStateRecord.seqTag = mLastReceivedScSeqTag;
@@ -12361,7 +12415,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
+void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)
 {
     if (fetchingnodes)
     {
@@ -12390,7 +12444,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
     std::unique_lock<mutex> nodeTreeIsChanging(nodeTreeMutex);
 
     // only initial load from local cache
-    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
+    if (!forceLoadFromServers &&
+        (loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
@@ -12407,7 +12462,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
             // upon ug completion
             if (e != API_OK)
             {
-                LOG_err << "Session load failed: unable not get user data";
+                LOG_err << "Session load failed: unable to get user data";
                 app->fetchnodes_result(API_EINTERNAL);
                 return; //from completion function
             }
@@ -12444,6 +12499,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
 
             enabletransferresumption();
             app->fetchnodes_result(API_OK);
+            fetchnodesAlreadyCompletedThisSession = true;
 
             loadAuthrings();
 
@@ -12485,18 +12541,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-//#ifdef ENABLE_SYNC
-//        // If there are syncs present at this time, this is a reload-account request.
-//        // We will start by fetching a cached tree which likely won't match our current
-//        // state/scsn.  And then we will apply actionpackets until we are up to date.
-//        // Those actionpackets may be repeats of actionpackets already applied to the sync
-//        // or they may be new ones that were not previously applied.
-//        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
-//        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-//        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
-//#endif
-
-        if (!loggedinfolderlink())
+        if (!loggedinfolderlink() && !forceLoadFromServers)
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
@@ -12527,6 +12572,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
         }
         else
         {
+            actionpacketsCurrent = false;
             reqs.add(new CommandFetchNodes(this, reqtag, nocache, loadSyncs));
         }
     }
@@ -13041,7 +13087,10 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         if (!user->pubk.isvalid())
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": RSA public key is not available";
-            assert(false);
+
+            // this assert does occur in test SyncPersistence
+            //assert(false);
+
             return API_EINTERNAL;
         }
         user->pubk.serializekeyforjs(pubKeyBuf);
@@ -13241,17 +13290,14 @@ bool MegaClient::areCredentialsVerified(handle uh)
 
 void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
+    // this function's purpose is to remove from RAM everything that we would populate in FetchNodes.
+
     app->clearing();
 
     while (!hdrns.empty())
     {
         delete hdrns.begin()->second;
     }
-
-    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
-#ifdef ENABLE_SYNC
-    syncs.purgeRunningSyncs();
-#endif
 
     mOptimizePurgeNodes = true;
     mFingerprints.clear();

@@ -727,6 +727,7 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
     std::lock_guard<std::mutex> lock{lastEventMutex};
     lastEvent.reset(event->copy());
     lastEvents.insert(event->getType());
+    LOG_debug << "Receved event " << event->getType();
 }
 
 
@@ -1825,6 +1826,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ import the link
     importHandle = importPublicLink(1, nodelink2, std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get());
     nimported = std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(importHandle)};
+    ASSERT_TRUE(nimported != nullptr);
 
     // ___ confirm other user cannot read them
     lat = nimported->getLatitude();
@@ -7417,6 +7419,26 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
+TEST_F(SdkTest, MidSessionFetchnodes)
+{
+    LOG_info << "___TEST MidSessionFetchnodes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    for (int i = 0; i < 20; ++i)
+    {
+        MegaNode *rootnode = megaApi[0]->getRootNode();
+
+        auto nh = createFolder(0, ("new-folder-for-test" + std::to_string(i)).c_str(), rootnode);
+
+        megaApi[0]->invalidateCache();
+        ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+        // we should have caught up on actionpackets to the point that this one is present again
+        std::unique_ptr<MegaNode> justCreatedNode(megaApi[0]->getNodeByHandle(nh));
+        ASSERT_TRUE(justCreatedNode != nullptr);
+    }
+}
+
 /**
  * @brief TEST_F SyncPersistence
  *
@@ -7466,6 +7488,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     handle backupId = sync->getBackupId();
+    ASSERT_NE(backupId, UNDEF);
     std::string remoteFolder(sync->getLastKnownMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
@@ -7478,20 +7501,78 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // wait for the event that says all syncs (if any) have been reloaded
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 40000));  // 40 seconds because we've seen the first `sc` not respond for 10 seconds
 
     sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
+    // perform fetchnodes (via megaapi_impl) while nodes are alrady loaded
+    // and a sync is running
+    // and check that the Nodes don't seem to disappear while it happens
+    // (similar dealing with an ETOOMANY error)
+    // just so we are exercising most of that code path somewhere
+
+    RequestTracker fnrt(megaApi[0].get());
+    megaApi[0]->invalidateCache();
+    megaApi[0]->fetchNodes(&fnrt);
+
+    while (!fnrt.finished)
+    {
+        // actually we can't check for the node yet - we may load a treecache that
+        // doesn't include it.  We have to wait until actionpackets catch up
+        //std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
+        //if (!remoteBaseNode2.get())
+        //{
+        //    remoteBaseNode2.reset();
+        //}
+        //ASSERT_NE(remoteBaseNode2.get(), (MegaNode*)nullptr);
+        WaitMillisec(10);
+    }
+    // fetchnodes result is only called after statecurrent, which should mean
+    // the last actionpacket indicated it was the last.
+    megaApi[0]->removeRequestListener(&fnrt);
+
+    std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
+    if (!remoteBaseNode2)
+    {
+        // see if more actionpackets bring it back (even though the last one did not have ir:1)
+        for (int i = 0; i < 10; ++i)
+        {
+            WaitMillisec(1000);
+            remoteBaseNode2.reset(megaApi[0]->getNodeByHandle(nh));
+            if (remoteBaseNode2)
+            {
+                // this does currently occur. commenting for now but we should bring it back once the API delivers ir:1 correctly
+                //ASSERT_FALSE(true) << "extra actionpackets delivered missing node after the server said there were no more";
+
+                // at least we are now up to date
+                break;
+            }
+        }
+    }
+
+    remoteBaseNode2.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode2.get(), (MegaNode*)nullptr);
+
+
     // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
     ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
+    size_t syncCount = unique_ptr<MegaSyncList>(megaApi[0]->getSyncs())->size();
+    ASSERT_EQ(syncCount, 0u);
     gSessionIDs[0] = "invalid";
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
+
+    resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_DISABLED, MegaSync::LOGGED_OUT);
-    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_DISABLED);
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+
+    //sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_DISABLED, MegaSync::LOGGED_OUT);
+    sync.reset(megaApi[0]->getSyncByBackupId(backupId));
+    ASSERT_TRUE(sync != nullptr);
+    ASSERT_EQ(MegaSync::SyncRunningState(sync->getRunState()), MegaSync::RUNSTATE_DISABLED);
+    ASSERT_EQ(MegaSync::Error(sync->getError()), MegaSync::LOGGED_OUT);
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
