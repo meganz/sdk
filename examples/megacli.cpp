@@ -1105,7 +1105,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
                 cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1161,12 +1161,16 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     auto i = gOnPutNodeTag.find(client->restag);
     if (i != gOnPutNodeTag.end())
     {
-        if (client->nodenotify.size())
+        for (auto &newNode : nn)
         {
-            Node* n = client->nodenotify.back();  // same trick as the intermediate layer - only works when puts are one node at a time.
-            i->second(n);
-            gOnPutNodeTag.erase(i);
+            Node* n = client->nodebyhandle(newNode.mAddedHandle);
+            if (n)
+            {
+                i->second(n);
+            }
         }
+
+        gOnPutNodeTag.erase(i);
     }
 }
 
@@ -1473,15 +1477,15 @@ static void nodestats(int* c, const char* action)
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    if (!client->rootnodes.files.isUndef())
+    if (!client->mNodeManager.getRootNodeFiles().isUndef())
     {
         cout << "ROOT on /" << endl;
     }
-    if (!client->rootnodes.vault.isUndef())
+    if (!client->mNodeManager.getRootNodeVault().isUndef())
     {
         cout << "VAULT on //in" << endl;
     }
-    if (!client->rootnodes.rubbish.isUndef())
+    if (!client->mNodeManager.getRootNodeRubbish().isUndef())
     {
         cout << "RUBBISH on //bin" << endl;
     }
@@ -1504,9 +1508,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
+    if (clientFolder && !clientFolder->mNodeManager.getRootNodeFiles().isUndef())
     {
-        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
+        Node *n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1647,7 +1651,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
+            n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1697,11 +1701,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.vault);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodeByHandle(client->rootnodes.rubbish);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                 }
                 else
                 {
@@ -1712,7 +1716,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodeByHandle(client->rootnodes.files);
+                n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
 
                 l = 1;
             }
@@ -1793,11 +1797,6 @@ static void listnodeshares(Node* n)
     }
 }
 
-void TreeProcListOutShares::proc(MegaClient*, Node* n)
-{
-    listnodeshares(n);
-}
-
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
     std::ostream& stream = toFile ? *toFile : cout;
@@ -1828,6 +1827,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
         switch (n->type)
         {
             case FILENODE:
+            {
                 stream << n->size;
 
                 if (handles_on)
@@ -1853,11 +1853,12 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                     }
                 }
 
-                if (n->children.size())
+                node_list nodeChildren = client->mNodeManager.getChildren(n);
+                if (nodeChildren.size())
                 {
                     Node *version = n;
                     int i = 0;
-                    while (version->children.size() && (version = version->children.back()))
+                    while (nodeChildren.size() && (version = nodeChildren.back()))
                     {
                         i++;
                         if (handles_on)
@@ -1867,6 +1868,8 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                             Base64Str<MegaClient::NODEHANDLE> handlestr(version->nodehandle);
                             stream << " [" << i << "] " << handlestr.chars;
                         }
+
+                        nodeChildren = client->mNodeManager.getChildren(version);
                     }
                     if (!handles_on)
                     {
@@ -1889,7 +1892,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 }
 
                 break;
-
+            }
             case FOLDERNODE:
                 stream << "folder";
 
@@ -1969,9 +1972,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
     if (n->type != FILENODE)
     {
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+        for (Node* node : client->getChildren(n))
         {
-            dumptree(*it, recurse, depth + 1, NULL, toFile);
+            dumptree(node, recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2600,14 +2603,14 @@ private:
 
 void getDepthFirstFileHandles(Node* n, deque<handle>& q)
 {
-    for (auto c : n->children)
+    for (auto c : client->getChildren(n))
     {
         if (c->type == FILENODE)
         {
             q.push_back(c->nodehandle);
         }
     }
-    for (auto& c : n->children)
+    for (auto& c : client->getChildren(n))
     {
         if (c->type > FILENODE)
         {
@@ -2650,8 +2653,8 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
-    for (auto c : n->children)
+    Node* trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
+    for (auto c : client->getChildren(n))
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
         if (subfolderEmpty)
@@ -2728,7 +2731,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
-    for (auto& m : mn->children)
+    for (auto& m : client->getChildren(mn))
     {
         string leafname = m->displayname();
         client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
@@ -3193,9 +3196,16 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 #endif
 
-void exec_getcloudstorageused(autocomplete::ACState& s)
+void exec_getcloudstorageused(autocomplete::ACState&)
 {
-    cout << client->mFingerprints.getSumSizes() << endl;
+    if (client->loggedin() != FULLACCOUNT && !client->loggedIntoFolder())
+    {
+        cout << "Not logged in" << endl;
+        return;
+    }
+
+    NodeCounter nc = client->mNodeManager.getCounterOfRootNodes();
+    cout << "Total cloud storage: " << nc.storage + nc.versionStorage << " bytes" << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
@@ -4046,7 +4056,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
+    p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_numberofnodes, sequence(text("nn")));
+    p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+
 
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
@@ -4349,9 +4362,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+        for (Node* node : client->getChildren(n))
         {
-            if (!recursiveget(std::move(newpath), *it, folders, queued))
+            if (!recursiveget(std::move(newpath), node, folders, queued))
             {
                 return false;
             }
@@ -4370,14 +4383,14 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
             TransferDbCommitter committer(client->tctable);
-            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            for (Node* node : client->getChildren(n))
             {
-                if ((*it)->type == FILENODE)
+                if (node->type == FILENODE)
                 {
-                    if (regex_search(string((*it)->displayname()), re))
+                    if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = ::mega::make_unique<AppFileGet>(*it);
-                        error result = startxfer(committer, std::move(file), **it);
+                        auto file = ::mega::make_unique<AppFileGet>(node);
+                        error result = startxfer(committer, std::move(file), *node);
                         queued += result == API_OK ? 1 : 0;
                     }
                 }
@@ -4657,7 +4670,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = client->rootnodes.files;
+        cwd = client->mNodeManager.getRootNodeFiles();
     }
 }
 
@@ -4672,7 +4685,7 @@ void exec_rm(autocomplete::ACState& s)
         if (useregex)
         {
             std::regex re(childregexstring);
-            for (Node* c : n->children)
+            for (Node* c : client->getChildren(n))
             {
                 if (std::regex_match(c->displayname(), re))
                 {
@@ -5004,17 +5017,15 @@ void exec_cp(autocomplete::ACState& s)
     }
 }
 
-void exec_du(autocomplete::ACState& s)
+void exec_du(autocomplete::ACState &s)
 {
     Node *n;
-    TreeProcDU du;
 
     if (s.words.size() > 1)
     {
         if (!(n = nodebypath(s.words[1].s.c_str())))
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
-
             return;
         }
     }
@@ -5023,14 +5034,14 @@ void exec_du(autocomplete::ACState& s)
         n = client->nodeByHandle(cwd);
     }
 
-    if (n)
-    {
-        client->proctree(n, &du);
+    NodeCounter nc = n->getCounter();
 
-        cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
-        cout << "Total # of files: " << du.numfiles << endl;
-        cout << "Total # of folders: " << du.numfolders << endl;
-    }
+    cout << "Total storage used: " << nc.storage << endl;
+    cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
+
+    cout << "Total # of files: " << nc.files << endl;
+    cout << "Total # of folders: " << nc.folders << endl;
+    cout << "Total # of versions: " << nc.versions << endl;
 }
 
 void exec_get(autocomplete::ACState& s)
@@ -5192,7 +5203,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes.files.as8byte();
+                        handle h = clientFolder->mNodeManager.getRootNodeFiles().as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -5206,12 +5217,12 @@ void exec_get(autocomplete::ACState& s)
                 else
                 {
                     // ...or all files in the specified folder (non-recursive)
-                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+                    for (Node* node : client->getChildren(n))
                     {
-                        if ((*it)->type == FILENODE)
+                        if (node->type == FILENODE)
                         {
-                            auto f = ::mega::make_unique<AppFileGet>(*it);
-                            startxfer(committer, std::move(f), **it);
+                            auto f = ::mega::make_unique<AppFileGet>(node);
+                            startxfer(committer, std::move(f), *node);
                         }
                     }
                 }
@@ -5876,13 +5887,13 @@ void exec_share(autocomplete::ACState& s)
     {
     case 1:		// list all shares (incoming and outgoing)
     {
-        TreeProcListOutShares listoutshares;
-
         cout << "Shared folders:" << endl;
 
-        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
-        client->proctree(client->nodeByHandle(client->rootnodes.vault), &listoutshares);
-        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
+        node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+        for (auto& share : outshares)
+        {
+            listnodeshares(share);
+        }
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -6121,11 +6132,11 @@ void exec_getfa(autocomplete::ACState& s)
         }
         else
         {
-            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            for (Node* node : client->getChildren(n))
             {
-                if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
+                if (node->type == FILENODE && node->hasfileattribute(type))
                 {
-                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, (*it)->nodekey(), type, cancel);
+                    client->getfa(node->nodehandle, &node->fileattrstring, node->nodekey(), type, cancel);
                     c++;
                 }
             }
@@ -7836,14 +7847,16 @@ void exec_mediainfo(autocomplete::ACState& s)
             case ROOTNODE:
             case VAULTNODE:
             case RUBBISHNODE:
-                for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
+            {
+                for (Node* m : client->getChildren(n))
                 {
-                    if ((*m)->type == FILENODE && (*m)->hasfileattribute(fa_media))
+                    if (m->type == FILENODE && m->hasfileattribute(fa_media))
                     {
-                        cout << (*m)->displayname() << "   " << showMediaInfo(*m, client->mediaFileInfo, true) << endl;
+                        cout << m->displayname() << "   " << showMediaInfo(m, client->mediaFileInfo, true) << endl;
                     }
                 }
                 break;
+            }
             case TYPE_DONOTSYNC:
             case TYPE_SPECIAL:
             case TYPE_UNKNOWN:
@@ -7919,7 +7932,7 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        node_vector nv = client->getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()), false);
+        node_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;
@@ -8709,7 +8722,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodeByHandle(client->rootnodes.files);
+            n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
         }
         else
         {
@@ -8953,11 +8966,16 @@ void DemoApp::nodes_updated(Node** n, int count)
     }
     else
     {
-        for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+        node_vector nodes = client->mNodeManager.getRootNodes();
+        node_vector inshares = client->mNodeManager.getNodesWithInShares();
+        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : nodes)
         {
-            if (it->second->type < 6)
+            if (!node->parent) // No take account nested inshares
             {
-                c[1][it->second->type]++;
+                c[1][node->type] ++;
+                c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
+                c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
             }
         }
     }
@@ -8967,7 +8985,7 @@ void DemoApp::nodes_updated(Node** n, int count)
 
     if (cwd.isUndef())
     {
-        cwd = client->rootnodes.files;
+        cwd = client->mNodeManager.getRootNodeFiles();
     }
 }
 
@@ -9182,9 +9200,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
-        reportNodeStorage(&ad->storage[client->rootnodes.vault.as8byte()], "//in");
-        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeFiles().as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeVault().as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeRubbish().as8byte()], "//bin");
     }
 
     if (transfer)
@@ -9430,7 +9448,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char */*text*/, int /*start*/, int end)
+char** my_rl_completion(const char* /*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
@@ -9875,7 +9893,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
         }
         else
         {
-            assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+            assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
             cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
         }
     }
@@ -9887,7 +9905,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node **n, int count)
+void DemoAppFolder::nodes_updated(Node** n, int count)
 {
     int c[2][6] = { { 0 } };
 
@@ -9904,12 +9922,12 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
     }
     else
     {
-        for (node_map::iterator it = clientFolder->nodes.begin(); it != clientFolder->nodes.end(); it++)
+        node_vector nodes = client->mNodeManager.getRootNodes();
+        for (auto& node : nodes)
         {
-            if (it->second->type < 6)
-            {
-                c[1][it->second->type]++;
-            }
+            c[1][node->type] ++;
+            c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
+            c[1][FILENODE] += static_cast<int>(node->getCounter().files + node->getCounter().versions);
         }
     }
 
@@ -11023,4 +11041,44 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_numberofnodes(autocomplete::ACState &s)
+{
+    uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
+    // We have to add RootNode, Incoming and rubbish
+    if (!client->loggedinfolderlink())
+    {
+        numberOfNodes += 3;
+    }
+    cout << "Total nodes: " << numberOfNodes << endl;
+    cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
+
+    cout << "Number of outShares: " << client->mNodeManager.getNodesWithOutShares().size();
+}
+
+void exec_numberofchildren(autocomplete::ACState &s)
+{
+    Node *n;
+
+    if (s.words.size() > 1)
+    {
+        if (!(n = nodebypath(s.words[1].s.c_str())))
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+            return;
+        }
+    }
+    else
+    {
+        n = client->nodeByHandle(cwd);
+    }
+
+    assert(n);
+
+    size_t folders = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FOLDERNODE);
+    size_t files = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FILENODE);
+
+    cout << "Number of folders: " << folders << endl;
+    cout << "Number of files: " << files << endl;
 }

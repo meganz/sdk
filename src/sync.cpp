@@ -651,7 +651,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED));
 
             // Did the call above create the database?
             us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -10941,7 +10941,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (isInTrash)
         {
-            *isInTrash = n->firstancestor()->nodeHandle() == mClient.rootnodes.rubbish;
+            *isInTrash = n->firstancestor()->nodeHandle() == mClient.mNodeManager.getRootNodeRubbish();
         }
 
         if (cloudPath) *cloudPath = n->displaypath();
@@ -10980,8 +10980,11 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     {
         assert(n->type > FILENODE);
         assert(!n->parent || n->parent->type > FILENODE);
-        cloudChildren.reserve(n->children.size());
-        for (auto c : n->children)
+
+        node_list nl = mClient.mNodeManager.getChildren(n);
+        cloudChildren.reserve(nl.size());
+
+        for (auto c : nl)
         {
             cloudChildren.push_back(*c);
             assert(cloudChildren.back().parentHandle == h);
