@@ -749,10 +749,14 @@ private:
 class MegaSetElementPrivate : public MegaSetElement
 {
 public:
-    MegaSetElementPrivate(const SetElement& el) : mId(el.id()), mNode(el.node()), mOrder(el.order()), mTs(el.ts()), mName(el.name()) {}
+    MegaSetElementPrivate(const SetElement& el)
+        : mId(el.id()), mNode(el.node()), mSetId(el.set()), mOrder(el.order()), mTs(el.ts()),
+          mName(el.name())
+        {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle node() const override { return mNode; }
+    MegaHandle setId() const override { return mSetId; }
     int64_t order() const override { return mOrder; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
@@ -764,6 +768,7 @@ public:
 private:
     MegaHandle mId;
     MegaHandle mNode;
+    MegaHandle mSetId;
     int64_t mOrder;
     m_time_t mTs;
     string mName;

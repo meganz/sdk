@@ -8423,6 +8423,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
     ASSERT_EQ(els->get(0)->node(), uploadedNode);
+    ASSERT_EQ(els->get(0)->setId(), sh);
     ASSERT_EQ(els->get(0)->name(), elattrs);
     ASSERT_NE(els->get(0)->ts(), 0);
     ASSERT_EQ(els->get(0)->order(), 1000);
@@ -8431,6 +8432,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp, nullptr);
     ASSERT_EQ(elp->id(), eh);
     ASSERT_EQ(elp->node(), uploadedNode);
+    ASSERT_EQ(elp->setId(), sh);
     ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
@@ -8446,6 +8448,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->id(), elp->id());
     ASSERT_EQ(elp2->node(), elp->node());
+    ASSERT_EQ(elp2->setId(), elp->setId());
     ASSERT_EQ(elp2->name(), elattrs);
     ASSERT_EQ(elp2->ts(), elp->ts());
     ASSERT_EQ(elp2->order(), elp->order());
@@ -8513,6 +8516,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
+    ASSERT_EQ(elfp->setId(), sh);
     ASSERT_STREQ(elfp->name(), "");
     ASSERT_EQ(elfp->ts(), elp2->ts());
     ASSERT_EQ(elfp->order(), elp2->order());
@@ -8529,6 +8533,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elu1p, nullptr);
     ASSERT_EQ(elu1p->id(), eh);
     ASSERT_EQ(elu1p->node(), uploadedNode);
+    ASSERT_EQ(elu1p->setId(), sh);
     ASSERT_STREQ(elu1p->name(), "");
     ASSERT_EQ(elu1p->order(), order);
     ASSERT_NE(elu1p->ts(), 0);
@@ -8612,6 +8617,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
+    ASSERT_EQ(ellp->setId(), elp_b4lo->setId());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), elattrs);
 

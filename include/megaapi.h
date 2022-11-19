@@ -1382,6 +1382,13 @@ public:
     virtual MegaHandle node() const { return INVALID_HANDLE; }
 
     /**
+     * @brief Returns id of MegaSet current MegaSetElement belongs to.
+     *
+     * @return MegaSet id.
+     */
+    virtual MegaHandle setId() const { return INVALID_HANDLE; }
+
+    /**
      * @brief Returns order of current Element.
      *
      * If not set explicitly, the API will typically set it to multiples of 1000.
