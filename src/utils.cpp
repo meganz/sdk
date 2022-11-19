@@ -1194,6 +1194,12 @@ string* TLVstore::tlvRecordsToContainer()
 
         // set Length of value
         length = it->second.length();
+        if (length > 0xFFFF)
+        {
+            assert(it->first == "" && tlv.size() == 1 && "Only records with a single empty key can be larger");
+            LOG_warn << "Overflow of Length for TLV record: " << length;
+            length = 0xFFFF;
+        }
         result->resize(offset + 2);
         result->at(offset) = static_cast<char>(length >> 8);
         result->at(offset + 1) = static_cast<char>(length & 0xFF);
@@ -1326,6 +1332,23 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
     size_t pos;
 
     size_t datalen = data->length();
+
+    // T is a C-string
+    // L is an unsigned integer encoded in 2 bytes (aka. uint16_t)
+    // V is a binary buffer of "L" bytes
+
+    // if the size of the container is greater than the 65538 (T.1, L.2, V.>65535),
+    // then the container is probably an authring whose value is greater than the
+    // maximum length supported by 2 bytes. Since the T is an empty string for this
+    // type of attributes, we can directly assign the value to the record
+    // note: starting from Nov2022, if the size of the record is too large,
+    // the Length will be truncated to indicate the maximum size 65535 = 0xFFFF
+    size_t maxSize = 1 + 2 + 0xFFFF;
+    if (datalen >= maxSize && !(*data)[0])
+    {
+        tlv->set("", data->substr(3));
+        return tlv;
+    }
 
     while (offset < datalen)
     {

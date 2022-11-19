@@ -7736,7 +7736,7 @@ void MegaClient::notifypurge(void)
 
                 // Try and remove the sync.
                 deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                 move(completion));
+                                 move(completion), true);
             }
 
             //update sync root node location and trigger failing cases
@@ -8668,12 +8668,23 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 #ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     // Try and deregister this sync's backup ID first.
     // If later removal operations fail, the heartbeat record will be resurrected
 
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->getConfig().mBackupId == backupId)
+        {
+            // prevent any sp or sphb messages being queued after
+            sync->getConfig().mSyncDeregisterSent = true;
+
+            // Prevent notifying the client app for this sync's state changes
+            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
+        }
+    });
 
     reqs.add(new CommandBackupRemove(this, backupId,
             [backupId, completion, this](Error e){
@@ -8684,27 +8695,6 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
                 }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
-
-    // while we are on the client thread, also tidy up dev-id, drv-id
-    SyncConfig sc;
-    if (syncs.configById(backupId, sc) &&
-        sc.isBackup())
-    {
-        if (auto n = nodeByHandle(sc.mRemoteNode))
-        {
-            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
-
-            attr_map m;
-            m[AttrMap::string2nameid("dev-id")] = "";
-            m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
-                if (e)
-                {
-                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
-                }
-            }, true);
-        }
-    }
 }
 
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)

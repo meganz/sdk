@@ -1487,7 +1487,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
-    bool canChangeVault = sync->isBackup();
+    bool canChangeVault = sync->isBackup() || (newparent && newparent->sync && newparent->sync->isBackup());
 
     assert(!newparent || newparent->node || newnode);
 
