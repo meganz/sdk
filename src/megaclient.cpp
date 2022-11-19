@@ -4284,7 +4284,6 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    if (!fetchingnodes && useralerts.catchupdone)
                     {
                         // In case a fetchnodes() occurs mid-session.  We should not allow
                         // the syncs to see the new tree unless we've caught up to at least
