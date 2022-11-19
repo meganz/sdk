@@ -321,7 +321,7 @@ protected:
 
     void resetOnNodeUpdateCompletionCBs();
 
-    onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int);
+    onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int, bool& flag);
 public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
@@ -443,7 +443,7 @@ public:
     template<typename ... requestArgs> int synchronousSetAvatar(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setAvatar(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
-    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change = -1);
+    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
 
     bool createFile(string filename, bool largeFile = true, string content = "test ");
     int64_t getFilesize(string filename);
