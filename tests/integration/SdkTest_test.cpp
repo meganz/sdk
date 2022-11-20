@@ -9584,15 +9584,11 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
 
+    // upload a file to replace the last one in the root of client 0
+    // of course client 1 will see the same new file (and the old file becomes a version, if versioning is on.  Built with ENABLE_SYNC or not is irrelevant)
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
-#ifdef ENABLE_SYNC
-    MegaHandle nodeHandle = fh;
-    // If sync is enable, sdk forces to notify first node deletion and
-    // after that, the node is notify as new in other call to `nodes_updated`
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_REMOVED, check2);
-#else
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
-#endif
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check2);
+
     string content2 = "test_2";
     createFile(fileName, false, content2);
     fh = 0;
