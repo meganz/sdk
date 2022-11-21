@@ -98,12 +98,6 @@ struct AppReadContext
     SymmCipher key;
 };
 
-class TreeProcListOutShares : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
-
 struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
@@ -141,7 +135,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int) override;
+    void nodes_updated(Node**, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
@@ -284,7 +278,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **, int);
+    void nodes_updated(Node **n, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
@@ -324,6 +318,9 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
+void exec_nodecounter(autocomplete::ACState& s);
+void exec_numberofnodes(autocomplete::ACState& s);
+void exec_numberofchildren(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_encryptLink(autocomplete::ACState& s);
 void exec_decryptLink(autocomplete::ACState& s);

@@ -356,6 +356,9 @@ protected:
         // It also becomes set after we have created a cloud node for this folder
         unique_ptr<MegaNode> megaNode;
 
+        // true when children nodes of 'megaNode' are pre-loaded already
+        bool childrenLoaded = false;
+
         // Otherwise this is the record we will send to create this folder
         NewNode newnode;
 
@@ -931,6 +934,7 @@ class MegaSharePrivate : public MegaShare
 class MegaCancelTokenPrivate : public MegaCancelToken
 {
 public:
+
     // The default constructor leaves the token empty, so we don't waste space when it may not be needed (eg. a request object not related to transfers)
     MegaCancelTokenPrivate();
 
@@ -2287,96 +2291,6 @@ private:
     MegaFilePut() {}
 };
 
-class TreeProcessor
-{
-    public:
-        virtual bool processNode(Node* node);
-        virtual ~TreeProcessor();
-};
-
-class SearchTreeProcessor : public TreeProcessor
-{
-    public:
-        SearchTreeProcessor(MegaClient *client, const char *search, int type);
-        virtual bool processNode(Node* node);
-        virtual ~SearchTreeProcessor() {}
-        vector<Node *> &getResults();
-
-    protected:
-        MimeType_t mMimeType;
-        const char *mSearch;
-        vector<Node *> mResults;
-        MegaClient *mClient;
-};
-
-class OutShareProcessor : public TreeProcessor
-{
-    public:
-        OutShareProcessor(MegaClient&);
-        virtual bool processNode(Node* node);
-        virtual ~OutShareProcessor() {}
-        vector<Share *> getShares();
-        vector<handle> getHandles();
-        void sortShares(int order);
-    protected:
-        vector<Share *> mShares;
-        node_vector mNodes;
-        MegaClient& mClient;
-};
-
-class PendingOutShareProcessor : public TreeProcessor
-{
-    public:
-        PendingOutShareProcessor();
-        virtual bool processNode(Node* node);
-        virtual ~PendingOutShareProcessor() {}
-        vector<Share *> &getShares();
-        vector<handle> &getHandles();
-
-    protected:
-        vector<Share *> shares;
-        vector<handle> handles;
-};
-
-class SizeProcessor : public TreeProcessor
-{
-    protected:
-        long long totalBytes;
-
-    public:
-        SizeProcessor();
-        virtual bool processNode(Node* node);
-        long long getTotalBytes();
-};
-
-class TreeProcFolderInfo : public TreeProc
-{
-    public:
-        TreeProcFolderInfo();
-        virtual void proc(MegaClient*, Node*);
-        virtual ~TreeProcFolderInfo() {}
-        MegaFolderInfo *getResult();
-
-    protected:
-        int numFiles;
-        int numFolders;
-        int numVersions;
-        long long currentSize;
-        long long versionsSize;
-};
-
-class FavouriteProcessor : public TreeProcessor
-{
-public:
-    FavouriteProcessor(int maxCount);
-    bool processNode(Node* node) override;
-    const vector<handle> &getHandles() const;
-
-private:
-    vector<handle> handles;
-    unsigned mMaxCount = 0;
-};
-
 //Thread safe request queue
 class RequestQueue
 {
@@ -2809,13 +2723,13 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
         int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order);
+        MegaNodeList* getChildren(MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
-        MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
@@ -2890,7 +2804,6 @@ class MegaApiImpl : public MegaApp
 
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, CancelToken cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2965,6 +2878,7 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorFavDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
+        static m_off_t sizeDifference(Node *i, Node *j);
 
         char* escapeFsIncompatible(const char *filename, const char *dstPath);
         char* unescapeFsIncompatible(const char* name, const char *path);
@@ -3218,6 +3132,9 @@ protected:
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
+
+        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, CancelToken cancelToken);
+        bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;
         std::thread thread;
@@ -3610,9 +3527,8 @@ protected:
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive, CancelToken cancelToken);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
+        void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
@@ -3641,6 +3557,7 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
