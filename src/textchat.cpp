@@ -944,10 +944,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     for (auto i: scheduledMeetingsStr)
     {
-        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i, chat->id));
+        ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
         if (auxMeet)
         {
-            chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
+            chat->addSchedMeeting(auxMeet, false /*notify*/);
         }
         else
         {
