@@ -124,6 +124,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
@@ -351,6 +352,7 @@ typedef enum {
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
+typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
 // MimeType_t maps to file extensionse declared at Node
 typedef enum { MIME_TYPE_UNKNOWN    = 0,
@@ -359,7 +361,6 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_VIDEO      = 3,    // videoExtensions
                MIME_TYPE_DOCUMENT   = 4     // documentExtensions
              } MimeType_t;
-
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -633,20 +634,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<NodeHandle, Node*> node_map;
-
-struct NodeCounter
-{
-    m_off_t storage = 0;
-    m_off_t versionStorage = 0;
-    size_t files = 0;
-    size_t folders = 0;
-    size_t versions = 0;
-    void operator += (const NodeCounter&);
-    void operator -= (const NodeCounter&);
-};
-
-typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
+typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -1147,6 +1135,7 @@ public:
         }
     }
 
+    // cancel() can be invoked from any thread
     void cancel()
     {
         if (flag)
@@ -1181,6 +1170,8 @@ public:
         }
     }
 };
+
+typedef std::map<NodeHandle, Node*> nodePtr_map;
 
 } // namespace
 
