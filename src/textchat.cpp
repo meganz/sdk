@@ -1045,7 +1045,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
+bool TextChat::addSchedMeeting(ScheduledMeeting* sm, bool notify)
 {
     if (!sm)
     {
@@ -1060,7 +1060,7 @@ bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
         return false;
     }
 
-    mScheduledMeetings.emplace(schedId, std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetings.emplace(schedId, std::unique_ptr<ScheduledMeeting>(sm));
     if (notify)
     {
         mSchedMeetingsChanged.emplace_back(schedId);
@@ -1098,7 +1098,7 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
     return count;
 }
 
-bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
+bool TextChat::updateSchedMeeting(ScheduledMeeting* sm)
 {
     assert(sm);
     auto it = mScheduledMeetings.find(sm->schedId());
@@ -1112,13 +1112,13 @@ bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
     if (!sm->equalTo(it->second.get()))
     {
         mSchedMeetingsChanged.emplace_back(sm->schedId());
-        it->second.reset(sm->copy());
+        it->second.reset(sm);
     }
 
     return true;
 }
 
-bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm, bool notify)
+bool TextChat::addOrUpdateSchedMeeting(ScheduledMeeting* sm, bool notify)
 {
     if (!sm)
     {
