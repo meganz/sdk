@@ -8397,6 +8397,8 @@ bool CommandFetchTimeZone::procresult(Result r)
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 {
+    mV3 = false;  // just until we figure out why this started returning `st` for v3
+
     cmd("sla");
     tag = client->reqtag;
 }
