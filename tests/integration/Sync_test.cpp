@@ -8797,13 +8797,13 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     std::ofstream fstream1(SYNC1.localpath / "d" / "file0_d", ios_base::app);
     fstream1 << " plus local change";
     fstream1.close();
-    ASSERT_TRUE(c->uploadFile("remoteFile", "file0_d", "x/x_1/d"));
+    ASSERT_TRUE(c->uploadFile("remoteFile", "file0_d", "x/x_1/d", 30, ClaimOldVersion));
 
     // case 2: update the local and remote file differently while paused (to resolve locally)
     std::ofstream fstream2(SYNC2.localpath / "d" / "file0_d", ios_base::app);
     fstream2 << " plus local change";
     fstream2.close();
-    ASSERT_TRUE(c->uploadFile("remoteFile", "file0_d", "x/x_2/d", 30, UseLocalVersioningFlag));
+    ASSERT_TRUE(c->uploadFile("remoteFile", "file0_d", "x/x_2/d", 30, ClaimOldVersion));
 
     c->setSyncPausedByBackupId(id0, false);
     c->setSyncPausedByBackupId(id1, false);
@@ -8823,6 +8823,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     model0.movenode("d/d_1", "d/d_0");
 
     // resolve case 1: remove remote, local should replace it
+    LOG_info << "test removes x/x_1/d/file0_d to resolve stall in sync1";
     c->deleteremote("x/x_1/d/file0_d");
     model1.findnode("d/file0_d")->content = "file0_d plus local change";
 
@@ -8835,10 +8836,10 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     c->triggerPeriodicScanEarly(id2);
 
     LOG_debug << "Wait for the sync to exit the stall state.";
-    ASSERT_TRUE(c->waitFor(SyncStallState(false), TIMEOUT));
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), chrono::seconds(40)));
 
     LOG_debug << "Make sure the sync's completed its processing.";
-    waitResult = waitonsyncs(TIMEOUT, c);
+    waitResult = waitonsyncs(chrono::seconds(5), c);
     ASSERT_TRUE(noSyncStalled(waitResult));
 
     LOG_debug << "now the sync should have unstalled and resolved the stalled cases";
