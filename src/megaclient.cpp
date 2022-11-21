@@ -18815,13 +18815,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     if (encrypted)
     {
         // Have we encoded the node key data's length?
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(uint64_t) > end)
         {
             mNodes.erase(nodePosition);
             return nullptr;
         }
 
-        auto length = MemAccess::get<unsigned short>(ptr);
+        auto length = MemAccess::get<uint64_t>(ptr);
         ptr += sizeof(length);
 
         // Have we encoded the node key data?
@@ -18835,13 +18835,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         ptr += length;
 
         // Have we encoded the length of the attribute string?
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(uint64_t) > end)
         {
             mNodes.erase(nodePosition);
             return nullptr;
         }
 
-        length = MemAccess::get<unsigned short>(ptr);
+        length = MemAccess::get<uint64_t>(ptr);
         ptr += sizeof(length);
 
         // Have we encoded the attribute string?
