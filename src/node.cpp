@@ -1973,10 +1973,10 @@ std::string NodeCounter::serialize() const
 {
     std::string nodeCountersBlob;
     CacheableWriter w(nodeCountersBlob);
-    w.serializesize_t(files);
-    w.serializesize_t(folders);
+    w.serializeu32(static_cast<uint32_t>(files));
+    w.serializeu32(static_cast<uint32_t>(folders));
     w.serializei64(storage);
-    w.serializesize_t(versions);
+    w.serializeu32(static_cast<uint32_t>(versions));
     w.serializei64(versionStorage);
 
     return nodeCountersBlob;
@@ -1985,11 +1985,33 @@ std::string NodeCounter::serialize() const
 NodeCounter::NodeCounter(const std::string &blob)
 {
     CacheableReader r(blob);
-    r.unserializesize_t(files);
-    r.unserializesize_t(folders);
-    r.unserializei64(storage);
-    r.unserializesize_t(versions);
-    r.unserializei64(versionStorage);
+    if (blob.size() == 28) // 4 + 4 + 8 + 4 + 8
+    {
+        uint32_t temp;
+        r.unserializeu32(temp);
+        files = temp;
+        r.unserializeu32(temp);
+        folders = temp;
+        r.unserializei64(storage);
+        r.unserializeu32(temp);
+        versions = temp;
+        r.unserializei64(versionStorage);
+    }
+    // In period of time, files, folders and versions was stored as 'size_t' (in some machines size_t => 8 bytes)
+    // if size doesn't have expected value, check with size generated with files, folders and versions as uint64_t
+    // In this way, caches that have been stored with previous implementation, it can be loaded
+    else if (blob.size() == 40)  // 8 + 8 + 8 + 8 + 8
+    {
+        r.unserializeu64(files);
+        r.unserializeu64(folders);
+        r.unserializei64(storage);
+        r.unserializeu64(versions);
+        r.unserializei64(versionStorage);
+    }
+    else
+    {
+        assert(false);
+    }
 }
 
 } // namespace
