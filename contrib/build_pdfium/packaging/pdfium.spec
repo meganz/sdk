@@ -10,7 +10,7 @@ Source0:	pdfium-mega_%{version}.tar.gz
 Vendor:		TODO
 Packager:	TODO
 
-BuildRequires: autoconf, automake, libtool, gcc-c++, unzip, rsync
+BuildRequires: autoconf, automake, libtool, gcc-c++, unzip, rsync, git
 
 %if 0%{?fedora} || 0%{?rhel_version} || 0%{?centos_version} || 0%{?scientificlinux_version}
 BuildRequires: libatomic
@@ -40,7 +40,7 @@ TODO
 %define debug_package %{nil}
 
 %build
-./depot_tools/ninja -C out pdfium
+./depot_tools/ninja %{?_smp_mflags} -C out pdfium
 
 #clean all unrequired stuff
 rm -rf `ls | grep -v "out\|public"`
