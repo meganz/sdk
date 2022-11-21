@@ -519,15 +519,15 @@ bool Node::serialize(string* d)
     // Write data necessary to thaw encrypted nodes.
     if (attrstring)
     {
-        // Write node key data.
-        unsigned short length = (unsigned short)nodekeydata.size();
-        d->append((char*)&length, sizeof(length));
-        d->append(nodekeydata, 0, length);
+        // Write node key data.  These can be quite long, and can be in many shares.  Use 64 bit len
+        uint64_t length1 = nodekeydata.size();
+        d->append((char*)&length1, sizeof(length1));
+        d->append(nodekeydata, 0, size_t(length1));
 
-        // Write attribute string data.
-        length = (unsigned short)attrstring->size();
-        d->append((char*)&length, sizeof(length));
-        d->append(*attrstring, 0, length);
+        // Write attribute string data.   Attributes can be long, too
+        uint64_t length2 = attrstring->size();
+        d->append((char*)&length2, sizeof(length2));
+        d->append(*attrstring, 0, size_t(length2));
     }
 
     return true;
@@ -3217,10 +3217,10 @@ std::string NodeCounter::serialize() const
 {
     std::string nodeCountersBlob;
     CacheableWriter w(nodeCountersBlob);
-    w.serializesize_t(files);
-    w.serializesize_t(folders);
+    w.serializeu32(uint32_t(files));
+    w.serializeu32(uint32_t(folders));
     w.serializei64(storage);
-    w.serializesize_t(versions);
+    w.serializeu32(uint32_t(versions));
     w.serializei64(versionStorage);
 
     return nodeCountersBlob;
@@ -3229,10 +3229,11 @@ std::string NodeCounter::serialize() const
 NodeCounter::NodeCounter(const std::string &blob)
 {
     CacheableReader r(blob);
-    r.unserializesize_t(files);
-    r.unserializesize_t(folders);
+    uint32_t temp;
+    r.unserializeu32(temp); files = temp;
+    r.unserializeu32(temp); folders = temp;
     r.unserializei64(storage);
-    r.unserializesize_t(versions);
+    r.unserializeu32(temp); versions = temp;
     r.unserializei64(versionStorage);
 }
 

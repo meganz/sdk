@@ -61,7 +61,6 @@ struct MEGA_API FileFingerprint : public Cacheable
     FileFingerprint& operator=(const FileFingerprint& other);
 
     bool serialize(string* d) override;
-    bool serialize(string* d) const;
     static FileFingerprint* unserialize(string* d);
 
     // convenience function for clear comparisons etc, referring to (this) base class
