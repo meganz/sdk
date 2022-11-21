@@ -5826,9 +5826,10 @@ bool CommandFetchNodes::procresult(Result r)
     // (in case we are reloading mid-session)
     client->statecurrent = false;
     client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
     // this just makes sure syncs exit any current tree iteration
     client->syncs.syncRun([&](){});
-
+#endif
     std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
     client->purgenodesusersabortsc(true);
 
