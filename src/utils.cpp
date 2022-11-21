@@ -1910,7 +1910,10 @@ extern time_t stringToTimestamp(string stime, date_time_format_t format)
     }
     else
     {
-        dt.tm_isdst = 0;    // no daylight saving as we want to get UTC
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
         return mktime(&dt); // seconds
     }
 }
