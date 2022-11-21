@@ -12,16 +12,16 @@ function printUsage() {
     echo ""
     echo " Usage: "
     echo ""
-    echo " $0 [-h] [-p <work_path>] [-d] [-b] [-i <path>]"
+    echo " $0 [-h] [-p <work_path>] [-d] [-b] [-i [<path>]]"
     echo ""
     echo ""
     echo " work_path: Optional. Defines where to download, build sources and left the tarball."
     echo " -h: Print help message and exits."
-    echo " -p: Optional working directory. It defaults to the current path."
+    echo " -p <work_path>: Optional working directory. Defines where to download, build sources and left the tarball. It defaults to the current path."
     echo " -d: Only download sources and create tarball."
     echo " -b: Builds pdfium. Implies -d if not executed previously."
-    echo " -i: Installs pdfium in the desired path. /usr is the default one if no other is indicated. Ensure you have permissions to install in the destination path."
-    echo "     Implies -b if not executed previously."
+    echo " -i [<path>]: Installs pdfium in the desired path. /usr is the default one if no <path> is indicated. Ensure you have permissions to install in the destination path."
+    echo "              Implies -b if not executed previously."
     echo ""
 }
 
@@ -76,7 +76,7 @@ if [ $download_pdfium -eq 0 -a $build_pdfium -eq 0 -a $install_pdfium -eq 0 ]; t
     exit 0
 fi
 
-CURDIR="$PWD"
+SCRIPTDIR=`readlink -f $(dirname "$0")`
 outputDIR_NAME="pdfium-mega-${PDFium_BRANCH/chromium\//}.0"
 outputTAR_NAME="pdfium-mega_${PDFium_BRANCH/chromium\//}.0"
 BASEDIR="${BASEDIR}/workspace"
@@ -116,7 +116,7 @@ if [ $download_pdfium -eq 1 ];then
     if [ ! -d "${DEPOT_TOOLS_DIR}" ] || [ ! -f "${BASEDIR}"/depot_tools.success ]; then
         echo
         rm -rf "${DEPOT_TOOLS_DIR}"
-        git clone "$DepotTools_URL" "${DEPOT_TOOLS_DIR}"
+        git clone --depth=1 "$DepotTools_URL" "${DEPOT_TOOLS_DIR}"
         touch "${BASEDIR}"/depot_tools.success
     else
         echo " Already downloaded."
@@ -154,8 +154,7 @@ if [ $download_pdfium -eq 1 ];then
     cd "${BASEDIR}"
     cp  -p --parents depot_tools/gn* ${TARBALL_SRCS_DIR}/
     cp  -p --parents depot_tools/*.py ${TARBALL_SRCS_DIR}/
-    cp  -p --parents depot_tools/ninja ${TARBALL_SRCS_DIR}/
-    cp  -p --parents depot_tools/ninja-linux64 ${TARBALL_SRCS_DIR}/
+    cp  -p --parents depot_tools/ninja* ${TARBALL_SRCS_DIR}/
     cd ${PDFIUMDIR}
     cp -rp --parents fxjs ${TARBALL_SRCS_DIR}/
     cp -rp --parents fxbarcode ${TARBALL_SRCS_DIR}/
@@ -209,7 +208,7 @@ if [ $download_pdfium -eq 1 ];then
     rm -rf "${TARBALL_SRCS_DIR}"
 
     # Add packaging scripts.
-    cp "${CURDIR}"/packaging/* "${TARBALL_PKG_DIR}"
+    cp "${SCRIPTDIR}"/packaging/* "${TARBALL_PKG_DIR}"
 
     # Create a final tarball with all the required files.
     cd "${BASEDIR}"
