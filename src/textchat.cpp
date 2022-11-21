@@ -949,6 +949,13 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         {
             chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
         }
+        else
+        {
+            assert(false);
+            LOG_err << "Failure at schedule meeting unserialization";
+            delete userpriv;
+            return NULL;
+        }
     }
 
     memset(&chat->changed, 0, sizeof(chat->changed));
