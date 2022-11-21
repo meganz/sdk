@@ -284,8 +284,8 @@ public:
     bool isFlagSet(uint8_t offset) const;
     bool setMode(bool publicchat);
 
-    // add a scheduled meeting ocurrence
-    void addSchedMeetingOccurrence(const ScheduledMeeting* sm);
+    // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
+    void addSchedMeetingOccurrence(ScheduledMeeting *sm);
 
     // clear scheduled meetings ocurrences for a chatroom
     void clearSchedMeetingOccurrences();

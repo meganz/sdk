@@ -1025,9 +1025,9 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(const ScheduledMeeting* sm)
+void TextChat::addSchedMeetingOccurrence(ScheduledMeeting* sm)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::unique_ptr<ScheduledMeeting>(sm));
 }
 
 void TextChat::clearSchedMeetingOccurrences()
