@@ -1997,9 +1997,9 @@ NodeCounter::NodeCounter(const std::string &blob)
         versions = temp;
         r.unserializei64(versionStorage);
     }
-    // In period of time, files, folders and versions was stored as 'size_t' (in some machines size_t => 8 bytes)
-    // if size doesn't have expected value, check with size generated with files, folders and versions as uint64_t
-    // In this way, caches that have been stored with previous implementation, it can be loaded
+    // During internal testing, 'files', 'folders' and 'versions' were stored as 'size_t', whose size is platform-dependent
+    // -> in some machines it is 8 bytes, in others is 4 bytes. With the only goal of providing backwards compatibility for
+    // internal testers, if the blob doesn't have expected size (using 4 bytes), check if size matches the expected using 8 bytes
     else if (blob.size() == 40)  // 8 + 8 + 8 + 8 + 8
     {
         uint64_t aux = static_cast<uint64_t>(files);
