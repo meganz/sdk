@@ -19512,7 +19512,10 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         LOG_err << "Error unserializing a node. Request account reload to app";
         if (!mAccountReload)
         {
+#ifdef ENABLE_SYNC
             mClient.syncs.disableSyncs(false, UNKNOWN_ERROR, false, nullptr);
+#endif
+
             mClient.app->reload("Failure to unserialize a node");
             mAccountReload = true;
         }
