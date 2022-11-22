@@ -11581,7 +11581,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Request to fetch a Set and its Elements
+     * Request to fetch the Set and its Elements which are currently in preview mode
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
      * Valid data in the MegaRequest object received on callbacks:
@@ -11598,15 +11598,14 @@ public class MegaApiJava {
      * - MegaError::API_EARGS - Malformed (from API).
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
-     * @param sid      the id of the Set to be fetched
      * @param listener MegaRequestListener to track this request
      */
-    public void fetchSet(long sid, MegaRequestListenerInterface listener) {
-        megaApi.fetchSet(sid, createDelegateRequestListener(listener));
+    public void fetchSetInPreviewMode(MegaRequestListenerInterface listener) {
+        megaApi.fetchSetInPreviewMode(createDelegateRequestListener(listener));
     }
 
     /**
-     * Request to fetch a Set and its Elements
+     * Request to fetch the Set and its Elements which are currently in preview mode
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
      * Valid data in the MegaRequest object received on callbacks:
@@ -11623,10 +11622,9 @@ public class MegaApiJava {
      * - MegaError::API_EARGS - Malformed (from API).
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
-     * @param sid the id of the Set to be fetched
      */
-    public void fetchSet(long sid) {
-        megaApi.fetchSet(sid);
+    public void fetchSetInPreviewMode() {
+        megaApi.fetchSetInPreviewMode();
     }
 
     /**
