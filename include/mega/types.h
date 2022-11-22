@@ -124,6 +124,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
@@ -351,6 +352,16 @@ typedef enum {
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
+typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
+
+// MimeType_t maps to file extensionse declared at Node
+typedef enum { MIME_TYPE_UNKNOWN    = 0,
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+             } MimeType_t;
+
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
@@ -419,6 +430,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
@@ -447,6 +461,8 @@ enum ScanResult
 }; // ScanResult
 
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
@@ -457,7 +473,7 @@ enum SyncError {
     LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
     REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
-    BUSINESS_EXPIRED = 10,                  // Business account expired
+    ACCOUNT_EXPIRED = 10,                   // Account expired (business or Pro Flexi)
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -508,7 +524,7 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
 struct UnlinkOrDebris {
     bool unlink = false;
@@ -618,20 +634,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<NodeHandle, Node*> node_map;
-
-struct NodeCounter
-{
-    m_off_t storage = 0;
-    m_off_t versionStorage = 0;
-    size_t files = 0;
-    size_t folders = 0;
-    size_t versions = 0;
-    void operator += (const NodeCounter&);
-    void operator -= (const NodeCounter&);
-};
-
-typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
+typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -694,8 +697,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
-
 
 // user attribute types
 typedef enum {
@@ -810,6 +813,7 @@ typedef enum {
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
+    ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
 
 typedef enum
@@ -1032,7 +1036,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:
@@ -1131,6 +1135,7 @@ public:
         }
     }
 
+    // cancel() can be invoked from any thread
     void cancel()
     {
         if (flag)
@@ -1165,6 +1170,8 @@ public:
         }
     }
 };
+
+typedef std::map<NodeHandle, Node*> nodePtr_map;
 
 } // namespace
 
