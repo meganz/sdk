@@ -2642,6 +2642,10 @@ class MegaApiImpl : public MegaApp
         void fetchSetInPreviewMode(MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
@@ -2649,12 +2653,8 @@ class MegaApiImpl : public MegaApp
         MegaSetElementList* getSetElements(MegaHandle sid);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
         bool isExportedSet(MegaHandle sid);
-        void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
         void stopPublicSetPreview();
         bool inPublicSetPreview();
-        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
         Error getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL);
 
 #ifdef ENABLE_SYNC
