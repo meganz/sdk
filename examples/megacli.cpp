@@ -7207,6 +7207,11 @@ void exec_logout(autocomplete::ACState& s)
         clientFolder = NULL;
     }
 
+    if (client->inSetPreviewMode())
+    {
+        client->stopSetPreview();
+    }
+
     ephemeralFirstname.clear();
     ephemeralLastName.clear();
 }
