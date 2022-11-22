@@ -8831,8 +8831,6 @@ bool CommandBackupPut::procresult(Result r)
         return true;
     }
 
-    assert(r.hasJsonItem());
-
     handle backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
 
     if (mCompletion) mCompletion(API_OK, backupId);
