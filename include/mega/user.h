@@ -86,6 +86,7 @@ struct MEGA_API User : public Cacheable
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
         bool jsonSyncConfigData : 1;
         bool drivenames : 1;    // drive names
+        bool keys : 1;
     } changed;
 
     // user's public key

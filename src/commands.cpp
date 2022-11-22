@@ -3980,6 +3980,7 @@ bool CommandGetUserData::procresult(Result r)
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
 #endif
+    string keys, keysVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4121,6 +4122,9 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
 #endif
+        case MAKENAMEID6('^', '!', 'k', 'e', 'y', 's'):
+            parseUserAttribute(keys, keysVersion);
+            break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
             [[fallthrough]];

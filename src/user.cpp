@@ -585,6 +585,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!drn";
             break;
 
+        case ATTR_KEYS:
+            attrname =  "^!keys";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -745,6 +749,10 @@ string User::attr2longname(attr_t type)
         case ATTR_DRIVE_NAMES:
             longname = "DRIVE_NAMES";
             break;
+
+    case ATTR_KEYS:
+        longname = "KEYS";
+        break;
     }
 
     return longname;
@@ -897,6 +905,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DRIVE_NAMES;
     }
+    else if (!strcmp(name, "^!keys"))
+    {
+        return ATTR_KEYS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -944,6 +956,7 @@ int User::needversioning(attr_t at)
         case ATTR_JSON_SYNC_CONFIG_DATA:
         case ATTR_DRIVE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_KEYS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -991,6 +1004,7 @@ char User::scope(attr_t at)
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_KEYS:
             return '^';
 
         default:
@@ -1422,6 +1436,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_DRIVE_NAMES:
             changed.drivenames = true;
+            break;
+
+        case ATTR_KEYS:
+            changed.keys = true;
             break;
 
         default:
