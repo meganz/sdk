@@ -1988,14 +1988,20 @@ NodeCounter::NodeCounter(const std::string &blob)
     if (blob.size() == 28) // 4 + 4 + 8 + 4 + 8
     {
         uint32_t temp;
-        r.unserializeu32(temp);
+        bool unserializeResult = r.unserializeu32(temp);
         files = temp;
-        r.unserializeu32(temp);
+        unserializeResult = unserializeResult && r.unserializeu32(temp);
         folders = temp;
-        r.unserializei64(storage);
-        r.unserializeu32(temp);
+        unserializeResult = unserializeResult && r.unserializei64(storage);
+        unserializeResult = unserializeResult && r.unserializeu32(temp);
         versions = temp;
-        r.unserializei64(versionStorage);
+        unserializeResult = unserializeResult && r.unserializei64(versionStorage);
+
+        if (!unserializeResult)
+        {
+            LOG_err << "Failure to unserialize node counter";
+            assert(false);
+        }
     }
     // During internal testing, 'files', 'folders' and 'versions' were stored as 'size_t', whose size is platform-dependent
     // -> in some machines it is 8 bytes, in others is 4 bytes. With the only goal of providing backwards compatibility for
@@ -2003,16 +2009,23 @@ NodeCounter::NodeCounter(const std::string &blob)
     else if (blob.size() == 40)  // 8 + 8 + 8 + 8 + 8
     {
         uint64_t aux = static_cast<uint64_t>(files);
-        r.unserializeu64(aux);
+        bool unserializeResult = r.unserializeu64(aux);
         aux = static_cast<uint64_t>(folders);
-        r.unserializeu64(aux);
-        r.unserializei64(storage);
+        unserializeResult = unserializeResult && r.unserializeu64(aux);
+        unserializeResult = unserializeResult && r.unserializei64(storage);
         aux = static_cast<uint64_t>(versions);
-        r.unserializeu64(aux);
-        r.unserializei64(versionStorage);
+        unserializeResult = unserializeResult && r.unserializeu64(aux);
+        unserializeResult = unserializeResult && r.unserializei64(versionStorage);
+
+        if (!unserializeResult)
+        {
+            LOG_err << "Failure to unserialize node counter (files, folders and versions uint64_t)";
+            assert(false);
+        }
     }
     else
     {
+        LOG_err << "Invalid size at node counter unserialization";
         assert(false);
     }
 }
