@@ -1261,6 +1261,8 @@ void DemoApp::getua_result(error e)
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
+#include <cryptopp/hkdf.h>
+
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
     if (client->fetchingkeys)
@@ -1290,6 +1292,41 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tperformance: " << bs[2] << endl
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
+    }
+
+    if (type == ATTR_KEYS)
+    {
+        SymmCipher& masterKey = client->key;
+        SymmCipher gcmkey;
+
+        CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
+        byte derivedKey[SymmCipher::KEYLENGTH];
+        hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, nullptr, 0);
+        gcmkey.setkey(derivedKey);
+
+        std::string out = Utils::stringToHex(std::string((const char *)derivedKey, SymmCipher::KEYLENGTH));
+        std::cout << "Derived key: " << out << std::endl << std::endl;
+
+        if (data && l > 2 && data[0] == 20 && data[1] == 0)
+        {
+            if (l > 14)
+            {
+                string keysCiphered((const char*)(data + 14), (size_t)(l - 14));
+                out = Utils::stringToHex(keysCiphered);
+                std::cout << "Keys ciphered: " << out << std::endl << std::endl;
+
+                const string iv((const char*)data + 2, 12);
+                out = Utils::stringToHex(iv);
+                std::cout << "IV: " << out << std::endl;
+
+                string keysPlain;
+                gcmkey.gcm_decrypt(&keysCiphered, data + 2, 12, 0, &keysPlain);
+
+                out = Utils::stringToHex(keysPlain);
+                std::cout << "Keys plain: " << out << std::endl << std::endl;
+            }
+        }
+
     }
 }
 
