@@ -19508,8 +19508,14 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     Node* node = unserializeNode(&nodeSerialized.mNode, false);
     if (!node)
     {
-        LOG_err << "Error unserializing a node. Reloading account";
-        mClient.fetchnodes(true);
+        assert(false);
+        LOG_err << "Error unserializing a node. Request account reload to app";
+        if (!mAccountReload)
+        {
+            mClient.app->reload("Failure to unserialize a node");
+            mAccountReload = true;
+        }
+
         return nullptr;
     }
 
@@ -19679,6 +19685,8 @@ void NodeManager::cleanNodes()
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
+
+    mAccountReload = false;
 
     if (mTable)
         mTable->removeNodes();

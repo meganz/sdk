@@ -518,6 +518,9 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
+
+    // This flag is set true when unserialize a node has failed and account reload has been requested to app
+    bool mAccountReload = false;
 };
 
 class MEGA_API MegaClient
