@@ -6632,7 +6632,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions)
+CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
@@ -6708,6 +6708,91 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     }
 
     endarray();
+
+    // create a scheduled meeting along with chatroom
+    if (schedMeeting)
+    {
+        handle schedId = schedMeeting->schedId();
+        handle parentSchedId = schedMeeting->parentSchedId();
+        beginobject("sm");
+        arg("a", "mcsmp");
+
+        // required params
+        arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
+        arg("s", schedMeeting->startDateTime().c_str());
+        arg("e", schedMeeting->endDateTime().c_str());
+        arg("t", Base64::btoa(schedMeeting->title()).c_str());
+        arg("d", Base64::btoa(schedMeeting->description()).c_str());
+
+        // optional params
+        if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
+        if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
+        if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
+        if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
+        if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
+
+        if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
+        {
+            arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
+        }
+
+        // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
+        if (schedMeeting->rules())
+        {
+            const ScheduledRules* rules = schedMeeting->rules();
+            beginobject("r");
+
+            if (rules->isValidFreq(rules->freq()))
+            {
+                arg("f", rules->freqToString()); // required
+            }
+
+            if (rules->isValidInterval(rules->interval()))
+            {
+                arg("i", rules->interval());
+            }
+
+            if (!rules->until().empty())
+            {
+                arg("u", rules->until().c_str());
+            }
+
+            if (rules->byWeekDay() && !rules->byWeekDay()->empty())
+            {
+                beginarray("wd");
+                for (auto i: *rules->byWeekDay())
+                {
+                    element(static_cast<int>(i));
+                }
+                endarray();
+            }
+
+            if (rules->byMonthDay() && !rules->byMonthDay()->empty())
+            {
+                beginarray("md");
+                for (auto i: *rules->byMonthDay())
+                {
+                    element(static_cast<int>(i));
+                }
+                endarray();
+            }
+
+            if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
+            {
+                beginarray("mwd");
+                for (auto i: *rules->byMonthWeekDay())
+                {
+                    beginarray();
+                    element(static_cast<int>(i.first));
+                    element(static_cast<int>(i.second));
+                    endarray();
+                }
+                endarray();
+            }
+            endobject();
+        }
+        endobject();
+    }
 
     arg("v", 1);
     notself(client);
