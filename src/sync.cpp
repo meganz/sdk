@@ -914,7 +914,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
 
             // Did the call above create the database?
             us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -2665,7 +2665,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -4213,6 +4213,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){

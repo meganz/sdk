@@ -257,12 +257,190 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
 };
 
 
-class MEGA_API MegaClient
+class MegaClient;
+
+/**
+ * @brief The NodeManager class
+ *
+ * This class encapsulates the access to nodes. It hides the details to
+ * access to the Node object: in case it's not loaded in RAM, it will
+ * load it from the "nodes" DB table.
+ *
+ * The same DB file is used for the "statecache" and the "nodes" table, and
+ * both tables need to follow the same domain for transactions: a commit is
+ * triggered by the reception of a sequence-number in the actionpacket (scsn).
+ */
+class MEGA_API NodeManager
 {
 public:
-    // own identity
-    handle me;
-    string uid;
+    NodeManager(MegaClient& client);
+
+    // set interface to access to "nodes" table
+    void setTable(DBTableNodes *table);
+
+    // set interface to access to "nodes" table to nullptr, it's called just after sctable.reset()
+    void reset();
+
+    // Take node ownership
+    bool addNode(Node* node, bool notify, bool isFetching = false);
+    bool updateNode(Node* node);
+    // removeNode() --> it's done through notifypurge()
+
+    // if a node is received before its parent, it needs to be updated when received
+    void addNodeWithMissingParent(Node *node);
+
+    // if node is not available in memory, it's loaded from DB
+    Node *getNodeByHandle(NodeHandle handle);
+
+    // read children from DB and load them in memory
+    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+
+    // read children from type (folder or file) from DB and load them in memory
+    node_vector getChildrenFromType(const Node *parent, nodetype_t type, CancelToken cancelToken);
+
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    // Note: nodes are read from DB and loaded in memory
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
+
+    // Search nodes containing 'searchString' in its name
+    // Returned nodes are children of 'nodeHandle' (at any level)
+    // If 'nodeHandle' is UNDEF, search includes the whole account
+    // If a cancelFlag is passed, it must be kept alive until this method returns
+    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
+
+    node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
+    node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
+    Node *getNodeByFingerprint(FileFingerprint &fingerprint);
+
+    // Return a first level child node whose name matches with 'name'
+    // Valid values for nodeType: FILENODE, FOLDERNODE
+    // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
+    // Hint: ensure all children are loaded if this method is called for all children of a folder
+    Node* childNodeByNameType(const Node *parent, const std::string& name, nodetype_t nodeType);
+
+    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
+    // Load from DB if it's necessary
+    node_vector getRootNodes();
+
+    node_vector getNodesWithInShares(); // both, top-level and nested ones
+    node_vector getNodesWithOutShares();
+    node_vector getNodesWithPendingOutShares();
+    node_vector getNodesWithLinks();
+
+    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag);
+
+    std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
+    size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
+
+    // Returns the number of children nodes of specific node type with a query to DB
+    // Valid types are FILENODE and FOLDERNODE
+    size_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType);
+
+    // true if 'node' is a child node of 'ancestor', false otherwise.
+    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag);
+
+    // Clean 'changed' flag from all nodes
+    void removeChanges();
+
+    // Remove all nodes from all caches
+    void cleanNodes();
+
+    // Use blob received as parameter to generate a node
+    // Used to generate nodes from old cache
+    Node* getNodeFromBlob(const string* nodeSerialized);
+
+    // attempt to apply received keys to decrypt node's keys
+    void applyKeys(uint32_t appliedKeys);
+
+    // add node to the notification queue
+    void notifyNode(Node* node);
+
+    // process notified/changed nodes from 'mNodeNotify': dump changes to DB
+    void notifyPurge();
+
+    size_t nodeNotifySize() const;
+
+    // Returns if cache has been loaded
+    bool hasCacheLoaded();
+
+    // Load rootnodes (ROOTNODE, INCOMING, RUBBISH), its first-level children
+    // and root of incoming shares. Return true if success, false if error
+    bool loadNodes();
+
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), including versions
+    uint64_t getNodeCount();
+
+    // return the counter for all root nodes (cloud+inbox+rubbish)
+    NodeCounter getCounterOfRootNodes();
+
+    // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
+    void updateCounter(Node &n, Node *oldParent);
+
+    // true if 'h' is a rootnode: cloud, inbox or rubbish bin
+    bool isRootNode(NodeHandle h) const;
+
+    // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
+    bool setrootnode(Node* node);
+
+    // Add fingerprint to mFingerprint. If node isn't going to keep in RAM
+    // node isn't added
+    FingerprintPosition insertFingerprint(Node* node);
+    // Remove fingerprint from mFingerprint
+    void removeFingerprint(Node* node);
+    FingerprintPosition invalidFingerprintPos();
+
+    // Node has received last updates and it's ready to store in DB
+    void saveNodeInDb(Node *node);
+
+    // write all nodes into DB (used for migration from legacy to NOD DB schema)
+    void dumpNodes();
+
+    // This method only can be used in Megacli for testing purposes
+    uint64_t getNumberNodesInRam() const;
+
+    // Add new relationship between parent and child
+    void addChild(NodeHandle parent, NodeHandle child, Node *node);
+    // remove relationship between parent and child
+    void removeChild(Node *parent, NodeHandle child);
+
+    // Returns the number of versions for a node (including the current version)
+    int getNumVersions(NodeHandle nodeHandle);
+
+    // Returns true if a node has versions
+    bool hasVersion(NodeHandle nodeHandle);
+
+    NodeHandle getRootNodeFiles() {
+        return rootnodes.files;
+    }
+    NodeHandle getRootNodeVault() {
+        return rootnodes.vault;
+    }
+    NodeHandle getRootNodeRubbish() {
+        return rootnodes.rubbish;
+    }
+    void setRootNodeFiles(NodeHandle h) {
+        rootnodes.files = h;
+    }
+    void setRootNodeVault(NodeHandle h) {
+        rootnodes.vault = h;
+    }
+    void setRootNodeRubbish(NodeHandle h) {
+        rootnodes.rubbish = h;
+    }
+
+    // Check if there are orphan nodes and clear mNodesWithMissingParent
+    // In case of orphans send an event
+    void checkOrphanNodes();
+
+    // This method is called when initial fetch nodes is finished
+    // Initialize node counters and create indexes at DB
+    void initCompleted();
+
+private:
+    MegaClient& mClient;
+
+    // interface to handle accesses to "nodes" table
+    DBTableNodes* mTable = nullptr;
 
     // root nodes (files, vault, rubbish)
     struct Rootnodes
@@ -276,12 +454,78 @@ public:
         bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
+    class FingerprintContainer : public fingerprint_set
+    {
+    public:
+        bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
+        void setAllFingerprintLoaded(const FileFingerprint *fingerprint);
+        void clear();
 
-    // all nodes
-    node_map nodes;
+    private:
+        // it stores all FileFingerprint that have been looked up in DB, so it
+        // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
+        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
+    };
 
-    // keep track of user storage, inshare storage, file/folder counts per root node.
-    NodeCounterMap mNodeCounters;
+    // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
+    std::map<NodeHandle, NodeManagerNode> mNodes;
+
+    uint64_t mNodesInRam = 0;
+
+    // nodes that have changed and are pending to notify to app and dump to DB
+    node_vector mNodeNotify;
+
+    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
+    std::map<NodeHandle,  set<Node*>> mNodesWithMissingParent;
+
+    Node* getNodeInRAM(NodeHandle handle);
+    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
+    node_vector getNodesWithSharesOrLink(ShareType_t shareType);
+
+    enum OperationType
+    {
+        INCREASE = 0,
+        DECREASE,
+    };
+
+    // Update a node counter for 'origin' and its subtree (recursively)
+    // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
+    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+
+    // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
+    Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
+
+    // reads from DB and loads the node in memory
+    Node* unserializeNode(const string*, bool fromOldCache);
+
+    // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
+
+    // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
+    FingerprintContainer mFingerPrints;
+
+    // Return a node from Data base, node shouldn't be in RAM previously
+    Node* getNodeFromDataBase(NodeHandle handle);
+
+    // Returns root nodes without nested in-shares
+    node_vector getRootNodesAndInshares();
+
+    // Process unserialized nodes read from DB
+    // Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
+    // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
+    // If a valid object is passed, it must be kept alive until this method returns.
+    node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
+
+    // node temporary in memory, which will be removed upon write to DB
+    unique_ptr<Node> mNodeToWriteInDb;
+};
+
+class MEGA_API MegaClient
+{
+public:
+    // own identity
+    handle me;
+    string uid;
 
     // all users
     user_map users;
@@ -510,7 +754,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
+    error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -530,14 +774,14 @@ public:
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
 #ifdef ENABLE_SYNC
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
 #endif
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -956,6 +1200,12 @@ public:
     // get the handle of the older version for a NewNode
     Node* getovnode(Node *parent, string *name);
 
+    // Load from db node children at first level
+    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+
+    // Get number of children from a node
+    size_t getNumberOfChildren(NodeHandle parentHandle);
+
     // use HTTPS for all communications
     bool usehttps;
 
@@ -1291,8 +1541,11 @@ public:
     // DB access
     DbAccess* dbaccess = nullptr;
 
-    // state cache table for logged in user
+    // DbTable iface to handle "statecache" for logged in user (implemented at SqliteAccountState object)
     unique_ptr<DbTable> sctable;
+
+    // NodeManager instance to wrap all access to Node objects
+    NodeManager mNodeManager;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1343,7 +1596,7 @@ public:
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
 
-    // open/create state cache database table
+    // open/create "statecache" and "nodes" tables in DB
     void opensctable();
 
     // opens (or creates if non existing) a status database table.
@@ -1384,6 +1637,12 @@ public:
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 
+    // maps the handle of the root of shares with their corresponding share key
+    // out-shares: populated from 'ok0' element from `f` command
+    // in-shares: populated from readnodes() for `f` command
+    // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
+    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+
     // current request tag
     int reqtag;
 
@@ -1410,8 +1669,11 @@ public:
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
-    void mergenewshares(bool);
-    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
+    void mergenewshares(bool notify, bool skipWriteInDb = false);
+    void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
+
+    // return the list of incoming shared folder (only top level, nested inshares are skipped)
+    node_vector getInShares();
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
@@ -1445,12 +1707,6 @@ public:
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
 
-    // FileFingerprint to node mapping
-    Fingerprints mFingerprints;
-
-    // flag to skip removing nodes from mFingerprints when all nodes get deleted
-    bool mOptimizePurgeNodes = false;
-
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
@@ -1483,7 +1739,6 @@ public:
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
 
-    node_vector nodenotify;
     void notifynode(Node*);
 
     // update transfer in the persistent cache
@@ -1514,20 +1769,16 @@ public:
     // application
     void notifypurge();
 
-    Node* nodeByHandle(NodeHandle) const;
+    // If it's necessary, load nodes from data base
+    Node* nodeByHandle(NodeHandle);
+    Node* nodebyhandle(handle);
+
     Node* nodeByPath(const char* path, Node* node = nullptr);
 
-    Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
-
-    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
-    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
-
-    // get up to "maxcount" nodes, not older than "since", ordered by creation time
-    node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
 
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
@@ -1546,9 +1797,6 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
-
-    // maps node handle to public handle
-    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
 
@@ -1712,7 +1960,7 @@ public:
     dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1744,13 +1992,12 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    const Node* childnodebyname(const Node*, const char*, bool = false) const;
-    Node* childnodebyname(Node*, const char*, bool = false);
-    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
-    Node* childnodebyattribute(Node*, nameid, const char*);
+    Node *childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
+    node_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
+    Node* childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
+    Node* childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
+
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
-    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
-    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);

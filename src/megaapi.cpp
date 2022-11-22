@@ -647,6 +647,11 @@ const char* MegaNode::getDeviceId() const
     return nullptr;
 }
 
+const char* MegaNode::getS4() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -2658,6 +2663,11 @@ void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
 }
 
+void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setNodeS4(node, value, listener);
+}
+
 void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
 {
     pImpl->setNodeDuration(node, secs, listener);
@@ -4058,12 +4068,12 @@ MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelT
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, CancelToken(), order);
+    return pImpl->search(nullptr, searchString, CancelToken(), order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(searchString, convertToCancelToken(cancelToken), order);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
@@ -4271,9 +4281,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
+MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
 {
-    return pImpl->getChildren(p, order);
+    return pImpl->getChildren(p, order, convertToCancelToken(cancelToken));
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
@@ -4301,9 +4311,9 @@ void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     pImpl->getFolderInfo(node, listener);
 }
 
-MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
+MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
 {
-    return pImpl->getFileFolderChildren(p, order);
+    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)

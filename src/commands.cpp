@@ -120,7 +120,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     // 'canChangeVault' is false here because restoration of file attributes is triggered by
                     // downloads, so it cannot be triggered by a Backup operation
                     bool canChangeVault = false;
-                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, canChangeVault);
+                    client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
                 }
             }
 
@@ -930,7 +930,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c, bool canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, Completion&& c, bool canChangeVault)
 {
     cmd("a");
     notself(client);
@@ -950,29 +950,12 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
 
     h = n->nodeHandle();
     tag = 0;
-    syncop = prevattr;
-
-    if(prevattr)
-    {
-        pa = prevattr;
-    }
 
     completion = move(c);
 }
 
 bool CommandSetAttr::procresult(Result r)
 {
-#ifdef ENABLE_SYNC
-    if(r.wasError(API_OK) && syncop)
-    {
-        Node* node = client->nodeByHandle(h);
-        if(node)
-        {
-            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-            LOG_debug << "Sync - remote rename from " << pa << " to " << node->displayname();
-        }
-    }
-#endif
     if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -1258,7 +1241,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             case 'f':
                 empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, &nn, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (client->readnodes(&client->json, 1, source, &nn, true, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     e = API_OK;
                 }
@@ -1271,7 +1254,7 @@ bool CommandPutNodes::procresult(Result r)
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, false, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
                     e = API_EINTERNAL;
@@ -1370,7 +1353,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     client->proctree(n, &tpsk);
     tpsk.get(this);
 
-    tag = client->reqtag;
+    tag = 0;
     completion = move(c);
 }
 
@@ -1426,7 +1409,7 @@ bool CommandMoveNode::procresult(Result r)
                 {
                     Node *tn = NULL;
                     if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodeByHandle(client->rootnodes.rubbish)))
+                            || !(tn = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())))
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;
@@ -1435,11 +1418,8 @@ bool CommandMoveNode::procresult(Result r)
                     }
                     else
                     {
-                        int creqtag = client->reqtag;
-                        client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
                         client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, mCanChangeVault, nullptr);
-                        client->reqtag = creqtag;
                     }
                 }
             }
@@ -1807,6 +1787,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         client->sctable->remove();
                         client->sctable.reset();
+                        client->mNodeManager.reset();
                         client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
@@ -2254,10 +2235,9 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                Node *n;
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+                for (Node* n : nodes)
                 {
-                    n = it->second;
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
                     {
                         client->newshares.push_back(
@@ -3157,7 +3137,7 @@ bool CommandPutUAVer::procresult(Result r)
 
         if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
         {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            LOG_err << "Error in CommandPutUAVer. Undefined attribute or version";
             mCompletion(API_EINTERNAL);
             return false;
         }
@@ -3177,7 +3157,7 @@ bool CommandPutUAVer::procresult(Result r)
                 }
                 else
                 {
-                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('upv')";
                 }
             }
             else if (at == ATTR_UNSHAREABLE_KEY)
@@ -3197,7 +3177,6 @@ bool CommandPutUAVer::procresult(Result r)
     return true;
 }
 
-
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
@@ -3209,7 +3188,7 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
                         client->app->putua_result(e);
                   };
 
-    cmd("up");
+    cmd("up2");
 
     string an = User::attr2string(at);
 
@@ -3243,7 +3222,29 @@ bool CommandPutUA::procresult(Result r)
     }
     else
     {
-        client->json.storeobject(); // [<uh>]
+        const char* ptr;
+        const char* end;
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+        attr_t at = User::string2attr(string(ptr, (end - ptr)).c_str());
+
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
+        string v = string(ptr, (end - ptr));
+
+        if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
+        {
+            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            mCompletion(API_EINTERNAL);
+            return false;
+        }
 
         User *u = client->ownuser();
         assert(u);
@@ -3253,7 +3254,7 @@ bool CommandPutUA::procresult(Result r)
             mCompletion(API_EACCESS);
             return true;
         }
-        u->setattr(at, &av, NULL);
+        u->setattr(at, &av, &v);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
 
@@ -4907,12 +4908,13 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->mNodeCounters.find(NodeHandle().set6byte(h));
-                        if (iter != client->mNodeCounters.end())
+                        const Node* node = client->nodebyhandle(h);
+                        if (node)
                         {
-                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
-                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
-                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files
+                            NodeCounter counter = node->getCounter();
+                            LOG_debug << node->displaypath() << " " << counter.storage << " " << ns->bytes << " " << counter.files << " " << ns->files << " " << counter.folders << " " << ns->folders << " "
+                                      << counter.versionStorage << " " << ns->version_bytes << " " << counter.versions << " " << ns->version_files
+                                      << (counter.storage == ns->bytes && counter.files == ns->files && counter.folders == ns->folders && counter.versionStorage == ns->version_bytes && counter.versions == ns->version_files
                                           ? "" : " ******************************************* mismatch *******************************************");
                         }
 #endif
@@ -5424,7 +5426,8 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0, false);
+
+                        client->putnodes(client->mNodeManager.getRootNodeFiles(), NoVersioning, move(newnodes), nullptr, 0, false);
                     }
                     else if (havekey)
                     {
@@ -5786,9 +5789,10 @@ bool CommandFetchNodes::procresult(Result r)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5796,15 +5800,16 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, false, true))
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
                 break;
 
-            case MAKENAMEID2('o', 'k'):
+            case MAKENAMEID3('o', 'k', '0'):
                 // outgoing sharekeys
                 client->readok(&client->json);
                 break;
@@ -5821,6 +5826,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5841,6 +5847,7 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -5888,26 +5895,29 @@ bool CommandFetchNodes::procresult(Result r)
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
 
                 client->mergenewshares(0);
-                client->applykeys();
+
+                client->mNodeManager.initCompleted();  // (nodes already written into DB)
+
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-                client->fnstats.nodesCached = client->nodes.size();
-
+                client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
                 return true;
             }
             default:
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
+                    client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
@@ -9120,7 +9130,7 @@ bool CommandPutSet::procresult(Result r)
             s = client->addSet(move(*mSet));
         }
         else // update existing
-        {            
+        {
             assert(mSet->id() == sId);
 
             if (!client->updateSet(move(*mSet)))
@@ -9606,7 +9616,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, 0, nullptr));
         }
     }
 
@@ -9659,7 +9669,7 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
     if (since)      { arg("cf", since); }
     if (until)      { arg("ct", until); }
-    if (count > 0)  { arg("cc", count); }
+    if (count)      { arg("cc", count); }
     tag = client->reqtag;
 }
 

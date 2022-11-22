@@ -629,14 +629,12 @@ public:
 
 private:
     NodeHandle h;
-    string pa;
-    bool syncop;
 
     Completion completion;
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c, bool canChangeVault);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command
