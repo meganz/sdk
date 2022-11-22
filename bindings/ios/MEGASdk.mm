@@ -3489,9 +3489,9 @@ using namespace mega;
     }
 }
 
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, (int)subState, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

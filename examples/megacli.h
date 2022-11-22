@@ -261,6 +261,8 @@ struct DemoApp : public MegaApp
 
     void dismissbanner_result(error) override;
 
+    void reqstat_progress(int) override;
+
     void reload(const char*) override;
     void clearing() override;
 
@@ -320,6 +322,8 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
+void exec_encryptLink(autocomplete::ACState& s);
+void exec_decryptLink(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);
@@ -408,3 +412,4 @@ void exec_syncxable(autocomplete::ACState& s);
 #endif // ENABLE_SYNC
 
 void exec_setsandelements(autocomplete::ACState& s);
+void exec_reqstat(autocomplete::ACState& s);

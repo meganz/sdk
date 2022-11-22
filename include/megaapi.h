@@ -2005,6 +2005,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -3510,7 +3511,8 @@ class MegaRequest
             TYPE_FETCH_SET                                                  = 153,
             TYPE_PUT_SET_ELEMENT                                            = 154,
             TYPE_REMOVE_SET_ELEMENT                                         = 155,
-            TOTAL_OF_REQUEST_TYPES                                          = 156,
+            TYPE_REMOVE_OLD_BACKUP_NODES                                    = 156,
+            TOTAL_OF_REQUEST_TYPES                                          = 157,
         };
 
         virtual ~MegaRequest();
@@ -4364,6 +4366,8 @@ public:
         EVENT_SYNCS_DISABLED            = 13, // Syncs were bulk-disabled due to a situation encountered, eg storage overquota
         EVENT_SYNCS_RESTORED            = 14, // Indicate to the app that the process of starting existing syncs after login+fetchnodes is complete.
 #endif
+        EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
+                                              // or -1 if there isn't any operation in progress.
     };
 
     virtual ~MegaEvent();
@@ -4401,6 +4405,9 @@ public:
      * @brief Returns a number relative to this event
      *
      * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
+     *
+     * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
+     * a long-running API operation, or -1 if there isn't any operation in progress.
      *
      * @return Number relative to this event
      */
@@ -5631,7 +5638,7 @@ public:
         LOCAL_PATH_UNAVAILABLE = 7, //Local path is not available (can't be open)
         REMOTE_NODE_NOT_FOUND = 8, //Remote node does no longer exists
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
-        BUSINESS_EXPIRED = 10, //Business account expired
+        ACCOUNT_EXPIRED = 10, //Account expired (business or pro flexi)
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -5775,7 +5782,7 @@ public:
      *  - LOCAL_PATH_UNAVAILABLE = 7: Local path is not available (can't be open)
      *  - REMOTE_NODE_NOT_FOUND = 8: Remote node does no longer exists
      *  - STORAGE_OVERQUOTA = 9: Account reached storage overquota
-     *  - BUSINESS_EXPIRED = 10: Business account expired
+     *  - ACCOUNT_EXPIRED = 10: Account expired (business or pro flexi)
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
@@ -9801,7 +9808,7 @@ class MegaApi
          *
          * The verification email will be resent to the same address as it was previously sent to.
          *
-         * This function can be called if the the reason for being blocked is:
+         * This function can be called if the reason for being blocked is:
          *      700: the account is supended for Weak Account Protection.
          *
          * If the logged in account is not suspended or is suspended for some other reason,
@@ -10171,6 +10178,8 @@ class MegaApi
 
         /**
          * @brief Check if the account is a business account.
+         *
+         * For accounts under Pro Flexi plans, this method also returns true.
          *
          * @return returns true if it's a business account, otherwise false
          */
@@ -14284,20 +14293,37 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
          */
-        MEGA_DEPRECATED
-        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14408,23 +14434,6 @@ class MegaApi
          * @see importSyncConfigs
          */
         const char* exportSyncConfigs();
-
-        /**
-         * @brief Remove all active synced folders
-         *
-         * All folders will stop being synced. Nothing in the local folders
-         * will be deleted due to the usage of this function. In the remote folders,
-         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
-         *
-         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -17745,7 +17754,7 @@ class MegaApi
          * When this feature is enabled, the HTTP proxy server will check if there are files with that name
          * in the same folder as the node corresponding to the handle in the link.
          *
-         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * If a matching file is found, the name is exactly the same as the node with the specified handle
          * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
          * the HTTP proxy server will serve that file.
          *
@@ -19702,6 +19711,23 @@ class MegaApi
          */
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
+        /**
+         * @brief Enable or disable the request status monitor
+         *
+         * When it's enabled, the request status monitor generates events of type
+         * MegaEvent::EVENT_REQSTAT_PROGRESS with the per mille progress in
+         * the field MegaEvent::getNumber(), or -1 if there isn't any operation in progress.
+         *
+         * @param enable True to enable the request status monitor, or false to disable it
+         */
+        void enableRequestStatusMonitor(bool enable);
+
+        /**
+         * @brief Get the status of the request status monitor
+         * @return True when the request status monitor is enabled, or false if it's disabled
+         */
+        bool requestStatusMonitorEnabled();
+
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -19958,7 +19984,8 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
-        ACCOUNT_TYPE_BUSINESS = 100
+        ACCOUNT_TYPE_BUSINESS = 100,
+        ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
 
     enum
@@ -19979,6 +20006,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel();
 
@@ -20376,6 +20404,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+     * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
     virtual int getProLevel(int productIndex);
 
@@ -20454,9 +20483,13 @@ public:
     virtual const char* getAndroidID(int productIndex);
 
     /**
-     * @brief Returns if the pricing plan is a business plan
+     * @brief Returns if the pricing plan is a business or Pro Flexi plan
+     *
+     * You can check if the plan is pure buiness or Pro Flexi by calling
+     * the method MegaApi::getProLevel
+     *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return true if the pricing plan is a business plan, otherwise return false
+     * @return true if the pricing plan is a business or Pro Flexi plan, otherwise return false
      */
     virtual bool isBusinessType(int productIndex);
 
