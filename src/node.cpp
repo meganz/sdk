@@ -558,14 +558,14 @@ bool Node::serialize(string* d)
     if (attrstring)
     {
         // Write node key data.
-        uint32_t length1 = static_cast<uint32_t>(nodekeydata.size());
-        d->append((char*)&length1, sizeof(length1));
-        d->append(nodekeydata, 0, length1);
+        uint32_t length = static_cast<uint32_t>(nodekeydata.size());
+        d->append((char*)&length, sizeof(length));
+        d->append(nodekeydata, 0, length);
 
         // Write attribute string data.
-        uint32_t length2 = static_cast<uint32_t>(attrstring->size());
-        d->append((char*)&length2, sizeof(length2));
-        d->append(*attrstring, 0, length2);
+        length = static_cast<uint32_t>(attrstring->size());
+        d->append((char*)&length, sizeof(length));
+        d->append(*attrstring, 0, length);
     }
 
     return true;
