@@ -5703,9 +5703,9 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->removeSet(sid, listener);
 }
 
-void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
+void MegaApi::fetchSetInPreviewMode(MegaRequestListener* listener)
 {
-    pImpl->fetchSet(sid, listener);
+    pImpl->fetchSetInPreviewMode(listener);
 }
 
 void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)

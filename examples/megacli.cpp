@@ -4285,7 +4285,6 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("newset"), opt(param("name"))),
                         sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
-                        sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("updateelement"), param("sid"), param("eid"),
@@ -4294,6 +4293,7 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("export"), param("sid"), opt(flag("-disable"))),
                         sequence(text("getpubliclink"), param("sid")),
                         sequence(text("previewmode"), param("publicsetlink"), opt(flag("-on")), opt(flag("-status"))),
+                        text("fetchsetinpreview"),
                         sequence(text("downloadelement"), param("sid"), param("eid"))
                         )));
 
@@ -10695,22 +10695,19 @@ void exec_setsandelements(autocomplete::ACState& s)
             });
     }
 
-    else if (command == "fetchset")
+    else if (command == "fetchsetinpreview")
     {
-        handle id = 0; // must have remaining bits set to 0
-        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-
-        client->fetchSet(id, [id](Error e, Set* s, map<handle, SetElement>* els)
+        client->fetchSetInPreviewMode([](Error e, Set* s, map<handle, SetElement>* els)
             {
                 if (e == API_OK)
                 {
-                    cout << "Fetched Set " << toHandle(id) << endl;
+                    cout << "Fetched Set successfully\n";
                     printSet(s);
                     printElements(els);
                 }
                 else
                 {
-                    cout << "Error fetching Set " << toHandle(id) << ' ' << e << endl;
+                    cout << "Error fetching Set\n\t" << verboseErrorString(e) << endl;
                 }
             });
     }

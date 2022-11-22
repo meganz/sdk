@@ -9190,14 +9190,17 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient* cl, handle id,
+CommandFetchSet::CommandFetchSet(MegaClient* cl,
     std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
     : mCompletion(completion)
 {
     cmd("aft");
     if(!cl->inSetPreviewMode())
     {
-        arg("id", (byte*)&id, MegaClient::SETHANDLE);
+        static const string msg = "Sets: CommandFetchSet only available for Public Set in Preview Mode";
+        LOG_err << msg;
+        assert(false);
+        throw std::domain_error(msg);
     }
 }
 

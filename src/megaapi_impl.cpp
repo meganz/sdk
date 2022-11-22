@@ -19000,7 +19000,7 @@ void MegaApiImpl::sendPendingRequests()
             break;
 
         case MegaRequest::TYPE_FETCH_SET:
-            client->fetchSet(request->getParentHandle(), fetchSetCompletionCB(request));
+            client->fetchSetInPreviewMode(fetchSetCompletionCB(request));
             break;
 
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
@@ -23948,10 +23948,9 @@ void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
+void MegaApiImpl::fetchSetInPreviewMode(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
-    request->setParentHandle(sid);
     requestQueue.push(request);
     waiter->notify();
 }

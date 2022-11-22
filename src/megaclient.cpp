@@ -17990,12 +17990,13 @@ void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+void MegaClient::fetchSetInPreviewMode(std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
 {
     if (!inSetPreviewMode())
     {
-        LOG_debug << "Fetch set request received for Set " << toHandle(sid)
-                  << " with public Set preview mode disabled";
+        LOG_err << "Sets: Fetch set request with public Set preview mode disabled";
+        completion(API_EACCESS, nullptr, nullptr);
+        return;
     }
 
     auto clientUpdateOnCompletion =
@@ -18010,7 +18011,7 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
             }
             completion(e, s, els);
         };
-    reqs.add(new CommandFetchSet(this, sid, clientUpdateOnCompletion));
+    reqs.add(new CommandFetchSet(this, clientUpdateOnCompletion));
 }
 
 void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
@@ -18997,7 +18998,7 @@ error MegaClient::startSetPreview(const char* publicSetLink,
         mPreviewSet->mPublicLink.assign(publicSetLink);
 
         // 2. send `aft` command and intercept to save at mPreviewSet: Set, SetElements map
-        fetchSet(publicSetId /*unrequired*/, completion);
+        fetchSetInPreviewMode(completion);
     }
 
     return e;

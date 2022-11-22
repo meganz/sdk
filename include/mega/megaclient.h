@@ -2326,7 +2326,7 @@ public:
     void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    void fetchSetInPreviewMode(std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
 
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);

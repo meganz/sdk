@@ -426,9 +426,10 @@ public:
     template<typename ... requestArgs> int doCreateSet(unsigned apiIndex, MegaSet** s, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSet(args..., &rt); rt.waitForResult(); if (s && rt.request->getMegaSet()) *s = rt.request->getMegaSet()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetName(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetName(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doPutSetCover(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putSetCover(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doFetchSet(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
+    template<typename ... requestArgs> int doFetchSetInPreviewMode(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
     {
-        RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchSet(args..., &rt); rt.waitForResult();
+        RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchSetInPreviewMode(args..., &rt);
+        rt.waitForResult();
         if (rt.result == API_OK)
         {
             if (s) *s = rt.request->getMegaSet()->copy();

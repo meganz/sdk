@@ -19985,7 +19985,7 @@ class MegaApi
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to fetch a Set and its Elements
+         * @brief Request to fetch the Set and its Elements which are currently in preview mode
          *
          * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
          * Valid data in the MegaRequest object received on callbacks:
@@ -20002,10 +20002,9 @@ class MegaApi
          * - MegaError::API_EARGS - Malformed (from API).
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
-         * @param sid the id of the Set to be fetched
          * @param listener MegaRequestListener to track this request
          */
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSetInPreviewMode(MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set

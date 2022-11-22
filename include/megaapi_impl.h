@@ -2639,7 +2639,7 @@ class MegaApiImpl : public MegaApp
         //Sets and Elements
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSetInPreviewMode(MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
