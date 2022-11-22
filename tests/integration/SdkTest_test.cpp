@@ -9845,13 +9845,16 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     bool isExpectedToBeExported = true;
     ASSERT_FALSE(exportedSetURL.empty());
     unique_ptr<MegaSet> s1pEnabledExport(exportedSet);
+    LOG_debug << "\tChecking Set from export request";
     lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
     s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet";
     lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Set export updated note received after " << maxTimeout << " seconds";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
     lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
 
 
