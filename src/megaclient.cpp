@@ -46,7 +46,7 @@ bool g_disablepkp_default = false;
 // MegaClient statics must be const or we get threading problems.  And this one is edited so it can't be const.
 // Instead, we require a mutex to be locked before editing/reading it.  MegaClient's HttpIO takes a copy on construction
 std::mutex g_APIURL_default_mutex;
-string g_APIURL_default = "https://staging.api.mega.co.nz/";
+string g_APIURL_default = "https://g.api.mega.co.nz/";
 
 // user handle for customer support user
 const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
