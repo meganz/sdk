@@ -366,15 +366,52 @@ const mega::ScheduledRules *ScheduledMeeting::rules() const             { return
 
 bool ScheduledMeeting::isValid() const
 {
-    return mChatid != UNDEF
-            && mOrganizerUserId != UNDEF
-            && mSchedId != UNDEF
-            && !mTimezone.empty()
-            && !mStartDateTime.empty()
-            && !mEndDateTime.empty()
-            && !mTitle.empty()
-            && !mDescription.empty()
-            && (!mRules || mRules->isValid());
+    if (mSchedId == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting schedId. chatid: " << Base64Str<MegaClient::USERHANDLE>(mChatid);
+        return false;
+    }
+    if (mChatid == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting chatid. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mOrganizerUserId == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting organizer user id. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mTimezone.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting timezone. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mStartDateTime.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting StartDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mEndDateTime.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting EndDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mTitle.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting title. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mDescription.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting description. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mRules && !mRules->isValid())
+    {
+        LOG_warn << "Invalid scheduled meeting rules. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    return true;
 }
 
 bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
