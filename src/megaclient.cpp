@@ -19513,7 +19513,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         if (!mAccountReload)
         {
 #ifdef ENABLE_SYNC
-            mClient.syncs.disableSyncs(false, UNKNOWN_ERROR, false, nullptr);
+            mClient.syncs.disableSyncs(false, NODES_UNSERIALZATION_FAILURE, false, nullptr);
 #endif
 
             mClient.app->reload("Failure to unserialize a node");

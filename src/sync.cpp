@@ -742,6 +742,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to open state cache database.";
     case INSUFFICIENT_DISK_SPACE:
         return "Insufficient disk space.";
+    case NODES_UNSERIALZATION_FAILURE:
+        return "Failure when node are unserialized from DB.";
     default:
         return "Undefined error";
     }
