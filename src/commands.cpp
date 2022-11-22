@@ -9701,13 +9701,13 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     // this approach is an API requirement
 
     // we will clear old sched meetings although there's any malformed sched meeting during the json parse
-    LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
+    LOG_debug << "Invalidating outdated scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
     chat->clearSchedMeetingOccurrences();
 
     for (auto& schedMeeting: schedMeetings)
     {
         // add received scheduled meetings occurrences
-        chat->addSchedMeetingOccurrence(schedMeeting.release());
+        chat->addSchedMeetingOccurrence(schedMeeting->copy());
     }
 
     // just notify once, for all ocurrences received for the same chat
