@@ -510,7 +510,7 @@ bool CommandGetPutUrl::procresult(Result r)
     string url;
     std::vector<string> ips;
 
-    if (r.wasErrorOrActionpacket())
+    if (r.wasErrorOrOK())
     {
         if (!canceled)
         {
@@ -1004,8 +1004,8 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 bool CommandSetAttr::procresult(Result r)
 {
     removeFromNodePendingCommands(h, client);
-    if (completion) completion(h, generationError ? Error(generationError) : r.errorResultOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 // (the result is not processed directly - we rely on the server-client
@@ -1371,7 +1371,7 @@ bool CommandMoveNode::procresult(Result r)
     removeFromNodePendingCommands(h, client);
     removeFromNodePendingCommands(np, client);
 
-    if (r.wasErrorOrActionpacket())
+    if (r.wasErrorOrOK())
     {
         if (r.wasError(API_EOVERQUOTA))
         {
@@ -1438,8 +1438,8 @@ bool CommandMoveNode::procresult(Result r)
         client->rewriteforeignkeys(n);
     }
 
-    if (completion) completion(h, r.errorResultOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    if (completion) completion(h, r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool canChangeVault)
@@ -1465,9 +1465,9 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
 
 bool CommandDelNode::procresult(Result r)
 {
-    error e = r.errorResultOrActionpacket();
+    error e = r.errorOrOK();
 
-    if (r.wasErrorOrActionpacket())
+    if (r.wasErrorOrOK())
     {
         if (mResultFunction)    mResultFunction(h, e);
         else         client->app->unlink_result(h.as8byte(), e);
@@ -1520,8 +1520,8 @@ CommandDelVersions::CommandDelVersions(MegaClient* client)
 
 bool CommandDelVersions::procresult(Result r)
 {
-    client->app->unlinkversions_result(r.errorResultOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    client->app->unlinkversions_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
@@ -1535,8 +1535,6 @@ CommandKillSessions::CommandKillSessions(MegaClient* client)
 
 CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
 {
-    mV3 = false;
-
     cmd("usr");
     beginarray("s");
     element(sessionid, MegaClient::USERHANDLE);
@@ -2366,9 +2364,9 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 
 bool CommandUpdatePendingContact::procresult(Result r)
 {
-    doComplete(r.errorResultOrActionpacket(), this->action);
+    doComplete(r.errorOrOK(), this->action);
 
-    return r.wasErrorOrActionpacket();
+    return r.wasErrorOrOK();
 }
 
 
@@ -3699,15 +3697,15 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
 
 bool CommandSendDevCommand::procresult(Result r)
 {
-    client->app->senddevcommand_result(r.errorResultOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    client->app->senddevcommand_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 #endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     cmd("uge");
     arg("u", uid);
@@ -3717,7 +3715,8 @@ CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 
 bool CommandGetUserEmail::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+// tested, failed
+    if (r.wasStrictlyError())
     {
         client->app->getuseremail_result(NULL, r.errorOrOK());
         return true;
@@ -5299,13 +5298,11 @@ bool CommandGetUserSessions::procresult(Result r)
 CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
-    mStringIsNotSeqtag = true;
     mSeqtagArray = true;
 
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
-    mWritable = writable;
     completion = move(f);
     assert(completion);
 
@@ -5314,6 +5311,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
     if (del)
     {
+        mDeleting = true;
         arg("d", 1);
     }
 
@@ -5324,6 +5322,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
     if (writable)
     {
+        mWritable = true;
         arg("w", "1");
     }
 
@@ -5336,7 +5335,8 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
 bool CommandSetPH::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    // successful case works, error case only returns integer, not wrapped in array
+    if (r.wasStrictlyError())
     {
         completion(r.errorOrOK(), UNDEF, UNDEF);
         return true;
@@ -5345,7 +5345,7 @@ bool CommandSetPH::procresult(Result r)
     handle ph = UNDEF;
     std::string authKey;
 
-    if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
+    if (mWritable) // apparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
     {
         bool exit = false;
         while (!exit)
@@ -5378,6 +5378,12 @@ bool CommandSetPH::procresult(Result r)
                 }
             }
         }
+    }
+    else if (mDeleting)
+    {
+        client->json.getint(); // consume the 0 for success in the [`st`, 0] array
+        completion(API_OK, h, UNDEF);
+        return true;
     }
     else    // format: [XXXXXXXX]
     {
@@ -5490,7 +5496,7 @@ bool CommandGetPH::procresult(Result r)
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
@@ -5516,7 +5522,8 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
 
 bool CommandSetMasterKey::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    // works for success case
+    if (r.wasStrictlyError())
     {
         client->app->changepw_result(r.errorOrOK());
     }
@@ -5537,7 +5544,7 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
                                                              const byte* cpw,
                                                              const byte* ssc)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     memcpy(pw, cpw, sizeof pw);
 
@@ -5550,7 +5557,7 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 
 bool CommandCreateEphemeralSession::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())  // works for success case
     {
         client->ephemeralSession = false;
         client->ephemeralSessionPlusPlus = false;
@@ -5759,7 +5766,7 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
                                      unsigned privklen, const byte* pubk,
                                      unsigned pubklen)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     cmd("up");
     arg("privk", privk, privklen);
@@ -5774,7 +5781,8 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 bool CommandSetKeyPair::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+// doesn't work, no actionpacket produced so we can't match the st
+    if (r.wasStrictlyError())
     {
         client->app->setkeypair_result(r.errorOrOK());
         return true;
@@ -6292,8 +6300,8 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
 
 bool CommandCleanRubbishBin::procresult(Result r)
 {
-    client->app->cleanrubbishbin_result(r.errorResultOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    client->app->cleanrubbishbin_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
@@ -7087,7 +7095,7 @@ bool CommandChatRemove::procresult(Result r)
 
 CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     this->client = client;
 
@@ -7101,7 +7109,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
 bool CommandChatURL::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chaturl_result(NULL, r.errorOrOK());
         return true;
@@ -7360,7 +7368,7 @@ bool CommandChatSetTitle::procresult(Result r)
 
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
     this->client = client;
     cmd("pu");
     tag = client->reqtag;
@@ -7368,7 +7376,7 @@ CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 
 bool CommandChatPresenceURL::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chatpresenceurl_result(NULL, r.errorOrOK());
         return true;
@@ -7459,7 +7467,7 @@ CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, han
 
 bool CommandSetChatRetentionTime::procresult(Result r)
 {
-    client->app->setchatretentiontime_result(r.errorResultOrActionpacket());
+    client->app->setchatretentiontime_result(r.errorOrOK());
     return true;
 }
 
@@ -7546,7 +7554,7 @@ bool CommandRichLink::procresult(Result r)
 
 CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     mDelete = del;
 
@@ -7568,15 +7576,8 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 bool CommandChatLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
-        if (r.wasError(API_OK) && !mDelete)
-        {
-            LOG_err << "Unexpected response for create/get chatlink";
-            client->app->chatlink_result(UNDEF, API_EINTERNAL);
-            return true;
-        }
-
         client->app->chatlink_result(UNDEF, r.errorOrOK());
         return true;
     }
@@ -7598,8 +7599,6 @@ bool CommandChatLink::procresult(Result r)
 
 CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
 {
-    mStringIsNotSeqtag = true;
-
     cmd("mcphurl");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
 
@@ -7608,7 +7607,7 @@ CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
 
 bool CommandChatLinkURL::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
         return true;
@@ -8042,7 +8041,7 @@ bool CommandMediaCodecs::procresult(Result r)
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     if (renew)
     {
@@ -8058,7 +8057,7 @@ CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool rene
 
 bool CommandContactLinkCreate::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->contactlinkcreate_result(r.errorOrOK(), UNDEF);
     }
@@ -8167,7 +8166,7 @@ bool CommandKeepMeAlive::procresult(Result r)
 
 CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     cmd("mfas");
     if (pin)
@@ -8179,7 +8178,7 @@ CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, con
 
 bool CommandMultiFactorAuthSetup::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->multifactorauthsetup_result(NULL, r.errorOrOK());
         return true;
@@ -8445,7 +8444,7 @@ bool CommandSMSVerificationSend::procresult(Result r)
 
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     cmd("smsv");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -8472,7 +8471,7 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 
 bool CommandSMSVerificationCheck::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->smsverificationcheck_result(r.errorOrOK(), nullptr);
         return true;
@@ -8768,7 +8767,7 @@ bool CommandFolderLinkInfo::procresult(Result r)
 CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields, std::function<void(Error, handle /*backup id*/)> completion)
     : mCompletion(completion)
 {
-    mStringIsNotSeqtag = true;
+    mSeqtagArray = true;
 
     cmd("sp");
 
@@ -8824,27 +8823,22 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
 
 bool CommandBackupPut::procresult(Result r)
 {
-    assert(r.wasStrictlyError() || r.hasJsonItem());
-    handle backupId = UNDEF;
-    Error e = API_OK;
-
-    if (r.hasJsonItem())
+    if (r.wasStrictlyError())
     {
-        backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
-        e = API_OK;
-    }
-    else
-    {
-        e = r.errorOrOK();
+        assert(r.errorOrOK() != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+        if (mCompletion) mCompletion(r.errorOrOK(), UNDEF);
+        client->app->backupput_result(r.errorOrOK(), UNDEF);
+        return true;
     }
 
-    assert(e != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+    assert(r.hasJsonItem());
 
-    if (mCompletion) mCompletion(e, backupId);
+    handle backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
 
-    client->app->backupput_result(e, backupId);
+    if (mCompletion) mCompletion(API_OK, backupId);
+    client->app->backupput_result(API_OK, backupId);
 
-    return r.wasStrictlyError() || r.hasJsonItem();
+    return true;
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)

@@ -4181,7 +4181,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
-    p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
+    p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));

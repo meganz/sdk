@@ -18367,6 +18367,10 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     {
         node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
     }
+    else
+    {
+        LOG_err << "Failed to unserialize a Node from db.";
+    }
     // do not try to reload the account if we can't unserialize.
     // (1) we might go around in circles downloading the account over and over, DDOSing MEGA, becuase we get the same data back each time
     // (2) this function has no idea what is going on in the rest of the program.
