@@ -744,6 +744,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Insufficient disk space.";
     case NODES_UNSERIALZATION_FAILURE:
         return "Failure when node are unserialized from DB.";
+    case FAILUERE_WRITE_DB:
+        return "Failure to write data in DB";
     default:
         return "Undefined error";
     }

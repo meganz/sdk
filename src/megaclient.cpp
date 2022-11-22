@@ -5549,6 +5549,10 @@ void MegaClient::finalizesc(bool complete)
     {
         LOG_err << "Cache update DB write error - disabling caching";
 
+#ifdef ENABLE_SYNC
+        syncs.disableSyncs(false, FAILUERE_WRITE_DB, false, nullptr);
+#endif
+
         mNodeManager.reset();   // may need to still keep nodes in RAM, but it won't work if not all nodes are loaded, anyway
         sctable->remove();
         sctable.reset();
