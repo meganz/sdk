@@ -1407,9 +1407,9 @@ using namespace mega;
     }
 }
 
-- (void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+- (void)fetchSetInPreviewMode: delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->fetchSet(sid, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
