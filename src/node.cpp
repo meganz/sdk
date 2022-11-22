@@ -2002,10 +2002,13 @@ NodeCounter::NodeCounter(const std::string &blob)
     // In this way, caches that have been stored with previous implementation, it can be loaded
     else if (blob.size() == 40)  // 8 + 8 + 8 + 8 + 8
     {
-        r.unserializeu64(files);
-        r.unserializeu64(folders);
+        uint64_t aux = static_cast<uint64_t>(files);
+        r.unserializeu64(aux);
+        aux = static_cast<uint64_t>(folders);
+        r.unserializeu64(aux);
         r.unserializei64(storage);
-        r.unserializeu64(versions);
+        aux = static_cast<uint64_t>(versions);
+        r.unserializeu64(aux);
         r.unserializei64(versionStorage);
     }
     else
