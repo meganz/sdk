@@ -18700,22 +18700,23 @@ void MegaClient::sc_asp()
 
 void MegaClient::sc_asr()
 {
+    handle setId = UNDEF;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
         case MAKENAMEID2('i', 'd'):
         {
-            handle setId = jsonsc.gethandle(MegaClient::SETHANDLE);
-            if (!deleteSet(setId))
-            {
-                LOG_err << "Sets: Failed to remove Set in `asr` action packet";
-                return;
-            }
+            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
         }
 
         case EOO:
+            if (setId != UNDEF && !deleteSet(setId))
+            {
+                LOG_err << "Sets: Failed to remove Set in `asr` action packet for Set "
+                        << toHandle(setId);
+            }
             return;
 
         default:
@@ -18761,8 +18762,8 @@ void MegaClient::sc_aep()
 
 void MegaClient::sc_aer()
 {
-    handle elemId = 0;
-    handle setId = 0;
+    handle elemId = UNDEF;
+    handle setId = UNDEF;
 
     for (;;)
     {
@@ -18777,10 +18778,10 @@ void MegaClient::sc_aer()
             break;
 
         case EOO:
-            if (!deleteSetElement(setId, elemId))
+            if (setId != UNDEF && elemId !=UNDEF && !deleteSetElement(setId, elemId))
             {
-                LOG_err << "Sets: Failed to remove Element in `aer` action packet";
-                return;
+                LOG_err << "Sets: Failed to remove Element in `aer` action packet for Set "
+                        << toHandle(setId) << " and Element " << toHandle(elemId);
             }
             return;
 
