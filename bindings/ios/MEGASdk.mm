@@ -1681,6 +1681,13 @@ using namespace mega;
     }
 }
 
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:queueType]);
+    }
+}
+
+
 - (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath {
     if (self.megaApi) {
         self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String);

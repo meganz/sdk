@@ -4171,6 +4171,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * will be used as the file name inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
  *
+ * @param delegate MEGARequestDelegate to track this request.
+ * @param queueType ListenerQueueType to receive the global events on..
+ */
+- (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
+ * @brief Get the avatar of any user in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
  */
 - (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
 
