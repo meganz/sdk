@@ -1987,41 +1987,43 @@ NodeCounter::NodeCounter(const std::string &blob)
     CacheableReader r(blob);
     if (blob.size() == 28) // 4 + 4 + 8 + 4 + 8
     {
-        uint32_t temp;
-        bool unserializeResult = r.unserializeu32(temp);
-        files = temp;
-        unserializeResult = unserializeResult && r.unserializeu32(temp);
-        folders = temp;
-        unserializeResult = unserializeResult && r.unserializei64(storage);
-        unserializeResult = unserializeResult && r.unserializeu32(temp);
-        versions = temp;
-        unserializeResult = unserializeResult && r.unserializei64(versionStorage);
-
-        if (!unserializeResult)
+        uint32_t auxFiles;
+        uint32_t auxFolders;
+        uint32_t auxVersions;
+        if (!r.unserializeu32(auxFiles) || !r.unserializeu32(auxFolders)
+                || !r.unserializei64(storage) || !r.unserializeu32(auxVersions)
+                || !r.unserializei64(versionStorage))
         {
             LOG_err << "Failure to unserialize node counter";
             assert(false);
+            return;
         }
+
+        files = auxFiles;
+        folders = auxFolders;
+        versions = auxVersions;
+
     }
     // During internal testing, 'files', 'folders' and 'versions' were stored as 'size_t', whose size is platform-dependent
     // -> in some machines it is 8 bytes, in others is 4 bytes. With the only goal of providing backwards compatibility for
     // internal testers, if the blob doesn't have expected size (using 4 bytes), check if size matches the expected using 8 bytes
     else if (blob.size() == 40)  // 8 + 8 + 8 + 8 + 8
     {
-        uint64_t aux = static_cast<uint64_t>(files);
-        bool unserializeResult = r.unserializeu64(aux);
-        aux = static_cast<uint64_t>(folders);
-        unserializeResult = unserializeResult && r.unserializeu64(aux);
-        unserializeResult = unserializeResult && r.unserializei64(storage);
-        aux = static_cast<uint64_t>(versions);
-        unserializeResult = unserializeResult && r.unserializeu64(aux);
-        unserializeResult = unserializeResult && r.unserializei64(versionStorage);
-
-        if (!unserializeResult)
+        uint64_t auxFiles;
+        uint64_t auxFolders;
+        uint64_t auxVersions;
+        if (!r.unserializeu64(auxFiles) || !r.unserializeu64(auxFolders)
+                || !r.unserializei64(storage) || !r.unserializeu64(auxVersions)
+                || !r.unserializei64(versionStorage))
         {
             LOG_err << "Failure to unserialize node counter (files, folders and versions uint64_t)";
             assert(false);
+            return;
         }
+
+        files = static_cast<size_t>(auxFiles);
+        folders = static_cast<size_t>(auxFolders);
+        versions = static_cast<size_t>(auxVersions);
     }
     else
     {
