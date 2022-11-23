@@ -1297,11 +1297,13 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     if (type == ATTR_KEYS)
     {
         SymmCipher& masterKey = client->key;
-        SymmCipher gcmkey;
+        SymmCipher gcmkey;  // derived key from MK
 
+        // Derive key from MK
         CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
         byte derivedKey[SymmCipher::KEYLENGTH];
-        hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, nullptr, 0);
+        byte info[1]; info[0] = 1;
+        hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, info, sizeof(info));
         gcmkey.setkey(derivedKey);
 
         std::string out = Utils::stringToHex(std::string((const char *)derivedKey, SymmCipher::KEYLENGTH));
