@@ -90,7 +90,8 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
         if (*cmd->client->json.pos == ',') ++cmd->client->json.pos;
     }
 
-    if (cmd->client->mCurrentSeqtag == st)
+    if (cmd->client->mCurrentSeqtag == st ||
+        !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
     {
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;

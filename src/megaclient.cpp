@@ -2208,7 +2208,7 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc /*&& !loggingout*/)
         {
-            #ifdef DEBUG
+            #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 if (globalMegaTestHooks.interceptSCRequest)
                 {
                     globalMegaTestHooks.interceptSCRequest(pendingsc);

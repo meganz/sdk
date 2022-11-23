@@ -11723,7 +11723,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
             ASSERT_NE(id, UNDEF);
 
             // Wait for the contact to receive the request.
-            ASSERT_TRUE(client.waitFor(contactRequestReceived(id), DEFAULTWAIT));
+            ASSERT_TRUE(client.waitFor(contactRequestReceived(id), std::chrono::seconds(60)));
 
             // Accept the contact request.
             ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
