@@ -2289,25 +2289,6 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    versionStorage += o.versionStorage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    versionStorage -= o.versionStorage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-}
-
-
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
     , mValue(value)

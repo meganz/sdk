@@ -47,8 +47,8 @@ public:
     void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
-    bool processCmdJSON(Command* cmd);
-    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk);
+    bool processCmdJSON(Command* cmd, bool couldBeError);
+    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray);
 
     void clear();
     bool empty() const;

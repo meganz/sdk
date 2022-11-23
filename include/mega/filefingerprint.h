@@ -71,6 +71,7 @@ struct MEGA_API FileFingerprint : public Cacheable
 struct MEGA_API FileFingerprintCmp
 {
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
+    bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
 };
 
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
