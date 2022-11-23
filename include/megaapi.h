@@ -4860,15 +4860,15 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
-        EVENT_RELOAD                    = 17, // App should force a reload when receives this even
+        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
     };
 
     enum
     {
         REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
         REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
-        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node incostency when nodes are processing from API
-        REASON_RELOAD_UNKNOWN = 3,                  // Unknow reason
+        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
+        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
     };
 
     virtual ~MegaEvent();
@@ -4913,8 +4913,8 @@ public:
      * For event EVENT_RELOAD, these values can be taken:
      *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
      *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
-     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node incostence when nodes are processing from API
-     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknow reason
+     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
+     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
      *
      * @return Number relative to this event
      */

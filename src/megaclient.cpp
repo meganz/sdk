@@ -14309,11 +14309,11 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    // If failure unserializing nodes was detected, sync was disabled and it isn't possible re-activate
-    // until app launches a reload
+    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them until
+    // until the account is reloaded (or the app restarts)
     if (mNodeManager.accountShouldBeReload())
     {
-        LOG_warn << "It isn't possible to activate sync a until app is reloaded";
+        LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
         syncConfig.mError = FAILURE_ACCESSING_PERSISTENCE_STORAGE;
         syncConfig.mEnabled = false;
         return API_EINTERNAL;
@@ -20493,7 +20493,7 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
                 reason = "Failed to unserialize a node";
                 break;
             default:
-                reason = "Unkown reason";
+                reason = "Unknown reason";
                 break;
         }
 
