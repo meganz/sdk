@@ -436,6 +436,15 @@ public:
     // Initialize node counters and create indexes at DB
     void initCompleted();
 
+    // This method should be called when no recoverable error is detected
+    // This error are called mainly due an error in DB
+    // This method notify to app that an error has been detected
+    void fatalError(ReasonsToReload reloadReason);
+
+    // This flag is set true when failure at DB is detected an app reload
+    // has been requested to the app
+    bool accountShouldBeReload() const;
+
 private:
     MegaClient& mClient;
 

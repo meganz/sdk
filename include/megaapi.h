@@ -4860,6 +4860,15 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
+        EVENT_RELOAD                    = 17, // App should force a reload when receives this even
+    };
+
+    enum
+    {
+        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
+        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
+        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node incostency when nodes are processing from API
+        REASON_RELOAD_UNKNOWN = 3,                  // Unknow reason
     };
 
     virtual ~MegaEvent();
@@ -4900,6 +4909,12 @@ public:
      *
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
+     *
+     * For event EVENT_RELOAD, these values can be taken:
+     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
+     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node incostence when nodes are processing from API
+     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknow reason
      *
      * @return Number relative to this event
      */
@@ -6163,8 +6178,7 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
-        NODES_UNSERIALZATION_FAILURE = 43,      // Failure when nodes are unserialized from DB
-        FAILUERE_WRITE_DB = 44,                 // Failure to write data in DB
+        FAILURE_ACCESSING_PERSISTENCE_STORAGE = 43, // Failure when nodes are unserialized from DB
     };
 
     enum Warning
@@ -7569,6 +7583,8 @@ class MegaGlobalListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         *
          * You should call MegaApi::fetchNodes when this callback is received
          *
          * @param api MegaApi object connected to the account
@@ -8012,6 +8028,8 @@ class MegaListener
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
+         *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
