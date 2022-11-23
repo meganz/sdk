@@ -9744,7 +9744,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
     };
 
-    MegaApi* differentApiPtr = nullptr; PerApi* differentApiDtlsPtr = nullptr;
+    MegaApi* differentApiPtr = nullptr;
+    PerApi* differentApiDtlsPtr = nullptr;
     lCopyConnection(&differentApiPtr, &differentApiDtlsPtr);
 
 
@@ -9757,7 +9758,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const MegaHandle sh = s1p->id();
 
 
-    LOG_debug << "# U1: Upload test file"; int userIdx = 0;
+    LOG_debug << "# U1: Upload test file";
+    int userIdx = 0;
     unique_ptr<MegaNode> rootnode{ megaApi[userIdx]->getRootNode() };
     ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
     MegaHandle uploadedNode = INVALID_HANDLE;
@@ -9772,7 +9774,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
              ) << "Cannot upload a test file";
 
 
-    LOG_debug << "# U1: Add Element to Set"; userIdx = 0;
+    LOG_debug << "# U1: Add Element to Set";
+    userIdx = 0;
     const string elattrs = u8"Element name emoji: 🐧";
     MegaSetElementList* newEll = nullptr;
     ASSERT_EQ(API_OK, doCreateSetElement(userIdx, &newEll, sh, uploadedNode, elattrs.c_str()));
@@ -9783,7 +9786,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NE(elp, nullptr);
 
 
-    LOG_debug << "# U1: Fetch Set (-11 expected)"; userIdx = 0;
+    LOG_debug << "# U1: Fetch Set (-11 expected)";
+    userIdx = 0;
     auto lIsSameSet = [&s1p](const MegaSet* s, bool isExported)
     {
         ASSERT_NE(s, nullptr);
@@ -9836,7 +9840,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_FALSE(megaApi[0]->isExportedSet(sh));
 
 
-    LOG_debug << "# U1: Enable Set export (creates public link)"; userIdx = 0;
+    LOG_debug << "# U1: Enable Set export (creates public link)";
+    userIdx = 0;
     ASSERT_FALSE(megaApi[userIdx]->isExportedSet(sh));
     MegaSet* exportedSet = nullptr;
     string exportedSetURL;
@@ -9862,7 +9867,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh));
 
 
-    LOG_debug << "# U1: Logout / login to retrieve Set";  userIdx = 0;
+    LOG_debug << "# U1: Logout / login to retrieve Set";
+    userIdx = 0;
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
@@ -9905,7 +9911,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     auto lStartSetPreviewMode = [this, &exportedSetURL, &lIsSameSet, &lIsSameElementList]
                                 (int apiIdx, bool isSetExportExpected)
     {
-        MegaSet* exportedSet = nullptr; MegaSetElementList* exportedEls = nullptr;
+        MegaSet* exportedSet = nullptr;
+        MegaSetElementList* exportedEls = nullptr;
         ASSERT_EQ(API_OK,
                   doStartPublicSetPreview(apiIdx, &exportedSet, &exportedEls,
                                           exportedSetURL.c_str()));
@@ -9924,20 +9931,24 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     lFetchSetInPreviewMode(0, API_OK);
 
 
-    LOG_debug << "# U1: Stop Public Set preview mode"; userIdx = 0;
+    LOG_debug << "# U1: Stop Public Set preview mode";
+    userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
 
 
-    LOG_debug << "# U2: Fetch Set (-11 expected)"; userIdx = 1;
+    LOG_debug << "# U2: Fetch Set (-11 expected)";
+    userIdx = 1;
     lFetchSetInPreviewMode(1, API_EACCESS);
 
 
-    LOG_debug << "# U2: Start Public Set preview mode"; userIdx = 1;
+    LOG_debug << "# U2: Start Public Set preview mode";
+    userIdx = 1;
     lStartSetPreviewMode(1, isExpectedToBeExported);
 
 
-    LOG_debug << "# U2: Fetch Set (OK expected)"; userIdx = 1;
+    LOG_debug << "# U2: Fetch Set (OK expected)";
+    userIdx = 1;
     lFetchSetInPreviewMode(1, API_OK);
 
 
@@ -9949,7 +9960,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         MegaNode* fNode = nullptr;
 
         gTestingInvalidArgs = expectedResult != API_OK;
-        ASSERT_EQ(expectedResult, doGetPublicSetPreviewElementMegaNode(1, &fNode, elp->id()));
+        ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
         gTestingInvalidArgs = false;
 
         foreignNode.reset(fNode);
@@ -9974,7 +9985,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     lDownloadForeignElement(API_OK, foreignNode.get());
 
 
-    LOG_debug << "# U2: Stop Public Set preview mode"; userIdx = 1;
+    LOG_debug << "# U2: Stop Public Set preview mode";
+    userIdx = 1;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
 
@@ -9982,30 +9994,28 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
     lFetchForeignNode(API_EACCESS);
     lDownloadForeignElement(API_ENOENT, foreignNode.get());
-    //lFetchForeignNode(API_EARGS);
 
 
     // at this point both MegaApi sessions are invalidated due to start/stopPublicSetPreview
     LOG_debug << "# Releasing MegaApi instances and loging in again U1 and U2";
     for (int i = int(megaApi.size()); --i >= 0;) releaseMegaApi(i);
     getAccountsForTest(2);
-    differentApiPtr = nullptr; differentApiDtlsPtr = nullptr;
+    differentApiPtr = nullptr;
+    differentApiDtlsPtr = nullptr;
     lCopyConnection(&differentApiPtr, &differentApiDtlsPtr);
 
 
-    LOG_debug << "# U1: Disable Set export (invalidates public link)"; userIdx = 0;
+    LOG_debug << "# U1: Disable Set export (invalidates public link)";
+    userIdx = 0;
     ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh));
-    //differentApiDtls2.setUpdated = false;
     differentApiDtlsPtr->setUpdated = false;
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     isExpectedToBeExported = false;
     unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
     lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
     // test action packets
-    //ASSERT_TRUE(waitForResponse(&differentApiDtls2.setUpdated))
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Set export updated note received after " << maxTimeout << " seconds";
-    //s1pDisabledExport.reset(differentApi2.getSet(sh));
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
     lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
 
@@ -10016,7 +10026,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Get public Set URL (expect -9)";
     lCheckSetLink(API_ENOENT);
 
-    LOG_debug << "# U1: Remove all Sets"; userIdx = 0;
+    LOG_debug << "# U1: Remove all Sets";
+    userIdx = 0;
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
     for (unsigned i = 0; i < sets->size(); ++i)
     {

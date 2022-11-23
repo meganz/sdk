@@ -5784,9 +5784,9 @@ bool MegaApi::inPublicSetPreview()
     return pImpl->inPublicSetPreview();
 }
 
-void MegaApi::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener)
+void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
 {
-    return pImpl->getPublicSetPreviewElementMegaNode(eid, listener);
+    return pImpl->getPreviewElementNode(eid, listener);
 }
 
 int MegaApi::getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL)

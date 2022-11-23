@@ -10581,15 +10581,15 @@ void startSetPreviewMode(const string& publicSetLink)
     if (client->inSetPreviewMode())
     {
         cout << "\tPreview mode failed: client already with Set preview mode enabled; "
-             << "please, disable it first.";
+             << "please, disable it first.\n";
         return;
     }
     client->startSetPreview(publicSetLink.c_str(), [](Error e, Set* s, map<handle, SetElement>* elements)
        {
            if (e == API_OK)
            {
-               if (s) cout << "\tPreview mode ready for set " << toHandle(s->id()) <<"\n";
-               else cout << "\tPreview mode seems ready but !s\n";
+               if (s) cout << "\tPreview mode started for Set " << toHandle(s->id()) << endl;
+               else cout << "\tNull Set returned for started preview mode\n";
 
                printSet(s);
                printElements(elements);
@@ -10747,7 +10747,7 @@ void exec_setsandelements(autocomplete::ACState& s)
                string msg = (isExportSet ? "en" : "dis") + string("abled");
                cout << "\tSet " << toHandle(sid) << " export "
                     << (isExportSet ? "en" : "dis") << "abled "
-                    << (e == API_OK ? "" : "un") << " successfully"
+                    << (e == API_OK ? "" : "un") << "successfully"
                     << (e == API_OK ? "" : ". " + verboseErrorString(e))
                     << endl;
            });

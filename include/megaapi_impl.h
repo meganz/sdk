@@ -2645,7 +2645,7 @@ class MegaApiImpl : public MegaApp
         void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
-        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);

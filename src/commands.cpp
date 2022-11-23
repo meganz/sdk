@@ -9343,12 +9343,12 @@ bool CommandRemoveSetElement::procresult(Result r)
     return parsedOk;
 }
 
-CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool isExportSet, std::function<void(Error)> completion)
+CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std::function<void(Error)> completion)
     : mSet(new Set(move(s))), mCompletion(completion)
 {
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
-    if (!isExportSet) arg("d", 1);
+    if (!makePublic) arg("d", 1);
 
     notself(cl); // don't process its Action Packet after sending this
 }

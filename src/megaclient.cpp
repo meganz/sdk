@@ -1457,7 +1457,7 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
     mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
-bool MegaClient::validTypeForPublicLinkURL(nodetype_t type)
+bool MegaClient::validTypeForPublicURL(nodetype_t type)
 {
     switch (type)
     {
@@ -1472,11 +1472,11 @@ bool MegaClient::validTypeForPublicLinkURL(nodetype_t type)
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
-    assert(validTypeForPublicLinkURL(type));
-    if (!validTypeForPublicLinkURL(type))
+    assert(validTypeForPublicURL(type));
+    if (!validTypeForPublicURL(type))
     {
         LOG_err << "Public link URL requested for non-valid type " << type;
-        return string{};
+        return string();
     }
 
     string strlink = MegaClient::MEGAURL + "/";
@@ -1492,7 +1492,7 @@ std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handl
     else if (type == SETNODE)
     {
         LOG_err << "Requesting old link format URL for Set type";
-        return string{};
+        return string();
     }
     else
     {
@@ -18778,7 +18778,7 @@ void MegaClient::sc_aer()
             break;
 
         case EOO:
-            if (setId != UNDEF && elemId !=UNDEF && !deleteSetElement(setId, elemId))
+            if (setId != UNDEF && elemId != UNDEF && !deleteSetElement(setId, elemId))
             {
                 LOG_err << "Sets: Failed to remove Element in `aer` action packet for Set "
                         << toHandle(setId) << " and Element " << toHandle(elemId);
@@ -18795,7 +18795,7 @@ void MegaClient::sc_aer()
     }
 }
 
-error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved)
+error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved)
 {
     for (;;)
     {
@@ -18814,21 +18814,15 @@ error MegaClient::readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemov
             break;
 
         case MAKENAMEID1('r'):
-        {
-            bool& isExportRemoved = exportRemoved.first;
-            isExportRemoved = j.getint() == 1;
+            exportRemoved.first = j.getint() == 1;
             s.setPublicId(UNDEF);
             break;
-        }
 
         case MAKENAMEID1('c'):
-        {
-            auto& exportRemovalReason = exportRemoved.second;
-            exportRemovalReason = j.getint();
+            exportRemoved.second = j.getint();
             /* 0     => deleted by user
              * Other => ETD / ATD / dispute */
             break;
-        }
 
         default: // skip 'i' and any unknown/unexpected member
         {
@@ -18867,16 +18861,6 @@ error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
 
         case MAKENAMEID2('t', 's'):
             ts = j.getint();
-            assert(item != UNDEF && itemPH != UNDEF);
-            if (sets.find(item) != end(sets))
-            {
-                sets[item].setPublicId(itemPH);
-                sets[item].setTs(ts);
-            }
-            else
-            {
-                LOG_warn << "Sets: Set handle " << toHandle(item) << " not found in user's Sets";
-            }
             break;
 
         default: // skip any unknown/unexpected member
@@ -18892,8 +18876,15 @@ error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
         }
 
         case EOO:
-            return API_OK;
+            assert(item != UNDEF && itemPH != UNDEF);
+            if (sets.find(item) != end(sets))
+            {
+                sets[item].setPublicId(itemPH);
+                sets[item].setTs(ts);
+            }
+            else LOG_warn << "Sets: Set handle " << toHandle(item) << " not found in user's Sets";
 
+            return API_OK;
         }
     }
 }
@@ -18919,7 +18910,7 @@ void MegaClient::sc_ass()
 {
     Set s;
     auto exportRemoved = std::make_pair(false, static_cast<m_off_t>(0));
-    error e = readExportSet(jsonsc, s, exportRemoved);
+    error e = readExportedSet(jsonsc, s, exportRemoved);
 
     if (e != API_OK)
     {
@@ -18940,13 +18931,13 @@ bool MegaClient::isExportedSet(handle sid) const
     return s && s->isExportedSet();
 }
 
-void MegaClient::exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion)
+void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error)> completion)
 {
     if (getSet(sid))
     {
         Set s;
         s.setId(sid);
-        reqs.add(new CommandExportSet(this, move(s), isExportSet, completion));
+        reqs.add(new CommandExportSet(this, move(s), makePublic, completion));
     }
     else if (completion)
     {
@@ -18962,14 +18953,14 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
     if (setIt == end(mSets))
     {
         LOG_err << paramErrMsg << ". Provided Set id doesn't match any owned Set";
-        return make_pair(API_ENOENT, string{});
+        return make_pair(API_ENOENT, string());
     }
 
     const Set& s = setIt->second;
     if (!s.isExportedSet())
     {
         LOG_err << paramErrMsg << ". Provided Set is not exported";
-        return make_pair(API_ENOENT, string{});
+        return make_pair(API_ENOENT, string());
     }
 
     error e = API_OK;
@@ -18987,8 +18978,8 @@ error MegaClient::startSetPreview(const char* publicSetLink,
 
     handle publicSetId = UNDEF;
     std::array<byte, SETNODEKEYLENGTH> publicSetKey;
-    error e;
-    if ((e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), SETNODE)) == API_OK)
+    error e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), SETNODE);
+    if (e == API_OK)
     {
         assert(publicSetId != UNDEF);
 

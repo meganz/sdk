@@ -113,8 +113,10 @@ namespace mega {
             this->mId = src.mId;
             this->mKey = src.mKey;
             if (src.mAttrs) this->mAttrs.reset(new string_map(*src.mAttrs));
+            else            this->mAttrs.reset();
             this->mTs = src.mTs;
             if (src.mEncryptedAttrs) this->mEncryptedAttrs.reset(new std::string(*src.mEncryptedAttrs));
+            else                     this->mEncryptedAttrs.reset();
         }
     };
 
@@ -223,7 +225,7 @@ namespace mega {
             : CommonSE(id, move(key), move(attrs)), mPublicId(publicId), mUser(user) {}
 
         // return public id of the set
-        const handle& publicId() const {return mPublicId; }
+        const handle& publicId() const { return mPublicId; }
 
         // return id of the user that owns this Set
         const handle& user() const { return mUser; }
@@ -269,7 +271,7 @@ namespace mega {
             CH_NAME,    // point out that 'name' attr has changed
             CH_COVER,   // point out that 'cover' attr has changed
             CH_REMOVED, // point out that this Set has been removed
-            CH_EXPORTED,// point out that this Set has been exported or disabled
+            CH_EXPORTED,// point out that this Set has been exported (shared) or disabled (stopped being shared)
 
             CH_SIZE
         };

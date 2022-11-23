@@ -1314,7 +1314,7 @@ public:
      * Check if the Set was removed
      *
      * - MegaSet::CHANGE_TYPE_EXPORTED              = 0x04
-     * Check if the Set was exported (or disabled)
+     * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
@@ -4369,7 +4369,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
-         * - MegaApi::getPublicSetPreviewElementMegaNode
+         * - MegaApi::getPreviewElementNode
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -20273,7 +20273,7 @@ class MegaApi
          * @param eid MegaHandle of target SetElement from Set in preview mode
          * @param listener MegaRequestListener to track this request
          */
-        void getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element

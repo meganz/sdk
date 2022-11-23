@@ -2370,7 +2370,7 @@ public:
     // return true if Set with given sid is exported (has a public link)
     bool isExportedSet(handle sid) const;
 
-    void exportSet(handle sid, bool isExportSet, std::function<void(Error)> completion);
+    void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
 
     // returns result of the operation and the link created
     pair<error, string> getPublicSetLink(handle sid) const;
@@ -2388,13 +2388,13 @@ public:
     const Set* getPreviewSet() const { return inSetPreviewMode() ? &mPreviewSet->mSet : nullptr; }
 
 private:
-    static inline bool validTypeForPublicLinkURL(nodetype_t type);
+    static inline bool validTypeForPublicURL(nodetype_t type);
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
     error readElement(JSON& j, SetElement& el);
-    error readExportSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRemoved);
+    error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandles(JSON& j, map<handle, Set>& sets);
     error decryptSetData(Set& s);

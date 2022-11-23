@@ -4065,7 +4065,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
-        case TYPE_EXPORT_SET: return "TYPE_EXPORT_SET";
+        case TYPE_EXPORT_SET: return "EXPORT_SET";
         case TYPE_PUT_SET: return "PUT_SET";
         case TYPE_REMOVE_SET: return "REMOVE_SET";
         case TYPE_FETCH_SET: return "FETCH_SET";
@@ -4076,7 +4076,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
-        case TYPE_GET_EXPORTED_SET_ELEMENT: return "TYPE_GET_EXPORTED_SET_ELEMENT";
+        case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
     }
     return "UNKNOWN";
 }
@@ -19109,7 +19109,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout(false, true, string(slogin) == SET_PREVIEW_LOGIN);
+            client->locallogout(false, true, slogin == SET_PREVIEW_LOGIN);
             if (sessionKey)
             {
                 client->login(Base64::atob(string(sessionKey)));
@@ -19120,7 +19120,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                if (string(login) == SET_PREVIEW_LOGIN)
+                if (login == SET_PREVIEW_LOGIN)
                 {
                     auto& megaPublicSetLink = megaFolderLink;
                     e = client->startSetPreview(megaPublicSetLink, fetchSetCompletionCB(request));
@@ -24155,7 +24155,7 @@ bool MegaApiImpl::inPublicSetPreview()
     return client->inSetPreviewMode();
 }
 
-void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequestListener* listener)
+void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
 {
     SdkMutexGuard g(sdkMutex);
 
@@ -24178,43 +24178,42 @@ void MegaApiImpl::getPublicSetPreviewElementMegaNode(MegaHandle eid, MegaRequest
             return API_EARGS;
         }
 
-        {
-            std::array<byte, FILENODEKEYLENGTH> ekey;
-            handle enode = element->node();
-            memcpy(ekey.data(), element->key().c_str(), ekey.size());
-            auto commandCB =
-                [ekey, enode, request, this] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
-                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-                          const std::vector<std::string> &/*ips*/)
+        std::array<byte, FILENODEKEYLENGTH> ekey;
+        handle enode = element->node();
+        memcpy(ekey.data(), element->key().c_str(), ekey.size());
+        auto commandCB =
+            [ekey, enode, request, this] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+            dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
+            std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
+            const std::vector<std::string> &/*ips*/)
+            {
+                if (!fingerprint) // failed processing the command
                 {
-                    if (!fingerprint) // failed processing the command
-                    {
-                        LOG_err << "Sets: Link check failed: " << e;
-                        return true;
-                    }
-
-                    if (e)
-                    {
-                        LOG_err << "Sets: Not available: " << e;
-                    }
-                    else
-                    {
-                        auto ekeyStr = string((char*)ekey.data());
-                        unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
-                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
-                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
-                                                       false /*isPublic*/, true /*isForeign*/));
-                        request->setPublicNode(ret.get());
-                    }
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    LOG_err << "Sets: Link check failed: " << e;
                     return true;
-                };
+                }
 
-            client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                        true /*private*/, nullptr, nullptr, nullptr, false,
-                                        commandCB));
-        }
+                if (e)
+                {
+                    LOG_err << "Sets: Not available: " << e;
+                }
+                else
+                {
+                    auto ekeyStr = string((char*)ekey.data());
+                    unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
+                                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
+                                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
+                                                                       false /*isPublic*/, true /*isForeign*/));
+                    request->setPublicNode(ret.get());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                return true;
+            };
+
+        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
+                                            true /*private*/, nullptr, nullptr, nullptr, false,
+                                            commandCB));
+
         return API_OK;
     };
 

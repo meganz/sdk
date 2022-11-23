@@ -464,10 +464,10 @@ public:
         }
         return rt.result;
     }
-    template<typename ... requestArgs> int doGetPublicSetPreviewElementMegaNode(unsigned apiIndex, MegaNode** n, requestArgs... args)
+    template<typename ... requestArgs> int doGetPreviewElementNode(unsigned apiIndex, MegaNode** n, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->getPublicSetPreviewElementMegaNode(args..., &rt); rt.waitForResult();
+        megaApi[apiIndex]->getPreviewElementNode(args..., &rt); rt.waitForResult();
         if (n && rt.result == API_OK) *n = rt.request->getPublicMegaNode(); // ownership received (it's a copy)
         return rt.result;
     }

@@ -1563,7 +1563,7 @@ private:
 class MEGA_API CommandExportSet : public CommandSE
 {
 public:
-    CommandExportSet(MegaClient*, Set&& s, bool isExportSet, std::function<void(Error)> completion);
+    CommandExportSet(MegaClient*, Set&& s, bool makePublic, std::function<void(Error)> completion);
     bool procresult(Result) override;
 
 private:
