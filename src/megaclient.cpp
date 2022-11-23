@@ -14310,10 +14310,10 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mWarning = NO_SYNC_WARNING;
 
     // If failure unserializing nodes was detected, sync was disabled and it isn't possible re-activate
-    // until app launch a reload
+    // until app launches a reload
     if (mNodeManager.accountShouldBeReload())
     {
-        LOG_warn << "It isn't possible to activate sync a until app is reload";
+        LOG_warn << "It isn't possible to activate sync a until app is reloaded";
         syncConfig.mError = FAILURE_ACCESSING_PERSISTENCE_STORAGE;
         syncConfig.mEnabled = false;
         return API_EINTERNAL;

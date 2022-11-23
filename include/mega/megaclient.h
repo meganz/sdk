@@ -441,8 +441,8 @@ public:
     // This method notify to app that an error has been detected
     void fatalError(ReasonsToReload reloadReason);
 
-    // This flag is set true when failure at DB is detected an app reload
-    // has been requested to the app
+    // This flag is set true when failure at DB is detected and app reload
+    // has been requested
     bool accountShouldBeReload() const;
 
 private:
@@ -528,7 +528,7 @@ private:
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
-    // This flag is set true when unserialize a node has failed and account reload has been requested to app
+    // This flag is set true when a failure in DB has been detected. Keep true until app is reload
     bool mAccountReload = false;
 };
 

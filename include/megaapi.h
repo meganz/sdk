@@ -6178,7 +6178,7 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
-        FAILURE_ACCESSING_PERSISTENCE_STORAGE = 43, // Failure when nodes are unserialized from DB
+        FAILURE_ACCESSING_PERSISTENCE_STORAGE = 43, // Failure accessing to persistence storage
     };
 
     enum Warning
