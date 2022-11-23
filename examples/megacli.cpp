@@ -1262,6 +1262,7 @@ void DemoApp::getua_result(error e)
 }
 
 #include <cryptopp/hkdf.h>
+using namespace std;
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
@@ -1307,10 +1308,13 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         gcmkey.setkey(derivedKey);
 
         std::string out = Utils::stringToHex(std::string((const char *)derivedKey, SymmCipher::KEYLENGTH));
-        std::cout << "Derived key: " << out << std::endl << std::endl;
+        cout << "Derived key: " << out << endl << endl;
+        cout << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH)) << endl;
 
-        if (data && l > 2 && data[0] == 20 && data[1] == 0)
+        if (data && l > 2 && data[0] == 20)
         {
+            // data[1] is reserved, always 0
+
             if (l > 14)
             {
                 string keysCiphered((const char*)(data + 14), (size_t)(l - 14));
@@ -1321,11 +1325,132 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                 out = Utils::stringToHex(iv);
                 std::cout << "IV: " << out << std::endl;
 
+                // Decrypt ^!keys attribute
                 string keysPlain;
                 gcmkey.gcm_decrypt(&keysCiphered, data + 2, 12, 0, &keysPlain);
 
                 out = Utils::stringToHex(keysPlain);
                 std::cout << "Keys plain: " << out << std::endl << std::endl;
+
+                // Decode blob
+
+                enum {
+                    TAG_VERSION = 1,
+                    TAG_CREATION_TIME = 2,
+                    TAG_IDENTITY = 3,
+                    TAG_GENERATION = 4,
+                    TAG_ATTR = 5,
+                    TAG_PRIV_ED25519 = 16,
+                    TAG_PRIV_CU25519 = 17,
+                    TAG_PRIV_RSA = 18,
+                    TAG_AUTHRING_ED25519 = 32,
+                    TAG_AUTHRING_CU25519 = 33,
+                    TAG_SHAREKEYS = 48,
+                    TAG_PENDING_OUTSHARES = 64,
+                    TAG_PENDING_INSHARES = 65,
+                    TAG_BACKUPS = 80,
+                    TAG_WARNINGS = 96,
+                };
+
+                uint8_t version;
+                uint32_t creationTime;
+                handle identity;
+                uint32_t generation;
+                string attr;
+                string privEd25519, privCu25519, privRSA;
+                string authEd25519, authCu25519;
+                string sharekeys;
+                string pendingOutShares, pendingInShares;
+                string backups;
+                string warnings;
+
+                const char* blob = keysPlain.data();
+                size_t blobLength = keysPlain.length();
+                uint8_t headerSize = 4;  // 1 byte for Tag, 3 bytes for Length
+                size_t offset = headerSize;
+                while (offset <= blobLength)
+                {
+                    byte tag = blob[offset - headerSize];
+                    size_t len = (blob[offset - 3] << 16) + (blob[offset - 2] << 8) + blob[offset - 1];
+                    if (offset + len > blobLength)
+                    {
+                        LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
+                        return;
+                    }
+
+                    switch (tag)
+                    {
+                    case TAG_VERSION:
+                        if (len != sizeof(version)) return;
+                        version = MemAccess::get<uint8_t>(blob + offset);
+                        cout << "Version: " << (int)version << endl;
+                        break;
+
+                    case TAG_CREATION_TIME:
+                        if (len != sizeof(creationTime)) return;
+                        creationTime = MemAccess::get<uint32_t>(blob + offset);
+                        creationTime = be32toh(creationTime);
+                        cout << "Creation time: " << creationTime << endl;
+                        break;
+
+                    case TAG_IDENTITY:
+                        if (len != sizeof(identity)) return;
+                        identity = MemAccess::get<handle>(blob + offset);
+                        cout << "Identity: " << toHandle(identity) << endl;
+                        break;
+
+                    case TAG_GENERATION:
+                        if (len != sizeof(generation)) return;
+                        generation = MemAccess::get<uint32_t>(blob + offset);
+                        generation = be32toh(generation);
+                        cout << "Generation: " << generation << endl;
+                        break;
+
+                    case TAG_ATTR:
+                        attr.assign(blob + offset, len);
+                        cout << "Attr: " << Base64::btoa(attr) << endl;
+                        break;
+
+                    case TAG_PRIV_ED25519:
+                        if (len != 32) return;
+                        privEd25519.assign(blob + offset, len);
+                        cout << "PrivEd25519: " << Base64::btoa(privEd25519) << endl;
+                        break;
+
+                    case TAG_PRIV_CU25519:
+                        if (len != 32) return;
+                        privCu25519.assign(blob + offset, len);
+                        cout << "PrivCu25519: " << Base64::btoa(privCu25519) << endl;
+                        break;
+
+                    case TAG_PRIV_RSA:
+                        break;
+
+                    case TAG_AUTHRING_ED25519:
+                        break;
+
+                    case TAG_AUTHRING_CU25519:
+                        break;
+
+                    case TAG_SHAREKEYS:
+                        break;
+
+                    case TAG_PENDING_OUTSHARES:
+                        break;
+
+                    case TAG_PENDING_INSHARES:
+                        break;
+
+                    case TAG_BACKUPS:
+                        break;
+
+                    case TAG_WARNINGS:
+                        break;
+
+                    }
+
+                    offset += headerSize + len;
+                }
             }
         }
 
