@@ -519,15 +519,15 @@ bool Node::serialize(string* d)
     // Write data necessary to thaw encrypted nodes.
     if (attrstring)
     {
-        // Write node key data.  These can be quite long, and can be in many shares.  Use 32 bit len
-        uint32_t length1 = static_cast<uint32_t>(nodekeydata.size());
-        d->append((char*)&length1, sizeof(length1));
-        d->append(nodekeydata, 0, size_t(length1));
+        // Write node key data.
+        uint32_t length = static_cast<uint32_t>(nodekeydata.size());
+        d->append((char*)&length, sizeof(length));
+        d->append(nodekeydata, 0, length);
 
-        // Write attribute string data.   Attributes can be long, too, so 32 bit again
-        uint32_t length2 = static_cast<uint32_t>(attrstring->size());
-        d->append((char*)&length2, sizeof(length2));
-        d->append(*attrstring, 0, size_t(length2));
+        // Write attribute string data.
+        length = static_cast<uint32_t>(attrstring->size());
+        d->append((char*)&length, sizeof(length));
+        d->append(*attrstring, 0, length);
     }
 
     return true;
