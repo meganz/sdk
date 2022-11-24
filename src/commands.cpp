@@ -4573,6 +4573,10 @@ bool CommandGetUserData::procresult(Result r)
                     });
                 }
 #endif
+                if (keys.size())
+                {
+                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
+                }
 
                 if (changes > 0)
                 {
