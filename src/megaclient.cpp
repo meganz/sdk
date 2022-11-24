@@ -14311,7 +14311,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them until
     // until the account is reloaded (or the app restarts)
-    if (mNodeManager.accountShouldBeReload())
+    if (mNodeManager.accountShouldBeReloaded())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
         syncConfig.mError = FAILURE_ACCESSING_PERSISTENCE_STORAGE;
@@ -20502,7 +20502,7 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
     }
 }
 
-bool NodeManager::accountShouldBeReload() const
+bool NodeManager::accountShouldBeReloaded() const
 {
     return mAccountReload;
 }

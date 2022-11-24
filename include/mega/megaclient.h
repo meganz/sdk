@@ -443,7 +443,7 @@ public:
 
     // This flag is set true when failure at DB is detected and app reload
     // has been requested
-    bool accountShouldBeReload() const;
+    bool accountShouldBeReloaded() const;
 
 private:
     MegaClient& mClient;
