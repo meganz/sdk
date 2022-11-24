@@ -5548,6 +5548,7 @@ void MegaClient::finalizesc(bool complete)
     else
     {
         LOG_err << "Cache update DB write error - disabling caching";
+        assert(false);
         mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
@@ -20479,6 +20480,8 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
 {
     if (!mAccountReload)
     {
+        mAccountReload = true;
+
 #ifdef ENABLE_SYNC
         mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
 #endif
@@ -20498,7 +20501,6 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
         }
 
         mClient.app->reload(reason.c_str(), reloadReason);
-        mAccountReload = true;
     }
 }
 
