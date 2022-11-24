@@ -1417,12 +1417,16 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                         if (len != 32) return;
                         privEd25519.assign(blob + offset, len);
                         cout << "PrivEd25519: " << Base64::btoa(privEd25519) << endl;
+                        delete client->signkey;
+                        client->signkey = new EdDSA(client->rng, (unsigned char *) privEd25519.data());
                         break;
 
                     case TAG_PRIV_CU25519:
                         if (len != 32) return;
                         privCu25519.assign(blob + offset, len);
                         cout << "PrivCu25519: " << Base64::btoa(privCu25519) << endl;
+                        delete client->chatkey;
+                        client->chatkey = new ECDH(privCu25519);
                         break;
 
                     case TAG_PRIV_RSA:
@@ -1445,6 +1449,15 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                         // TODO: deserialize it
                         cout << "Authring Ed25519: " << Base64::btoa(authEd25519) << endl;
 
+                        attr_t at = ATTR_AUTHRING;
+                        auto it = client->mAuthRings.find(at);
+                        if (it != client->mAuthRings.end())
+                        {
+                            cout << "Authring Ed25519 (expected): " << Base64::btoa(it->second.serializeForJS()) << endl;
+                            client->mAuthRings.erase(at);
+                            client->mAuthRings.emplace(at, AuthRing(at, authEd25519));
+                        }
+                        break;
                     }
                     case TAG_AUTHRING_CU25519:
                     {
@@ -1452,6 +1465,14 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                         // TODO: deserialize it
                         cout << "Authring Cu25519 (" << len << "): " << Base64::btoa(authCu25519) << endl;
 
+                        attr_t at = ATTR_AUTHCU255;
+                        auto it = client->mAuthRings.find(at);
+                        if (it != client->mAuthRings.end())
+                        {
+                            cout << "Authring Cu25519 (expected): " << Base64::btoa(it->second.serializeForJS()) << endl;
+                            client->mAuthRings.erase(at);
+                            client->mAuthRings.emplace(at, AuthRing(at, authCu25519));
+                        }
                         break;
                     }
                     case TAG_SHAREKEYS:

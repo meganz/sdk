@@ -1479,33 +1479,56 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 {
     string authType = "";
     string authValue;
-    if (authring.get(authType, authValue) && !authValue.empty())  // key is an empty string, but may not be there if authring was reset
+    if (authring.get(authType, authValue))  // key is an empty string, but may not be there if authring was reset
     {
-        handle userhandle;
-        byte authFingerprint[20];
-        signed char authMethod = AUTH_METHOD_UNKNOWN;
+        deserialize(authValue);
+    }
+}
 
-        const char *ptr = authValue.data();
-        const char *end = ptr + authValue.size();
-        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
-        while (ptr + recordSize <= end)
-        {
-            memcpy(&userhandle, ptr, sizeof(userhandle));
-            ptr += sizeof(userhandle);
+AuthRing::AuthRing(attr_t type, const std::string &authValue)
+    : mType(type)
+{
+    deserialize(authValue);
+}
 
-            memcpy(authFingerprint, ptr, sizeof(authFingerprint));
-            ptr += sizeof(authFingerprint);
+void AuthRing::deserialize(const string& authValue)
+{
+    if (authValue.empty()) return;
 
-            memcpy(&authMethod, ptr, sizeof(authMethod));
-            ptr += sizeof(authMethod);
+    handle userhandle;
+    byte authFingerprint[20];
+    signed char authMethod = AUTH_METHOD_UNKNOWN;
 
-            mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
-            mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
-        }
+    const char *ptr = authValue.data();
+    const char *end = ptr + authValue.size();
+    unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+    while (ptr + recordSize <= end)
+    {
+        memcpy(&userhandle, ptr, sizeof(userhandle));
+        ptr += sizeof(userhandle);
+
+        memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+        ptr += sizeof(authFingerprint);
+
+        memcpy(&authMethod, ptr, sizeof(authMethod));
+        ptr += sizeof(authMethod);
+
+        mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
+        mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
     }
 }
 
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
+{
+    string buf = serializeForJS();
+
+    TLVstore tlv;
+    tlv.set("", buf);
+
+    return tlv.tlvRecordsToContainer(rng, &key);
+}
+
+string AuthRing::serializeForJS() const
 {
     string buf;
 
@@ -1520,10 +1543,7 @@ std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
         buf.append((const char *)&itAuthMethod->second, 1);
     }
 
-    TLVstore tlv;
-    tlv.set("", buf);
-
-    return tlv.tlvRecordsToContainer(rng, &key);
+    return buf;
 }
 
 bool AuthRing::isTracked(handle uh) const

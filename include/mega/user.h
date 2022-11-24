@@ -166,7 +166,11 @@ public:
 class AuthRing
 {
 public:
+    // create authring of 'type' from the encrypted TLV container
     AuthRing(attr_t type, const TLVstore &authring);
+
+    // create authring of 'type' from the TLV value (undecrypted already, no Type nor Length)
+    AuthRing(attr_t type, const string& authring);
 
     // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
     void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
@@ -179,6 +183,9 @@ public:
 
     // return the authring as tlv container, ready to set as user's attribute
     std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // return a binary buffer compatible with Webclient
+    std::string serializeForJS() const;
 
     // false if uh is not tracked in the authring
     bool isTracked(handle uh) const;
@@ -217,6 +224,8 @@ private:
     attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
+
+    void deserialize(const std::string &authValue);
 };
 
 } // namespace
