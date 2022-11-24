@@ -7448,7 +7448,7 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-        bool res = chat->addOrUpdateSchedMeeting(::mega::make_unique<ScheduledMeeting>(sm.release()));
+        bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
         if (res || deletedChildren)
         {
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
