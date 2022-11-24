@@ -2428,7 +2428,7 @@ private:
 
     struct SetLink
     {
-        handle mPublicId = UNDEF;
+        handle mPublicId = UNDEF; // same as mSet.mPublicId once fetched
         string mPublicKey;
         string mPublicLink;
         Set mSet;

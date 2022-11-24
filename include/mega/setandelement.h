@@ -85,8 +85,8 @@ namespace mega {
     protected:
         CommonSE() = default;
         CommonSE(handle id, std::string&& key, string_map&& attrs) : mId(id), mKey(move(key)), mAttrs(new string_map(move(attrs))) {}
-        CommonSE(const CommonSE& src) { updateCurrent(src); }
-        CommonSE& operator=(const CommonSE& src) { updateCurrent(src); return *this; }
+        CommonSE(const CommonSE& src) { replaceCurrent(src); }
+        CommonSE& operator=(const CommonSE& src) { replaceCurrent(src); return *this; }
         CommonSE(CommonSE&&) = default;
         CommonSE& operator=(CommonSE&&) = default;
         ~CommonSE() = default;
@@ -108,15 +108,13 @@ namespace mega {
         static const std::string nameTag; // "n", used for 'name' attribute
 
     private:
-        void updateCurrent(const CommonSE& src)
+        void replaceCurrent(const CommonSE& src)
         {
             this->mId = src.mId;
             this->mKey = src.mKey;
-            if (src.mAttrs) this->mAttrs.reset(new string_map(*src.mAttrs));
-            else            this->mAttrs.reset();
+            this->mAttrs.reset(src.mAttrs ? new string_map(*src.mAttrs) : nullptr);
             this->mTs = src.mTs;
-            if (src.mEncryptedAttrs) this->mEncryptedAttrs.reset(new std::string(*src.mEncryptedAttrs));
-            else                     this->mEncryptedAttrs.reset();
+            this->mEncryptedAttrs.reset(src.mEncryptedAttrs ? new std::string(*src.mEncryptedAttrs) : nullptr);
         }
     };
 
@@ -129,8 +127,8 @@ namespace mega {
         SetElement() = default;
         SetElement(handle sid, handle node, handle elemId, std::string&& key, string_map&& attrs)
             : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
-        SetElement(const SetElement& src) : CommonSE(src) { updateCurrent(src); }
-        SetElement& operator=(const SetElement& src) { CommonSE::operator=(src); updateCurrent(src); return *this; }
+        SetElement(const SetElement& src) : CommonSE(src) { replaceCurrent(src); }
+        SetElement& operator=(const SetElement& src) { CommonSE::operator=(src); replaceCurrent(src); return *this; }
         SetElement(SetElement&&) = default;
         SetElement& operator=(SetElement&&) = default;
         ~SetElement() = default;
@@ -204,11 +202,11 @@ namespace mega {
 
         std::bitset<CH_EL_SIZE> mChanges;
 
-        void updateCurrent(const SetElement& src)
+        void replaceCurrent(const SetElement& src)
         {
             this->mSetId = src.mSetId;
             this->mNodeHandle = src.mNodeHandle;
-            if (mOrder) this->mOrder.reset(new int64_t(*src.mOrder));
+            this->mOrder.reset(mOrder ? new int64_t(*src.mOrder) : nullptr);
             this->mAttrsClearedByLastUpdate = src.mAttrsClearedByLastUpdate;
             this->mChanges = src.mChanges;
         }
