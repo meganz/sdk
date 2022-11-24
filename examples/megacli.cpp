@@ -1363,6 +1363,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                 string pendingOutShares, pendingInShares;
                 string backups;
                 string warnings;
+                string other;
 
                 const char* blob = keysPlain.data();
                 size_t blobLength = keysPlain.length();
@@ -1377,6 +1378,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                         LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
                         return;
                     }
+                    cout << "Tag: " << (int)tag << " Len: " << len << endl;
 
                     switch (tag)
                     {
@@ -1402,7 +1404,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                     case TAG_GENERATION:
                         if (len != sizeof(generation)) return;
                         generation = MemAccess::get<uint32_t>(blob + offset);
-                        generation = be32toh(generation);
+                        generation = be32toh(generation); // Webclient sets this value as BigEndian
                         cout << "Generation: " << generation << endl;
                         break;
 
@@ -1424,27 +1426,66 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
                         break;
 
                     case TAG_PRIV_RSA:
+                    {
+                        if (len < 512) return;
+                        privRSA.assign(blob + offset, len);
+                        cout << "PrivRSA: " << Base64::btoa(privRSA) << endl;
+                        string tmp1; client->asymkey.serializekeyforjs(tmp1);
+                        cout << "PrivRSA (expected JS): " << Base64::btoa(tmp1) << endl;
+                        string tmp2; client->asymkey.serializekey(&tmp2, AsymmCipher::PRIVKEY);
+                        cout << "PrivRSA (expected): " << Base64::btoa(tmp2) << endl;
+                        string tmp3; client->asymkey.setkey(AsymmCipher::PRIVKEY, (const byte*)privRSA.data(), static_cast<int>(privRSA.size()));
+                        client->asymkey.serializekey(&tmp3, AsymmCipher::PRIVKEY);
+                        cout << "PrivRSA (final): " << Base64::btoa(tmp3) << endl;
                         break;
-
+                    }
                     case TAG_AUTHRING_ED25519:
-                        break;
+                    {
+                        authEd25519.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Authring Ed25519: " << Base64::btoa(authEd25519) << endl;
 
+                    }
                     case TAG_AUTHRING_CU25519:
-                        break;
+                    {
+                        authCu25519.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Authring Cu25519 (" << len << "): " << Base64::btoa(authCu25519) << endl;
 
+                        break;
+                    }
                     case TAG_SHAREKEYS:
+                        sharekeys.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Share keys: " << Base64::btoa(sharekeys) << endl;
                         break;
 
                     case TAG_PENDING_OUTSHARES:
+                        pendingOutShares.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Pending outshares: " << Base64::btoa(pendingOutShares) << endl;
                         break;
 
                     case TAG_PENDING_INSHARES:
+                        pendingInShares.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Pending inshares: " << Base64::btoa(pendingInShares) << endl;
                         break;
 
                     case TAG_BACKUPS:
+                        backups.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Backups: " << Base64::btoa(backups) << endl;
                         break;
 
                     case TAG_WARNINGS:
+                        warnings.assign(blob + offset, len);
+                        // TODO: deserialize it
+                        cout << "Warnings: " << Base64::btoa(warnings) << endl;
+                        break;
+
+                    default:    // any other tag needs to be stored as well, and included in newer versions
+                        other.append(blob, len + offset);
                         break;
 
                     }
