@@ -13198,7 +13198,7 @@ void MegaClient::initializekeys()
             string prCu255;
             if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
             {
-                chatkey = new ECDH((unsigned char *) prCu255.data());
+                chatkey = new ECDH(prCu255);
                 if (!chatkey->initializationOK)
                 {
                     delete chatkey;

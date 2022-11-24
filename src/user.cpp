@@ -315,7 +315,7 @@ User* User::unserialize(MegaClient* client, string* d)
             string ecdhValue;
             if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
             {
-                client->chatkey = new ECDH((unsigned char *) ecdhValue.data());
+                client->chatkey = new ECDH(ecdhValue);
                 if (!client->chatkey->initializationOK)
                 {
                     delete client->chatkey;

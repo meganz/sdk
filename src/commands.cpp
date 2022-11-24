@@ -3025,7 +3025,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                     string prCu255;
                     if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
                     {
-                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                        client->chatkey = new ECDH(prCu255);
                     }
 
                     if (!client->chatkey || !client->chatkey->initializationOK ||
