@@ -285,16 +285,16 @@ public:
     bool setMode(bool publicchat);
 
     // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
-    void addSchedMeetingOccurrence(ScheduledMeeting *sm);
+    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
 
     // clear scheduled meetings ocurrences for a chatroom
     void clearSchedMeetingOccurrences();
 
     // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool addOrUpdateSchedMeeting(ScheduledMeeting* sm, bool notify = true);
+    bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
 
     // add a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool addSchedMeeting(ScheduledMeeting* sm, bool notify = true);
+    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
 
     // removes a scheduled meeting given a scheduled meeting id
     bool removeSchedMeeting(handle schedId);
@@ -303,7 +303,7 @@ public:
     unsigned int removeChildSchedMeetings(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool updateSchedMeeting(ScheduledMeeting* sm);
+    bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
 
     // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
     ScheduledMeeting* getSchedMeetingById(handle id);
