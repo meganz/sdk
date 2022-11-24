@@ -18843,7 +18843,7 @@ error MegaClient::readExportedSet(JSON& j, Set& s, pair<bool,m_off_t>& exportRem
     }
 }
 
-error MegaClient::readSetPublicHandles(JSON& j, map<handle, Set>& sets)
+error MegaClient::readSetPublicHandle(JSON& j, map<handle, Set>& sets)
 {
     handle item = UNDEF, itemPH = UNDEF;
     m_off_t ts = 0;
@@ -18896,7 +18896,7 @@ error MegaClient::readSetsPublicHandles(JSON& j, map<handle, Set>& sets)
     error e = API_OK;
     while (j.enterobject())
     {
-        e = readSetPublicHandles(j, sets);
+        e = readSetPublicHandle(j, sets);
         j.leaveobject();
 
         if (e != API_OK) break;
@@ -18974,7 +18974,7 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
 error MegaClient::startSetPreview(const char* publicSetLink,
                                   std::function<void(Error, Set*, map<handle,SetElement>*)> completion)
 {
-    if (mPreviewSet) mPreviewSet.reset();
+    stopSetPreview();
 
     handle publicSetId = UNDEF;
     std::array<byte, SETNODEKEYLENGTH> publicSetKey;

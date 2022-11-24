@@ -9197,10 +9197,8 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     cmd("aft");
     if(!cl->inSetPreviewMode())
     {
-        static const string msg = "Sets: CommandFetchSet only available for Public Set in Preview Mode";
-        LOG_err << msg;
+        LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
         assert(false);
-        throw std::domain_error(msg);
     }
 }
 

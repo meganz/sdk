@@ -1534,8 +1534,6 @@ private:
     std::function<void(Error, Set*, map<handle, SetElement>*)> mCompletion;
 };
 
-class SetElement;
-
 class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:

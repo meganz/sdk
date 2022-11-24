@@ -2396,7 +2396,7 @@ private:
     error readElement(JSON& j, SetElement& el);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
-    error readSetPublicHandles(JSON& j, map<handle, Set>& sets);
+    error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
