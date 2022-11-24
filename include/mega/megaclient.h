@@ -520,6 +520,69 @@ private:
     unique_ptr<Node> mNodeToWriteInDb;
 };
 
+
+class MEGA_API KeyManager
+{
+public:
+
+    // Tags used by TLV blob
+    enum {
+        TAG_VERSION = 1,
+        TAG_CREATION_TIME = 2,
+        TAG_IDENTITY = 3,
+        TAG_GENERATION = 4,
+        TAG_ATTR = 5,
+        TAG_PRIV_ED25519 = 16,
+        TAG_PRIV_CU25519 = 17,
+        TAG_PRIV_RSA = 18,
+        TAG_AUTHRING_ED25519 = 32,
+        TAG_AUTHRING_CU25519 = 33,
+        TAG_SHAREKEYS = 48,
+        TAG_PENDING_OUTSHARES = 64,
+        TAG_PENDING_INSHARES = 65,
+        TAG_BACKUPS = 80,
+        TAG_WARNINGS = 96,
+    };
+
+    // it derives master key and sets mKey
+    void setKey(const SymmCipher& masterKey);
+
+    // decrypts and decodes the ^!keys attribute
+    bool fromKeysContainer(const byte* data, unsigned l);
+
+
+
+
+    // --- Getters ----
+
+    bool isSecure() { return mSecure; }
+
+
+private:
+    // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
+    SymmCipher mKey;
+
+    bool mSecure = true;
+
+    uint8_t mVersion = 0;
+    uint32_t mCreationTime = 0;
+    handle mIdentity = UNDEF;
+    uint32_t mGeneration = 0;
+    string mAttr;
+    string mPrivEd25519, mPrivCu25519, mPrivRSA;
+    string mAuthEd25519, mAuthCu25519;  // TODO: no need to maintain them here
+    string mSharekeys;
+    string mPendingOutShares, mPendingInShares;
+    string mBackups;
+    string mWarnings;
+    string mOther;
+
+
+    // decode data from the decrypted ^!keys attribute
+    bool unserialize(const string& keysContainer);
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -2023,6 +2086,8 @@ public:
 
     void proccr(JSON*);
     void procsr(JSON*);
+
+    KeyManager mKeyManager;
 
     // account access: master key
     // folder link access: folder key

@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <cryptopp/hkdf.h> // required for derive key of master key
 #include "mega/heartbeats.h"
 
 #undef min // avoid issues with std::min and std::max
@@ -20682,6 +20683,198 @@ void NodeManager::FingerprintContainer::clear()
 {
     fingerprint_set::clear();
     mAllFingerprintsLoaded.clear();
+}
+
+void KeyManager::setKey(const mega::SymmCipher &masterKey)
+{
+    // Derive key from MK
+    CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
+    byte derivedKey[SymmCipher::KEYLENGTH];
+    byte info[1]; info[0] = 1;
+    hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, info, sizeof(info));
+    mKey.setkey(derivedKey);
+
+    LOG_verbose << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH));
+}
+
+bool KeyManager::fromKeysContainer(const byte *data, unsigned l)
+{
+    if (data && l > 2 && data[0] == 20)
+    {
+        // data[1] is reserved, always 0
+
+        if (l > 14)
+        {
+            const string keysCiphered((const char*)(data + 14), (size_t)(l - 14));
+            const string iv((const char*)data + 2, 12);
+
+            // Decrypt ^!keys attribute
+            string keysPlain;
+            mKey.gcm_decrypt(&keysCiphered, data + 2, 12, 0, &keysPlain);
+
+            return unserialize(keysPlain);
+        }
+    }
+
+    return false;
+}
+
+bool KeyManager::unserialize(const std::string &keysContainer)
+{
+    // Decode blob
+
+    const char* blob = keysContainer.data();
+    size_t blobLength = keysContainer.length();
+
+    uint8_t headerSize = 4;  // 1 byte for Tag, 3 bytes for Length
+
+    size_t offset = headerSize;
+    while (offset <= blobLength)
+    {
+        byte tag = blob[offset - headerSize];
+        size_t len = (blob[offset - 3] << 16) + (blob[offset - 2] << 8) + blob[offset - 1];
+        if (offset + len > blobLength)
+        {
+            LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
+            return false;
+        }
+        LOG_verbose << "Tag: " << (int)tag << " Len: " << len;
+
+        switch (tag)
+        {
+        case TAG_VERSION:
+            if (len != sizeof(mVersion)) return false;
+            mVersion = MemAccess::get<uint8_t>(blob + offset);
+            LOG_verbose << "Version: " << (int)mVersion;
+            break;
+
+        case TAG_CREATION_TIME:
+            if (len != sizeof(mCreationTime)) return false;
+            mCreationTime = MemAccess::get<uint32_t>(blob + offset);
+            mCreationTime = be32toh(mCreationTime);
+            LOG_verbose << "Creation time: " << mCreationTime;
+            break;
+
+        case TAG_IDENTITY:
+            if (len != sizeof(mIdentity)) return false;
+            mIdentity = MemAccess::get<handle>(blob + offset);
+            LOG_verbose << "Identity: " << toHandle(mIdentity);
+            break;
+
+        case TAG_GENERATION:
+        {
+            if (len != sizeof(mGeneration)) return false;
+            mGeneration = MemAccess::get<uint32_t>(blob + offset);
+            mGeneration = be32toh(mGeneration); // Webclient sets this value as BigEndian
+            LOG_verbose << "Generation: " << mGeneration;
+            break;
+        }
+        case TAG_ATTR:
+            mAttr.assign(blob + offset, len);
+            LOG_verbose << "Attr: " << Base64::btoa(mAttr);
+            break;
+
+        case TAG_PRIV_ED25519:
+            if (len != 32) return false;
+            mPrivEd25519.assign(blob + offset, len);
+            LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
+//                    delete client->signkey;
+//                    client->signkey = new EdDSA(client->rng, (unsigned char *) mPrivEd25519.data());
+            break;
+
+        case TAG_PRIV_CU25519:
+            if (len != 32) return false;
+            mPrivCu25519.assign(blob + offset, len);
+            LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
+//                    delete client->chatkey;
+//                    client->chatkey = new ECDH(mPrivCu25519);
+            break;
+
+        case TAG_PRIV_RSA:
+        {
+            if (len < 512) return false;
+            mPrivRSA.assign(blob + offset, len);
+            LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
+//                    string tmp1; client->asymkey.serializekeyforjs(tmp1);
+//                    LOG_verbose << "PrivRSA (expected JS): " << Base64::btoa(tmp1);
+//                    string tmp2; client->asymkey.serializekey(&tmp2, AsymmCipher::PRIVKEY);
+//                    LOG_verbose << "PrivRSA (expected): " << Base64::btoa(tmp2);
+//                    string tmp3; client->asymkey.setkey(AsymmCipher::PRIVKEY, (const byte*)mPrivRSA.data(), static_cast<int>(mPrivRSA.size()));
+//                    client->asymkey.serializekey(&tmp3, AsymmCipher::PRIVKEY);
+//                    LOG_verbose << "PrivRSA (final): " << Base64::btoa(tmp3);
+            break;
+        }
+        case TAG_AUTHRING_ED25519:
+        {
+            mAuthEd25519.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Authring Ed25519: " << Base64::btoa(mAuthEd25519);
+
+//                    attr_t at = ATTR_AUTHRING;
+//                    auto it = client->mAuthRings.find(at);
+//                    if (it != client->mAuthRings.end())
+//                    {
+//                        LOG_verbose << "Authring Ed25519 (expected): " << Base64::btoa(it->second.serializeForJS());
+//                        client->mAuthRings.erase(at);
+//                        client->mAuthRings.emplace(at, AuthRing(at, authEd25519));
+//                    }
+            break;
+        }
+        case TAG_AUTHRING_CU25519:
+        {
+            mAuthCu25519.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Authring Cu25519 (" << len << "): " << Base64::btoa(mAuthCu25519);
+
+//                    attr_t at = ATTR_AUTHCU255;
+//                    auto it = client->mAuthRings.find(at);
+//                    if (it != client->mAuthRings.end())
+//                    {
+//                        LOG_verbose << "Authring Cu25519 (expected): " << Base64::btoa(it->second.serializeForJS());
+//                        client->mAuthRings.erase(at);
+//                        client->mAuthRings.emplace(at, AuthRing(at, authCu25519));
+//                    }
+            break;
+        }
+        case TAG_SHAREKEYS:
+            mSharekeys.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Share keys: " << Base64::btoa(mSharekeys);
+            break;
+
+        case TAG_PENDING_OUTSHARES:
+            mPendingOutShares.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Pending outshares: " << Base64::btoa(mPendingOutShares);
+            break;
+
+        case TAG_PENDING_INSHARES:
+            mPendingInShares.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Pending inshares: " << Base64::btoa(mPendingInShares);
+            break;
+
+        case TAG_BACKUPS:
+            mBackups.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Backups: " << Base64::btoa(mBackups);
+            break;
+
+        case TAG_WARNINGS:
+            mWarnings.assign(blob + offset, len);
+            // TODO: deserialize it
+            LOG_verbose << "Warnings: " << Base64::btoa(mWarnings);
+            break;
+
+        default:    // any other tag needs to be stored as well, and included in newer versions
+            mOther.append(blob, len + offset);
+            break;
+        }
+
+        offset += headerSize + len;
+    }
+
+    return true;
 }
 
 } // namespace
