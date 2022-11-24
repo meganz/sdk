@@ -14314,7 +14314,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (mNodeManager.accountShouldBeReloaded())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
-        syncConfig.mError = FAILURE_ACCESSING_PERSISTENCE_STORAGE;
+        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
         syncConfig.mEnabled = false;
         return API_EINTERNAL;
     }
@@ -20480,7 +20480,7 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
     if (!mAccountReload)
     {
 #ifdef ENABLE_SYNC
-        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENCE_STORAGE, false, nullptr);
+        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
 #endif
 
         std::string reason;
