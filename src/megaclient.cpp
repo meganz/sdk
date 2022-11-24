@@ -5548,13 +5548,8 @@ void MegaClient::finalizesc(bool complete)
     else
     {
         LOG_err << "Cache update DB write error - disabling caching";
-
-        mNodeManager.reset();   // may need to still keep nodes in RAM, but it won't work if not all nodes are loaded, anyway
-        sctable->remove();
-        sctable.reset();
-        pendingsccommit = false;
-
-        app->reload("Failed to write to database");
+        assert(false);
+        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -8974,7 +8969,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // node already present - check for race condition
                     if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency");
+                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
 
                         static bool reloadnotified = false;
                         if (!reloadnotified)
@@ -14315,6 +14310,16 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
+    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
+    // until the account is reloaded (or the app restarts)
+    if (mNodeManager.accountShouldBeReloaded())
+    {
+        LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
+        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
+        syncConfig.mEnabled = false;
+        return API_EINTERNAL;
+    }
+
     Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
@@ -19508,8 +19513,10 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     Node* node = unserializeNode(&nodeSerialized.mNode, false);
     if (!node)
     {
-        LOG_err << "Error unserializing a node. Reloading account";
-        mClient.fetchnodes(true);
+        assert(false);
+        LOG_err << "Failed to unserialize node. Requesting app to reload...";
+        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
+
         return nullptr;
     }
 
@@ -19679,6 +19686,8 @@ void NodeManager::cleanNodes()
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
+
+    mAccountReload = false;
 
     if (mTable)
         mTable->removeNodes();
@@ -20465,6 +20474,39 @@ void NodeManager::initCompleted()
     }
 
     mTable->createIndexes();
+}
+
+void NodeManager::fatalError(ReasonsToReload reloadReason)
+{
+    if (!mAccountReload)
+    {
+        mAccountReload = true;
+
+#ifdef ENABLE_SYNC
+        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+#endif
+
+        std::string reason;
+        switch (reloadReason)
+        {
+            case ReasonsToReload::REASON_ERROR_WRITE_DB:
+                reason = "Failed to write to database";
+                break;
+            case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
+                reason = "Failed to unserialize a node";
+                break;
+            default:
+                reason = "Unknown reason";
+                break;
+        }
+
+        mClient.app->reload(reason.c_str(), reloadReason);
+    }
+}
+
+bool NodeManager::accountShouldBeReloaded() const
+{
+    return mAccountReload;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

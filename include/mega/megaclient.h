@@ -436,6 +436,15 @@ public:
     // Initialize node counters and create indexes at DB
     void initCompleted();
 
+    // This method should be called when no recoverable error is detected
+    // This error are called mainly due an error in DB
+    // This method notify to app that an error has been detected
+    void fatalError(ReasonsToReload reloadReason);
+
+    // This flag is set true when failure at DB is detected and app reload
+    // has been requested
+    bool accountShouldBeReloaded() const;
+
 private:
     MegaClient& mClient;
 
@@ -518,6 +527,9 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
+
+    // This flag is set true when a failure in DB has been detected. Keep true until app is reload
+    bool mAccountReload = false;
 };
 
 class MEGA_API MegaClient
