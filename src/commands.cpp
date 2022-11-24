@@ -9560,7 +9560,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     // remove children scheduled meetings (API requirement)
     unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
     mScheduledMeeting->setSchedId(schedId);
-    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting->copy()); // add or update scheduled meeting if already exists
+    bool res = chat->addOrUpdateSchedMeeting(::mega::make_unique<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
@@ -9707,7 +9707,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     for (auto& schedMeeting: schedMeetings)
     {
         // add received scheduled meetings occurrences
-        chat->addSchedMeetingOccurrence(schedMeeting->copy());
+        chat->addSchedMeetingOccurrence(::mega::make_unique<ScheduledMeeting>(schedMeeting->copy()));
     }
 
     // just notify once, for all ocurrences received for the same chat

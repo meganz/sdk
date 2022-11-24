@@ -7448,7 +7448,7 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-        bool res = chat->addOrUpdateSchedMeeting(sm.release());
+        bool res = chat->addOrUpdateSchedMeeting(::mega::make_unique<ScheduledMeeting>(sm.release()));
         if (res || deletedChildren)
         {
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
@@ -11824,7 +11824,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.release(), false); // don't need to notify, as chats are also provided to karere
+        chat->addOrUpdateSchedMeeting(::mega::make_unique<ScheduledMeeting>(sm.release()), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));

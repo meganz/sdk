@@ -1043,7 +1043,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
         if (auxMeet)
         {
-            chat->addSchedMeeting(auxMeet, false /*notify*/);
+            chat->addSchedMeeting(::mega::make_unique<ScheduledMeeting>(auxMeet), false /*notify*/);
         }
         else
         {
@@ -1121,9 +1121,9 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(ScheduledMeeting* sm)
+void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::unique_ptr<ScheduledMeeting>(sm));
+    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::move(sm));
 }
 
 void TextChat::clearSchedMeetingOccurrences()
@@ -1141,7 +1141,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-bool TextChat::addSchedMeeting(ScheduledMeeting* sm, bool notify)
+bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
     if (!sm || id != sm->chatid())
     {
@@ -1155,7 +1155,7 @@ bool TextChat::addSchedMeeting(ScheduledMeeting* sm, bool notify)
         return false;
     }
 
-    mScheduledMeetings.emplace(schedId, std::unique_ptr<ScheduledMeeting>(sm));
+    mScheduledMeetings.emplace(schedId, std::move(sm));
     if (notify)
     {
         mSchedMeetingsChanged.emplace_back(schedId);
@@ -1193,7 +1193,7 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
     return count;
 }
 
-bool TextChat::updateSchedMeeting(ScheduledMeeting* sm)
+bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)
 {
     assert(sm);
     auto it = mScheduledMeetings.find(sm->schedId());
@@ -1207,13 +1207,13 @@ bool TextChat::updateSchedMeeting(ScheduledMeeting* sm)
     if (!sm->equalTo(it->second.get()))
     {
         mSchedMeetingsChanged.emplace_back(sm->schedId());
-        it->second.reset(sm);
+        it->second = std::move(sm);
     }
 
     return true;
 }
 
-bool TextChat::addOrUpdateSchedMeeting(ScheduledMeeting* sm, bool notify)
+bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
     if (!sm)
     {
@@ -1223,8 +1223,8 @@ bool TextChat::addOrUpdateSchedMeeting(ScheduledMeeting* sm, bool notify)
     }
 
     return mScheduledMeetings.find(sm->schedId()) == mScheduledMeetings.end()
-            ? addSchedMeeting(sm, notify)
-            : updateSchedMeeting(sm);
+            ? addSchedMeeting(std::move(sm), notify)
+            : updateSchedMeeting(std::move(sm));
 }
 
 bool TextChat::setMode(bool publicchat)
