@@ -225,6 +225,7 @@ struct UnifiedSync
     // Update state and signal to application
     void changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
+    shared_ptr<bool> sdsUpdateInProgress;
 
 private:
     friend class Sync;
@@ -1164,7 +1165,7 @@ private:
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
-
+    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups);
 
     void syncLoop();
 
@@ -1176,8 +1177,14 @@ private:
         FOLDER_ONLY
     };
 
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn,
+            string* cloudPath,
+            bool* isInTrash,
+            bool* nodeIsInActiveSync,
+            bool* nodeIsDefinitelyExcluded,
+            unsigned* depth,
+            WhichCloudVersion,
+            vector<pair<handle, int>>* sdsBackups = nullptr);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
