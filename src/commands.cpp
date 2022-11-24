@@ -3341,6 +3341,7 @@ bool CommandGetUA::procresult(Result r)
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
+                assert(r.wasError(API_ENOENT));
                 client->initializekeys(); // we have now all the required data
             }
 
@@ -3408,6 +3409,7 @@ bool CommandGetUA::procresult(Result r)
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
+                            assert(false);
                         }
                         return false;
                     }
@@ -3422,6 +3424,7 @@ bool CommandGetUA::procresult(Result r)
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
+                            assert(false);
                         }
                         return false;
                     }
@@ -4306,6 +4309,7 @@ bool CommandGetUserData::procresult(Result r)
                 assert(privk == client->mPrivKey);
                 if (client->mPrivKey.empty())
                 {
+                    client->mPrivKey = privk;
                     LOG_warn << "Private key not set by login, setting at `ug` response...";
                     if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
