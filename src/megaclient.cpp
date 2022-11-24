@@ -14310,7 +14310,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them until
+    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
     if (mNodeManager.accountShouldBeReloaded())
     {
