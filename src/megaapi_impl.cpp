@@ -14489,12 +14489,8 @@ void MegaApiImpl::login_result(error result)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
-void MegaApiImpl::logout_result(error e)
+void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOGOUT)) return;
-
     if(!e || e == API_ESID)
     {
         requestMap.erase(request->getTag());
@@ -19739,15 +19735,16 @@ void MegaApiImpl::sendPendingRequests()
             {
                 bool keepSyncConfigsFile = request->getTransferTag();
 
-                client->logout(keepSyncConfigsFile, [this](error result) {
-                    logout_result(result);
+                client->logout(keepSyncConfigsFile, [this, request](error result) {
+                    LOG_debug << "exectuing logout completion, error: " << result;  // track possible lack of logout callbacks
+                    logout_result(result, request);
                 });
             }
             else
             {
                 client->locallogout(false, true);
                 client->restag = nextTag;
-                logout_result(API_OK);
+                logout_result(API_OK, request);
             }
             break;
         }

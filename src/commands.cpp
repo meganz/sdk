@@ -1586,6 +1586,7 @@ bool CommandLogout::procresult(Result r)
         // stack for processing CS batches, as it deletes data currently in use.
         Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
+        LOG_debug << "setting mOnCSCompletion for final logout processing";  // track possible lack of logout callbacks
         client->mOnCSCompletion = [=](MegaClient* client){
             client->locallogout(true, keepSyncConfigsFile);
             completion(API_OK);
