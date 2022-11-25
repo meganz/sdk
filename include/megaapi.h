@@ -19285,10 +19285,9 @@ class MegaApi
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
-         * @param sfuId Id that identifies the SFU where we want to start the call
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, int sfuId = SFU_INVALID, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call
