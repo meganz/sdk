@@ -6460,6 +6460,7 @@ void MegaClient::sc_userattr()
                                     LOG_err << "The node handle for My backups folder has changed";
                                     //fall-through
 
+                                    case ATTR_KEYS:                  // fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
