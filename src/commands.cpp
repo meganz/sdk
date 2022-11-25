@@ -3480,10 +3480,8 @@ bool CommandGetUA::procresult(Result r)
                                 return false;
                             }
 
-                            // store the value for private user attributes (decrypted version of serialized TLV)
-                            string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
-                            u->setattr(at, tlvString, &version);
-                            delete tlvString;
+                            // store the value for private user attributes (re-encrypted version of serialized TLV)
+                            u->setattr(at, &value, &version);
                             mCompletionTLV(tlvRecords.get(), at);
 
                             if (User::isAuthring(at))
