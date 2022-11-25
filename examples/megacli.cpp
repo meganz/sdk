@@ -1297,7 +1297,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
     if (type == ATTR_KEYS)
     {
-        KeyManager mKeyManager;
+        KeyManager mKeyManager(*client);
         mKeyManager.setKey(client->key);
         mKeyManager.fromKeysContainer(data, l);
 

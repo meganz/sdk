@@ -1278,6 +1278,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     , syncscanbt(rng)
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
+    , mKeyManager(*this)
 #endif
 {
     mNodeManager.reset();
@@ -20837,11 +20838,12 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             break;
         }
         case TAG_SHAREKEYS:
-            mSharekeys.assign(blob + offset, len);
-            // TODO: deserialize it
-            LOG_verbose << "Share keys: " << Base64::btoa(mSharekeys);
+        {
+            string buf(blob + offset, len);
+            LOG_verbose << "Share keys: " << Base64::btoa(buf);
+            deserializeShareKeys(buf);
             break;
-
+        }
         case TAG_PENDING_OUTSHARES:
             mPendingOutShares.assign(blob + offset, len);
             // TODO: deserialize it
@@ -20872,6 +20874,44 @@ bool KeyManager::unserialize(const std::string &keysContainer)
         }
 
         offset += headerSize + len;
+    }
+
+    return true;
+}
+
+bool KeyManager::deserializeShareKeys(string &blob)
+{
+    // nodeHandle.6 shareKey.16 trust.1
+    const size_t recordSize = 23;
+
+    unsigned int count = 0;
+    size_t offset = 0;
+    while (offset < blob.size())
+    {
+        ++count;
+
+        handle h = UNDEF;
+        byte shareKey[SymmCipher::KEYLENGTH];
+        byte trust = false;
+
+        CacheableReader r(blob);
+        if (!r.unserializenodehandle(h)
+                || !r.unserializebinary(shareKey, sizeof(shareKey))
+                || !r.unserializebyte(trust))
+        {
+            LOG_err << "Share keys is corrupt";
+            return false;
+        }
+
+        string shareKeyStr((const char*)shareKey, sizeof(shareKey));
+
+        LOG_verbose << "ShareKey #" << count << "\n\t h: " << toNodeHandle(h) <<
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << (int)trust;
+
+        mTrustedShareKeys[h] = trust ? true : false;
+        mShareKeys[h] = shareKeyStr;
+
+        offset += recordSize;
     }
 
     return true;

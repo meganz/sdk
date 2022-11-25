@@ -524,6 +524,7 @@ private:
 class MEGA_API KeyManager
 {
 public:
+    KeyManager(MegaClient& client) : mClient(client) {}
 
     // Tags used by TLV blob
     enum {
@@ -559,9 +560,12 @@ public:
 
 
 private:
+    MegaClient& mClient;
+
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
 
+    // client is consider to exchange keys in a secure way
     bool mSecure = true;
 
     uint8_t mVersion = 0;
@@ -571,15 +575,19 @@ private:
     string mAttr;
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
     string mAuthEd25519, mAuthCu25519;  // TODO: no need to maintain them here
-    string mSharekeys;
     string mPendingOutShares, mPendingInShares;
     string mBackups;
     string mWarnings;
     string mOther;
 
+    map<handle, bool> mTrustedShareKeys;
+    map<handle, string> mShareKeys;
+
 
     // decode data from the decrypted ^!keys attribute
     bool unserialize(const string& keysContainer);
+
+    bool deserializeShareKeys(string& blob);
 };
 
 
