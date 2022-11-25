@@ -457,7 +457,7 @@ public:
     static std::string replace(const std::string& str,
                                const std::string& search,
                                const std::string& replacement);
-        
+
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -568,6 +568,7 @@ struct CacheableWriter
     void serializecompressedu64(uint64_t field);
     void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
 
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
     void serializei8(int8_t field);
     void serializei32(int32_t field);
     void serializei64(int64_t field);
@@ -600,6 +601,7 @@ struct CacheableReader
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
 
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
     bool unserializei8(int8_t& s);
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
@@ -937,6 +939,10 @@ bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
+
+bool readLines(FileAccess& ifAccess, string_vector& destination);
+bool readLines(InputStreamAccess& isAccess, string_vector& destination);
+bool readLines(const std::string& input, string_vector& destination);
 
 bool wildcardMatch(const string& text, const string& pattern);
 bool wildcardMatch(const char* text, const char* pattern);

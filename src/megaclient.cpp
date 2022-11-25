@@ -8235,7 +8235,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     {
         restag = tag;
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false);
         return;
     }
 
