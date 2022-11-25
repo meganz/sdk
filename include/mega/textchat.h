@@ -284,16 +284,28 @@ public:
     bool isFlagSet(uint8_t offset) const;
     bool setMode(bool publicchat);
 
-    // scheduled meetings ocurrences
-    void addSchedMeetingOccurrence(const ScheduledMeeting* sm);
+    // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
+    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
+
+    // clear scheduled meetings ocurrences for a chatroom
     void clearSchedMeetingOccurrences();
 
-    // scheduled meetings
-    bool addOrUpdateSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
-    bool addSchedMeeting(const ScheduledMeeting *sm, bool notify = true);
+    // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
+    bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
+
+    // add a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
+    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
+
+    // removes a scheduled meeting given a scheduled meeting id
     bool removeSchedMeeting(handle schedId);
+
+    // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
     unsigned int removeChildSchedMeetings(handle parentSchedId);
-    bool updateSchedMeeting(const ScheduledMeeting *sm);
+
+    // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
+    bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
+
+    // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
     ScheduledMeeting* getSchedMeetingById(handle id);
 };
 

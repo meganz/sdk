@@ -33485,6 +33485,11 @@ void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
     mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
 }
 
+void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val)
+{
+    mFlags = val;
+}
+
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
 bool MegaScheduledFlagsPrivate::emailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }

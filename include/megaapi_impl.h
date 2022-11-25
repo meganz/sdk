@@ -4136,6 +4136,7 @@ public:
     // setters
     void reset() override;
     void setEmailsDisabled(bool enabled);
+    void importFlagsValue(unsigned long val) override;
 
     // getters
     unsigned long getNumericValue() const override;

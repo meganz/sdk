@@ -7396,6 +7396,7 @@ void MegaClient::sc_delscheduledmeeting()
                     TextChat* chat = auxit->second;
                     if (chat->removeSchedMeeting(schedId))
                     {
+                        // remove children scheduled meetings (API requirement)
                         chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
@@ -7439,9 +7440,22 @@ void MegaClient::sc_scheduledmeetings()
 
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        chat->setTag(0);    // external change
-        notifychat(chat);
+
+        // remove children scheduled meetings (API requirement)
+        handle schedId = sm->schedId();
+        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
+        if (res || deletedChildren)
+        {
+            if (!res)
+            {
+                LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+            }
+
+            // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            chat->setTag(0);    // external change
+            notifychat(chat);
+        }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
 }
@@ -11811,7 +11825,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
+        chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));

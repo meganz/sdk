@@ -2948,11 +2948,8 @@ MegaScheduledFlags* MegaScheduledFlags::createInstance()
     return new MegaScheduledFlagsPrivate();
 }
 
-MegaScheduledFlags* MegaScheduledFlags::createInstance(bool emailsDisabled)
+void MegaScheduledFlags::importFlagsValue(unsigned long /*val*/)
 {
-    MegaScheduledFlagsPrivate *flags = new MegaScheduledFlagsPrivate();
-    flags->setEmailsDisabled(emailsDisabled);
-    return flags;
 }
 
 MegaScheduledFlags* MegaScheduledFlags::copy() const
