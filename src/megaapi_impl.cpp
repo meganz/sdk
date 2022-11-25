@@ -23340,7 +23340,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle schedId = request->getParentHandle();
 
-            client->reqs.add(new CommandMeetingStart(client, chatid, MegaClient::SFU_INVALID, schedId, [request, this](Error e, std::string sfuUrl, handle callid)
+            client->reqs.add(new CommandMeetingStart(client, chatid, schedId, [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {

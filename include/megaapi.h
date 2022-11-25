@@ -8742,11 +8742,6 @@ class MegaApi
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
 
-#ifdef ENABLE_CHAT
-        // invalid SFU id
-        static constexpr int SFU_INVALID = -1;
-#endif
-
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
