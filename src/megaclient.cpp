@@ -7447,10 +7447,16 @@ void MegaClient::sc_scheduledmeetings()
         TextChat* chat = it->second;
 
         // remove children scheduled meetings (API requirement)
+        handle schedId = sm->schedId();
         unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
         if (res || deletedChildren)
         {
+            if (!res)
+            {
+                LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+            }
+
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             chat->setTag(0);    // external change
             notifychat(chat);

@@ -1043,7 +1043,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
         if (auxMeet)
         {
-            chat->addSchedMeeting(::mega::make_unique<ScheduledMeeting>(auxMeet), false /*notify*/);
+            chat->addSchedMeeting(std::unique_ptr<ScheduledMeeting>(auxMeet), false /*notify*/);
         }
         else
         {
