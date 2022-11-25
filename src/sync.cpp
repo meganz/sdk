@@ -10213,6 +10213,51 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
+bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups)
+{
+    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress) return false;
+
+    bool deleteSync = false;
+
+    // check if any command arrived from backupcentre to stop any syncs
+    for (auto it  = sdsBackups.begin(); it != sdsBackups.end(); )
+    {
+        if (it->first == us.mConfig.mBackupId)
+        {
+            if (it->second == CommandBackupPut::DELETED)
+            {
+                deleteSync = true;
+            }
+            it = sdsBackups.erase(it);
+            us.sdsUpdateInProgress.reset(new bool(true));
+        }
+        else ++it;
+    }
+
+    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
+    {
+        LOG_debug << "SDS: clearing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode;
+
+        auto sdsCopy = sdsBackups;
+        auto remoteNode = us.mConfig.mRemoteNode;
+        auto boolsptr = us.sdsUpdateInProgress;
+        queueClient([remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
+        {
+            Node* node = mc.nodeByHandle(remoteNode);
+            mc.setattr(node,
+                    attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
+                    [boolsptr](NodeHandle handle, Error result) {
+                        LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
+                        *boolsptr = false;
+                    },
+                    true);
+        });
+    }
+
+    return deleteSync;
+}
+
+
 void Syncs::syncLoop()
 {
     syncThreadId = std::this_thread::get_id();
@@ -10293,6 +10338,40 @@ void Syncs::syncLoop()
         // (this covers mountovers, some device removals and some failures)
         for (auto& us : mSyncVec)
         {
+
+            vector<pair<handle, int>> sdsBackups;
+
+            CloudNode cloudNode;
+            string cloudRootPath;
+            bool inTrash = false;
+            unsigned rootDepth;
+            bool foundRootNode = lookupCloudNode(us->mConfig.mRemoteNode,
+                                                    cloudNode,
+                                                    &cloudRootPath,
+                                                    &inTrash,
+                                                    nullptr,
+                                                    nullptr,
+                                                    &rootDepth,
+                                                    Syncs::FOLDER_ONLY,
+                                                    &sdsBackups);
+
+            if (checkSdsCommandsForDelete(*us, sdsBackups))
+            {
+                LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
+
+                if (Sync* sync = us->mSync.get())
+                {
+                    // prevent the sync doing anything more before we delete it
+                    sync->changestate(NO_SYNC_ERROR, false, false, false);
+                }
+
+                auto backupId = us->mConfig.mBackupId;
+                queueClient([backupId](MegaClient& mc, TransferDbCommitter& committer) {
+                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true);
+                });
+                continue;
+            }
+
             if (Sync* sync = us->mSync.get())
             {
                 if (us->mConfig.mError != NO_SYNC_ERROR)
@@ -10312,15 +10391,9 @@ void Syncs::syncLoop()
                     }
                 }
 
-                bool inTrash = false;
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle,
-                                                     sync->cloudRoot,
-                                                     &sync->cloudRootPath,
-                                                     &inTrash,
-                                                     nullptr,
-                                                     nullptr,
-                                                     &sync->mCurrentRootDepth,
-                                                     Syncs::FOLDER_ONLY);
+                sync->cloudRoot = cloudNode;
+                sync->cloudRootPath = cloudRootPath;
+                sync->mCurrentRootDepth = rootDepth;
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
                 bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
@@ -10868,7 +10941,11 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-        bool* nodeIsInActiveUnpausedSyncQuery, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion whichVersion)
+        bool* nodeIsInActiveUnpausedSyncQuery,
+        bool* nodeIsDefinitelyExcluded,
+        unsigned* depth,
+        WhichCloudVersion whichVersion,
+        vector<pair<handle, int>>* sdsBackups)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
@@ -10947,6 +11024,8 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         if (cloudPath) *cloudPath = n->displaypath();
 
         if (depth) *depth = n->depth();
+
+        if (sdsBackups) *sdsBackups = n->getSdsBackups();
 
         cn = CloudNode(*n);
 
