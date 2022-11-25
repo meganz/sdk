@@ -20797,13 +20797,8 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             if (len < 512) return false;
             mPrivRSA.assign(blob + offset, len);
             LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
-//                    string tmp1; client->asymkey.serializekeyforjs(tmp1);
-//                    LOG_verbose << "PrivRSA (expected JS): " << Base64::btoa(tmp1);
-//                    string tmp2; client->asymkey.serializekey(&tmp2, AsymmCipher::PRIVKEY);
-//                    LOG_verbose << "PrivRSA (expected): " << Base64::btoa(tmp2);
-//                    string tmp3; client->asymkey.setkey(AsymmCipher::PRIVKEY, (const byte*)mPrivRSA.data(), static_cast<int>(mPrivRSA.size()));
-//                    client->asymkey.serializekey(&tmp3, AsymmCipher::PRIVKEY);
-//                    LOG_verbose << "PrivRSA (final): " << Base64::btoa(tmp3);
+            // TODO: check if ^!keys.privRSA matches as part of the actual us.privk. In that case, keep privk. Otherwise, trigger warning
+            // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
             break;
         }
         case TAG_AUTHRING_ED25519:
@@ -20842,7 +20837,7 @@ bool KeyManager::unserialize(const std::string &keysContainer)
         {
             string buf(blob + offset, len);
             LOG_verbose << "Share keys: " << Base64::btoa(buf);
-            deserializeShareKeys(buf);
+            if (!deserializeShareKeys(buf)) return false;
             break;
         }
         case TAG_PENDING_OUTSHARES:
@@ -20893,7 +20888,7 @@ bool KeyManager::deserializeShareKeys(string &blob)
 
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
-        byte trust = false;
+        byte trust = 0;
 
         CacheableReader r(blob);
         if (!r.unserializenodehandle(h)
@@ -20907,7 +20902,9 @@ bool KeyManager::deserializeShareKeys(string &blob)
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
 
         LOG_verbose << "ShareKey #" << count << "\n\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << (int)trust;
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << " t (int): " << (int)trust;
+
+        LOG_verbose << "BLOB: " << Utils::stringToHex(blob);
 
         mTrustedShareKeys[h] = trust ? true : false;
         mShareKeys[h] = shareKeyStr;
