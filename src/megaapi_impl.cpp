@@ -14723,9 +14723,16 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 }
 
 // reload needed
-void MegaApiImpl::reload(const char*)
+void MegaApiImpl::reload(const char* reason, ReasonsToReload reasonToReload)
 {
     fireOnReloadNeeded();
+
+    // TODO: when apps handle EVENT_RELOAD, fireOnReloadNeeded can be removed
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_RELOAD);
+    event->setText(reason);
+    event->setNumber(static_cast<int64_t>(reasonToReload));
+
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::reloading()

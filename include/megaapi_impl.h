@@ -3703,7 +3703,7 @@ protected:
 
 protected:
         // suggest reload due to possible race condition with other clients
-        void reload(const char*) override;
+        void reload(const char*, ReasonsToReload) override;
 
         // reload forced automatically by server
         void reloading() override;

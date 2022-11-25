@@ -321,7 +321,7 @@ struct MEGA_API MegaApp
     // ----- (other callbacks occur on the client thread)
 
     // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*) { }
+    virtual void reload(const char*, ReasonsToReload) { }
 
     // reload forced automatically by server
     virtual void reloading() { }
