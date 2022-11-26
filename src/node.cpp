@@ -2401,10 +2401,9 @@ void LocalNode::updateTransferLocalname()
     }
 }
 
-void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
+bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
 {
-    if (!transferSP)
-        return;
+    if (!transferSP) return true;
 
     auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
@@ -2417,15 +2416,13 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
     {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
-            // checking for a race where we already sent putnodes and it hasn't completed,
-            // then we discover something that means we should abandon the transfer
-            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname();
-            assert(false);
+            return false;
         }
 
         LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
         resetTransfer(nullptr);
     }
+    return true;
 }
 
 void SyncTransfer_inClient::terminated(error e)

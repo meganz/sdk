@@ -7959,7 +7959,12 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         // upload the file if we're not already uploading it
-        row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
+        if (!row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint))
+        {
+            // if we are in the putnodes stage of a transfer though, then
+            // wait for that to finish and then re-evaluate
+            return false;
+        }
 
         shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
 

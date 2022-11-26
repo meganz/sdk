@@ -818,7 +818,7 @@ struct MEGA_API LocalNode
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
     void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
-    void transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
+    bool transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;
 
     void updateMoveInvolvement();
