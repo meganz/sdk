@@ -1583,7 +1583,17 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+                if (!resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false))
+                {
+                    // this can happen if eg. we can't read the fingerprint
+                    monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
+                        SyncWaitReason::FileIssue, false, false,
+                        {}, {},
+                        {sourceSyncNode->getLocalPath(), PathProblem::CannotFingerprintFile}, {}));
+
+                    row.suppressRecursion = true;
+                    return rowResult = false, true;
+                }
                 assert(row.syncNode);
             }
 
