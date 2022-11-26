@@ -1396,6 +1396,7 @@ void exec_devcommand(autocomplete::ACState& s)
     const char *subcommand = s.words[1].s.c_str();
     client->senddevcommand(subcommand, email);
 }
+
 #endif
 
 
@@ -3388,6 +3389,41 @@ void exec_fingerprint(autocomplete::ACState& s)
     }
 }
 
+#ifdef WIN32
+std::map<LocalPath, HANDLE> exlusivelyOpenedFiles;
+
+void exec_openfileexclusive(autocomplete::ACState& s)
+{
+    auto localfilepath = localPathArg(s.words[1].s);
+
+    auto& entry = exlusivelyOpenedFiles[localfilepath];
+
+
+    if (entry)
+    {
+        cout << "Releasing file" << endl;
+        CloseHandle(entry);
+        entry = INVALID_HANDLE_VALUE;
+    }
+    else
+    {
+        entry = CreateFileW((LPCTSTR)localfilepath.platformEncoded().data(), GENERIC_READ | GENERIC_WRITE,
+                            0, //  no sharing: FILE_SHARE_WRITE | FILE_SHARE_READ,
+                            NULL, OPEN_EXISTING, 0, NULL);
+
+        if (entry == INVALID_HANDLE_VALUE)
+        {
+            cout << "File open failed" << endl;
+        }
+        else
+        {
+            cout << "File is locked open" << endl;
+        }
+    }
+
+}
+#endif
+
 void exec_showattrs(autocomplete::ACState& s)
 {
     if (s.words.size() == 2)
@@ -4172,6 +4208,7 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
+    p->Add(exec_openfileexclusive, sequence(text("openfileexclusive"), localFSPath("localpattern")));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
@@ -5532,6 +5569,7 @@ void exec_llockfile(autocomplete::ACState& s)
 
     if (unlock)
     {
+        if (llockedFiles.find(localpath) == llockedFiles.end()) return;
         CloseHandle(llockedFiles[localpath]);
     }
     else

@@ -69,120 +69,6 @@ TEST(utils, readLines)
     ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
 }
 
-//TEST(Filesystem, CanonicalizeRemoteName)
-//{
-//    using namespace mega;
-//
-//    string name;
-//
-//    // Raw control characters should be escaped.
-//    name.push_back('\0');
-//    name.push_back('\7');
-//
-//    // Everything else should remain unchanged.
-//    name.append("%00%07%%31");
-//
-//    // Canonicalize the name.
-//    FSACCESS_CLASS fsAccess;
-//    fsAccess.canonicalize(&name);
-//
-//    // Was the name canonicalized correctly?
-//    ASSERT_EQ(name, "%00%07%00%07%%31");
-//}
-
-
-// Unfortunately this test is unreliable because the jenkins test nodes are pretty slow anyway, and it seems subject to a lot of variation between runs
-TEST(UtfCompare, DISABLED_SortTenThousandSpeed)
-{
-    using namespace std;
-    using namespace mega;
-    bool caseInsensitive = true;
-
-    auto fsCompareLess = [=](const string& lhs, const string& rhs) -> bool {
-        return compareUtf(
-            lhs, true,
-            rhs, true, caseInsensitive) < 0;
-    };
-
-    auto lnCompareLess = [=](const LocalPath& lhs, const LocalPath& rhs) -> bool {
-        return compareUtf(
-            lhs, true,
-            rhs, true, caseInsensitive) < 0;
-    };
-
-    auto fslnCompareSpaceship = [=](const string& lhs, const LocalPath& rhs) -> int {
-        return compareUtf(
-            lhs, true,
-            rhs, true, caseInsensitive);
-    };
-
-    std::vector<string> fsNodes, fsNodes2;
-    std::vector<LocalPath> lnNodes, lnNodes2;
-    std::vector<std::pair<string, LocalPath>> crossCompare;
-
-    for (unsigned i = 10000; i--; )
-    {
-        string str = to_string(i);
-        string rev = str;
-        std::reverse(rev.begin(), rev.end()); // for more sort activity
-
-        fsNodes.push_back("somelongstring_" + rev);
-        lnNodes.push_back(LocalPath::fromRelativePath("somelongstring_" + rev));
-        crossCompare.emplace_back("somelongstring_" + rev, LocalPath::fromRelativePath("somelongstring_" + rev));
-    }
-
-    using namespace std::chrono;
-    auto t0 = high_resolution_clock::now();
-    std::sort(crossCompare.begin(), crossCompare.end(),
-        [fslnCompareSpaceship](const std::pair<string, LocalPath>& a, const std::pair<string, LocalPath>& b) {
-            return fslnCompareSpaceship(a.first, b.second) < 0;
-        });
-    auto t1 = high_resolution_clock::now();
-    std::sort(lnNodes.begin(), lnNodes.end(), lnCompareLess);
-    auto t2 = high_resolution_clock::now();
-    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
-    auto t3 = high_resolution_clock::now();
-
-    unsigned t10 = unsigned(duration_cast<milliseconds>(t1 - t0).count());
-    unsigned t21 = unsigned(duration_cast<milliseconds>(t2 - t1).count());
-    unsigned t32 = unsigned(duration_cast<milliseconds>(t3 - t2).count());
-    cout << t10 << " " << t21 << " " << t32 << endl;
-
-    ASSERT_LE(t10, 1500u);
-    ASSERT_LE(t21, 1500u);
-    ASSERT_LE(t32, 1500u);
-}
-
-
-
-TEST(Filesystem, DISABLED_ControlCharactersRemainEscapedOnlyWhenNecessary)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    // Control characters should remain escaped only if necessary.
-    const string input = "%00%0d%0a";
-
-    // Most restrictive escaping policy.
-    {
-        string name = input;
-
-        fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
-
-        ASSERT_EQ(name, input);
-    }
-
-    // Least restrictive escaping policy.
-    {
-        string name = input;
-
-        fsAccess.escapefsincompatible(&name, FS_EXT);
-
-        ASSERT_EQ(name, "%00\r\n");
-    }
-}
-
 TEST(Filesystem, EscapesControlCharactersIfNecessary)
 {
     using namespace mega;
@@ -210,22 +96,6 @@ TEST(Filesystem, EscapesControlCharactersIfNecessary)
 
         ASSERT_EQ(name, "%00\r\n");
     }
-}
-
-TEST(Filesystem, DISABLED_EscapesPercentOnlyIfNotEncodingControlCharacter)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    // The % in %00 should not be escaped.
-    // The % in %30 should be escaped.
-    string name = "%00%30";
-
-    fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
-
-    // Was the string escaped correctly?
-    ASSERT_EQ(name, "%00%2530");
 }
 
 TEST(Filesystem, EscapesReservedCharacters)
@@ -272,36 +142,6 @@ TEST(Filesystem, UnescapesEscapedCharacters)
     ASSERT_STREQ(name.c_str(), "%\\/:?\"<>|*");
 }
 
-TEST(Filesystem, DISABLED_UnescapeEncodesControlCharacters)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    // The cloud should never receive unescaped control characters.
-    string name("\0\r\n", 3);
-
-    fsAccess.unescapefsincompatible(&name);
-
-    // Were the control characters correctly encoded?
-    ASSERT_EQ(name, "%00%0d%0a");
-}
-
-TEST(Filesystem, DISABLED_UnescapesEscapeWhenNotEncodingControlCharacter)
-{
-    using namespace mega;
-
-    FSACCESS_CLASS fsAccess;
-
-    // %30 should be decoded to 0.
-    // %00 should remain as %00.
-    string name = "%30%00";
-
-    fsAccess.unescapefsincompatible(&name);
-
-    // Was the string correctly unescaped?
-    ASSERT_EQ(name, "0%00");
-}
 
 TEST(CharacterSet, IterateUtf8)
 {
@@ -393,13 +233,6 @@ public:
         return LocalPath::fromRelativePath(s);
     }
 
-    //template<typename T, typename U>
-    //int fsCompare(const T& lhs, const U& rhs, const ::mega::FileSystemType type) const
-    //{
-    //    const auto caseInsensitive = isCaseInsensitive(type);
-
-    //    return compareUtf(lhs, true, rhs, true, caseInsensitive);
-    //}
 }; // ComparatorTest
 
 TEST_F(ComparatorTest, CompareLocalPaths)
@@ -505,19 +338,6 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         lhs = fromRelPath("a\7%30b%31c");
         rhs = fromRelPath("A%070B1C");
 
-        //// exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_EXFAT), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_FAT32), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_NTFS), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_UNKNOWN), 0);
-
-//#ifndef _WIN32
-//        // Everything else is case-sensitive.
-//        EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
-//
-//        rhs = fromRelPath("a%070b1c");
-//        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
-//#endif // ! _WIN32
     }
 }
 
@@ -622,19 +442,6 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
         lhs = fromRelPath("a\7%30b%31c");
         rhs = "A%070B1C";
 
-        //// exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_EXFAT), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_FAT32), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_NTFS), 0);
-        //EXPECT_EQ(fsCompare(lhs, rhs, FS_UNKNOWN), 0);
-
-//#ifndef _WIN32
-//        // Everything else is case-sensitive.
-//        EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
-//
-//        rhs = "a%070b1c";
-//        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
-//#endif // ! _WIN32
     }
 }
 
@@ -1215,24 +1022,6 @@ TEST_F(TooLongNameTest, Copy)
         ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
-
-    //// Relative
-    //{
-    //    auto source = Append(mPrefixName, "x");
-    //    auto target = AppendLongName(mPrefixName, 'y');
-
-    //    ASSERT_TRUE(CreateDummyFile(source));
-
-    //    ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
-    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
-
-    //    // Legitimate "bad path" error should clear the flag.
-    //    target = Append(mPrefixName, "u");
-    //    target = Append(target, "v");
-
-    //    ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
-    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
-    //}
 }
 
 TEST_F(TooLongNameTest, CreateDirectory)
@@ -1251,21 +1040,6 @@ TEST_F(TooLongNameTest, CreateDirectory)
         ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
-
-    //// Relative
-    //{
-    //    auto path = AppendLongName(mPrefixName, 'x');
-
-    //    ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
-    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
-
-    //    // A legitimate "bad path" error should clear the flag.
-    //    path = Append(mPrefixName, "x");
-    //    path = Append(path, "y");
-
-    //    ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
-    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
-    //}
 }
 
 TEST_F(TooLongNameTest, Rename)
@@ -1287,22 +1061,4 @@ TEST_F(TooLongNameTest, Rename)
         ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
-
-    //// Relative
-    //{
-    //    auto source = Append(mPrefixName, "t");
-    //    auto target = AppendLongName(mPrefixName, 'u');
-
-    //    ASSERT_TRUE(CreateDummyFile(source));
-
-    //    ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
-    //    ASSERT_TRUE(mFsAccess.target_name_too_long);
-
-    //    // Legitimate "bad path" error should clear the flag.
-    //    target = Append(mPrefixName, "u");
-    //    target = Append(target, "v");
-
-    //    ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
-    //    ASSERT_FALSE(mFsAccess.target_name_too_long);
-    //}
 }
