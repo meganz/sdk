@@ -946,6 +946,7 @@ public:
 #endif // USE_INOTIFY
 };
 
+bool isDoNotSyncFileName(const string& name);
 #endif
 
 } // namespace

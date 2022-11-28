@@ -3406,7 +3406,7 @@ bool StandardClient::deleteremote(const CloudItem& item)
         client.deleteremote(item, std::move(result));
     }, __FILE__, __LINE__);
 
-    auto status = result.wait_for(DEFAULTWAIT);
+    auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)

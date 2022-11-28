@@ -173,6 +173,9 @@ public:
     // not serialized.  Prevent notifying the client app for this sync's state changes
     bool mRemovingSyncBySds = false;
 
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mFinishedInitialScanning = false;
+
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
@@ -1116,7 +1119,7 @@ public:
     bool mSyncVecIsEmpty = true;
 
     // directly accessed flag that makes sync-related logging a lot more detailed
-    bool mDetailedSyncLogging = false;
+    bool mDetailedSyncLogging = true;
 
     // total number of LocalNode objects (only updated by syncs thread)
     long long totalLocalNodes = 0;

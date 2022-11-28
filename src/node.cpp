@@ -1720,7 +1720,7 @@ void LocalNode::propagateAnySubtreeFlags()
     if (syncAgain == TREE_ACTION_SUBTREE) syncAgain = TREE_ACTION_HERE;
 }
 
-static bool isDoNotSyncFileName(const string& name)
+bool isDoNotSyncFileName(const string& name)
 {
     return name == "desktop.ini"
            || name == ".DS_Store"
@@ -1820,13 +1820,6 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             *availableScanSlot = ourScanRequest;
 
             LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
-
-            if (neverScanned)
-            {
-                neverScanned = 0;
-                --sync->threadSafeState->neverScannedFolderCount;
-                LOG_verbose << sync->syncname << "Remaining known unscanned folders: " << sync->threadSafeState->neverScannedFolderCount.load();
-            }
         }
     }
     else if (ourScanRequest &&
@@ -1875,6 +1868,14 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             }
 
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath;
+
+            if (neverScanned)
+            {
+                neverScanned = 0;
+                --sync->threadSafeState->neverScannedFolderCount;
+                LOG_debug << "neverScannedFolderCount decremented: " << getLocalPath() << " count: " << sync->threadSafeState->neverScannedFolderCount.load();
+                LOG_verbose << sync->syncname << "Remaining known unscanned folders: " << sync->threadSafeState->neverScannedFolderCount.load();
+            }
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
@@ -2103,6 +2104,12 @@ LocalNode::~LocalNode()
     if (!sync->mDestructorRunning && dbid)
     {
         sync->statecachedel(this);
+    }
+
+    if (neverScanned)
+    {
+        neverScanned = 0;
+        --sync->threadSafeState->neverScannedFolderCount;
     }
 
     if (sync->dirnotify && !sync->mDestructorRunning)

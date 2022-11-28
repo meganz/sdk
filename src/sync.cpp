@@ -2838,6 +2838,25 @@ dstime Sync::procscanq()
         // Notify the node or its parent
         LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder, false);
 
+        // Check it's not an excluded path
+        if (nearest && !remainder.empty())
+        {
+            LocalPath firstComponent;
+            size_t index = 0;
+            if (remainder.nextPathComponent(index, firstComponent))
+            {
+                if (isDoNotSyncFileName(firstComponent.toPath(false)))
+                {
+                    continue;
+                }
+
+                if (ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0))
+                {
+                    continue;
+                }
+            }
+        }
+
         bool scanDescendants = false;
 
         if (match)
@@ -10605,6 +10624,13 @@ void Syncs::syncLoop()
                             sync->setBackupMonitoring();
                         }
                     }
+                }
+
+                if (!us->mConfig.mFinishedInitialScanning &&
+                    !sync->localroot->scanRequired())
+                {
+                    LOG_debug << "Finished initial sync scan at " << sync->localroot->getLocalPath();
+                    us->mConfig.mFinishedInitialScanning = true;
                 }
             }
         }
