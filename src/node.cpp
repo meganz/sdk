@@ -1973,7 +1973,11 @@ treestate_t LocalNode::checkTreestate(bool notifyChangeToApp)
 
     treestate_t ts = TREESTATE_NONE;
 
-    if (scanAgain == TREE_RESOLVED &&
+    if (ES_INCLUDED != exclusionState())
+    {
+        ts = TREESTATE_NONE;
+    }
+    else if (scanAgain == TREE_RESOLVED &&
         checkMovesAgain == TREE_RESOLVED &&
         syncAgain == TREE_RESOLVED)
     {
@@ -3159,6 +3163,7 @@ ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_
 
 ExclusionState LocalNode::exclusionState() const
 {
+    if (isDoNotSyncFileName(toName_of_localname)) return ES_EXCLUDED;
     return mExclusionState;
 }
 
