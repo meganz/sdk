@@ -846,6 +846,7 @@ public:
     const char* getString(unsigned index) const override;
     MegaHandle getHandle(unsigned index) const override;
     bool isOwnChange() const override;
+    bool isRemoved() const override;
     MegaHandle getPcrHandle() const override;
 
 protected:
@@ -866,6 +867,7 @@ protected:
     vector<int64_t> timestamps;
     vector<string> extraStrings;
     vector<MegaHandle> handles;
+    bool removed = false;
 };
 
 class MegaHandleListPrivate : public MegaHandleList

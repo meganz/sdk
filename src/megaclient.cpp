@@ -2197,7 +2197,7 @@ void MegaClient::exec()
                     if (useralerts.procsc_useralert(json))
                     {
                         // NULL vector: "notify all elements"
-                        app->useralerts_updated(NULL, int(useralerts.alerts.size()));
+                        app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
                     }
                     pendingscUserAlerts.reset();
                     break;
@@ -4856,6 +4856,14 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+                            if (!loggedinfolderlink())
+                            {
+                                // historic user alerts are not supported for public folders
+                                // now that we have fetched everything and caught up actionpackets since that state,
+                                // our next sc request can be for useralerts
+                                useralerts.begincatchup = true;
+                            }
                         }
                         else
                         {
@@ -4917,14 +4925,6 @@ bool MegaClient::procsc()
                         app->chats_updated(NULL, int(chats.size()));
 #endif
                         mNodeManager.removeChanges();
-
-                        if (!loggedinfolderlink())
-                        {
-                            // historic user alerts are not supported for public folders
-                            // now that we have loaded cached state, and caught up actionpackets since that state
-                            // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                            useralerts.begincatchup = true;
-                        }
                     }
 
                     if (!insca_notlast)
@@ -5371,6 +5371,8 @@ void MegaClient::initsc()
             // 6. write SetElements
             complete = initscsetelements();
         }
+
+        // Nothing to do for persisting Alerts. cmd("f") will not provide any data about Alerts
 
 #ifdef ENABLE_CHAT
         if (complete)
@@ -6838,8 +6840,8 @@ void MegaClient::sc_upc(bool incoming)
                     string email;
                     JSON::copystring(&email, m);
                     using namespace UserAlert;
-                    useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
-                                            : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
+                    useralerts.add(incoming ? (UserAlert::Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
+                                            : (UserAlert::Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
                 }
 
                 notifypcr(pcr);
@@ -7652,6 +7654,7 @@ void MegaClient::notifypurge(void)
 
     if (mNodeManager.nodeNotifySize() || usernotify.size() || pcrnotify.size()
             || setnotify.size() || setelementnotify.size()
+            || !useralerts.useralertnotify.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7738,19 +7741,7 @@ void MegaClient::notifypurge(void)
         usernotify.clear();
     }
 
-    if ((t = int(useralerts.useralertnotify.size())))
-    {
-        LOG_debug << "Notifying " << t << " user alerts";
-        app->useralerts_updated(&useralerts.useralertnotify[0], t);
-
-        for (i = 0; i < t; i++)
-        {
-            UserAlert::Base *ua = useralerts.useralertnotify[i];
-            ua->tag = -1;
-        }
-
-        useralerts.useralertnotify.clear();
-    }
+    useralerts.purgescalerts();
 
     if (!setelementnotify.empty())
     {
@@ -7785,6 +7776,35 @@ void MegaClient::notifypurge(void)
 #endif
 
     totalNodes = mNodeManager.getNodeCount();
+}
+
+void MegaClient::persistAlert(UserAlert::Base* a)
+{
+    if (!sctable) return;
+
+    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
+    if (a->removed())
+    {
+        if (sctable->del(a->dbid))
+        {
+            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+        }
+        else
+        {
+            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+        }
+    }
+    else // insert or replace
+    {
+        if (sctable->put(CACHEDALERT, a, &key))
+        {
+            LOG_verbose << "UserAlert of type " << a->type << " inserted or replaced in db.";
+        }
+        else
+        {
+            LOG_err << "Failed to insert or update UserAlert of type " << a->type << " in db.";
+        }
+    }
 }
 
 // return node pointer derived from node handle
@@ -12676,6 +12696,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 break;
 
+            case CACHEDALERT:
+            {
+                if (!useralerts.unserializeAlert(&data, id))
+                {
+                    LOG_err << "Failed - user notification read error";
+                    // don't break execution, just ignore it
+                }
+                break;
+            }
+
             case CACHEDCHAT:
 #ifdef ENABLE_CHAT
                 {
@@ -12752,6 +12782,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
+
+    // user alerts are restored from DB upon session resumption. No need to send the sc50 to catchup, it will
+    // generate new alerts from action packets as usual, once the session is up and running
+    useralerts.catchupdone = true;
 
     return true;
 }

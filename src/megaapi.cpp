@@ -810,6 +810,11 @@ bool MegaUserAlert::isOwnChange() const
     return false;
 }
 
+bool MegaUserAlert::isRemoved() const
+{
+    return false;
+}
+
 
 MegaShare::~MegaShare() { }
 
