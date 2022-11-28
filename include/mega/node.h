@@ -331,9 +331,10 @@ private:
 
     enum
     {
-        IS_VERSION = 0x01,
-        IS_IN_RUBBISH = 0x02,
-    } FlagTypes;
+        FLAGS_IS_VERSION = 0,  // This bit is active if node is a version
+        FLAGS_IS_IN_RUBBISH = 1, // This bit is active if node is in rubbish bin
+        FLAGS_SIZE = 2,
+    } Flags;
 };
 
 inline const string& Node::nodekey() const

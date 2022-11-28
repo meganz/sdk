@@ -217,20 +217,18 @@ bool Node::hasChildWithName(const string& name) const
 
 uint64_t Node::getDBFlag() const
 {
-    bool isInRubbish = isAncestor(client->mNodeManager.getRootNodeRubbish());
-    bool isVersion = parent ? parent->type == FILENODE : false;
-    uint64_t flags = 0;
-    flags = isVersion ? flags | IS_VERSION : flags & ~IS_VERSION;
-    flags = isInRubbish ? flags | IS_IN_RUBBISH : flags & ~IS_IN_RUBBISH;
-    return flags;
+    std::bitset<FLAGS_SIZE> flags;
+    flags.set(FLAGS_IS_VERSION, parent && parent->type == FILENODE);
+    flags.set(FLAGS_IS_IN_RUBBISH, isAncestor(client->mNodeManager.getRootNodeRubbish()));
+    return flags.to_ulong();
 }
 
 uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion)
 {
-    uint64_t flags = oldFlags;
-    flags = isVersion ? flags | IS_VERSION : flags & ~IS_VERSION;
-    flags = isInRubbish ? flags | IS_IN_RUBBISH : flags & ~IS_IN_RUBBISH;
-    return flags;
+    std::bitset<FLAGS_SIZE> flags = oldFlags;
+    flags.set(FLAGS_IS_VERSION, isVersion);
+    flags.set(FLAGS_IS_IN_RUBBISH, isInRubbish);
+    return flags.to_ulong();
 }
 
 bool Node::getExtension(std::string& ext) const
