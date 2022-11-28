@@ -6158,6 +6158,7 @@ bool MegaClient::sc_shares()
                 }
                 else
                 {
+                    // Outshare or pending outsahre
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         handle peer = outbound ? uh : oh;
@@ -20933,6 +20934,15 @@ bool KeyManager::deserializeShareKeys(string &blob)
 
         mTrustedShareKeys[h] = trust ? true : false;
         mShareKeys[h] = shareKeyStr;
+
+        // Set the sharekey to the node, if missing (since it might not have been received along with
+        // the share itself (ok / k is discontinued since ^!keys)
+        Node* n = mClient.nodebyhandle(h);
+        if (n && !n->sharekey)
+        {
+            n->sharekey = new SymmCipher(shareKey);
+            mClient.notifynode(n);
+        }
 
         offset += recordSize;
     }

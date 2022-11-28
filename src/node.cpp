@@ -516,7 +516,14 @@ bool Node::serialize(string* d)
 
     if (numshares)
     {
-        d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+        if (sharekey)
+        {
+            d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+        }
+        else // with ^!keys, shares may not receive the sharekey along with the share's data
+        {
+            d->append(SymmCipher::KEYLENGTH, 0);
+        }
 
         if (inshare)
         {
