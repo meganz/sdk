@@ -7395,6 +7395,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             case ES_INCLUDED:
                 break;
+
+            case ES_UNMATCHED:
+                assert(false); // cannot occur.  Just here to keep the compilers happy
+                break;
         }
 
         // Item exists locally and remotely but we haven't synced them previously
