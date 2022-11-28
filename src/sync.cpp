@@ -6405,7 +6405,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         auto sequences = computeSyncSequences(childRows);
 
         bool ignoreFilePresent = sequences.size() > 1;
-        bool hasFilter = !!row.syncNode->rareRO().filterChain;
+        bool hasFilter = row.syncNode->rareRO().filterChain &&
+                         row.syncNode->rareRO().filterChain->mLoadSucceeded;
 
         if (ignoreFilePresent != hasFilter)
         {
@@ -6630,7 +6631,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
             if (ignoreFilePresent)
             {
-                if (!row.syncNode->filterChainRO().isValid())
+                if (!row.syncNode->rareRO().filterChain ||
+                    !row.syncNode->rareRO().filterChain->mLoadSucceeded)
                 {
                     // we can't calculate what's included, come back when the .megaignore is present and well-formed
                     break;

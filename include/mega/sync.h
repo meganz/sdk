@@ -1289,7 +1289,7 @@ private:
             auto result = mFilterChain.load(fsAccess, mPath);
 
             // Resolved if the file's been deleted or corrected.
-            if (result == FLR_FAILED || result == FLR_SKIPPED)
+            if (result == FLR_FAILED)
                 return false;
 
             // Clear the failure condition.

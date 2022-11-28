@@ -465,40 +465,6 @@ vector<RemotePath> DefaultFilterChain::toRemotePaths(const vector<LocalPath>& pa
     return result;
 }
 
-FilterResult::FilterResult()
-  : included(false)
-  , matched(false)
-{
-}
-
-FilterResult::FilterResult(const bool included)
-  : included(included)
-  , matched(true)
-{
-}
-
-FilterChain::FilterChain()
-  : mFingerprint()
-  , mStringFilters()
-  , mSizeFilter()
-{
-}
-
-FilterChain::FilterChain(const FilterChain& other) = default;
-
-FilterChain::FilterChain(FilterChain&& other) = default;
-
-FilterChain::~FilterChain() = default;
-
-FilterChain& FilterChain::operator=(const FilterChain& rhs) = default;
-
-FilterChain& FilterChain::operator=(FilterChain&& rhs) = default;
-
-bool FilterChain::changed(const FileFingerprint& fingerprint) const
-{
-    return mFingerprint != fingerprint;
-}
-
 void FilterChain::clear()
 {
     mFingerprint = FileFingerprint();
@@ -525,13 +491,6 @@ FilterLoadResult FilterChain::load(FileSystemAccess& fsAccess, const LocalPath& 
 
 FilterLoadResult FilterChain::load(FileAccess& fileAccess)
 {
-    // Has the ignore file changed?
-    if (!mFingerprint.genfingerprint(&fileAccess))
-    {
-        // No point trying to load the file as it hasn't changed.
-        return FLR_SKIPPED;
-    }
-
     string_vector lines;
 
     // Read the filters, line by line.
@@ -590,11 +549,11 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
     return FLR_SUCCESS;
 }
 
-FilterResult FilterChain::match(const RemotePathPair& p,
+ExclusionState FilterChain::match(const RemotePathPair& p,
                                 const nodetype_t type,
                                 const bool onlyInheritable) const
 {
-    assert(isValid());
+    if (!mLoadSucceeded) return ES_UNKNOWN;
 
     auto i = mStringFilters.rbegin();
     auto j = mStringFilters.rend();
@@ -609,30 +568,30 @@ FilterResult FilterChain::match(const RemotePathPair& p,
         if (((*i)->applicable(type) || type == TYPE_UNKNOWN)  // TYPE_UNKNOWN because we need to be able to exclude scan-blocked items, and that is the type they appear as.
            && (*i)->match(p))
         {
-            return FilterResult((*i)->inclusion());
+            return (*i)->inclusion() ? ES_INCLUDED : ES_EXCLUDED;
         }
     }
 
-    return FilterResult();
+    return ES_UNMATCHED;
 }
 
-FilterResult FilterChain::match(const m_off_t s) const
+ExclusionState FilterChain::match(const m_off_t s) const
 {
     // Sanity.
     assert(s >= 0);
-    assert(isValid());
+    if (!mLoadSucceeded) return ES_UNKNOWN;
 
     // Can't match if we have no filter.
     if (!mSizeFilter)
     {
-        return FilterResult();
+        return ES_UNMATCHED;
     }
 
     // Silence warnings.
     const auto t = static_cast<std::uint64_t>(s);
 
     // Attempt the match.
-    return FilterResult(mSizeFilter->match(t));
+    return mSizeFilter->match(t) ? ES_INCLUDED : ES_EXCLUDED;
 }
 
 #ifdef _WIN32
