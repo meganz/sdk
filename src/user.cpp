@@ -1481,19 +1481,25 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
     string authValue;
     if (authring.get(authType, authValue))  // key is an empty string, but may not be there if authring was reset
     {
-        deserialize(authValue);
+        if (!deserialize(authValue))
+        {
+            LOG_warn << "Excess data while deserializing Authring of type: " << type;
+        }
     }
 }
 
 AuthRing::AuthRing(attr_t type, const std::string &authValue)
     : mType(type)
 {
-    deserialize(authValue);
+    if (!deserialize(authValue))
+    {
+        LOG_warn << "Excess data while deserializing Authring of type: " << type;
+    }
 }
 
-void AuthRing::deserialize(const string& authValue)
+bool AuthRing::deserialize(const string& authValue)
 {
-    if (authValue.empty()) return;
+    if (authValue.empty()) return true;
 
     handle userhandle;
     byte authFingerprint[20];
@@ -1516,6 +1522,9 @@ void AuthRing::deserialize(const string& authValue)
         mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
         mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
     }
+
+    return ptr == end;
+
 }
 
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
@@ -1666,6 +1675,17 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     }
 
     return "unknown";
+}
+
+string AuthRing::toString(AuthRing &authRing)
+{
+    auto uhVector = authRing.getTrackedUsers();
+    ostringstream result;
+    for (auto& i : uhVector)
+    {
+        result << "[" << toHandle(i) << "] " << Base64::btoa(authRing.getFingerprint(i)) << " | " <<AuthRing::authMethodToStr(authRing.getAuthMethod(i)) << std::endl;
+    }
+    return result.str();
 }
 
 std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)

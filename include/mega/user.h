@@ -220,12 +220,14 @@ public:
     // returns a human-friendly string for a given authentication method
     static string authMethodToStr(AuthMethod authMethod);
 
+    static string toString(AuthRing& authRing);
+
 private:
     attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
 
-    void deserialize(const std::string &authValue);
+    bool deserialize(const std::string &authValue);
 };
 
 } // namespace

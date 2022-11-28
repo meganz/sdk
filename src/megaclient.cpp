@@ -20803,34 +20803,56 @@ bool KeyManager::unserialize(const std::string &keysContainer)
         }
         case TAG_AUTHRING_ED25519:
         {
+            attr_t at = ATTR_AUTHRING;
             mAuthEd25519.assign(blob + offset, len);
-            // TODO: deserialize it
-            LOG_verbose << "Authring Ed25519: " << Base64::btoa(mAuthEd25519);
+            mClient.mAuthRings.erase(at);
+            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
+            LOG_verbose << AuthRing::toString(mClient.mAuthRings.at(at));
 
-//                    attr_t at = ATTR_AUTHRING;
-//                    auto it = client->mAuthRings.find(at);
-//                    if (it != client->mAuthRings.end())
-//                    {
-//                        LOG_verbose << "Authring Ed25519 (expected): " << Base64::btoa(it->second.serializeForJS());
-//                        client->mAuthRings.erase(at);
-//                        client->mAuthRings.emplace(at, AuthRing(at, authEd25519));
-//                    }
+//            LOG_verbose << "-keys-Authring Ed25519: " << Base64::btoa(mAuthEd25519);
+
+//            AuthRing auth(at, mAuthEd25519);
+//            auto uhVector = auth.getTrackedUsers();
+//            LOG_verbose << "KEYS: \n" << AuthRing::toString(auth);
+
+//            const string *authring_expt = mClient.ownuser()->getattr(at);
+
+//            TLVstore *tlv = TLVstore::containerToTLVrecords(authring_expt, &mClient.key);
+//            string aux; tlv->get("", aux);
+//            LOG_verbose << "-expt-Authring Ed25519: " << Base64::btoa(aux);
+
+//            auto it = mClient.mAuthRings.find(at);
+//            if (it != mClient.mAuthRings.end())
+//            {
+//                LOG_verbose << "EXPT: \n" << AuthRing::toString(it->second);
+//            }
             break;
         }
         case TAG_AUTHRING_CU25519:
         {
+            attr_t at = ATTR_AUTHCU255;
             mAuthCu25519.assign(blob + offset, len);
-            // TODO: deserialize it
-            LOG_verbose << "Authring Cu25519 (" << len << "): " << Base64::btoa(mAuthCu25519);
+            mClient.mAuthRings.erase(at);
+            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
+            LOG_verbose << AuthRing::toString(mClient.mAuthRings.at(at));
 
-//                    attr_t at = ATTR_AUTHCU255;
-//                    auto it = client->mAuthRings.find(at);
-//                    if (it != client->mAuthRings.end())
-//                    {
-//                        LOG_verbose << "Authring Cu25519 (expected): " << Base64::btoa(it->second.serializeForJS());
-//                        client->mAuthRings.erase(at);
-//                        client->mAuthRings.emplace(at, AuthRing(at, authCu25519));
-//                    }
+//            LOG_verbose << "-keys-Authring Cu25519: " << Base64::btoa(mAuthCu25519);
+
+//            AuthRing auth(at, mAuthCu25519);
+//            auto uhVector = auth.getTrackedUsers();
+//            LOG_verbose << "KEYS: \n" << AuthRing::toString(auth);
+
+//            const string *authring_expt = mClient.ownuser()->getattr(at);
+
+//            TLVstore *tlv = TLVstore::containerToTLVrecords(authring_expt, &mClient.key);
+//            string aux; tlv->get("", aux);
+//            LOG_verbose << "-expt-Authring Cu25519: " << Base64::btoa(aux);
+
+//            auto it = mClient.mAuthRings.find(at);
+//            if (it != mClient.mAuthRings.end())
+//            {
+//                LOG_verbose << "EXPT: \n" << AuthRing::toString(it->second);
+//            }
             break;
         }
         case TAG_SHAREKEYS:
@@ -20843,6 +20865,9 @@ bool KeyManager::unserialize(const std::string &keysContainer)
         case TAG_PENDING_OUTSHARES:
             mPendingOutShares.assign(blob + offset, len);
             // TODO: deserialize it
+
+
+
             LOG_verbose << "Pending outshares: " << Base64::btoa(mPendingOutShares);
             break;
 
@@ -20902,7 +20927,7 @@ bool KeyManager::deserializeShareKeys(string &blob)
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
 
         LOG_verbose << "ShareKey #" << count << "\n\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << " t (int): " << (int)trust;
+                       " sk: " << Base64::btoa(shareKeyStr) << " t (int): " << (int)trust << "\n";
 
         LOG_verbose << "BLOB: " << Utils::stringToHex(blob);
 
