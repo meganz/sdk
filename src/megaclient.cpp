@@ -5372,7 +5372,7 @@ void MegaClient::initsc()
             complete = initscsetelements();
         }
 
-        // Nothing to do for persisting Alerts. cmd("f") will not provide any data abot Alerts
+        // Nothing to do for persisting Alerts. cmd("f") will not provide any data about Alerts
 
 #ifdef ENABLE_CHAT
         if (complete)

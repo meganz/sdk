@@ -22,8 +22,6 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
-#include <bitset>
-
 namespace mega {
 
 struct UserAlertRaw
@@ -79,13 +77,6 @@ namespace UserAlert
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
 
     using handle_alerttype_map_t = map<handle, nameid>;
-
-    enum
-    {
-        PERSIST_TYPE_PUT,       // add or update
-        PERSIST_TYPE_REMOVE,    // remove from persistence
-        PERSIST_TYPE_SIZE,
-    };
 
     struct Base : public Cacheable
     {
