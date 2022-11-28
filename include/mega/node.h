@@ -308,6 +308,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
 
+    uint64_t getDBFlag() const;
+
+    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion);
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -324,6 +328,12 @@ private:
     bool isDocument(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
+
+    enum
+    {
+        IS_VERSION = 0x01,
+        IS_IN_RUBBISH = 0x02,
+    } FlagTypes;
 };
 
 inline const string& Node::nodekey() const
