@@ -144,6 +144,12 @@ public:
 
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
+	
+    // not serialized.  Prevent re-enabling sync after removal
+    bool mSyncDeregisterSent = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mRemovingSyncBySds = false;
 
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
@@ -219,6 +225,9 @@ class SyncThreadsafeState
     handle mBackupId = 0;
 
 public:
+
+    const bool mCanChangeVault;
+
     void transferBegin(direction_t direction, m_off_t numBytes);
     void transferComplete(direction_t direction, m_off_t numBytes);
     void transferFailed(direction_t direction, m_off_t numBytes);
@@ -231,7 +240,7 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
+    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault) : mClient(client), mBackupId(backupId), mCanChangeVault(canChangeVault)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
 };

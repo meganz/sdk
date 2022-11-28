@@ -526,6 +526,7 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
+            CHANGE_TYPE_COUNTER            = 0x2000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -979,8 +980,11 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NAME            = 0x800
          * Check if the node name has changed
          *
-         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * - MegaNode::CHANGE_TYPE_FAVOURITE       = 0x1000
          * Check if the node was added to or removed from favorites
+         *
+         * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
+         * Check if counter for this node (its subtree) has changed
          *
          */
         virtual int getChanges();
@@ -1181,6 +1185,17 @@ class MegaNode
          */
         virtual const char* getDeviceId() const;
 
+
+        /**
+         * @brief Returns the S4 metadata stored as a Node attribute.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The s4 attribute associated with the Node.
+         */
+        virtual const char* getS4() const;
+
         /**
          * @brief Provides a serialization of the MegaNode object
          *
@@ -1367,6 +1382,13 @@ public:
      * @return file-node handle.
      */
     virtual MegaHandle node() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns id of MegaSet current MegaSetElement belongs to.
+     *
+     * @return MegaSet id.
+     */
+    virtual MegaHandle setId() const { return INVALID_HANDLE; }
 
     /**
      * @brief Returns order of current Element.
@@ -2612,6 +2634,15 @@ public:
     virtual int size() const;
 };
 
+/**
+ * @brief This class represents a scheduled meeting. Scheduled Meetings allows the user to specify an event that will occur in the future.
+ * The user can also specify a set of rules for repetition, these rules enable an event to reoccur periodically.
+ *
+ * Important consideration:
+ * A Chatroom only should have one root scheduled meeting associated, it means that just one scheduled meeting for a chatroom,
+ * should have an invalid parent sched Id (MegaScheduledMeeting::parentSchedId)
+ *
+ */
 class MegaScheduledMeeting
 {
 public:
@@ -2636,7 +2667,7 @@ public:
      *
      * @return A pointer to the superclass of the private object
      */
-    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
+    static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
                                                      int cancelled, const char* timezone, const char* startDateTime,
                                                      const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                      const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
@@ -2741,7 +2772,7 @@ public:
     /**
      * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
      *
-     * The SDK retains the ownership of the MegaScheduledFlags
+     * You take ownership of the returned MegaScheduledFlags
      *
      * @return A pointer to MegaScheduledFlags that contains the scheduled meetings flags
      */
@@ -2750,7 +2781,7 @@ public:
     /**
      * @brief Returns a pointer to MegaScheduledRules that contains the scheduled meetings rules
      *
-     * The SDK retains the ownership of the MegaScheduledRules
+     * You take ownership of the returned MegaScheduledRules
      *
      * @return A pointer to MegaScheduledRules that contains the scheduled meetings rules
      */
@@ -2778,13 +2809,9 @@ public:
     static MegaScheduledFlags* createInstance();
 
     /**
-     * @brief Creates a new instance of MegaScheduledFlags
-     *
-     * @param emailsDisabled If this flag is enabled, API won't send out calendar emails for this meeting
-     *
-     * @return A pointer to the superclass of the private object
+     * @brief Imports scheduled meetings flags from numeric value
      */
-    static MegaScheduledFlags* createInstance(bool emailsDisabled);
+    virtual void importFlagsValue(unsigned long);
 
     /**
      * @brief Creates a copy of this virtual MegaScheduledFlags object
@@ -2923,20 +2950,75 @@ public:
     static bool isValidInterval(int interval);
 };
 
+/**
+ * @brief List of MegaScheduledMeeting objects
+ */
 class MegaScheduledMeetingList
 {
 public:
-    static MegaScheduledMeetingList* createInstance();
     virtual ~MegaScheduledMeetingList();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledMeetingList
+     *
+     * You take the ownership of the returned object
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledMeetingList* createInstance();
+
+    /**
+     * @brief Creates a copy of this MegaScheduledMeetingList object
+     *
+     * The resulting object is fully independent of the source MegaScheduledMeetingList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaScheduledMeetingList object
+     */
     virtual MegaScheduledMeetingList *copy() const;
 
-    // getters
+    /**
+     * @brief Returns the number of elements in the list
+     * @return Number of elements in the list
+     */
     virtual unsigned long size() const;
+
+    /**
+     * @brief Returns the MegaScheduledMeeting at the position i in the MegaScheduledMeetingList
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the element that we want to get for the list
+     * @return MegaScheduledMeeting at the position i in the MegaScheduledMeetingList
+     */
     virtual MegaScheduledMeeting* at(unsigned long i) const;
+
+    /**
+     * @brief Get a MegaScheduledMeeting object in the list, that has a specific scheduled meeting id
+     * If no scheduled meeting is found with the provided id, this method will returns NULL
+     *
+     * You take the ownership of the returned value
+     *
+     * @param h Scheduled meeting id
+     * @return MegaScheduledMeeting with scheduled meeting id equal to h, or NULL
+     */
     virtual MegaScheduledMeeting* getBySchedId(MegaHandle h) const;
 
-    // setters
+    /**
+     * @brief Add element to the MegaScheduledMeetingList
+     *
+     * The SDK adquires the ownership of provided MegaScheduledMeeting
+     *
+     * @param sm MegaScheduledMeeting to add to list
+     */
     virtual void insert(MegaScheduledMeeting* sm);
+
+    /**
+     * @brief Clears the MegaScheduledMeetingList
+     */
     virtual void clear();
 };
 
@@ -2958,14 +3040,25 @@ protected:
     MegaStringMap();
 
 public:
+    virtual ~MegaStringMap();
+
     /**
      * @brief Creates a new instance of MegaStringMap
      * @return A pointer to the superclass of the private object
      */
     static MegaStringMap *createInstance();
 
-    virtual ~MegaStringMap();
-
+    /**
+     * @brief Creates a copy of this MegaStringMap object
+     *
+     * The resulting object is fully independent of the source MegaStringMap,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaStringMap object
+     */
     virtual MegaStringMap *copy() const;
 
     /**
@@ -3282,6 +3375,8 @@ class MegaNodeList
 
 /**
  * @brief Lists of file and folder children MegaNode objects
+ *
+ * @obsolete This method is unused by app
  *
  * A MegaChildrenLists object has the ownership of the MegaNodeList objects that it contains,
  * so they will be only valid until the MegaChildrenLists is deleted. If you want to retain
@@ -4835,6 +4930,16 @@ public:
 #endif
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
+        EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
+        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+    };
+
+    enum
+    {
+        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
+        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
+        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
+        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
     };
 
     virtual ~MegaEvent();
@@ -4875,6 +4980,12 @@ public:
      *
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
+     *
+     * For event EVENT_RELOAD, these values can be taken:
+     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
+     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
+     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
      *
      * @return Number relative to this event
      */
@@ -6138,6 +6249,7 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
+        FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
     };
 
     enum Warning
@@ -7542,6 +7654,8 @@ class MegaGlobalListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         *
          * You should call MegaApi::fetchNodes when this callback is received
          *
          * @param api MegaApi object connected to the account
@@ -7698,6 +7812,12 @@ class MegaGlobalListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -7979,6 +8099,8 @@ class MegaListener
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
+         *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
@@ -8279,6 +8401,12 @@ class MegaListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -8600,6 +8728,7 @@ class MegaApi
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4,
+            NODE_ATTR_S4 = 5,
         };
 
         enum {
@@ -12041,6 +12170,28 @@ class MegaApi
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set s4 attribute for the node
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         *
+         * The attribute name must be an UTF8 string with between 1 and 7 bytes
+         * If the attribute already has a value, it will be replaced
+         * If value is NULL, the attribute will be removed from the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the attribute
+         * @param value Value for the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
+
+        /**
          * @brief Set the duration of audio/video files as a node attribute.
          *
          * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
@@ -12345,8 +12496,6 @@ class MegaApi
          * - MegaRequest::getNumber - returns the cloud storage bytes used (calculated locally from the node data structures)
          *
          * @param listener MegaRequestListener to track this request
-         *
-         * @obsolete The cloud storage used should not include the storage used by incoming shares, but this method does it.
          */
         void getCloudStorageUsed(MegaRequestListener *listener = NULL);
 
@@ -15267,6 +15416,9 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
          * @param parent Parent node
          * @param order Order for the returned list
          * Valid values for this parameter are:
@@ -15331,9 +15483,10 @@ class MegaApi
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
-        MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+        MegaNodeList* getChildren(MegaNode *parent, int order = 1, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes
@@ -15436,15 +15589,21 @@ class MegaApi
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get file and folder children of a MegaNode separatedly
+         * @brief Get all children from type of a MegaNode
          *
-         * If the parent node doesn't exist or it isn't a folder, this function
-         * returns NULL
+         * If any parent node doesn't exist or it isn't a folder, that parent
+         * will be skipped.
          *
          * You take the ownership of the returned value
          *
-         * @param p Parent node
-         * @param order Order for the returned lists
+         * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
+         * @param parent Parent node
+         * @param type Type of the node.
+         * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -15473,16 +15632,6 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
@@ -15507,9 +15656,10 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
-         * @return Lists with files and folders child MegaNode objects
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @return List with all child MegaNode objects
          */
-        MegaChildrenLists* getFileFolderChildren(MegaNode *p, int order = 1);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = ORDER_DEFAULT_ASC, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Returns true if the node has children
@@ -15523,6 +15673,8 @@ class MegaApi
          * If the node doesn't exist, this function returns NULL
          * It's possible to have multiple nodes with the same name.
          * This function will return one of them.
+         * Folder nodes take precedence over file nodes.
+         * If you want a node of specific type, @see getChildNodeOfType
          *
          * You take the ownership of the returned value
          *
@@ -17030,7 +17182,7 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
          * This function uses the default parameters for the MEGA apps, which consider (currently)
-         * interactions during the last 30 days and max 10.000 nodes.
+         * interactions during the last 30 days and max 500 nodes.
          *
          * You take the ownership of the returned value.
          *
@@ -18657,8 +18809,8 @@ class MegaApi
          * - 0x02:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
          * - 0x04:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
          *
-         * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
-         * Valid data in the MegaChatRequest object received on callbacks:
+         * The associated request type with this request is MegaRequest::TYPE_SET_CHAT_OPTIONS
+         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::Access  - Returns the chat option we want to enable disable
          * - MegaRequest::getFlag - Returns true if enabled was set true, otherwise it will return false
@@ -18671,30 +18823,90 @@ class MegaApi
          * @param chatid MegaHandle that identifies the chat room
          * @param option Chat option that we want to enable/disable
          * @param enabled True if we want to enable the option, otherwise false.
-         * @param listener MegaChatRequestListener to track this request
+         * @param listener MegaRequestListener to track this request
          */
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
+        /**
+         * @brief Creates or updates a scheduled meeting
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         * - MegaRequest::getScheduledMeeting - returns a MegaScheduledMeeting (with definitive ScheduledMeeting updated from API)
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - if no scheduled meeting is provided
+         * - MegaError::API_ENOENT - if the chatroom does not exists
+         *
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
+         * @param listener MegaRequestListener to track this request
+         */
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Removes a scheduled meeting
+         * @brief Removes a scheduled meeting by scheduled meeting id and chatid
          *
-         * TODO complete documentation
+         * The associated request type with this request is MegaRequest::TYPE_DEL_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getParentHandle - Returns the scheduled meeting id
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom or scheduled meeting does not exists
+         *
+         * @param chatid MegaHandle that identifies a chat room
+         * @param schedId MegaHandle that identifies a scheduled meeting
+         * @param listener MegaRequestListener to track this request
          */
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Fetch for scheduled meeting
+         * @brief Get a list of all scheduled meeting for a chatroom, or a specific scheduled meeting (given a scheduled meeting id)
          *
-         * TODO complete documentation
+         * Important consideration:
+         * For every chatroom there should only exist one root scheduled meeting associated, it means that for all scheduled meeting
+         * returned by this method, there should be just one scheduled meeting, with an invalid parent sched Id (MegaScheduledMeeting::parentSchedId),
+         * for every different chatid.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getParentHandle - Returns the scheduled meeting id
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies a chatroom
+         * @param schedId MegaHandle that identifies a scheduled meeting
+         * @param listener MegaRequestListener to track this request
          */
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Fetch for scheduled meeting events
+         * @brief Get a list of scheduled meeting occurrences for a chatroom
          *
-         * TODO complete documentation
+         * A scheduled meetings occurrence, is a call that will happen in the future
+         * A scheduled meeting can produce one or multiple scheduled meeting occurrences
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
+         * - MegaRequest::getName - Returns the dateTime from which we want to fetch occurrences
+         * - MegaRequest::getEmail - Returns the dateTime until we want to fetch occurrences
+         * - MegaRequest::getNumber - Returns the number of occurrences we want to fetch
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies a chat room
+         * @param since DateTime from which we want to fetch occurrences
+         * @param until Datetime until we want to fetch occurrences
+         * @param count Number of occurrences we want to fetch
+         * @param listener MegaChatRequestListener to track this request
          */
         void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
 
@@ -21240,6 +21452,9 @@ public:
     /**
      * @brief Creates an object which can be passed as parameter for some MegaApi methods in order to
      * request the cancellation of the processing associated to the function. @see MegaApi::search
+     *
+     * The instance of MegaCancelToken can be reset (@see cancel) for reuse for future calls, but
+     * it should not be used for more than one operation at the same time.
      *
      * You take ownership of the returned value.
      *

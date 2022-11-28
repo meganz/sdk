@@ -163,7 +163,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 }
 
 // apply queued new shares
-void MegaClient::mergenewshares(bool notify)
+void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
 {
     newshare_list::iterator it;
 
@@ -171,207 +171,197 @@ void MegaClient::mergenewshares(bool notify)
     {
         NewShare* s = *it;
 
-        mergenewshare(s, notify);
+        mergenewshare(s, notify, skipWriteInDb);
 
         delete s;
         newshares.erase(it++);
     }
+
+    mNewKeyRepository.clear();
 }
 
-void MegaClient::mergenewshare(NewShare *s, bool notify)
+void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 {
     bool skreceived = false;
-    Node* n;
-
-    if ((n = nodebyhandle(s->h)))
+    Node* n = nodebyhandle(s->h);
+    if (!n)
     {
-        if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
+        return;
+    }
+
+    // n was no shared or it was shared but sharekey has changed
+    if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
+    {
+        // setting an outbound sharekey requires node authentication
+        // unless coming from a trusted source (the local cache)
+        bool auth = true;
+
+        if (s->outgoing > 0)
         {
-            // setting an outbound sharekey requires node authentication
-            // unless coming from a trusted source (the local cache)
-            bool auth = true;
-
-            if (s->outgoing > 0)
+            if (!checkaccess(n, OWNERPRELOGIN))
             {
-                if (!checkaccess(n, OWNERPRELOGIN))
-                {
-                    LOG_warn << "Attempt to create dislocated outbound share foiled";
-                    auth = false;
-                }
-                else
-                {
-                    byte buf[SymmCipher::KEYLENGTH];
-
-                    handleauth(s->h, buf);
-
-                    if (memcmp(buf, s->auth, sizeof buf))
-                    {
-                        LOG_warn << "Attempt to create forged outbound share foiled";
-                        auth = false;
-                    }
-                }
-            }
-
-            if (auth)
-            {
-                if (n->sharekey)
-                {
-                    if (!fetchingnodes)
-                    {
-                        sendevent(99428,"Replacing share key", 0);
-                    }
-                    delete n->sharekey;
-                }
-                n->sharekey = new SymmCipher(s->key);
-                skreceived = true;
-            }
-        }
-
-        if (s->access == ACCESS_UNKNOWN && !s->have_key)
-        {
-            // share was deleted
-            if (s->outgoing)
-            {
-                bool found = false;
-                if (n->outshares)
-                {
-                    // outgoing share to user u deleted
-                    share_map::iterator shareit = n->outshares->find(s->peer);
-                    if (shareit != n->outshares->end())
-                    {
-                        Share *delshare = shareit->second;
-                        n->outshares->erase(shareit);
-                        found = true;
-                        if (notify)
-                        {
-                            n->changed.outshares = true;
-                            notifynode(n);
-                        }
-                        delete delshare;
-                    }
-
-                    if (!n->outshares->size())
-                    {
-                        delete n->outshares;
-                        n->outshares = NULL;
-                    }
-                }
-                if (n->pendingshares && !found && s->pending)
-                {
-                    // delete the pending share
-                    share_map::iterator shareit = n->pendingshares->find(s->pending);
-                    if (shareit != n->pendingshares->end())
-                    {
-                        Share *delshare = shareit->second;
-                        n->pendingshares->erase(shareit);
-                        found = true;
-                        if (notify)
-                        {
-                            n->changed.pendingshares = true;
-                            notifynode(n);
-                        }
-                        delete delshare;
-                    }
-
-                    if (!n->pendingshares->size())
-                    {
-                        delete n->pendingshares;
-                        n->pendingshares = NULL;
-                    }
-                }
-
-                // Erase sharekey if no outgoing shares (incl pending) exist
-                if (s->remove_key && !n->outshares && !n->pendingshares)
-                {
-                    rewriteforeignkeys(n);
-
-                    delete n->sharekey;
-                    n->sharekey = NULL;
-                }
+                LOG_warn << "Attempt to create dislocated outbound share foiled";
+                auth = false;
             }
             else
             {
-                // incoming share deleted - remove tree
-                if (!n->parent)
+                byte buf[SymmCipher::KEYLENGTH];
+
+                handleauth(s->h, buf);
+
+                if (memcmp(buf, s->auth, sizeof buf))
                 {
-                    TreeProcDel td;
-                    proctree(n, &td, true);
+                    LOG_warn << "Attempt to create forged outbound share foiled";
+                    auth = false;
                 }
-                else
+            }
+        }
+
+        if (auth)
+        {
+            if (n->sharekey)
+            {
+                if (!fetchingnodes)
                 {
-                    if (n->inshare)
+                    sendevent(99428,"Replacing share key", 0);
+                }
+                delete n->sharekey;
+            }
+            n->sharekey = new SymmCipher(s->key);
+            skreceived = true;
+        }
+    }
+
+    if (s->access == ACCESS_UNKNOWN && !s->have_key)
+    {
+        // share was deleted
+        if (s->outgoing)
+        {
+            bool found = false;
+            if (n->outshares)
+            {
+                // outgoing share to user u deleted
+                share_map::iterator shareit = n->outshares->find(s->peer);
+                if (shareit != n->outshares->end())
+                {
+                    Share *delshare = shareit->second;
+                    n->outshares->erase(shareit);
+                    found = true;
+                    if (notify)
                     {
-                        n->inshare->user->sharing.erase(n->nodehandle);
-                        notifyuser(n->inshare->user);
-                        delete n->inshare;
-                        n->inshare = nullptr;
+                        n->changed.outshares = true;
+                        notifynode(n);
                     }
+                    delete delshare;
                 }
+
+                if (!n->outshares->size())
+                {
+                    delete n->outshares;
+                    n->outshares = NULL;
+                }
+            }
+            if (n->pendingshares && !found && s->pending)
+            {
+                // delete the pending share
+                share_map::iterator shareit = n->pendingshares->find(s->pending);
+                if (shareit != n->pendingshares->end())
+                {
+                    Share *delshare = shareit->second;
+                    n->pendingshares->erase(shareit);
+                    found = true;
+                    if (notify)
+                    {
+                        n->changed.pendingshares = true;
+                        notifynode(n);
+                    }
+                    delete delshare;
+                }
+
+                if (!n->pendingshares->size())
+                {
+                    delete n->pendingshares;
+                    n->pendingshares = NULL;
+                }
+            }
+
+            // Erase sharekey if no outgoing shares (incl pending) exist
+            if (s->remove_key && !n->outshares && !n->pendingshares)
+            {
+                rewriteforeignkeys(n);
+
+                delete n->sharekey;
+                n->sharekey = NULL;
             }
         }
         else
         {
-            if (s->outgoing)
+            // incoming share deleted - remove tree
+            if (!n->parent)
             {
-                if ((!s->upgrade_pending_to_full && (!ISUNDEF(s->peer) || !ISUNDEF(s->pending)))
-                    || (s->upgrade_pending_to_full && !ISUNDEF(s->peer) && !ISUNDEF(s->pending)))
+                TreeProcDel td;
+                proctree(n, &td, true);
+            }
+            else
+            {
+                if (n->inshare)
                 {
-                    // perform mandatory verification of outgoing shares:
-                    // only on own nodes and signed unless read from cache
-                    if (checkaccess(n, OWNERPRELOGIN))
+                    n->inshare->user->sharing.erase(n->nodehandle);
+                    notifyuser(n->inshare->user);
+                    delete n->inshare;
+                    n->inshare = NULL;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (s->outgoing)
+        {
+            if ((!s->upgrade_pending_to_full && (!ISUNDEF(s->peer) || !ISUNDEF(s->pending)))
+                    || (s->upgrade_pending_to_full && !ISUNDEF(s->peer) && !ISUNDEF(s->pending)))
+            {
+                // perform mandatory verification of outgoing shares:
+                // only on own nodes and signed unless read from cache
+                if (checkaccess(n, OWNERPRELOGIN))
+                {
+                    Share** sharep;
+                    if (!ISUNDEF(s->pending))
                     {
-                        Share** sharep;
-                        if (!ISUNDEF(s->pending))
+                        // Pending share
+                        if (!n->pendingshares)
                         {
-                            // Pending share
-                            if (!n->pendingshares)
-                            {
-                                n->pendingshares = new share_map();
-                            }
-
-                            if (s->upgrade_pending_to_full)
-                            {
-                                share_map::iterator shareit = n->pendingshares->find(s->pending);
-                                if (shareit != n->pendingshares->end())
-                                {
-                                    // This is currently a pending share that needs to be upgraded to a full share
-                                    // erase from pending shares & delete the pending share list if needed
-                                    Share *delshare = shareit->second;
-                                    n->pendingshares->erase(shareit);
-                                    if (notify)
-                                    {
-                                        n->changed.pendingshares = true;
-                                        notifynode(n);
-                                    }
-                                    delete delshare;
-                                }
-
-                                if (!n->pendingshares->size())
-                                {
-                                    delete n->pendingshares;
-                                    n->pendingshares = NULL;
-                                }
-
-                                // clear this so we can fall through to below and have it re-create the share in
-                                // the outshares list
-                                s->pending = UNDEF;
-
-                                // create the outshares list if needed
-                                if (!n->outshares)
-                                {
-                                    n->outshares = new share_map();
-                                }
-
-                                sharep = &((*n->outshares)[s->peer]);
-                            }
-                            else
-                            {
-                                sharep = &((*n->pendingshares)[s->pending]);
-                            }
+                            n->pendingshares = new share_map();
                         }
-                        else
+
+                        if (s->upgrade_pending_to_full)
                         {
-                            // Normal outshare
+                            share_map::iterator shareit = n->pendingshares->find(s->pending);
+                            if (shareit != n->pendingshares->end())
+                            {
+                                // This is currently a pending share that needs to be upgraded to a full share
+                                // erase from pending shares & delete the pending share list if needed
+                                Share *delshare = shareit->second;
+                                n->pendingshares->erase(shareit);
+                                if (notify)
+                                {
+                                    n->changed.pendingshares = true;
+                                    notifynode(n);
+                                }
+                                delete delshare;
+                            }
+
+                            if (!n->pendingshares->size())
+                            {
+                                delete n->pendingshares;
+                                n->pendingshares = NULL;
+                            }
+
+                            // clear this so we can fall through to below and have it re-create the share in
+                            // the outshares list
+                            s->pending = UNDEF;
+
+                            // create the outshares list if needed
                             if (!n->outshares)
                             {
                                 n->outshares = new share_map();
@@ -379,85 +369,102 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 
                             sharep = &((*n->outshares)[s->peer]);
                         }
-
-                        // modification of existing share or new share
-                        if (*sharep)
-                        {
-                            (*sharep)->update(s->access, s->ts, findpcr(s->pending));
-                        }
                         else
                         {
-                            *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
-                        }
-
-                        if (notify)
-                        {
-                            if (!ISUNDEF(s->pending))
-                            {
-                                n->changed.pendingshares = true;
-                            }
-                            else
-                            {
-                                n->changed.outshares = true;
-                            }
-                            notifynode(n);
-                        }
-                    }
-                }
-                else
-                {
-                    LOG_debug << "Merging share without peer information.";
-                    // Outgoing shares received during fetchnodes are merged in two steps:
-                    // 1. From readok(), a NewShare is created with the 'sharekey'
-                    // 2. From readoutshares(), a NewShare is created with the 'peer' information
-                }
-            }
-            else
-            {
-                if (!ISUNDEF(s->peer))
-                {
-                    if (s->peer)
-                    {
-                        if (!checkaccess(n, OWNERPRELOGIN))
-                        {
-                            // modification of existing share or new share
-                            if (n->inshare)
-                            {
-                                n->inshare->update(s->access, s->ts);
-                            }
-                            else
-                            {
-                                n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
-                                n->inshare->user->sharing.insert(n->nodehandle);
-                                mNodeCounters[n->nodeHandle()] = n->subnodeCounts();
-                            }
-
-                            if (notify)
-                            {
-                                n->changed.inshare = true;
-                                notifynode(n);
-                            }
-                        }
-                        else
-                        {
-                            LOG_warn << "Invalid inbound share location";
+                            sharep = &((*n->pendingshares)[s->pending]);
                         }
                     }
                     else
                     {
-                        LOG_warn << "Invalid null peer on inbound share";
+                        // Normal outshare
+                        if (!n->outshares)
+                        {
+                            n->outshares = new share_map();
+                        }
+
+                        sharep = &((*n->outshares)[s->peer]);
+                    }
+
+                    // modification of existing share or new share
+                    if (*sharep)
+                    {
+                        (*sharep)->update(s->access, s->ts, findpcr(s->pending));
+                    }
+                    else
+                    {
+                        *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                    }
+
+                    if (notify)
+                    {
+                        if (!ISUNDEF(s->pending))
+                        {
+                            n->changed.pendingshares = true;
+                        }
+                        else
+                        {
+                            n->changed.outshares = true;
+                        }
+                        notifynode(n);
+                    }
+                }
+            }
+            else
+            {
+                LOG_debug << "Merging share without peer information.";
+                // Outgoing shares received during fetchnodes are merged in two steps:
+                // 1. From readok(), a NewShare is created with the 'sharekey'
+                // 2. From readoutshares(), a NewShare is created with the 'peer' information
+            }
+        }
+        else
+        {
+            if (!ISUNDEF(s->peer))
+            {
+                if (s->peer)
+                {
+                    if (!checkaccess(n, OWNERPRELOGIN))
+                    {
+                        // modification of existing share or new share
+                        if (n->inshare)
+                        {
+                            n->inshare->update(s->access, s->ts);
+                        }
+                        else
+                        {
+                            n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                            n->inshare->user->sharing.insert(n->nodehandle);
+                            NodeHandle nodeHandle;
+                            nodeHandle.set6byte(n->nodehandle);
+                        }
+
+                        if (notify)
+                        {
+                            n->changed.inshare = true;
+                            notifynode(n);
+                        }
+                    }
+                    else
+                    {
+                        LOG_warn << "Invalid inbound share location";
                     }
                 }
                 else
                 {
-                    if (skreceived && notify)
-                    {
-                        TreeProcApplyKey td;
-                        proctree(n, &td);
-                    }
+                    LOG_warn << "Invalid null peer on inbound share";
+                }
+            }
+            else
+            {
+                if (skreceived && notify)
+                {
+                    TreeProcApplyKey td;
+                    proctree(n, &td);
                 }
             }
         }
+
+
 #ifdef ENABLE_SYNC
         if (n->inshare && s->access != FULL)
         {
@@ -489,8 +496,31 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         }
 #endif
     }
+
+    if (!notify && !skipWriteInDb)
+    {
+        mNodeManager.updateNode(n);
+    }
+    //else -> It will be updated at notifypurge
 }
 
+node_vector MegaClient::getInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
 
 bool MegaClient::setlang(string *code)
 {
@@ -555,7 +585,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, true, addua);
+    putnodes(mNodeManager.getRootNodeVault(), NoVersioning, move(newnodes), nullptr, tag, true, addua);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -587,7 +617,7 @@ bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
     {
-        NodeHandle h = rootnodes.files;   // is the actual rootnode handle received?
+        NodeHandle h = mNodeManager.getRootNodeFiles();   // is the actual rootnode handle received?
         if (!h.isUndef())
         {
             Node *n = nodeByHandle(h);
@@ -625,7 +655,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return rootnodes.isRootNode(rootnode);
+    return mNodeManager.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -637,7 +667,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return !rootnodes.isRootNode(rootnode);
+    return !mNodeManager.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -1047,72 +1077,52 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders) const
+// To improve performance, if this method is called several times over same folder
+// getChildren should be call before the first call to this method,
+// watch NodeManager::childNodeByNameType
+Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
-    const Node *found = NULL;
 
     if (!p || p->type == FILENODE)
     {
-        return NULL;
+        return nullptr;
     }
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::const_iterator it = p->children.begin(); it != p->children.end(); it++)
+    Node* node = nullptr;
+
+    if (!skipfolders)
     {
-        if (!strcmp(nname.c_str(), (*it)->displayname()))
-        {
-            if ((*it)->type == FILENODE)
-            {
-                if (skipfolders)
-                {
-                    return *it; // FOLDERs ignored, return first FILE
-                }
-                else
-                {
-                    found = *it; // FOLDERs not ignored and with precedence, save FILE in case no FOLDER is found
-                }
-            }
-            else if (!skipfolders)
-            {
-                return *it; // FOLDER not ignored and with precedence, return first FOLDER
-            }
-        }
+        node = mNodeManager.childNodeByNameType(p, nname, FOLDERNODE);
     }
 
-    return found;
-}
+    if (!node)
+    {
+        node = mNodeManager.childNodeByNameType(p, nname, FILENODE);
+    }
 
-Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
-{
-    // Casting simply to reuse the above code.
-    return const_cast<Node*>(childnodebyname(static_cast<const Node*>(p), name, skipfolders));
+    return node;
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
+// To improve performance, if this method is called several times over same folder
+// getChildren should be call before the first call to this method,
+// watch NodeManager::childNodeByNameType
 Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t mustBeType)
 {
     string nname = name;
 
     if (!p || p->type == FILENODE)
     {
-        return NULL;
+        return nullptr;
     }
 
     LocalPath::utf8_normalize(&nname);
 
-    for (auto it : p->children)
-    {
-        if (it->type == mustBeType &&
-            !strcmp(nname.c_str(), it->displayname()))
-        {
-            return it;
-        }
-    }
-
-    return nullptr;
+     return mNodeManager.childNodeByNameType(p, nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -1123,15 +1133,21 @@ Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrV
         return nullptr;
     }
 
-    for (auto it = p->children.begin(); it != p->children.end(); it++)
+    // Using a DB query to avoid loading all children of 'p' (instead of only the matching
+    // child nodes) will require to have dedicated columns for each attribute ID.
+    // On top of that, this method is used exclusively upon creation of a new backup,
+    // which implies ENABLE_SYNC.
+    // (syncing always have all sync tree nodes in memory, so the DB query won't be faster)
+    node_list childrenNodeList = getChildren(p);
+    for (Node* child : childrenNodeList)
     {
         // find the attribute
-        const auto& attrMap = (*it)->attrs.map;
+        const auto& attrMap = child->attrs.map;
         auto found = attrMap.find(attrId);
 
         if (found != attrMap.end() && found->second == attrValue)
         {
-            return *it;
+            return child;
         }
     }
 
@@ -1151,7 +1167,11 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
+    // children. However, currently this method is used only for internal sync tests.
+    // (syncing always have all nodes in memory, so the DB query won't be faster)
+    node_list nodeList = getChildren(p);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if (nname == (*it)->displayname())
         {
@@ -1162,28 +1182,6 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
         }
     }
 
-    return found;
-}
-
-Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
-{
-    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
-    {
-        return nullptr;
-    }
-
-    Node *found = nullptr;
-    string nname = name;
-    LocalPath::utf8_normalize(&nname);
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
-    {
-        // if name and node type matches
-        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
-        {
-            found = *it;
-            break;
-        }
-    }
     return found;
 }
 
@@ -1220,9 +1218,9 @@ void MegaClient::init()
     }
 #endif
 
-    rootnodes.files = NodeHandle();
-    rootnodes.vault = NodeHandle();
-    rootnodes.rubbish = NodeHandle();
+    mNodeManager.setRootNodeFiles(NodeHandle());
+    mNodeManager.setRootNodeVault(NodeHandle());
+    mNodeManager.setRootNodeRubbish(NodeHandle());
 
     pendingsc.reset();
     pendingscUserAlerts.reset();
@@ -1255,8 +1253,6 @@ void MegaClient::init()
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
-    mNodeCounters = NodeCounterMap();
-    mOptimizePurgeNodes = false;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -1271,6 +1267,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
    , btsc(rng)
    , btpfa(rng)
    , fsaccess(new FSACCESS_CLASS())
+   , mNodeManager(*this)
 #ifdef ENABLE_SYNC
     , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
@@ -1282,7 +1279,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     , mSyncMonitorTimer(rng)
 #endif
 {
-    sctable = NULL;
+    mNodeManager.reset();
+    sctable.reset();
     pendingsccommit = false;
     tctable = NULL;
     statusTable = nullptr;
@@ -2270,6 +2268,8 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
+
+                        app->reloading();
 #ifdef ENABLE_SYNC
                         // Fail all syncs.
                         // Setting flag for fail rather than disable
@@ -3213,6 +3213,15 @@ void MegaClient::exec()
 
         // Flush changes made to internal configs.
         syncs.syncConfigStoreFlush();
+
+        if (syncscanstate && syncs.getConfigs(false).empty())
+        {
+            // cover the case when the last sync is deleted while scanning
+            LOG_debug << "Scanning finished";
+            app->syncupdate_scanning(false);
+            syncscanstate = false;
+        }
+
 #endif
 
         notifypurge();
@@ -3292,17 +3301,11 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
 
-    NodeCounter storagesum;
-    for (auto& nc : mNodeCounters)
+    NodeCounter nc = mNodeManager.getCounterOfRootNodes();
+    m_off_t sum = nc.storage + nc.versionStorage;
+    if (mNotifiedSumSize != sum)
     {
-        if (rootnodes.isRootNode(nc.first))
-        {
-            storagesum += nc.second;
-        }
-    }
-    if (mNotifiedSumSize != storagesum.storage)
-    {
-        mNotifiedSumSize = storagesum.storage;
+        mNotifiedSumSize = sum;
         app->storagesum_changed(mNotifiedSumSize);
     }
 
@@ -4478,6 +4481,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches();
     }
 
+    mNodeManager.reset();
     sctable.reset();
     pendingsccommit = false;
 
@@ -4577,7 +4581,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
     mBizMasters.clear();
-    mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
 
@@ -4641,6 +4644,7 @@ void MegaClient::removeCaches()
 {
     if (sctable)
     {
+        mNodeManager.reset();
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
@@ -4858,7 +4862,8 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
-                        fnstats.nodesCurrent = nodes.size();
+                        uint64_t numNodes = mNodeManager.getNodeCount();
+                        fnstats.nodesCurrent = numNodes;
 
                         statecurrent = true;
                         app->nodes_current();
@@ -4903,7 +4908,7 @@ bool MegaClient::procsc()
                         sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, int(nodes.size()));
+                        app->nodes_updated(NULL, int(numNodes));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
                         app->sets_updated(nullptr, int(mSets.size()));
@@ -4911,10 +4916,7 @@ bool MegaClient::procsc()
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
-                        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-                        {
-                            memset(&(it->second->changed), 0, sizeof it->second->changed);
-                        }
+                        mNodeManager.removeChanges();
 
                         if (!loggedinfolderlink())
                         {
@@ -5348,18 +5350,6 @@ void MegaClient::initsc()
 
         if (complete)
         {
-            // 3. write new or modified nodes, purge deleted nodes
-            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-            {
-                if (!(complete = sctable->put(CACHEDNODE, it->second, &key)))
-                {
-                    break;
-                }
-            }
-        }
-
-        if (complete)
-        {
             // 4. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
@@ -5394,10 +5384,10 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
 
@@ -5483,43 +5473,8 @@ void MegaClient::updatesc()
             }
         }
 
-        if (complete)
-        {
-            unsigned removed = 0;
-            unsigned added = 0;
-
-            // 3. write new or modified nodes, purge deleted nodes
-            for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
-            {
-                if ((*it)->changed.removed)
-                {
-                    if ((*it)->dbid)
-                    {
-                        removed += 1;
-                        if (!(complete = sctable->del((*it)->dbid)))
-                        {
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    added += 1;
-                    if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
-                    {
-                        break;
-                    }
-                }
-            }
-            if (removed)
-            {
-                LOG_verbose << clientname << "Removed " << removed << " nodes from database";
-            }
-            if (added)
-            {
-                LOG_verbose << clientname << "Added " << added << " nodes to database";
-            }
-        }
+        // 3. write new or modified nodes, purge deleted pcrs
+        // NoD -> nodes are written to DB immediately
 
         if (complete)
         {
@@ -5575,9 +5530,9 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -5592,12 +5547,9 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        sctable->remove();
-
         LOG_err << "Cache update DB write error - disabling caching";
-
-        sctable.reset();
-        pendingsccommit = false;
+        assert(false);
+        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -5998,11 +5950,11 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    readnodes(j, 1, PUTNODES_APP, NULL, 0, false);
+                    readnodes(j, 1, PUTNODES_APP, NULL, false, false);
                     break;
 
                 case 'u':
@@ -6988,7 +6940,6 @@ void MegaClient::sc_ph()
                 {
                     if (n->plink)
                     {
-                        mPublicLinks.erase(n->nodehandle);
                         delete n->plink;
                         n->plink = NULL;
                     }
@@ -7437,11 +7388,6 @@ void MegaClient::sc_delscheduledmeeting()
                 schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
                 break;
 
-            case MAKENAMEID2('o', 'u'):  // action packet originator
-            {
-                jsonsc.gethandle(MegaClient::USERHANDLE); // not necessary to store
-                break;
-            }
             case EOO:
             {
                 done = true;
@@ -7450,11 +7396,11 @@ void MegaClient::sc_delscheduledmeeting()
                     TextChat* chat = auxit->second;
                     if (chat->removeSchedMeeting(schedId))
                     {
+                        // remove children scheduled meetings (API requirement)
                         chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
-                                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
                         break;
                     }
                 }
@@ -7475,7 +7421,12 @@ void MegaClient::sc_delscheduledmeeting()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    if (parseScheduledMeetings(schedMeetings, false, &jsonsc, /*parseOnce*/true) != API_OK) { return; }
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true);
+    if (e != API_OK)
+    {
+        LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
+        return;
+    }
 
     assert(schedMeetings.size() == 1);
     for (auto &sm: schedMeetings)
@@ -7489,11 +7440,23 @@ void MegaClient::sc_scheduledmeetings()
 
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        chat->setTag(0);    // external change
-        notifychat(chat);
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0,
-                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+
+        // remove children scheduled meetings (API requirement)
+        handle schedId = sm->schedId();
+        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
+        if (res || deletedChildren)
+        {
+            if (!res)
+            {
+                LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+            }
+
+            // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            chat->setTag(0);    // external change
+            notifychat(chat);
+        }
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
 }
 
@@ -7687,7 +7650,7 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+    if (mNodeManager.nodeNotifySize() || usernotify.size() || pcrnotify.size()
             || setnotify.size() || setelementnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
@@ -7710,233 +7673,8 @@ void MegaClient::notifypurge(void)
 #endif
     }
 
-    if ((t = int(nodenotify.size())))
-    {
-        applykeys();
-
-        if (!fetchingnodes)
-        {
-            app->nodes_updated(&nodenotify[0], t);
-        }
-
-#ifdef ENABLE_SYNC
-
-        // check for renamed/moved sync root folders
-        syncs.forEachUnifiedSync([&](UnifiedSync& us){
-            // Try and locate the sync's cloud root.
-            Node* n = nodeByHandle(us.mConfig.mRemoteNode);
-
-            // Sync's root is no longer present in memory.
-            if (!n)
-                return;
-
-            // Has this node received any commands from the backup center?
-            auto commands = n->getSdsBackups();
-
-            // Are any of the commands applicable to this sync?
-            for (auto& command : commands)
-            {
-                // Command entry isn't applicable to us.
-                if (command.first != us.mConfig.mBackupId)
-                    continue;
-
-                // Command entry isn't telling us to remove this sync.
-                if (command.second != CommandBackupPut::DELETED)
-                    continue;
-
-                // For purposes of capture.
-                auto id = us.mConfig.mBackupId;
-                auto remoteNode = us.mConfig.mRemoteNode;
-
-                auto completion = [id, remoteNode, this](Error result) {
-                    // Had the sync already been removed?
-                    if (result == API_ENOENT)
-                    {
-                        LOG_debug << "SDS: Sync "
-                                  << toHandle(id)
-                                  << " no longer present for the node "
-                                  << remoteNode;
-                        return;
-                    }
-
-                    // Was there any error removing the sync?
-                    if (result != API_OK)
-                    {
-                        LOG_err << "SDS: Unable to remove sync "
-                                << toHandle(id)
-                                << " associated with the node "
-                                << remoteNode
-                                << " due to error "
-                                << result;
-                        return;
-                    }
-
-                    // Locate this sync's root node.
-                    auto* node = nodeByHandle(remoteNode);
-
-                    // Is the node still present in memory?
-                    if (!node)
-                    {
-                        LOG_warn << "SDS: Unable to update attribute as "
-                                 << remoteNode
-                                 << " is no longer present in memory.";
-                        return;
-                    }
-
-                    // Is it worth updating the node's SDS attribute?
-                    if (node->changed.removed)
-                    {
-                        LOG_debug << "SDS: Skipping attribute update as "
-                                  << remoteNode
-                                  << " has been removed.";
-                        return;
-                    }
-
-                    auto commands = node->getSdsBackups();
-                    auto updated = false;
-
-                    // Update the attribute's value.
-                    for (auto i = commands.size(); i--; )
-                    {
-                        auto& command = commands[i];
-
-                        if (command.first != id
-                            || command.second != CommandBackupPut::DELETED)
-                            continue;
-
-                        commands.erase(commands.begin() + i);
-                        updated = true;
-                    }
-
-                    // Do we really need to update the attribute?
-                    if (!updated)
-                    {
-                        LOG_warn << "SDS: Skipping no-op attribute update: "
-                                 << remoteNode;
-                        return;
-                    }
-
-                    auto completion = [](NodeHandle handle, Error result) {
-                        // Were we unable to update the SDS attribute?
-                        if (result != API_OK)
-                        {
-                            LOG_warn << "SDS: Unable to update attribute on "
-                                     << handle
-                                     << " due to error "
-                                     << result;
-                            return;
-                        }
-
-                        // Update was successful.
-                        LOG_debug << "SDS: Attribute updated on "
-                                  << handle;
-                    };
-
-                    // Update the attribute.
-                    setattr(node,
-                            attr_map(Node::sdsId(), Node::toSdsString(commands)),
-                            0,
-                            nullptr,
-                            std::move(completion),
-                            true);
-                };
-
-                // Try and remove the sync.
-                deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                 move(completion));
-            }
-
-            //update sync root node location and trigger failing cases
-            NodeHandle rubbishHandle = rootnodes.rubbish;
-
-            // check if moved
-            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
-            const string currentPath = n->displaypath(); // full remote path
-            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
-            bool pathChanged = n->changed.parent || movedToRubbish ||
-                               // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
-                               us.mConfig.mRemoteNode != n->nodehandle ||
-                               originalPath != currentPath;
-
-            if (n->changed.attrs || pathChanged || n->changed.removed)
-            {
-                bool removed = n->changed.removed;
-
-                // update path in sync configuration
-                us.updateSyncRemoteLocation(removed ? nullptr : n, false);
-
-                auto &activeSync = us.mSync;
-                if (!activeSync) // no active sync (already failed)
-                {
-                    return;
-                }
-
-                auto syncErr = NO_SYNC_ERROR;
-
-                // fail sync if required
-                if (movedToRubbish)
-                {
-                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                }
-                else if (removed)
-                {
-                    syncErr = REMOTE_NODE_NOT_FOUND;
-                }
-                else if (pathChanged) // moved
-                {
-                    syncErr = REMOTE_PATH_HAS_CHANGED;
-                }
-
-                if (syncErr != NO_SYNC_ERROR)
-                {
-                    syncs.disableSyncByBackupId(
-                        activeSync->getConfig().mBackupId,
-                        true, syncErr, false, nullptr);
-                }
-            }
-        });
-#endif
-        TransferDbCommitter committer(tctable);
-
-        // check all notified nodes for removed status and purge
-        for (i = 0; i < t; i++)
-        {
-            Node* n = nodenotify[i];
-            if (n->attrstring)
-            {
-                // make this just a warning to avoid auto test failure
-                // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-#ifdef ENABLE_SYNC
-                if (n->localnode)
-                {
-                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-                }
-#endif
-            }
-
-            if (n->changed.removed)
-            {
-                // remove inbound share
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    notifyuser(n->inshare->user);
-                }
-
-                nodes.erase(n->nodeHandle());
-                delete n;
-            }
-            else
-            {
-                n->notified = false;
-                memset(&(n->changed), 0, sizeof(n->changed));
-                n->tag = 0;
-            }
-        }
-
-        nodenotify.clear();
-    }
+    // purge of notifications related to nodes have been moved to NodeManager since NodesOnDemand
+    mNodeManager.notifyPurge();
 
     if ((t = int(pcrnotify.size())))
     {
@@ -8046,28 +7784,20 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = nodes.size();
+    totalNodes = mNodeManager.getNodeCount();
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h) const
+Node* MegaClient::nodebyhandle(handle h)
 {
-    auto it = nodes.find(NodeHandle().set6byte(h));
-
-    if (it != nodes.end())
-    {
-        return it->second;
-    }
-
-    return nullptr;
+    return nodeByHandle(NodeHandle().set6byte(h));
 }
 
-Node* MegaClient::nodeByHandle(NodeHandle h) const
+Node* MegaClient::nodeByHandle(NodeHandle h)
 {
     if (h.isUndef()) return nullptr;
 
-    auto it = nodes.find(h);
-    return it != nodes.end() ? it->second : nullptr;
+    return mNodeManager.getNodeByHandle(h);
 }
 
 Node* MegaClient::nodeByPath(const char* path, Node* node)
@@ -8208,12 +7938,12 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes.vault);
+                    n = nodeByHandle(mNodeManager.getRootNodeVault());
                     assert(!n || n->type == VAULTNODE);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodeByHandle(rootnodes.rubbish);
+                    n = nodeByHandle(mNodeManager.getRootNodeRubbish());
                     assert(!n || n->type == RUBBISHNODE);
                 }
                 else
@@ -8225,7 +7955,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             }
             else
             {
-                n = nodeByHandle(rootnodes.files);
+                n = nodeByHandle(mNodeManager.getRootNodeFiles());
                 assert(!n || loggedIntoFolder() || n->type == ROOTNODE); //folder links root node type is not ROOTNODE
                 l = 1;
             }
@@ -8356,7 +8086,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c, bool canChangeVault)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -8394,10 +8124,10 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->attrs.applyUpdates(updates);
 
     n->changed.attrs = true;
-    n->tag = tag;
+    n->changed.modifiedByThisClient = true;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, cipher, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -8519,8 +8249,8 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     {
         restag = tag;
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
-		return;
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false);
+        return;
     }
 
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, move(completion)));
@@ -8641,7 +8371,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -8662,9 +8392,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
     }
 
     Node *prevParent = NULL;
-    if (!prevparent.isUndef())
+    if (!prevparenthandle.isUndef())
     {
-        prevParent = nodeByHandle(prevparent);
+        prevParent = nodeByHandle(prevparenthandle);
     }
     else
     {
@@ -8679,7 +8409,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         {
             Node *prevRoot = getrootnode(prevParent);
             Node *newRoot = getrootnode(p);
-            NodeHandle rubbishHandle = rootnodes.rubbish;
+            NodeHandle rubbishHandle = mNodeManager.getRootNodeRubbish();
             nameid rrname = AttrMap::string2nameid("rr");
 
             if (prevRoot->nodeHandle() != rubbishHandle &&
@@ -8688,7 +8418,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
                 bool shouldSetRestoreHandle = true;
 
                 // avoid to set "rr" for nodes moved from Vault to SyncDebris, since they cannot be restored
-                if (prevRoot->nodeHandle() == rootnodes.vault)
+                if (prevRoot->nodeHandle() == mNodeManager.getRootNodeVault())
                 {
                     shouldSetRestoreHandle = false;
                     LOG_debug << "Skip adding rr attribute for node from Vault";
@@ -8727,17 +8457,17 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         }
 
         n->changed.parent = true;
-        n->tag = reqtag;
+        n->changed.modifiedByThisClient = true;
         notifynode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), canChangeVault));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr, canChangeVault);
+            setattr(n, std::move(attrUpdates), nullptr, canChangeVault);
         }
     }
 
@@ -8772,19 +8502,30 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         }
     }
 
-    for (auto& c : n->children)
+    for (auto& c : getChildren(n))
     {
         removeOutSharesFromSubtree(c, tag);
     }
 }
 
 #ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     // Try and deregister this sync's backup ID first.
     // If later removal operations fail, the heartbeat record will be resurrected
 
     LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->getConfig().mBackupId == backupId)
+        {
+            // prevent any sp or sphb messages being queued after
+            sync->getConfig().mSyncDeregisterSent = true;
+
+            // Prevent notifying the client app for this sync's state changes
+            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
+        }
+    });
 
     reqs.add(new CommandBackupRemove(this, backupId,
             [backupId, completion, this](Error e){
@@ -8795,27 +8536,6 @@ void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Er
                 }
                 syncs.removeSyncAfterDeregistration(backupId, completion);
             }));
-
-    // while we are on the client thread, also tidy up dev-id, drv-id
-    SyncConfig sc;
-    if (syncs.configById(backupId, sc) &&
-        sc.isBackup())
-    {
-        if (auto n = nodeByHandle(sc.mRemoteNode))
-        {
-            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
-
-            attr_map m;
-            m[AttrMap::string2nameid("dev-id")] = "";
-            m[AttrMap::string2nameid("drv-id")] = "";
-            setattr(n, move(m), 0, nullptr, [](NodeHandle, Error e){
-                if (e)
-                {
-                    LOG_warn << "Failed to remove dev-id/drv-id: " << e;
-                }
-            }, true);
-        }
-    }
 }
 #endif // ENABLE_SYNC
 
@@ -8837,7 +8557,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         return;
     }
 
-    if (n->firstancestor()->nodeHandle() != rootnodes.vault)
+    if (n->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
     {
         // backup nodes are supposed to be in the vault - if not, something is wrong
         completion(API_EARGS);
@@ -8858,7 +8578,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         // moving to target node
 
         Node* p = nodeByHandle(destination);
-        if (!p || p->firstancestor()->nodeHandle() != rootnodes.files)
+        if (!p || p->firstancestor()->nodeHandle() != mNodeManager.getRootNodeFiles())
         {
             completion(API_EARGS);
             return;
@@ -8907,12 +8627,13 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
     if (kv)
     {
         Node *newerversion = n->parent;
-        if (n->children.size())
+        node_list children = getChildren(n);
+        if (children.size())
         {
-            Node *olderversion = n->children.back();
+            Node *olderversion = children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
-            olderversion->tag = reqtag;
+            olderversion->changed.modifiedByThisClient = true;
             notifynode(olderversion);
         }
     }
@@ -9107,17 +8828,16 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys)
 {
     if (!j->enterarray())
     {
         return 0;
     }
 
-    node_vector dp;
     Node* n;
-    handle previousHandleForAlert = UNDEF;
 
+    handle previousHandleForAlert = UNDEF;
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -9241,7 +8961,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h)))
+            // 'notify' is false only while processing fetchnodes command
+            // In that case, we can skip the lookup, since nodes are all new ones,
+            // (they will not be found in DB)
+            if (notify && (n = nodebyhandle(h)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
@@ -9260,7 +8983,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // node already present - check for race condition
                     if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency");
+                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
 
                         static bool reloadnotified = false;
                         if (!reloadnotified)
@@ -9284,7 +9007,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
-                        dp.push_back(n);
+                        mNodeManager.addNodeWithMissingParent(n);
                     }
                 }
 
@@ -9344,10 +9067,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     sts = ts;
                 }
 
-                n = new Node(this, &dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
+                n = new Node(*this, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fas.c_str(), ts);
                 n->changed.newnode = true;
-
-                n->tag = tag;
+                n->changed.modifiedByThisClient = modifiedByThisClient;
 
                 n->attrstring.reset(new string);
                 JSON::copystring(n->attrstring.get(), a);
@@ -9357,9 +9079,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 {
                     // folder link access: first returned record defines root node and identity
                     // (this code used to be in Node::Node but is not suitable for session resume)
-                    if (rootnodes.files.isUndef())
+                    if (mNodeManager.getRootNodeFiles().isUndef())
                     {
-                        rootnodes.files.set6byte(h);
+                        mNodeManager.setRootNodeFiles(NodeHandle().set6byte(h));
 
                         if (loggedIntoWritableFolder())
                         {
@@ -9370,9 +9092,16 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     }
                 }
 
-                if (!ISUNDEF(su))
+                // NodeManager takes n ownership
+                mNodeManager.addNode(n, notify,  fetchingnodes);
+
+                if (!ISUNDEF(su))   // node represents an incoming share
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
+                    if (sk) // only if the key is valid, add it to the repository
+                    {
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                    }
                 }
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
@@ -9441,15 +9170,22 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
             }
 
-            if (notify)
-            {
-                notifynode(n);
-            }
-
             if (applykeys)
             {
                 n->applykey();
             }
+
+            if (notify)
+            {
+                // node is save in DB at notifypurge
+                notifynode(n);
+            }
+            else // Only need to save in DB if node is not notified
+            {
+                mNodeManager.saveNodeInDb(n);
+            }
+
+            n = nullptr;    // ownership is taken by NodeManager upon addNode()
 
             // update-alerts for shared-nodes management
             if (!ISUNDEF(ph))
@@ -9473,46 +9209,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    // any child nodes arrived before their parents?
-    size_t count = 0;
-    node_vector orphans;
-    for (auto& dn : dp)
-    {
-        // if found, set its parent
-        if ((n = nodebyhandle(dn->parenthandle)))
-        {
-            dn->setparent(n);
-            ++count;
-        }
-        else if (rootnodes.isRootNode(dn->nodeHandle())) // rootnodes have no parent
-        {
-            ++count;
-        }
-        else
-        {
-            orphans.push_back(dn);
-        }
-    }
-
     mergenewshares(notify);
-
-    // detect if there's any orphan node and report to API
-    for (auto orphan : orphans)
-    {
-        // top-level inshares have no parent (nested ones have)
-        if (orphan->inshare)
-        {
-            ++count;
-        }
-        else
-        {
-            LOG_warn << "Orphan node detected. Node: " << toNodeHandle(orphan->nodehandle) << " Parent: " << toNodeHandle(orphan->parenthandle);
-        }
-    }
-    if (dp.size() != count)
-    {
-       sendevent(99455, "Orphan node(s) detected");
-    }
+    mNodeManager.checkOrphanNodes();
 
     return j->leavearray();
 }
@@ -9540,8 +9238,6 @@ void MegaClient::readok(JSON* j)
         }
 
         j->leavearray();
-
-        mergenewshares(0);
     }
 }
 
@@ -9592,6 +9288,7 @@ void MegaClient::readokelement(JSON* j)
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
                     newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
                 }
                 return;
 
@@ -9947,6 +9644,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
+                            mNodeManager.updateNode(n);
                         }
                         else
                         {
@@ -9971,17 +9669,11 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
-                      + (rootnodes.vault.isUndef() ? 0 : 1)
-                      + (rootnodes.rubbish.isUndef() ? 0 : 1);
+    int noKeyExpected = (mNodeManager.getRootNodeFiles().isUndef() ? 0 : 1)
+                      + (mNodeManager.getRootNodeVault().isUndef() ? 0 : 1)
+                      + (mNodeManager.getRootNodeRubbish().isUndef() ? 0 : 1);
 
-    if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
-    {
-        for (auto& it : nodes)
-        {
-            it.second->applykey();
-        }
-    }
+    mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
 
     sendkeyrewrites();
 }
@@ -10401,10 +10093,10 @@ void MegaClient::login(string session)
         }
         else
         {
-            rootnodes.files.set6byte(rootnode);
+            mNodeManager.setRootNodeFiles(NodeHandle().set6byte(rootnode));
             restag = reqtag;
 
-            if (rootnodes.files.isUndef())
+            if (mNodeManager.getRootNodeFiles().isUndef())
             {
                 app->login_result(API_EARGS);
             }
@@ -10490,7 +10182,7 @@ int MegaClient::dumpsession(string& session)
 
         cw.serializebyte(2);
         cw.serializenodehandle(mFolderLink.mPublicHandle);
-        cw.serializenodehandle(rootnodes.files.as8byte());
+        cw.serializenodehandle(mNodeManager.getRootNodeFiles().as8byte());
         cw.serializebinary(key.key, sizeof(key.key));
         cw.serializeexpansionflags(!mFolderLink.mWriteAuth.empty(), !mFolderLink.mAccountAuth.empty(), true);
 
@@ -10597,12 +10289,23 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable.reset(dbaccess->open(rng, *fsaccess, dbname));
+            // Historically, DB upgrades by asking the API for permission at login
+            // If permission is granted, then the existing DB is discarding and a new
+            // is created from the response of fetchnodes (from server)
+            // NOD is a special case where existing DB can be upgraded by renaming the existing
+            // file and migrating data to the new DB scheme. In consequence, we just want to 
+            // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
+            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
             pendingsccommit = false;
 
             if (sctable)
             {
-                // sctable always has a transaction started.
+                DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
+                assert(nodeTable);
+                mNodeManager.setTable(nodeTable);
+
+                // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
                 sctable->begin();
                 assert(sctable->inTransaction());
@@ -10636,7 +10339,7 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
         }
     }
 }
@@ -10965,7 +10668,8 @@ void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipver
 
     if (!skipversions || n->type != FILENODE)
     {
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); )
+        node_list children = getChildren(n);
+        for (node_list::iterator it = children.begin(); it != children.end(); )
         {
             Node *child = *it++;
             if (!(skipinshares && child->inshare))
@@ -11418,11 +11122,16 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
 // queue node for notification
 void MegaClient::notifynode(Node* n)
 {
+    mNodeManager.notifyNode(n);
+}
+
+void NodeManager::notifyNode(Node* n)
+{
     n->applykey();
 
-    if (!fetchingnodes)
+    if (!mClient.fetchingnodes)
     {
-        if (n->tag && !n->changed.removed && n->attrstring)
+        if (n->changed.modifiedByThisClient && !n->changed.removed && n->attrstring)
         {
             // report a "NO_KEY" event
 
@@ -11453,8 +11162,8 @@ void MegaClient::notifynode(Node* n)
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
             sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-            reportevent("NK", report, 0);
-            sendevent(99400, report, 0);
+            mClient.reportevent("NK", report, 0);
+            mClient.sendevent(99400, report, 0);
 
             delete [] buf;
         }
@@ -11529,7 +11238,7 @@ void MegaClient::notifynode(Node* n)
     if (!n->notified)
     {
         n->notified = true;
-        nodenotify.push_back(n);
+        mNodeNotify.push_back(n);
     }
 }
 
@@ -12116,11 +11825,10 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
+        chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0,
-                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));
     }
 }
 #endif
@@ -12267,6 +11975,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         LOG_warn << "Skipping node due to an unavailable key";
                     }
                 }
+
+                mNodeManager.updateNode(n);
             }
             else
             {
@@ -12891,7 +12601,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
     Node* n;
     User* u;
     PendingContactRequest* pcr;
-    node_vector dp;
 
     LOG_info << "Loading session from local cache";
 
@@ -12901,9 +12610,12 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
+    bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
+
+    std::map<NodeHandle, std::vector<Node*>> delayedParents;
     while (hasNext)
     {
-        switch (id & 15)
+        switch (id & (DbTable::IDSPACING - 1))
         {
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn)
@@ -12913,9 +12625,24 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDNODE:
-                if ((n = Node::unserialize(this, &data, &dp)))
+                if ((n = mNodeManager.getNodeFromBlob(&data)))
                 {
-                    n->dbid = id;
+                    // When all nodes are loaded we force a commit
+                   isDbUpgraded = true;
+
+                   bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == VAULTNODE;
+                   if (rootNode)
+                   {
+                       mNodeManager.setrootnode(n);
+                   }
+                   else if (n->parent == nullptr)
+                   {
+                       // nodes in 'statecache' are not ordered by parent-child
+                       // -> we might load nodes whose parents are not loaded yet
+                       delayedParents[n->parentHandle()].push_back(n);
+                   }
+
+                   sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
                 {
@@ -12987,19 +12714,44 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    WAIT_CLASS::bumpds();
-    fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
-
-    // any child nodes arrived before their parents?
-    for (size_t i = dp.size(); i--; )
+    if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
+        LOG_info << "Upgrading cache to NOD";
+        // call setparent() for the nodes whose parent was not available upon unserialization
+        for (auto it : delayedParents)
         {
-            dp[i]->setparent(n);
+            Node *parent = mNodeManager.getNodeByHandle(it.first);
+            for (Node* child : it.second)
+            {
+                // In DB migration we have to calculate counters as they aren't calculated previously
+                child->setparent(parent, true);
+            }
         }
+
+        // now that Users and PCRs are loaded, need to mergenewshare()
+        mergenewshares(0, true);
+
+        // finally write nodes in DB
+        mNodeManager.dumpNodes();
+
+        // and force commit, since old DB has been upgraded to new schema for NOD
+        sctable->commit();
+        sctable->begin();
+    }
+    else
+    {
+        // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
+        // since Node::unserialize() will call mergenewshare(), and the latter requires
+        // Users and PCRs to be available
+        if (!mNodeManager.loadNodes())
+        {
+            return false;
+        }
+
     }
 
-    mergenewshares(0);
+    WAIT_CLASS::bumpds();
+    fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
     return true;
 }
@@ -13270,8 +13022,9 @@ void MegaClient::fetchnodes(bool nocache)
     }
 
     // only initial load from local cache
+
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() || loggedin() == EPHEMERALACCOUNTPLUSPLUS) &&
-            !nodes.size() && !ISUNDEF(cachedscsn) &&
+            !mNodeManager.hasCacheLoaded() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
         debugLogHeapUsage();
@@ -13294,7 +13047,7 @@ void MegaClient::fetchnodes(bool nocache)
             WAIT_CLASS::bumpds();
             fnstats.mode = FetchNodesStats::MODE_DB;
             fnstats.cache = FetchNodesStats::API_NO_CACHE;
-            fnstats.nodesCached = nodes.size();
+            fnstats.nodesCached = mNodeManager.getNodeCount();
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
@@ -13305,17 +13058,16 @@ void MegaClient::fetchnodes(bool nocache)
 
             // allow sc requests to start
             scsn.setScsn(cachedscsn);
-            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
-                     << " node count: " << nodes.size() << " user count: " << users.size();
+            LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
-            assert(nodes.size() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
-            assert(!rootnodes.files.isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
+            assert(mNodeManager.getNodeCount() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
+            assert(!mNodeManager.getRootNodeFiles().isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
                 // If logged into writable folder, we need the sharekey set in the root node
                 // so as to include it in subsequent put nodes
-                if (Node* n = nodeByHandle(rootnodes.files))
+                if (Node* n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
                     n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
                 }
@@ -13363,7 +13115,7 @@ void MegaClient::fetchnodes(bool nocache)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-#ifdef ENABLE_SYNC
+    #ifdef ENABLE_SYNC
         // If there are syncs present at this time, this is a reload-account request.
         // We will start by fetching a cached tree which likely won't match our current
         // state/scsn.  And then we will apply actionpackets until we are up to date.
@@ -13372,7 +13124,7 @@ void MegaClient::fetchnodes(bool nocache)
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
         syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
-#endif
+    #endif
 
         if (!loggedinfolderlink())
         {
@@ -14131,20 +13883,11 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.purgeRunningSyncs();
 #endif
 
-    mOptimizePurgeNodes = true;
-    mFingerprints.clear();
-    mNodeCounters.clear();
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
-    {
-        delete it->second;
-    }
-    nodes.clear();
-    mOptimizePurgeNodes = false;
+    mNodeManager.cleanNodes();
 
 #ifdef ENABLE_SYNC
     toDebris.clear();
     toUnlink.clear();
-    mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -14166,7 +13909,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     }
 
     newshares.clear();
-    nodenotify.clear();
+    mNewKeyRepository.clear();
     usernotify.clear();
     pcrnotify.clear();
     useralerts.clear();
@@ -14473,7 +14216,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             inshare = true;
         }
 
-        if (n->nodeHandle() == rootnodes.rubbish)
+        if (n->nodeHandle() == mNodeManager.getRootNodeRubbish())
         {
             if(syncError)
             {
@@ -14581,6 +14324,16 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
+    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
+    // until the account is reloaded (or the app restarts)
+    if (mNodeManager.accountShouldBeReloaded())
+    {
+        LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
+        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
+        syncConfig.mEnabled = false;
+        return API_EINTERNAL;
+    }
+
     Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
@@ -14602,7 +14355,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
     {
         syncConfig.mError = INVALID_REMOTE_TYPE;
         syncConfig.mEnabled = false;
@@ -14720,7 +14473,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
 {
     // If the attributes are not available yet, we make or get them.
-	// Then the completion function is called.
+    // Then the completion function is called.
 
     // we rely on storing this function to remember that we have an
     // operation in progress, so we don't allow nullptr
@@ -15254,7 +15007,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
     string localname;
 
     // build child hash - nameclash resolution: use newest/largest version
-    for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
+    node_list nodeList = getChildren(l->node);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         attr_map::iterator ait;
 
@@ -15754,7 +15508,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
     {
         // corresponding remote node present: build child hash - nameclash
         // resolution: use newest version
-        for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
+        node_list nodeList = getChildren(l->node);
+        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
         {
             // node must be alive
             if ((*it)->syncdeleted == SYNCDEL_NONE)
@@ -16094,12 +15849,13 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                             }
 
                             recentVersions++;
-                            if (!version->children.size())
+                            node_list nodeList = getChildren(version);
+                            if (!nodeList.size())
                             {
                                 break;
                             }
 
-                            version = version->children.back();
+                            version = nodeList.back();
                         }
 
                         if (recentVersions > 10)
@@ -16186,11 +15942,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 char report[256];
 
+                node_list nodeList = getChildren(l->node);
                 // always report LocalNode's type, name length, mtime, file size
                 sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
-                    l->node ? (int)l->node->children.size() : -1,
+                    l->node ? (int)nodeList.size() : -1,
                     (int)(synccreateForVault.size() + synccreateGeneral.size()),
                     syncadding,
                     ll->type,
@@ -16483,7 +16240,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                mFingerprints.remove(n);
+                mNodeManager.removeFingerprint(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -16517,7 +16274,6 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink, bool canChangeVault)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode.reset();
     }
 
@@ -16620,7 +16376,7 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag, iter->second.canChangeVault, nullptr);
+            unlink(tn, false, 0, iter->second.canChangeVault, nullptr);
             // 'canChangeVault' is false because here unlink() is only
             // for inshares syncs, which is not possible for backups
         }
@@ -16649,7 +16405,7 @@ void MegaClient::execmovetosyncdebris()
     // - //bin
 
     // (if no rubbish bin is found, we should probably reload...)
-    if (!(tn = nodeByHandle(rootnodes.rubbish)))
+    if (!(tn = nodeByHandle(mNodeManager.getRootNodeRubbish())))
     {
         return;
     }
@@ -16699,11 +16455,8 @@ void MegaClient::execmovetosyncdebris()
                       && target == SYNCDEL_DEBRISDAY))
                 {
                     n->syncdeleted = SYNCDEL_INFLIGHT;
-                    int creqtag = reqtag;
-                    reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                     rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, it->second.canChangeVault, nullptr);
-                    reqtag = creqtag;
                     it++;
                 }
                 else
@@ -17185,18 +16938,17 @@ void MegaClient::setmaxconnections(direction_t d, int num)
     }
 }
 
-Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
+Node* MegaClient::nodebyfingerprint(FileFingerprint* fp)
 {
-    return mFingerprints.nodebyfingerprint(fingerprint);
+    return fp ? mNodeManager.getNodeByFingerprint(*fp) : nullptr;
 }
 
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
-    std::unique_ptr<const node_vector>
-      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+    node_vector remoteNodes = mNodeManager.getNodesByFingerprint(*localNode);
 
-    if (remoteNodes->empty())
+    if (remoteNodes.empty())
         return nullptr;
 
     std::string localName =
@@ -17204,17 +16956,17 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
-      std::find_if(remoteNodes->begin(),
-                   remoteNodes->end(),
+      std::find_if(remoteNodes.begin(),
+                   remoteNodes.end(),
                    [&](const Node *remoteNode) -> bool
                    {
                        return localName == remoteNode->displayname();
                    });
 
-    if (remoteNode != remoteNodes->end())
+    if (remoteNode != remoteNodes.end())
         return *remoteNode;
 
-    remoteNode = remoteNodes->begin();
+    remoteNode = remoteNodes.begin();
 
     // Compare the local file's metamac against a random candidate.
     //
@@ -17247,54 +16999,9 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 }
 #endif /* ENABLE_SYNC */
 
-node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
-{
-    return mFingerprints.nodesbyfingerprint(fingerprint);
-}
-
-static bool nodes_ctime_less(const Node* a, const Node* b)
-{
-    // heaps return the largest element
-    return a->ctime < b->ctime;
-}
-
 static bool nodes_ctime_greater(const Node* a, const Node* b)
 {
     return a->ctime > b->ctime;
-}
-
-node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
-{
-    // 1. Get nodes added/modified not older than `since`
-    node_vector v;
-    v.reserve(nodes.size());
-    for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
-    {
-        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only
-            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
-        {
-            v.push_back(i->second);
-        }
-    }
-
-    // heaps use a 'less' function, and pop_heap returns the largest item stored.
-    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
-
-    // 2. Order them chronologically and restrict them to a maximum of `maxcount`
-    node_vector v2;
-    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
-    v2.reserve(maxItems);
-    while (v2.size() < maxItems && !v.empty())
-    {
-        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
-        Node* n = v.back();
-        v.pop_back();
-        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
-        {
-            v2.push_back(n);
-        }
-    }
-    return v2;
 }
 
 
@@ -17306,7 +17013,9 @@ namespace action_bucket_compare
         if (a->parent != b->parent) return a->parent > b->parent;
 
         // added/updated - distinguish by versioning
-        if (a->children.size() != b->children.size()) return a->children.size() > b->children.size();
+        size_t aChildrenCount = mc->getNumberOfChildren(a->nodeHandle());
+        size_t bChildrenCount = mc->getNumberOfChildren(b->nodeHandle());
+        if (aChildrenCount != bChildrenCount) return aChildrenCount > bChildrenCount;
 
         // media/nonmedia
         bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
@@ -17374,7 +17083,7 @@ bool MegaClient::nodeIsDocument(const Node *n) const
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
-    node_vector v = getRecentNodes(maxcount, since, false);
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -17398,7 +17107,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
                 ra.time = (*j)->ctime;
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
-                ra.updated = !(*j)->children.empty();   // children of files represent previous versions
+                ra.updated = getNumberOfChildren((*j)->nodeHandle());   // children of files represent previous versions
                 ra.media = nodeIsMedia(*j, nullptr, nullptr);
                 rav.push_back(ra);
             }
@@ -17418,43 +17127,6 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
     return rav;
-}
-
-
-void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
-{
-    if (parent)
-    {
-        for (node_list::iterator i = parent->children.begin(); i != parent->children.end(); ++i)
-        {
-            if ((*i)->type == FILENODE)
-            {
-                attr_map::const_iterator a = (*i)->attrs.map.find(MAKENAMEID2('c', '0'));
-                if (a != (*i)->attrs.map.end() && !a->second.compare(originalfingerprint))
-                {
-                    nv->push_back(*i);
-                }
-            }
-            else
-            {
-                nodesbyoriginalfingerprint(originalfingerprint, *i, nv);
-            }
-        }
-    }
-    else
-    {
-        for (node_map::const_iterator i = nodes.begin(); i != nodes.end(); ++i)
-        {
-            if (i->second->type == FILENODE)
-            {
-                attr_map::const_iterator a = i->second->attrs.map.find(MAKENAMEID2('c', '0'));
-                if (a != i->second->attrs.map.end() && !a->second.compare(originalfingerprint))
-                {
-                    nv->push_back(i->second);
-                }
-            }
-        }
-    }
 }
 
 // a chunk transfer request failed: record failed protocol & host
@@ -17526,6 +17198,16 @@ Node* MegaClient::getovnode(Node *parent, string *name)
         return childnodebyname(parent, name->c_str(), true);
     }
     return nullptr;
+}
+
+node_list MegaClient::getChildren(const Node* parent, CancelToken cancelToken)
+{
+    return mNodeManager.getChildren(parent, cancelToken);
+}
+
+size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
+{
+    return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }
 
 bool MegaClient::loggedIntoFolder() const
@@ -17850,11 +17532,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
                     break;
                 }
-                case MAKENAMEID2('o', 'u'): // action packet originator
-                {
-                    jsonsc.gethandle(USERHANDLE); // not necessary to store
-                    break;
-                }
                 // there are no scheduled meeting rules
                 case MAKENAMEID1('r'):
                 {
@@ -17909,7 +17586,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vWeek.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vWeek.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17921,7 +17598,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->isnumeric())
                                         {
-                                            vMonth.emplace_back(static_cast<int>(auxJson->getint()));
+                                            vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
                                     }
@@ -17933,14 +17610,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         while(auxJson->enterarray())
                                         {
-                                            int key = -1;
-                                            int value = -1;
+                                            int8_t key = -1;
+                                            int8_t value = -1;
                                             int i = 0;
                                             while (auxJson->isnumeric())
                                             {
-                                                int val = static_cast<int>(auxJson->getint());
-                                                if (i == 0) { key = static_cast<int>(val); }
-                                                if (i == 1) { value = static_cast<int>(val); }
+                                                int8_t val = static_cast<int8_t>(auxJson->getint());
+                                                if (i == 0) { key = val; }
+                                                if (i == 1) { value = val; }
                                                 i++;
                                             }
 
@@ -19296,6 +18973,1771 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToSyncsResumed << "," << timeToCurrent << ","
         << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
+}
+
+NodeManager::NodeManager(MegaClient& client)
+    : mClient(client)
+{
+}
+
+void NodeManager::setTable(DBTableNodes *table)
+{
+    mTable = table;
+}
+
+void NodeManager::reset()
+{
+    setTable(nullptr);
+
+    cleanNodes();
+}
+
+bool NodeManager::setrootnode(Node* node)
+{
+    switch (node->type)
+    {
+        case ROOTNODE:
+            setRootNodeFiles(node->nodeHandle());
+            return true;
+
+        case VAULTNODE:
+            setRootNodeVault(node->nodeHandle());
+            return true;
+
+        case RUBBISHNODE:
+            setRootNodeRubbish(node->nodeHandle());
+            return true;
+
+        default:
+            assert(false);
+            return false;
+    }
+}
+
+bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
+{
+    // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
+    // and by NodeManager::mNodeToWriteInDB if node is only written to DB. In the latter,
+    // the 'node' is deleted upon saveNodeInDb()
+
+    // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
+    // but it's been complemented with actionpackets. It's false when loaded from DB.
+
+    // 'notify' is false when loading nodes from API or DB. True when node is received from
+    // actionpackets and/or from response of CommandPutnodes
+
+    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE;
+    if (rootNode)
+    {
+        setrootnode(node);
+    }
+
+    // mClient.mNodeManager.getRootNodeFiles() is always set for folder links before adding any node (upon login)
+    bool isFolderLink = mClient.mNodeManager.getRootNodeFiles() == node->nodeHandle();
+
+    bool keepNodeInMemory = rootNode
+            || isFolderLink
+            || !isFetching
+            || notify
+            || node->parentHandle() == mClient.mNodeManager.getRootNodeFiles(); // first level of children for CloudDrive
+    // Note: incoming shares are not kept in ram during fetchnodes from API. Instead, they are loaded
+    // upon mergenewshares(), when fetchnodes is completed
+
+    if (keepNodeInMemory)
+    {
+        saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
+    }
+    else
+    {
+        // still keep it in memory temporary, until saveNodeInDb()
+        assert(!mNodeToWriteInDb);
+        mNodeToWriteInDb.reset(node);
+
+        // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
+        auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+        // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
+        auto& nodePosition = pair.first;
+        assert(!nodePosition->second.mNode);
+        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
+        addChild(node->parentHandle(), node->nodeHandle(), nullptr);
+    }
+
+    return true;
+}
+
+bool NodeManager::updateNode(Node *node)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
+
+    mTable->put(node);
+
+    return true;
+}
+
+void NodeManager::addNodeWithMissingParent(Node *node)
+{
+    mNodesWithMissingParent[node->parentHandle()].insert(node);
+}
+
+Node *NodeManager::getNodeByHandle(NodeHandle handle)
+{
+    if (mNodes.empty())
+    {
+        return nullptr;
+    }
+
+    Node* node = getNodeInRAM(handle);
+    if (!node)
+    {
+        node = getNodeFromDataBase(handle);
+    }
+
+    return node;
+}
+
+node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
+{
+    node_list childrenList;
+    if (!parent || !mTable || mNodes.empty())
+    {
+        return childrenList;
+    }
+
+    // if handles of all children are known, load missing child nodes one by one
+    if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
+    {
+        for (const auto &child : parent->mNodePosition->second.mChildren)
+        {
+            if (cancelToken.isCancelled())
+            {
+                childrenList.clear();
+                return childrenList;
+            }
+
+            if (child.second)
+            {
+                childrenList.push_back(child.second);
+            }
+            else
+            {
+                Node* n = getNodeFromDataBase(child.first);
+                assert(n);
+                if (n)
+                {
+                    childrenList.push_back(n);
+                }
+            }
+        }
+    }
+    else // get all children from DB directly and load missing ones
+    {
+        for (const auto &child : parent->mNodePosition->second.mChildren)
+        {
+            if (child.second)
+            {
+                childrenList.push_back(child.second);
+            }
+        }
+
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        mTable->getChildren(parent->nodeHandle(), nodesFromTable, cancelToken);
+        if (cancelToken.isCancelled())
+        {
+            childrenList.clear();
+            return  childrenList;
+        }
+
+        for (auto nodeSerializedIt : nodesFromTable)
+        {
+            if (cancelToken.isCancelled())
+            {
+                childrenList.clear();
+                return  childrenList;
+            }
+
+            auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
+            if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
+            {
+                auto itNode = mNodes.find(nodeSerializedIt.first);
+                if ( itNode == mNodes.end() || !itNode->second.mNode)    // not loaded
+                {
+                    Node* n = getNodeFromNodeSerialized(nodeSerializedIt.second);
+                    if (!n)
+                    {
+                        childrenList.clear();
+                        return childrenList;
+                    }
+
+                    childrenList.push_back(n);
+                }
+                else  // -> node loaded, but it isn't associated to the parent -> the node has been moved but DB isn't already updated
+                {
+                    assert(itNode->second.mNode->parentHandle() != parent->nodeHandle());
+                }
+            }
+        }
+
+        parent->mNodePosition->second.mAllChildrenHandleLoaded = true;
+    }
+
+    return childrenList;
+}
+
+node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
+{
+    if (!mTable || mNodes.empty())
+    {
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable, cancelToken);
+
+    if (cancelToken.isCancelled())
+    {
+        return  node_vector();
+    }
+
+    return processUnserializedNodes(nodesFromTable, NodeHandle(), cancelToken);
+}
+
+node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
+{
+    if (!mTable || mNodes.empty())
+    {
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getRecentNodes(maxcount, since, nodesFromTable);
+
+    return processUnserializedNodes(nodesFromTable);
+}
+
+uint64_t NodeManager::getNodeCount()
+{
+    if (mNodes.empty())
+    {
+        return 0;
+    }
+
+    uint64_t count = 0;
+    node_vector rootnodes = getRootNodesAndInshares();
+
+    for (Node* node : rootnodes)
+    {
+        NodeCounter nc = node->getCounter();
+        count += nc.files + nc.folders + nc.versions;
+    }
+
+    // add rootnodes to the count if logged into account (and fetchnodes is done <- rootnodes are ready)
+    if (!mClient.loggedIntoFolder() && rootnodes.size())
+    {
+        // Root nodes aren't taken into consideration as part of node counters
+        count += 3;
+        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeVault().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
+    }
+
+#ifdef DEBUG
+    if (mNodes.size())
+    {
+        uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
+        assert(!mTable || count == countDb);
+    }
+#endif
+
+    return count;
+}
+
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    // Take first nodes in RAM
+    std::set<NodeHandle> fpLoaded;
+    auto p = mFingerPrints.equal_range(&fingerprint);
+    for (auto it = p.first; it != p.second; ++it)
+    {
+        Node* node = static_cast<Node*>(*it);
+        fpLoaded.emplace(node->nodeHandle());
+        nodes.push_back(node);
+    }
+
+    // If all fingerprints are loaded at DB, it isn't necessary search in DB
+    if (mFingerPrints.allFingerprintsAreLoaded(&fingerprint))
+    {
+        return nodes;
+    }
+
+    // Look for nodes at DB
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    std::string fingerprintString;
+    fingerprint.serialize(&fingerprintString);
+    mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+    if (nodesFromTable.size())
+    {
+        for (const auto& nodeIt : nodesFromTable)
+        {
+            // avoid to load already loaded nodes (found at mFingerPrints)
+            if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
+            {
+                Node* node = getNodeFromNodeSerialized(nodeIt.second);
+                if (!node)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
+
+                nodes.push_back(node);
+            }
+        }
+    }
+
+    mFingerPrints.setAllFingerprintLoaded(&fingerprint);
+
+    return nodes;
+}
+
+node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprint, Node *parent)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
+
+    nodes = processUnserializedNodes(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle(), CancelToken());
+    return nodes;
+}
+
+Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
+{
+    Node* node = nullptr;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return node;
+    }
+
+    auto it = mFingerPrints.find(&fingerprint);
+    if (it != mFingerPrints.end())
+    {
+        node = static_cast<Node*>(*it);
+        assert(node);
+        return node;
+    }
+
+    NodeSerialized nodeSerialized;
+    std::string fingerprintString;
+    fingerprint.serialize(&fingerprintString);
+    mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
+    if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
+    {
+        node = getNodeFromNodeSerialized(nodeSerialized);
+    }
+
+    return node;
+}
+
+Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &name, nodetype_t nodeType)
+{
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nullptr;
+    }
+
+    // mAllChildrenHandleLoaded = false -> if not found, need check DB
+    // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
+    bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
+    for (const auto& itNode : parent->mNodePosition->second.mChildren)
+    {
+        Node* node = itNode.second;
+        if (node && node->type == nodeType && name == node->displayname())
+        {
+            return node;
+        }
+        else if (!node)
+        {
+            // If no all children nodes are loaded, it's necessary check DB
+            allChildrenLoaded = false;
+        }
+    }
+
+    if (allChildrenLoaded)
+    {
+        return nullptr; // There is no match
+    }
+
+    std::pair<NodeHandle, NodeSerialized> nodeSerialized;
+    if (!mTable->childNodeByNameType(parent->nodeHandle(), name, nodeType, nodeSerialized))
+    {
+        return nullptr;  // Not found at DB either
+    }
+
+    assert(!getNodeInRAM(nodeSerialized.first));  // not loaded yet
+    return getNodeFromNodeSerialized(nodeSerialized.second);
+}
+
+node_vector NodeManager::getRootNodes()
+{
+    node_vector nodes;
+    if (!mTable)
+    {
+        assert(false);
+        return nodes;
+    }
+
+    if (mNodes.size()) // nodes already loaded from DB
+    {
+        Node* rootNode = getNodeByHandle(mClient.mNodeManager.getRootNodeFiles());
+        assert(rootNode);
+        nodes.push_back(rootNode);
+
+        if (!mClient.loggedIntoFolder())
+        {
+            Node* inBox = getNodeByHandle(mClient.mNodeManager.getRootNodeVault());
+            assert(inBox);
+            nodes.push_back(inBox);
+
+            Node* rubbish = getNodeByHandle(mClient.mNodeManager.getRootNodeRubbish());
+            assert(rubbish);
+            nodes.push_back(rubbish);
+        }
+    }
+    else    // nodes not loaded yet
+    {
+        if (mClient.loggedIntoFolder())
+        {
+            NodeSerialized nodeSerialized;
+            mTable->getNode(mClient.mNodeManager.getRootNodeFiles(), nodeSerialized);
+            Node* n = getNodeFromNodeSerialized(nodeSerialized);
+            if (!n)
+            {
+                return nodes;
+            }
+
+            nodes.push_back(n);
+            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login commnad
+        }
+        else
+        {
+            std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+            mTable->getRootNodes(nodesFromTable);
+
+            for (const auto& nHandleSerialized : nodesFromTable)
+            {
+                assert(!getNodeInRAM(nHandleSerialized.first));
+                Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+                if (!n)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
+
+                nodes.push_back(n);
+
+                setrootnode(n);
+            }
+        }
+    }
+
+    return nodes;
+}
+
+node_vector NodeManager::getNodesWithInShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::IN_SHARES);
+}
+
+node_vector NodeManager::getNodesWithOutShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::OUT_SHARES);
+}
+
+node_vector NodeManager::getNodesWithPendingOutShares()
+{
+    return getNodesWithSharesOrLink(ShareType_t::PENDING_OUTSHARES);
+}
+
+node_vector NodeManager::getNodesWithLinks()
+{
+    return getNodesWithSharesOrLink(ShareType_t::LINK);
+}
+
+node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
+{
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+
+    return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
+}
+
+node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
+{
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
+
+    return processUnserializedNodes(nodesFromTable);
+}
+
+Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
+{
+    Node* node = unserializeNode(&nodeSerialized.mNode, false);
+    if (!node)
+    {
+        assert(false);
+        LOG_err << "Failed to unserialize node. Requesting app to reload...";
+        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
+
+        return nullptr;
+    }
+
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
+
+    return node;
+}
+
+void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
+{
+    while (origin)
+    {
+        NodeCounter ancestorCounter = origin->getCounter();
+        switch (operation)
+        {
+        case INCREASE:
+            ancestorCounter += nc;
+            break;
+
+        case DECREASE:
+            ancestorCounter -= nc;
+            break;
+        }
+
+        origin->setCounter(ancestorCounter, true);
+        origin = origin->parent;
+    }
+}
+
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node)
+{
+    NodeCounter nc;
+    if (!mTable)
+    {
+        assert(false);
+        return nc;
+    }
+
+    m_off_t nodeSize = 0u;
+    nodetype_t nodeType = TYPE_UNKNOWN;
+    if (node)
+    {
+        nodeType = node->type;
+        nodeSize = node->size;
+    }
+    else
+    {
+        if (!mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType))
+        {
+            assert(false);
+            return nc;
+        }
+    }
+
+    nodePtr_map children;
+    auto it = mNodes.find(nodehandle);
+    if (it != mNodes.end())
+    {
+        children = it->second.mChildren;
+    }
+
+    for (const auto &itNode : children)
+    {
+        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second);
+    }
+
+    if (nodeType == FILENODE)
+    {
+        bool isVersion = parentType == FILENODE;
+        if (isVersion)
+        {
+            nc.versions++;
+            nc.versionStorage += nodeSize;
+        }
+        else
+        {
+            nc.files++;
+            nc.storage += nodeSize;
+        }
+    }
+    else if (nodeType == FOLDERNODE)
+    {
+        nc.folders++;
+    }
+
+    if (node)
+    {
+        node->setCounter(nc, false);
+    }
+
+    mTable->updateCounter(nodehandle, nc.serialize());
+
+    return nc;
+}
+
+std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, uint32_t count)
+{
+    std::vector<NodeHandle> nodeHandles;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodeHandles;
+    }
+
+    mTable->getFavouritesHandles(node, count, nodeHandles);
+    return nodeHandles;
+}
+
+size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+{
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return 0;
+    }
+
+    auto parentIt = mNodes.find(parentHandle);
+    if (parentIt != mNodes.end() && parentIt->second.mAllChildrenHandleLoaded)
+    {
+        return parentIt->second.mChildren.size();
+    }
+
+
+    return mTable->getNumberOfChildren(parentHandle);
+}
+
+size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
+{
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return 0;
+    }
+
+    assert(nodeType == FILENODE || nodeType == FOLDERNODE);
+
+    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
+}
+
+bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
+
+    return mTable->isAncestor(nodehandle, ancestor, cancelFlag);
+}
+
+void NodeManager::removeChanges()
+{
+    for (auto& it : mNodes)
+    {
+        if (it.second.mNode)
+        {
+            memset(&(it.second.mNode->changed), 0, sizeof it.second.mNode->changed);
+        }
+    }
+}
+
+void NodeManager::cleanNodes()
+{
+    mFingerPrints.clear();
+    mNodes.clear();
+    mNodesInRam = 0;
+    mNodeToWriteInDb.reset();
+    mNodeNotify.clear();
+    mNodesWithMissingParent.clear();
+
+    mAccountReload = false;
+
+    if (mTable)
+        mTable->removeNodes();
+}
+
+Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
+{
+    return unserializeNode(nodeSerialized, true);
+}
+
+// parse serialized node and return Node object - updates nodes hash and parent
+// mismatch vector
+Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
+{
+    handle h, ph;
+    nodetype_t t;
+    m_off_t s;
+    handle u;
+    const byte* k = NULL;
+    const char* fa;
+    m_time_t ts;
+    const byte* skey;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    unsigned short ll;
+    Node* n;
+    int i;
+    char isExported = '\0';
+    char hasLinkCreationTs = '\0';
+
+    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
+    {
+        return NULL;
+    }
+
+    s = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof s;
+
+    if (s < 0 && s >= -RUBBISHNODE)
+    {
+        t = (nodetype_t)-s;
+    }
+    else
+    {
+        t = FILENODE;
+    }
+
+    h = 0;
+    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    ph = 0;
+    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    if (!ph)
+    {
+        ph = UNDEF;
+    }
+
+    u = 0;
+    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
+    ptr += MegaClient::USERHANDLE;
+
+    // FIME: use m_time_t / Serialize64 instead
+    ptr += sizeof(time_t);
+
+    ts = (uint32_t)MemAccess::get<time_t>(ptr);
+    ptr += sizeof(time_t);
+
+    if ((t == FILENODE) || (t == FOLDERNODE))
+    {
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+
+        if (ptr + keylen + 8 + sizeof(short) > end)
+        {
+            return NULL;
+        }
+
+        k = (const byte*)ptr;
+        ptr += keylen;
+    }
+
+    if (t == FILENODE)
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
+        fa = ptr;
+        ptr += ll;
+    }
+    else
+    {
+        fa = NULL;
+    }
+
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    {
+        return NULL;
+    }
+
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
+
+    hasLinkCreationTs = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkCreationTs);
+
+    auto authKeySize = MemAccess::get<char>(ptr);
+
+    ptr += sizeof authKeySize;
+    const char *authKey = nullptr;
+    if (authKeySize)
+    {
+        authKey = ptr;
+        ptr += authKeySize;
+    }
+
+    if (ptr + (unsigned)*ptr > end)
+    {
+        return nullptr;
+    }
+
+    auto encrypted = *ptr && ptr[1];
+
+    ptr += (unsigned)*ptr + 1;
+
+    for (i = 4; i--;)
+    {
+        if (ptr + (unsigned char)*ptr < end)
+        {
+            ptr += (unsigned char)*ptr + 1;
+        }
+    }
+
+    if (ptr + sizeof(short) > end)
+    {
+        return NULL;
+    }
+
+    short numshares = MemAccess::get<short>(ptr);
+    ptr += sizeof(numshares);
+
+    if (numshares)
+    {
+        if (ptr + SymmCipher::KEYLENGTH > end)
+        {
+            return NULL;
+        }
+
+        skey = (const byte*)ptr;
+        ptr += SymmCipher::KEYLENGTH;
+    }
+    else
+    {
+        skey = NULL;
+    }
+
+    n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    auto pair = mNodes.emplace(NodeHandle().set6byte(h), NodeManagerNode());
+    // The NodeManagerNode could have been added in the initial fetch nodes (without session)
+    // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
+    mNodesInRam++;
+    auto& nodePosition = pair.first;
+    assert(!nodePosition->second.mNode);
+    nodePosition->second.mNode.reset(n);
+    n->mNodePosition = nodePosition;
+
+    // setparent() skiping update of node counters, since they are already calculated in DB
+    // In DB migration we have to calculate them as they aren't calculated previously
+    n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
+
+    if (!encrypted && k)
+    {
+        n->setkey(k);
+    }
+
+    // read inshare, outshares, or pending shares
+    std::list<std::unique_ptr<NewShare>> ownNewshares;
+    while (numshares)   // inshares: -1, outshare/s: num_shares
+    {
+        int direction = (numshares > 0) ? -1 : 0;
+        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
+
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            mClient.newshares.push_back(newShare.release());
+        }
+        else
+        {
+            ownNewshares.push_back(std::move(newShare));
+        }
+
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
+    }
+
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
+    {
+        mNodes.erase(nodePosition);
+        LOG_err << "Failed to unserialize attrs";
+        assert(false);
+        return NULL;
+    }
+
+    if (fromOldCache)
+    {
+        // It's needed to re-normalize node names because
+        // the updated version of utf8proc doesn't provide
+        // exactly the same output as the previous one that
+        // we were using
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            LocalPath::utf8_normalize(&(it->second));
+        }
+    }
+    // else from new cache, names has been normalized before to store in DB
+
+    if (!encrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
+
+    PublicLink *plink = NULL;
+    if (isExported)
+    {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            mNodes.erase(nodePosition);
+            return NULL;
+        }
+
+        handle ph = 0;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        m_time_t cts = 0;
+        if (hasLinkCreationTs)
+        {
+            cts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(cts);
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+    }
+    n->plink = plink;
+
+    if (encrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(uint32_t) > end)
+        {
+            mNodes.erase(nodePosition);
+            return nullptr;
+        }
+
+        auto length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the node key data?
+        if (ptr + length > end)
+        {
+            mNodes.erase(nodePosition);
+            return nullptr;
+        }
+
+        n->setUndecryptedKey(string(ptr, length));
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(uint32_t) > end)
+        {
+            mNodes.erase(nodePosition);
+            return nullptr;
+        }
+
+        length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the attribute string?
+        if (ptr + length > end)
+        {
+            mNodes.erase(nodePosition);
+            return nullptr;
+        }
+
+        n->attrstring.reset(new string(ptr, length));
+        ptr += length;
+    }
+
+    if (ptr == end)
+    {
+        // recreate node members related to shares (no need to write to DB,
+        // since we just loaded the node from DB and has no changes)
+        for (auto& share : ownNewshares)
+        {
+            mClient.mergenewshare(share.get(), false, true);
+        }
+
+        return n;
+    }
+    else
+    {
+        mNodes.erase(nodePosition);
+        return NULL;
+    }
+}
+
+void NodeManager::applyKeys(uint32_t appliedKeys)
+{
+    if (mNodes.size() > appliedKeys)
+    {
+        for (auto& it : mNodes)
+        {
+            if (it.second.mNode)
+            {
+                it.second.mNode->applykey();
+            }
+        }
+    }
+}
+
+void NodeManager::notifyPurge()
+{
+    if (mNodeNotify.size())
+    {
+        mClient.applykeys();
+
+        if (!mClient.fetchingnodes)
+        {
+            mClient.app->nodes_updated(&mNodeNotify.data()[0], static_cast<int>(mNodeNotify.size()));
+        }
+
+#ifdef ENABLE_SYNC
+
+        // check for renamed/moved sync root folders
+        mClient.syncs.forEachUnifiedSync([&](UnifiedSync& us){
+            // Try and locate the sync's cloud root.
+            Node* n = getNodeByHandle(us.mConfig.mRemoteNode);
+
+            // Sync's root is no longer present in memory.
+            if (!n)
+                return;
+
+            // Has this node received any commands from the backup center?
+            auto commands = n->getSdsBackups();
+
+            // Are any of the commands applicable to this sync?
+            for (auto& command : commands)
+            {
+                // Command entry isn't applicable to us.
+                if (command.first != us.mConfig.mBackupId)
+                    continue;
+
+                // Command entry isn't telling us to remove this sync.
+                if (command.second != CommandBackupPut::DELETED)
+                    continue;
+
+                // For purposes of capture.
+                auto id = us.mConfig.mBackupId;
+                auto remoteNode = us.mConfig.mRemoteNode;
+
+                auto completion = [id, remoteNode, this](Error result) {
+                    // Had the sync already been removed?
+                    if (result == API_ENOENT)
+                    {
+                        LOG_debug << "SDS: Sync "
+                                  << toHandle(id)
+                                  << " no longer present for the node "
+                                  << remoteNode;
+                        return;
+                    }
+
+                    // Was there any error removing the sync?
+                    if (result != API_OK)
+                    {
+                        LOG_err << "SDS: Unable to remove sync "
+                                << toHandle(id)
+                                << " associated with the node "
+                                << remoteNode
+                                << " due to error "
+                                << result;
+                        return;
+                    }
+
+                    // Locate this sync's root node.
+                    auto* node = getNodeByHandle(remoteNode);
+
+                    // Is the node still present in memory?
+                    if (!node)
+                    {
+                        LOG_warn << "SDS: Unable to update attribute as "
+                                 << remoteNode
+                                 << " is no longer present in memory.";
+                        return;
+                    }
+
+                    // Is it worth updating the node's SDS attribute?
+                    if (node->changed.removed)
+                    {
+                        LOG_debug << "SDS: Skipping attribute update as "
+                                  << remoteNode
+                                  << " has been removed.";
+                        return;
+                    }
+
+                    auto commands = node->getSdsBackups();
+                    auto updated = false;
+
+                    // Update the attribute's value.
+                    for (auto i = commands.size(); i--; )
+                    {
+                        auto& command = commands[i];
+
+                        if (command.first != id
+                            || command.second != CommandBackupPut::DELETED)
+                            continue;
+
+                        commands.erase(commands.begin() + i);
+                        updated = true;
+                    }
+
+                    // Do we really need to update the attribute?
+                    if (!updated)
+                    {
+                        LOG_warn << "SDS: Skipping no-op attribute update: "
+                                 << remoteNode;
+                        return;
+                    }
+
+                    auto completion = [](NodeHandle handle, Error result) {
+                        // Were we unable to update the SDS attribute?
+                        if (result != API_OK)
+                        {
+                            LOG_warn << "SDS: Unable to update attribute on "
+                                     << handle
+                                     << " due to error "
+                                     << result;
+                            return;
+                        }
+
+                        // Update was successful.
+                        LOG_debug << "SDS: Attribute updated on "
+                                  << handle;
+                    };
+
+                    // Update the attribute.
+                    mClient.setattr(node,
+                            attr_map(Node::sdsId(), Node::toSdsString(commands)),
+                            std::move(completion),
+                            true);
+                };
+
+                // Try and remove the sync.
+                mClient.deregisterThenRemoveSync(us.mConfig.mBackupId,
+                                                 move(completion), true);
+            }
+
+            //update sync root node location and trigger failing cases
+            NodeHandle rubbishHandle = getRootNodeRubbish();
+
+            // check if moved
+            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
+            const string currentPath = n->displaypath(); // full remote path
+            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
+            bool pathChanged = n->changed.parent || movedToRubbish ||
+                               // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
+                               us.mConfig.mRemoteNode != n->nodehandle ||
+                               originalPath != currentPath;
+
+            if (n->changed.attrs || pathChanged || n->changed.removed)
+            {
+                bool removed = n->changed.removed;
+
+                // update path in sync configuration
+                us.updateSyncRemoteLocation(removed ? nullptr : n, false);
+
+                auto &activeSync = us.mSync;
+                if (!activeSync) // no active sync (already failed)
+                {
+                    return;
+                }
+
+                auto syncErr = NO_SYNC_ERROR;
+
+                // fail sync if required
+                if (movedToRubbish)
+                {
+                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
+                }
+                else if (removed)
+                {
+                    syncErr = REMOTE_NODE_NOT_FOUND;
+                }
+                else if (pathChanged) // moved
+                {
+                    syncErr = REMOTE_PATH_HAS_CHANGED;
+                }
+
+                if (syncErr != NO_SYNC_ERROR)
+                {
+                    mClient.syncs.disableSyncByBackupId(
+                        activeSync->getConfig().mBackupId,
+                        true, syncErr, false, nullptr);
+                }
+            }
+        });
+#endif
+
+        TransferDbCommitter committer(mClient.tctable);
+
+        unsigned removed = 0;
+        unsigned added = 0;
+
+        // check all notified nodes for removed status and purge
+        for (size_t i = 0; i < mNodeNotify.size(); i++)
+        {
+            Node* n = mNodeNotify[i];
+
+            if (n->attrstring)
+            {
+                // make this just a warning to avoid auto test failure
+                // this can happen if another client adds a folder in our share and the key for us is not available yet
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+#ifdef ENABLE_SYNC
+                if (n->localnode)
+                {
+                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
+                }
+#endif
+            }
+
+            if (n->changed.removed)
+            {
+                // remove inbound share
+                if (n->inshare)
+                {
+                    n->inshare->user->sharing.erase(n->nodehandle);
+                    mClient.notifyuser(n->inshare->user);
+                }
+            }
+            else
+            {
+                n->notified = false;
+                memset(&(n->changed), 0, sizeof(n->changed));
+                n->changed.modifiedByThisClient = false;
+            }
+
+            if (!mTable)
+            {
+                assert(false);
+                return;
+            }
+
+            if (n->changed.removed)
+            {
+                NodeHandle h = n->nodeHandle();
+
+                // Decrease counters for all ancestor in the tree
+                updateTreeCounter(n->parent, n->getCounter(), DECREASE);
+
+                if (n->parent)
+                {
+                    // optimization: if the parent has already been deleted, the relationship
+                    // of children with their parent has been removed by the parent already
+                    // so we can avoid lookups for non existing parent handle.
+                    removeChild(n->parent, h);
+                }
+                node_list children = getChildren(n);
+                for (auto child : children)
+                {
+                    child->parent = nullptr;
+                }
+
+                removeFingerprint(n);
+
+                // effectively delete node from RAM
+                mNodesWithMissingParent.erase(h);
+                mNodesInRam--;
+                mNodes.erase(n->mNodePosition);
+
+                mTable->remove(h);
+
+                removed += 1;
+            }
+            else
+            {
+                // TODO nodes on demand: avoid to write to DB if the only change
+                // is 'changed.newnode', since the node is already written to DB
+                // when it is received from API, in 'saveNodeInRam()'
+                mTable->put(n);
+
+                added += 1;
+            }
+        }
+
+        if (removed)
+        {
+            LOG_verbose << mClient.clientname << "Removed " << removed << " nodes from database";
+        }
+        if (added)
+        {
+            LOG_verbose << mClient.clientname << "Added " << added << " nodes to database";
+        }
+
+        mNodeNotify.clear();
+    }
+}
+
+bool NodeManager::hasCacheLoaded()
+{
+    return mNodes.size();
+}
+
+bool NodeManager::loadNodes()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return false;
+    }
+
+    node_vector rootnodes = getRootNodes();
+    // We can't base in `user.sharing` because it's set yet. We have to get from DB
+    node_vector inshares = getNodesWithInShares();  // it includes nested inshares
+
+    for (auto &node : rootnodes)
+    {
+        getChildren(node);
+    }
+
+    return true;
+}
+
+Node* NodeManager::getNodeInRAM(NodeHandle handle)
+{
+    auto itNode = mNodes.find(handle);
+    if (itNode != mNodes.end() && itNode->second.mNode)
+    {
+        return itNode->second.mNode.get();
+    }
+
+    return nullptr;
+}
+
+void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
+{
+    auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+    // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
+    mNodesInRam++;
+    auto& nodePosition = pair.first;
+    assert(!nodePosition->second.mNode);
+    nodePosition->second.mNode.reset(node);
+    nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
+    node->mNodePosition = nodePosition;
+
+    // In case of rootnode, no need to add to mNodesWithMissingParent
+    if (!isRootnode)
+    {
+        Node *parent = nullptr;
+        if ((parent = getNodeByHandle(node->parentHandle())))
+        {
+            node->setparent(parent);
+        }
+        else
+        {
+            addNodeWithMissingParent(node);
+        }
+    }
+
+    auto it = mNodesWithMissingParent.find(node->nodeHandle());
+    if (it != mNodesWithMissingParent.end())
+    {
+        for (Node* n : it->second)
+        {
+            n->setparent(node);
+        }
+
+        mNodesWithMissingParent.erase(it);
+    }
+}
+
+bool NodeManager::isRootNode(NodeHandle h) const
+{
+    return h == mClient.mNodeManager.getRootNodeFiles()
+            || h == mClient.mNodeManager.getRootNodeVault()
+            || h == mClient.mNodeManager.getRootNodeRubbish();
+}
+
+int NodeManager::getNumVersions(NodeHandle nodeHandle)
+{
+    Node *node = getNodeByHandle(nodeHandle);
+    if (!node || node->type != FILENODE)
+    {
+        return 0;
+    }
+
+    return static_cast<int>(node->getCounter().versions);
+}
+
+bool NodeManager::hasVersion(NodeHandle nodeHandle)
+{
+    Node *node = getNodeByHandle(nodeHandle);
+    if (!node || node->type != FILENODE)
+    {
+        return false;
+    }
+
+    return node->getCounter().versions;
+}
+
+void NodeManager::checkOrphanNodes()
+{
+    // detect if there's any orphan node and report to API
+    for (const auto& it : mNodesWithMissingParent)
+    {
+        for (const auto& orphan : it.second)
+        {
+            // top-level inshares have no parent (nested ones have)
+            if (!orphan->inshare)
+            {
+                // At this point, all nodes have been already parsed, so the parent should never arrive.
+                // The orphan node won't be reachable anymore, and could have a whole tree inside.
+                // This can happen if the local instance of the SDK deletes a folder, receives the response
+                // from the server via the cs channel, and after that it receives action packets related to
+                // things that happened inside the deleted folder.
+                // This race condition should disappear when the local cache is exclusively driven via
+                // action packets and Speculative Instant Completion (SIC) is gone.
+                TreeProcDel td;
+                mClient.proctree(orphan, &td);
+
+                // TODO: Change this warning to an error when Speculative Instant Completion (SIC) is gone
+               LOG_warn << "Detected orphan node: " << toNodeHandle(orphan->nodehandle)
+                        << " Parent: " << toNodeHandle(orphan->parentHandle());
+
+               mClient.sendevent(99455, "Orphan node(s) detected");
+            }
+        }
+    }
+
+    // If parent hasn't arrived, it wont' arrive never
+    mNodesWithMissingParent.clear();
+}
+
+void NodeManager::initCompleted()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    node_vector rootNodes = getRootNodesAndInshares();
+    for (Node* node : rootNodes)
+    {
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
+    }
+
+    mTable->createIndexes();
+}
+
+void NodeManager::fatalError(ReasonsToReload reloadReason)
+{
+    if (!mAccountReload)
+    {
+        mAccountReload = true;
+
+#ifdef ENABLE_SYNC
+        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+#endif
+
+        std::string reason;
+        switch (reloadReason)
+        {
+            case ReasonsToReload::REASON_ERROR_WRITE_DB:
+                reason = "Failed to write to database";
+                break;
+            case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
+                reason = "Failed to unserialize a node";
+                break;
+            default:
+                reason = "Unknown reason";
+                break;
+        }
+
+        mClient.app->reload(reason.c_str(), reloadReason);
+    }
+}
+
+bool NodeManager::accountShouldBeReloaded() const
+{
+    return mAccountReload;
+}
+
+NodeCounter NodeManager::getCounterOfRootNodes()
+{
+    NodeCounter c;
+
+    // if not logged in yet, node counters are not available
+    if (mNodes.empty())
+    {
+        assert((mClient.mNodeManager.getRootNodeFiles().isUndef()
+                && mClient.mNodeManager.getRootNodeVault().isUndef()
+                && mClient.mNodeManager.getRootNodeRubbish().isUndef())
+               || (mClient.loggedIntoFolder()));
+
+        return c;
+    }
+
+    node_vector rootNodes = getRootNodes();
+    for (Node* node : rootNodes)
+    {
+        c += node->getCounter();
+    }
+
+    return c;
+}
+
+void NodeManager::updateCounter(Node& n, Node* oldParent)
+{
+    NodeCounter nc = n.getCounter();
+    updateTreeCounter(oldParent, nc, DECREASE);
+
+    // if node is a new version
+    if (n.parent && n.parent->type == FILENODE)
+    {
+        if (nc.files > 0)
+        {
+            assert(nc.files == 1);
+            // discount the old version, previously counted as file
+            nc.files--;
+            nc.storage -= n.size;
+            nc.versions++;
+            nc.versionStorage += n.size;
+            n.setCounter(nc, true);
+        }
+    }
+
+    updateTreeCounter(n.parent, nc, INCREASE);
+}
+
+mega::FingerprintPosition NodeManager::insertFingerprint(Node *node)
+{
+    // if node is not to be kept in memory, don't save the pointer in the set
+    // since it will be invalid once node is written to DB
+    if (node->type == FILENODE && mNodeToWriteInDb.get() != node)
+    {
+        return mFingerPrints.insert(node);
+
+    }
+
+    return mFingerPrints.end();
+}
+
+void NodeManager::removeFingerprint(Node *node)
+{
+    if (node->type == FILENODE && node->mFingerPrintPosition != mFingerPrints.end())  // remove from mFingerPrints
+    {
+
+        mFingerPrints.erase(node->mFingerPrintPosition);
+        node->mFingerPrintPosition = mFingerPrints.end();
+    }
+}
+
+FingerprintPosition NodeManager::invalidFingerprintPos()
+{
+    return mFingerPrints.end();
+}
+
+void NodeManager::dumpNodes()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    for (auto &it : mNodes)
+    {
+        if (it.second.mNode)
+        {
+            mTable->put(it.second.mNode.get());
+        }
+    }
+
+    mTable->createIndexes();
+}
+
+void NodeManager::saveNodeInDb(Node *node)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    mTable->put(node);
+
+    if (mNodeToWriteInDb)   // not to be kept in memory
+    {
+        assert(mNodeToWriteInDb.get() == node);
+        mNodeToWriteInDb.reset();
+    }
+}
+
+uint64_t NodeManager::getNumberNodesInRam() const
+{
+    return mNodesInRam;
+}
+
+void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
+{
+    auto pair = mNodes.emplace(parent, NodeManagerNode());
+    // The NodeManagerNode could have been added in add node, only update the child
+    assert(!pair.first->second.mChildren[child]);
+    pair.first->second.mChildren[child] = node;
+}
+
+void NodeManager::removeChild(Node* parent, NodeHandle child)
+{
+    parent->mNodePosition->second.mChildren.erase(child);
+}
+
+Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
+{
+    if (!mTable)
+    {
+        assert(!mClient.loggedin());
+        return nullptr;
+    }
+
+    Node* node = nullptr;
+    NodeSerialized nodeSerialized;
+    if (mTable->getNode(handle, nodeSerialized))
+    {
+        node = getNodeFromNodeSerialized(nodeSerialized);
+    }
+
+    return node;
+}
+
+node_vector NodeManager::getRootNodesAndInshares()
+{
+    node_vector rootnodes;
+
+    rootnodes = getRootNodes();
+    if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
+    {
+        node_vector inshares = mClient.getInShares();
+        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
+    }
+
+    return rootnodes;
+}
+
+node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized> >& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
+{
+    node_vector nodes;
+
+    for (const auto& nodeIt : nodesFromTable)
+    {
+        // Check pointer and value
+        if (cancelFlag.isCancelled()) break;
+
+        Node* n = getNodeInRAM(nodeIt.first);
+
+        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
+        {
+            bool skip = n ? !n->isAncestor(ancestorHandle)
+                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
+
+            if (skip) continue;
+        }
+
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
+}
+
+size_t NodeManager::nodeNotifySize() const
+{
+    return mNodeNotify.size();
+}
+
+bool NodeManager::FingerprintContainer::allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const
+{
+    return mAllFingerprintsLoaded.find(*fingerprint) != mAllFingerprintsLoaded.end();
+}
+
+void NodeManager::FingerprintContainer::setAllFingerprintLoaded(const mega::FileFingerprint *fingerprint)
+{
+    mAllFingerprintsLoaded.insert(*fingerprint);
+}
+
+void NodeManager::FingerprintContainer::clear()
+{
+    fingerprint_set::clear();
+    mAllFingerprintsLoaded.clear();
 }
 
 } // namespace

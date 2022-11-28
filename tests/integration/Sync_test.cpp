@@ -1776,7 +1776,7 @@ void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
             else
             {
                 TreeProcPrintTree tppt;
-                client.proctree(client.nodeByHandle(client.rootnodes.files), &tppt);
+                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()), &tppt);
 
                 if (onFetchNodes)
                 {
@@ -1862,7 +1862,7 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
 
 void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
 {
-    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
@@ -1896,7 +1896,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 {
-    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
@@ -2055,7 +2055,7 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId) const
 
 Node* StandardClient::getcloudrootnode()
 {
-    return client.nodeByHandle(client.rootnodes.files);
+    return client.nodeByHandle(client.mNodeManager.getRootNodeFiles());
 }
 
 Node* StandardClient::gettestbasenode()
@@ -2065,7 +2065,7 @@ Node* StandardClient::gettestbasenode()
 
 Node* StandardClient::getcloudrubbishnode()
 {
-    return client.nodeByHandle(client.rootnodes.rubbish);
+    return client.nodeByHandle(client.mNodeManager.getRootNodeRubbish());
 }
 
 Node* StandardClient::getsyncdebrisnode()
@@ -2339,7 +2339,7 @@ string StandardClient::exportSyncConfigs()
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
     client.deregisterThenRemoveSync(backupId,
-      [=](Error error) { result->set_value(error == API_OK); });
+      [=](Error error) { result->set_value(error == API_OK); }, false);
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -2375,7 +2375,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descen
         if (!m->fsOnly)
         ms.emplace(m->cloudName(), m.get());
     }
-    for (auto& n2 : n->children)
+    for (auto& n2 : client.getChildren(n))
     {
         ns.emplace(n2->displayname(), n2);
     }
@@ -2959,7 +2959,7 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                                 if (!node)
                                     return result->set_value(false);
 
-                                client.setattr(node, attr_map(updates), client.reqtag, nullptr,
+                                client.setattr(node, attr_map(updates),
                                     [result](NodeHandle, error e) { result->set_value(!e); }, false);
                             }, nullptr);
 }
@@ -3688,7 +3688,7 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         set<string, CloudNameLess> sd;
 
         // Index children for pairing.
-        for (const auto* child : dn.children)
+        for (const auto* child : dn.client->getChildren(&dn))
         {
             string name = child->displayname();
 
@@ -3894,10 +3894,13 @@ vector<FileFingerprint> StandardClient::fingerprints(const string& path)
     // Extract the fingerprints from the version chain.
     results.emplace_back(*node);
 
-    while (!node->children.empty())
+    auto nodes = client.mNodeManager.getChildren(node);
+
+    while (!nodes.empty())
     {
-        node = node->children.front();
+        node = nodes.front();
         results.emplace_back(*node);
+        nodes = client.mNodeManager.getChildren(node);
     }
 
     // Pass fingerprints to caller.
@@ -5796,8 +5799,7 @@ string makefa(const string& name, int fakecrc, int mtime)
 Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
 {
     static handle handlegenerator = 10;
-    std::vector<Node*> dp;
-    auto newnode = new Node(&mc, &dp, NodeHandle().set6byte(++handlegenerator), parent, type, size, owner, nullptr, 1);
+    auto newnode = new Node(mc, NodeHandle().set6byte(++handlegenerator), parent, type, size, owner, nullptr, 1);
 
     newnode->setkey(key);
     newnode->attrstring.reset(new string);
@@ -5881,7 +5883,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
-    auto targethandle = standardclient->client.rootnodes.files;
+    auto targethandle = standardclient->client.mNodeManager.getRootNodeFiles();
 
     std::atomic<bool> putnodesDone{false};
     standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
@@ -6304,7 +6306,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     {
         matched &= *f == **i++;
 
-        f = f->children.empty() ? nullptr : f->children.front();
+        node_list children = c->client.getChildren(f);
+        f = children.empty() ? nullptr : children.front();
     }
 
     matched &= !f && i == fingerprints.crend();
@@ -9102,7 +9105,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr, false);
+        auto e = changeClient().client.setattr(n, move(updates), nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -9398,7 +9401,7 @@ struct TwoWaySyncSymmetryCase
         prefix += string("/") + n->displayname();
         out() << prefix;
         if (n->type == FILENODE) return;
-        for (auto& c : n->children)
+        for (auto& c : client1().client.getChildren(n))
         {
             PrintRemoteTree(c, prefix);
         }

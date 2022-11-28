@@ -131,7 +131,7 @@ struct MEGA_API MegaApp
 #endif // ! NDEBUG
 
     // node addition has failed
-    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
+    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) { }
 
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
@@ -321,7 +321,10 @@ struct MEGA_API MegaApp
     virtual void sync_removed(const SyncConfig& config) { }
 
     // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*) { }
+    virtual void reload(const char*, ReasonsToReload) { }
+
+    // reload forced automatically by server
+    virtual void reloading() { }
 
     // wipe all users, nodes and shares
     virtual void clearing() { }

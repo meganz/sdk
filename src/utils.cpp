@@ -1245,6 +1245,12 @@ string* TLVstore::tlvRecordsToContainer()
 
         // set Length of value
         length = it->second.length();
+        if (length > 0xFFFF)
+        {
+            assert(it->first == "" && tlv.size() == 1 && "Only records with a single empty key can be larger");
+            LOG_warn << "Overflow of Length for TLV record: " << length;
+            length = 0xFFFF;
+        }
         result->resize(offset + 2);
         result->at(offset) = static_cast<char>(length >> 8);
         result->at(offset + 1) = static_cast<char>(length & 0xFF);
@@ -1377,6 +1383,23 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
     size_t pos;
 
     size_t datalen = data->length();
+
+    // T is a C-string
+    // L is an unsigned integer encoded in 2 bytes (aka. uint16_t)
+    // V is a binary buffer of "L" bytes
+
+    // if the size of the container is greater than the 65538 (T.1, L.2, V.>65535),
+    // then the container is probably an authring whose value is greater than the
+    // maximum length supported by 2 bytes. Since the T is an empty string for this
+    // type of attributes, we can directly assign the value to the record
+    // note: starting from Nov2022, if the size of the record is too large,
+    // the Length will be truncated to indicate the maximum size 65535 = 0xFFFF
+    size_t maxSize = 1 + 2 + 0xFFFF;
+    if (datalen >= maxSize && !(*data)[0])
+    {
+        tlv->set("", data->substr(3));
+        return tlv;
+    }
 
     while (offset < datalen)
     {
@@ -1910,7 +1933,10 @@ extern time_t stringToTimestamp(string stime, date_time_format_t format)
     }
     else
     {
-        dt.tm_isdst = 0;    // no daylight saving as we want to get UTC
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
         return mktime(&dt); // seconds
     }
 }
@@ -2266,25 +2292,6 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    versionStorage += o.versionStorage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    versionStorage -= o.versionStorage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-}
-
-
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
     , mValue(value)
@@ -2524,6 +2531,59 @@ std::string getSafeUrl(const std::string &posturl)
         safeurl.replace(authKey, end - authKey, end - authKey, 'X');
     }
     return safeurl;
+}
+
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
 }
 
 bool wildcardMatch(const string& text, const string& pattern)
@@ -2816,7 +2876,6 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
 
     return std::min(1.0, progress);
 }
-
 
 } // namespace mega
 
