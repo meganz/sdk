@@ -12773,8 +12773,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
+
+    // user alerts are restored from DB upon session resumption. No need to send the sc50 to catchup, it will
+    // generate new alerts from action packets as usual, once the session is up and running
     useralerts.catchupdone = true;
-    app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
 
     return true;
 }
