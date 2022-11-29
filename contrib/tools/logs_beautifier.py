@@ -3,6 +3,7 @@
 # This python script can be used to extract HTTP request and responses from an SDK log
 # and beautify json payloads
 
+from __future__ import print_function
 import json, sys, re
 import argparse
 
