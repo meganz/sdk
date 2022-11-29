@@ -59,7 +59,6 @@ We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and se
 	* cd mybuild
 	* git clone https://github.com/meganz/sdk.git
 	* cd sdk\contrib\cmake
-	* <edit preferred-ports-sdk.txt and comment out the two lines for pdfium>
 	* <on Win, choose VS version by editing vcpkg_extra_triplets\xNN-windows-mega.cmake>
 	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
 * Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
@@ -103,14 +102,21 @@ Debian and RedHat derivatives, respectively):
 * FreeImage (`libfreeimage-dev`, `freeimage-devel`) or configure `--without-freeimage`
 * pthread
 
-Optional dependency:
+Optional dependencies:
 * Libraw (`libraw-dev`, `libraw-devel`)
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
 * MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
 * libudev (`libudev-dev`, `libudev-devel`)
 
-Filesystem event monitoring: The provided filesystem layer implements
-the Linux `inotify` and the MacOS `fsevents` interfaces.
+Filesystem event monitoring: The provided filesystem layer implements the Linux `inotify` and the MacOS `fsevents` interfaces.
+
+PDF thumbnail generation: The PDFium library is detected automatically by the configure step if installed. There is a helper script located at `contrib/build_pdfium` to install it in a Linux system (`/usr`). To download, build and install it in the system, run the following:
+
+	cd contrib/build_pdfium
+	build.sh -b
+	sudo build.sh -i
+
+Library will be installed under `/usr/lib/` and headers under `/usr/include/`. Once installed, the generated workspace folder could be removed to free up space.
 
 To build the reference `megacli` example, you may also need to install:
 * GNU Readline (`libreadline-dev`, `readline-devel`)
