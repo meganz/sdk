@@ -39,9 +39,9 @@ if not args.onlyclientreqs:
 for l in fToParse:
 
     if args.postcs and "cs POST target" in l:
-        print l,
+        print (l,)
     if args.postsc and "sc POST target" in l:
-        print l,
+        print (l,)
     if any(x in l for x in patterns) and "sc Received 1: 0" not in l and " sc Sending 0:" not in l:
 
         m = re.search('(.*): (\{.*\}|\[.*\])', l)
@@ -51,7 +51,7 @@ for l in fToParse:
             if header and found:
                 try:
                     contents = json.dumps(json.loads(found), sort_keys=False, indent=4)
-                    print header+contents
+                    print (header+contents)
                 except:
                     #try this other format:
                     m = re.search('(.*)((sc|cs) (Received|Sending) [0-9]*:  *)(\{.*\}|\[.*\])  *(\[.*cpp.*\])*', l)
@@ -63,14 +63,14 @@ for l in fToParse:
                         if header and sendrecv and found:
                             try:
                                 contents = json.dumps(json.loads(found), sort_keys=False, indent=4)
-                                print header+sendrecv+contents
+                                print (header+sendrecv+contents)
                             except:
-                                print l
+                                print (l)
                         else:
-                            print l,
+                            print (l,)
                     else:
-                        print l,
+                        print (l,)
             else:
-                print l,
+                print (l,)
         else:
-            print l,
+            print (l,)
