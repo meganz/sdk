@@ -42,6 +42,78 @@ TEST(utils, hashCombine_integer)
 #endif
 }
 
+TEST(utils, readLines)
+{
+    static const std::string input =
+        "\r"
+        "\n"
+        "     \r"
+        "  a\r\n"
+        "b\n"
+        "c\r"
+        "  d  \r"
+        "     \n"
+        "efg\n";
+    static const std::vector<std::string> expected = {
+        "  a",
+        "b",
+        "c",
+        "  d  ",
+        "efg"
+    };
+
+    std::vector<std::string> output;
+
+    ASSERT_TRUE(::mega::readLines(input, output));
+    ASSERT_EQ(output.size(), expected.size());
+    ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+}
+
+TEST(Filesystem, EscapesReservedCharacters)
+{
+    using namespace mega;
+
+    // All of these characters will be escaped.
+    string name = "\\/:?\"<>|*";   // not % anymore (for now)
+
+    // Generate expected result.
+    ostringstream osstream;
+
+    for (auto character : name)
+    {
+        osstream << "%"
+                 << std::hex
+                 << std::setfill('0')
+                 << std::setw(2)
+                 << +character;
+    }
+
+    // Use most restrictive escaping policy.
+    FSACCESS_CLASS fsAccess;
+    fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
+
+    // Was the string correctly escaped?
+    ASSERT_EQ(name, osstream.str());
+}
+
+TEST(Filesystem, UnescapesEscapedCharacters)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    // All of these characters will be escaped.
+    string name = "%\\/:?\"<>|*";
+    fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
+
+    // Everything will be unescaped except for control characters.
+    fsAccess.unescapefsincompatible(&name);
+
+    // Was the string correctly unescaped?
+    ASSERT_STREQ(name.c_str(), "%\\/:?\"<>|*");
+}
+
+
 TEST(CharacterSet, IterateUtf8)
 {
     using ::mega::unicodeCodepointIterator;
@@ -110,11 +182,6 @@ class ComparatorTest
   : public ::testing::Test
 {
 public:
-    ComparatorTest()
-      : mFSAccess()
-    {
-    }
-
     template<typename T, typename U>
     int compare(const T& lhs, const U& rhs) const
     {
@@ -137,16 +204,6 @@ public:
         return LocalPath::fromRelativePath(s);
     }
 
-    template<typename T, typename U>
-    int fsCompare(const T& lhs, const U& rhs, const ::mega::FileSystemType type) const
-    {
-        const auto caseInsensitive = isCaseInsensitive(type);
-
-        return compareUtf(lhs, true, rhs, true, caseInsensitive);
-    }
-
-private:
-    FSACCESS_CLASS mFSAccess;
 }; // ComparatorTest
 
 TEST_F(ComparatorTest, CompareLocalPaths)
@@ -252,19 +309,6 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         lhs = fromRelPath("a\7%30b%31c");
         rhs = fromRelPath("A%070B1C");
 
-        // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXFAT), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_FAT32), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_NTFS), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_UNKNOWN), 0);
-
-#ifndef _WIN32
-        // Everything else is case-sensitive.
-        EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
-
-        rhs = fromRelPath("a%070b1c");
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
-#endif // ! _WIN32
     }
 }
 
@@ -369,19 +413,6 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
         lhs = fromRelPath("a\7%30b%31c");
         rhs = "A%070B1C";
 
-        // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXFAT), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_FAT32), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_NTFS), 0);
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_UNKNOWN), 0);
-
-#ifndef _WIN32
-        // Everything else is case-sensitive.
-        EXPECT_NE(fsCompare(lhs, rhs, FS_EXT), 0);
-
-        rhs = "a%070b1c";
-        EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
-#endif // ! _WIN32
     }
 }
 
@@ -592,7 +623,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
     // Create a new database.
-    unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
 
     // Was the database created successfully?
     ASSERT_TRUE(!!dbTable);
@@ -610,7 +641,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-        DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
         ASSERT_TRUE(!!dbTable);
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -621,7 +652,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-    DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
     EXPECT_TRUE(!!dbTable);
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -813,4 +844,192 @@ TEST(Utils, replace_string)
 
     ASSERT_EQ(Utils::replace(string(""), "", "@"), "");
     ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
+}
+
+TEST(RemotePath, nextPathComponent)
+{
+    // Absolute path.
+    {
+        RemotePath path("/a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("/");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
+
+    // Relative path.
+    {
+        RemotePath path("a/b/");
+
+        RemotePath component;
+        size_t index = 0;
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "a");
+
+        ASSERT_TRUE(path.nextPathComponent(index, component));
+        ASSERT_EQ(component, "b");
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+
+        // Sanity.
+        path = RemotePath("");
+
+        index = 0;
+
+        ASSERT_FALSE(path.nextPathComponent(index, component));
+        ASSERT_TRUE(component.empty());
+    }
+}
+
+class TooLongNameTest
+    : public ::testing::Test
+{
+public:
+    TooLongNameTest()
+      : Test()
+      , mPrefixName(LocalPath::fromRelativePath("d"))
+      , mPrefixPath()
+    {
+    }
+
+    LocalPath Append(const LocalPath& prefix, const string& name) const
+    {
+        LocalPath path = prefix;
+
+        path.appendWithSeparator(
+          LocalPath::fromRelativeName(name, mFsAccess, FS_UNKNOWN),
+          false);
+
+        return path;
+    }
+
+    LocalPath AppendLongName(const LocalPath& prefix, char character) const
+    {
+        // Representative limit.
+        //
+        // True limit depends on specific filesystem.
+        constexpr size_t MAX_COMPONENT_LENGTH = 255;
+
+        string name(MAX_COMPONENT_LENGTH + 1, character);
+
+        return Append(prefix, name);
+    }
+
+    bool CreateDummyFile(const LocalPath& path)
+    {
+        ::mega::byte data = 0x21;
+
+        auto fileAccess = mFsAccess.newfileaccess(false);
+
+        return fileAccess->fopen(path, false, true)
+               && fileAccess->fwrite(&data, 1, 0);
+    }
+
+    void SetUp() override
+    {
+        // Flag should initially be clear.
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+
+        // Retrieve the current working directory.
+        ASSERT_TRUE(mFsAccess.cwd(mPrefixPath));
+
+        // Compute absolute path to "container" directory.
+        mPrefixPath.appendWithSeparator(mPrefixName, false);
+
+        // Remove container directory.
+        mFsAccess.emptydirlocal(mPrefixPath);
+        mFsAccess.rmdirlocal(mPrefixPath);
+
+        // Create container directory.
+        ASSERT_TRUE(mFsAccess.mkdirlocal(mPrefixPath, false, true));
+    }
+
+    void TearDown() override
+    {
+        // Destroy container directory.
+        mFsAccess.emptydirlocal(mPrefixPath);
+        mFsAccess.rmdirlocal(mPrefixPath);
+    }
+
+    FSACCESS_CLASS mFsAccess;
+    LocalPath mPrefixName;
+    LocalPath mPrefixPath;
+}; // TooLongNameTest
+
+TEST_F(TooLongNameTest, Copy)
+{
+    // Absolute
+    {
+        auto source = Append(mPrefixPath, "s");
+        auto target = AppendLongName(mPrefixPath, 'u');
+
+        ASSERT_TRUE(CreateDummyFile(source));
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixPath, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.copylocal(source, target, 0));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+}
+
+TEST_F(TooLongNameTest, CreateDirectory)
+{
+    // Absolute
+    {
+        auto path = AppendLongName(mPrefixPath, 'x');
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // A legitimate "bad path" error should clear the flag.
+        path = Append(mPrefixPath, "x");
+        path = Append(path, "y");
+
+        ASSERT_FALSE(mFsAccess.mkdirlocal(path, false, true));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
+}
+
+TEST_F(TooLongNameTest, Rename)
+{
+    // Absolute
+    {
+        auto source = Append(mPrefixPath, "q");
+        auto target = AppendLongName(mPrefixPath, 'r');
+
+        ASSERT_TRUE(mFsAccess.mkdirlocal(source, false, true));
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_TRUE(mFsAccess.target_name_too_long);
+
+        // Legitimate "bad path" error should clear the flag.
+        target = Append(mPrefixPath, "u");
+        target = Append(target, "v");
+
+        ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
+        ASSERT_FALSE(mFsAccess.target_name_too_long);
+    }
 }

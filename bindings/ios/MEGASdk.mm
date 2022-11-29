@@ -34,7 +34,6 @@
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
 #import "MEGAContactRequestList+init.h"
-#import "MEGAChildrenLists+init.h"
 #import "MEGARecentActionBucket+init.h"
 #import "MEGABackgroundMediaUpload+init.h"
 #import "DelegateMEGARequestListener.h"
@@ -1682,6 +1681,13 @@ using namespace mega;
     }
 }
 
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:queueType]);
+    }
+}
+
+
 - (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath {
     if (self.megaApi) {
         self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String);
@@ -2629,16 +2635,6 @@ using namespace mega;
     }
 }
 
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr) cMemoryOwn:YES];
-}
-
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
@@ -3489,9 +3485,9 @@ using namespace mega;
     }
 }
 
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, (int)subState, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

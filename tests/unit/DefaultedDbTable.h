@@ -24,49 +24,160 @@
 
 namespace mt {
 
-class DefaultedDbTable: public mega::DbTable
+class DefaultedDbTable: public mega::DbTable, public mega::DBTableNodes
 {
 public:
     using mega::DbTable::DbTable;
+    DefaultedDbTable(mega::PrnGen& gen)
+        : DbTable(gen, false)
+    {
+    }
     void rewind() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     bool next(uint32_t*, std::string*) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool get(uint32_t, std::string*) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool getNode(mega::NodeHandle, mega::NodeSerialized&) override
+    {
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
+    }
+    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized&) override
+    {
+        return false;
+    }
+    bool getNodesByOrigFingerprint(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
+    }
+    bool getRootNodes(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
+        //throw NotImplemented(__func__);
+    }
+    bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
+    {
+        return false;
+        //throw NotImplemented(__func__);
+    }
+    bool getChildren(mega::NodeHandle parentHandle, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
+    {
+        return false;
+    }
+    bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
+    {
+        return false;
+    }
+    uint64_t getNumberOfChildren(mega::NodeHandle parentHandle) override
+    {
+        return 0;
+    }
+    bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
+    {
+        return false;
+        //throw NotImplemented(__func__);
+    }
+    bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    {
+        return false;
+    }
+    bool getFavouritesHandles(mega::NodeHandle, uint32_t, std::vector<mega::NodeHandle>&) override
+    {
+        return false;
+    }
+    bool childNodeByNameType(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
+    {
+        return false;
+    }
+    bool getNodeSizeAndType(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType) override
+    {
+        return false;
+    }
+    bool isAncestor(mega::NodeHandle, mega::NodeHandle, mega::CancelToken) override
+    {
+        return false;
+    }
+    uint64_t getNumberOfNodes() override
+    {
+        return false;
+    }
+    uint64_t getNumberOfChildrenByType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType) override
+    {
+      return 0;
+    }
+    bool getNodesByMimetype(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::CancelToken cancelFlag) override
+    {
+        return false;
+    }
+    void updateCounter(mega::NodeHandle, const std::string&) override
+    {
+
+    }
+    void createIndexes() override
+    {
+
     }
     bool put(uint32_t, char*, unsigned) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool put(mega::Node *) override
+    {
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool del(uint32_t) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool remove(mega::NodeHandle) override
+    {
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool removeNodes() override
+    {
+        return false;
+        //throw NotImplemented{__func__};
     }
     void truncate() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void begin() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void commit() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void abort() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void remove() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
+    }
+    bool inTransaction() const override
+    {
+        return false;
     }
 };
 
