@@ -88,8 +88,9 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
             {
                 status = CommandBackupPutHeartBeat::STALLED;
             }
-            else if (us.mSync->localroot->scanRequired())
+            else if (!us.mConfig.mFinishedInitialScanning)
             {
+                // only consider it "scanning" until it first completes scanning.  Later scanning (even though we do it) interferes with the % display in Backup Centre
                 status = CommandBackupPutHeartBeat::PENDING; // = scanning
             }
             else if (us.mSync->localroot->mightHaveMoves() ||

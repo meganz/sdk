@@ -707,7 +707,6 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef multimap<int64_t, int64_t> integer_map;
-typedef pair<string, string> string_pair;
 typedef string_map TLV_map;
 
 // user attribute types
@@ -1181,6 +1180,19 @@ public:
 };
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
+
+enum ExclusionState : unsigned char
+{
+    // Node's definitely excluded.
+    ES_EXCLUDED,
+    // Node's definitely included.
+    ES_INCLUDED,
+    // Node has an indeterminate exclusion state.
+    ES_UNKNOWN,
+    // No rule matched (so a higher level .megaignore should be checked)
+    ES_UNMATCHED
+}; // ExclusionState
+
 
 } // namespace mega
 

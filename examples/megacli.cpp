@@ -1396,6 +1396,7 @@ void exec_devcommand(autocomplete::ACState& s)
     const char *subcommand = s.words[1].s.c_str();
     client->senddevcommand(subcommand, email);
 }
+
 #endif
 
 
@@ -5532,6 +5533,7 @@ void exec_llockfile(autocomplete::ACState& s)
 
     if (unlock)
     {
+        if (llockedFiles.find(localpath) == llockedFiles.end()) return;
         CloseHandle(llockedFiles[localpath]);
     }
     else

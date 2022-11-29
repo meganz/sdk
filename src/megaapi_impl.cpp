@@ -8787,7 +8787,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
 
     treestate_t ts = client->syncs.getSyncStateForLocalPath(containingSyncId, localpath);
 
-    if (!syncPathStateLockTimeout)
+    if (syncPathStateLockTimeout)
     {
         LOG_verbose << "Resuming reporting treestate. " << ts << " for path " << localpath;
 

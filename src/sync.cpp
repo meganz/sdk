@@ -1583,7 +1583,17 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+                if (!resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false))
+                {
+                    // this can happen if eg. we can't read the fingerprint
+                    monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
+                        SyncWaitReason::FileIssue, false, false,
+                        {}, {},
+                        {sourceSyncNode->getLocalPath(), PathProblem::CannotFingerprintFile}, {}));
+
+                    row.suppressRecursion = true;
+                    return rowResult = false, true;
+                }
                 assert(row.syncNode);
             }
 
@@ -2827,6 +2837,25 @@ dstime Sync::procscanq()
 
         // Notify the node or its parent
         LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder, false);
+
+        // Check it's not an excluded path
+        if (nearest && !remainder.empty())
+        {
+            LocalPath firstComponent;
+            size_t index = 0;
+            if (remainder.nextPathComponent(index, firstComponent))
+            {
+                if (isDoNotSyncFileName(firstComponent.toPath(false)))
+                {
+                    continue;
+                }
+
+                if (ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0))
+                {
+                    continue;
+                }
+            }
+        }
 
         bool scanDescendants = false;
 
@@ -6376,7 +6405,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         auto sequences = computeSyncSequences(childRows);
 
         bool ignoreFilePresent = sequences.size() > 1;
-        bool hasFilter = !!row.syncNode->rareRO().filterChain;
+        bool hasFilter = row.syncNode->rareRO().filterChain &&
+                         row.syncNode->rareRO().filterChain->mLoadSucceeded;
 
         if (ignoreFilePresent != hasFilter)
         {
@@ -6601,7 +6631,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
             if (ignoreFilePresent)
             {
-                if (!row.syncNode->filterChainRO().isValid())
+                if (!row.syncNode->rareRO().filterChain ||
+                    !row.syncNode->rareRO().filterChain->mLoadSucceeded)
                 {
                     // we can't calculate what's included, come back when the .megaignore is present and well-formed
                     break;
@@ -7364,6 +7395,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             case ES_INCLUDED:
                 break;
+
+            case ES_UNMATCHED:
+                assert(false); // cannot occur.  Just here to keep the compilers happy
+                break;
         }
 
         // Item exists locally and remotely but we haven't synced them previously
@@ -7949,7 +7984,12 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         // upload the file if we're not already uploading it
-        row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
+        if (!row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint))
+        {
+            // if we are in the putnodes stage of a transfer though, then
+            // wait for that to finish and then re-evaluate
+            return false;
+        }
 
         shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
 
@@ -10590,6 +10630,13 @@ void Syncs::syncLoop()
                             sync->setBackupMonitoring();
                         }
                     }
+                }
+
+                if (!us->mConfig.mFinishedInitialScanning &&
+                    !sync->localroot->scanRequired())
+                {
+                    LOG_debug << "Finished initial sync scan at " << sync->localroot->getLocalPath();
+                    us->mConfig.mFinishedInitialScanning = true;
                 }
             }
         }

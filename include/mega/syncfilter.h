@@ -146,28 +146,12 @@ private:
     std::uint64_t mUpperLimit;
 }; // DefaultFilterChain
 
-class MEGA_API FilterResult
-{
-public:
-    FilterResult();
-
-    explicit FilterResult(const bool included);
-
-    MEGA_DEFAULT_COPY(FilterResult);
-    MEGA_DEFAULT_MOVE(FilterResult);
-
-    bool included;
-    bool matched;
-}; /* FilterResult */
-
 enum FilterLoadResult
 {
     // The ignore file is no longer present.
     FLR_DELETED,
     // The ignore file failed to load.
     FLR_FAILED,
-    // The ignore file was not loaded as it has not changed.
-    FLR_SKIPPED,
     // The ignore file was loaded successfully.
     FLR_SUCCESS
 }; // FilterLoadResult
@@ -175,21 +159,6 @@ enum FilterLoadResult
 class MEGA_API FilterChain
 {
 public:
-    FilterChain();
-
-    FilterChain(const FilterChain& other);
-
-    FilterChain(FilterChain&& other);
-
-    ~FilterChain();
-
-    FilterChain& operator=(const FilterChain& rhs);
-
-    FilterChain& operator=(FilterChain&& rhs);
-
-    // Query whether the ignore file has changed.
-    bool changed(const FileFingerprint& fingerprint) const;
-
     // Removes all filters in this chain.
     void clear();
 
@@ -198,20 +167,18 @@ public:
     FilterLoadResult load(FileAccess& fileAccess);
 
     // Attempts to locate a match for the path pair p.
-    FilterResult match(const RemotePathPair& p,
+    ExclusionState match(const RemotePathPair& p,
                        const nodetype_t type,
                        const bool onlyInheritable) const;
 
     // Attempts to locate a match for the size s.
-    FilterResult match(const m_off_t s) const;
+    ExclusionState match(const m_off_t s) const;
 
-    bool isValid() const { return mFingerprint.isvalid; }
-    void invalidate() { mFingerprint = FileFingerprint(); }
-
-private:
     // Fingerprint of the last loaded ignore file.
     FileFingerprint mFingerprint;
+    bool mLoadSucceeded = false;
 
+private:
     // Name and/or path filters.
     StringFilterPtrVector mStringFilters;
 

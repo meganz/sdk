@@ -795,7 +795,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
                                      bool followSymLinks,
                                      unsigned& nFingerprinted) = 0;
 
-
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
     handle fsidOf(const LocalPath& path, bool follow);

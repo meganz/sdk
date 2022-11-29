@@ -279,7 +279,7 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfValid)
     mega::FileFingerprint ffp2;
     ffp2.isvalid = true;
 
-    ASSERT_TRUE(ffp == ffp2);
+    ASSERT_TRUE(ffp != ffp2);
 }
 
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfCrc)

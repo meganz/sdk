@@ -241,7 +241,7 @@ bool Transfer::serialize(string *d)
     assert(t->localfilename == localfilename);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
-    assert(t->fingerprint() == fingerprint());
+    assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
 #endif
 
 

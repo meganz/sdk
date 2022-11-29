@@ -476,16 +476,6 @@ enum TreeState
     TREE_ACTION_SUBTREE = 3         // overrides any children so the whole subtree is processed
 };
 
-enum ExclusionState : unsigned char
-{
-    // Node's definitely excluded.
-    ES_EXCLUDED,
-    // Node's definitely included.
-    ES_INCLUDED,
-    // Node has an indeterminate exclusion state.
-    ES_UNKNOWN
-}; // ExclusionState
-
 inline TreeState updateTreestateFromChild(TreeState oldFlag, TreeState childFlag)
 {
     return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
@@ -818,7 +808,7 @@ struct MEGA_API LocalNode
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
     void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
-    void transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
+    bool transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;
 
     void updateMoveInvolvement();
@@ -870,14 +860,11 @@ private:
         bool mWaitingForIgnoreFileLoad : 1;
     };
 
-    // Returns a reference to this node's filter chain.
-    FilterChain& filterChain();
-
     // Query whether a file is excluded by a name filter.
-    bool isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
+    ExclusionState calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const;
 
     // Query whether a file is excluded by a size filter.
-    bool isExcluded(const RemotePathPair& namePath, m_off_t size) const;
+    ExclusionState calcExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
     // Signal that LocalNodes in this subtree must recompute their exclusion state.
     void setRecomputeExclusionState(bool includingThisOne);
@@ -946,6 +933,7 @@ public:
 #endif // USE_INOTIFY
 };
 
+bool isDoNotSyncFileName(const string& name);
 #endif
 
 } // namespace

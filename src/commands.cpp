@@ -1378,54 +1378,6 @@ bool CommandMoveNode::procresult(Result r)
             client->activateoverquota(0, false);
         }
 
-#ifdef ENABLE_SYNC
-        //if (syncdel != SYNCDEL_NONE)
-        //{
-        //    Node* syncn = client->nodeByHandle(h);
-
-        //    if (syncn)
-        //    {
-        //        if (r.succeeded())
-        //        {
-        //            Node* n;
-
-        //            // update all todebris records in the subtree
-        //            for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
-        //            {
-        //                n = *it;
-
-        //                do {
-        //                    if (n == syncn)
-        //                    {
-        //                        (*it)->syncdeleted = syncdel;
-        //                        break;
-        //                    }
-        //                } while ((n = n->parent));
-        //            }
-        //        }
-        //        else
-        //        {
-        //            Node *tn = NULL;
-        //            if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-        //                    || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
-        //            {
-        //                LOG_err << "Error moving node to the Rubbish Bin";
-        //                syncn->syncdeleted = SYNCDEL_NONE;
-        //                client->todebris.erase(syncn->todebris_it);
-        //                syncn->todebris_it = client->todebris.end();
-        //            }
-        //            else
-        //            {
-        //                int creqtag = client->reqtag;
-        //                client->reqtag = syncn->tag;
-        //                LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-        //                client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr); // if we don't succeed here, just stop rather than cycling forever
-        //                client->reqtag = creqtag;
-        //            }
-        //        }
-        //    }
-        //}
-#endif
         // Movement of shares and pending shares into Rubbish should remove them
         if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
@@ -1465,12 +1417,10 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
 
 bool CommandDelNode::procresult(Result r)
 {
-    error e = r.errorOrOK();
-
     if (r.wasErrorOrOK())
     {
-        if (mResultFunction)    mResultFunction(h, e);
-        else         client->app->unlink_result(h.as8byte(), e);
+        if (mResultFunction)    mResultFunction(h, r.errorOrOK());
+        else         client->app->unlink_result(h.as8byte(), r.errorOrOK());
         return true;
     }
     else
@@ -1496,7 +1446,6 @@ bool CommandDelNode::procresult(Result r)
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
                     else         client->app->unlink_result(h.as8byte(), e);
-
                     return true;
 
                 default:
@@ -3716,7 +3665,6 @@ CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 
 bool CommandGetUserEmail::procresult(Result r)
 {
-// tested, failed
     if (r.wasStrictlyError())
     {
         client->app->getuseremail_result(NULL, r.errorOrOK());
@@ -4586,7 +4534,7 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
-                    //assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
 
                     client->ensureSyncUserAttributes([](Error e){
                         if (e != API_OK)
@@ -5336,7 +5284,6 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
 bool CommandSetPH::procresult(Result r)
 {
-    // successful case works, error case only returns integer, not wrapped in array
     if (r.wasStrictlyError())
     {
         completion(r.errorOrOK(), UNDEF, UNDEF);
@@ -5523,7 +5470,6 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
 
 bool CommandSetMasterKey::procresult(Result r)
 {
-    // works for success case
     if (r.wasStrictlyError())
     {
         client->app->changepw_result(r.errorOrOK());
@@ -5558,7 +5504,7 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 
 bool CommandCreateEphemeralSession::procresult(Result r)
 {
-    if (r.wasStrictlyError())  // works for success case
+    if (r.wasStrictlyError())
     {
         client->ephemeralSession = false;
         client->ephemeralSessionPlusPlus = false;
@@ -5782,7 +5728,6 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 bool CommandSetKeyPair::procresult(Result r)
 {
-// doesn't work, no actionpacket produced so we can't match the st
     if (r.wasStrictlyError())
     {
         client->app->setkeypair_result(r.errorOrOK());
@@ -7578,6 +7523,13 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 bool CommandChatLink::procresult(Result r)
 {
+    if (r.wasError(API_OK) && !mDelete)
+    {
+        LOG_err << "Unexpected response for create/get chatlink";
+        client->app->chatlink_result(UNDEF, API_EINTERNAL);
+        return true;
+    }
+
     if (r.wasStrictlyError())
     {
         client->app->chatlink_result(UNDEF, r.errorOrOK());

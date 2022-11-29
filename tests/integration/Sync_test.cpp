@@ -3406,7 +3406,7 @@ bool StandardClient::deleteremote(const CloudItem& item)
         client.deleteremote(item, std::move(result));
     }, __FILE__, __LINE__);
 
-    auto status = result.wait_for(DEFAULTWAIT);
+    auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)
@@ -4565,6 +4565,9 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
     auto startNoActivity = chrono::steady_clock::now();
     auto startNoSyncing = chrono::steady_clock::now();
 
+    auto startStalled = chrono::steady_clock::now();
+    bool stallStarted = false;
+
     vector<StandardClient*> v{ c1, c2, c3, c4 };
     vector<SyncWaitResult> result{SyncWaitResult(), SyncWaitResult(), SyncWaitResult(), SyncWaitResult()};
 
@@ -4573,6 +4576,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
         bool any_activity = false;
         bool any_still_syncing = false;
         bool any_running_at_all = false;
+        bool any_stalled = false;
 
         for (size_t i = v.size(); i--; ) if (v[i])
         {
@@ -4580,7 +4584,16 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                 {
                     result[i].syncStalled = mc.client.syncs.syncStallDetected(result[i].stall);
 
-                    if (!result[i].syncStalled)
+                    if (result[i].syncStalled)
+                    {
+                        any_stalled = true;
+                        if (!stallStarted)
+                        {
+                            stallStarted = true;
+                            startStalled = chrono::steady_clock::now();
+                        }
+                    }
+                    else
                     {
                         if (mc.client.syncs.getConfigs(true).size())
                         {
@@ -4611,10 +4624,26 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                 }, __FILE__, __LINE__).get();
         }
 
+        if (!any_stalled)
+        {
+            stallStarted = false;
+        }
+
         if (!any_running_at_all)
         {
-            LOG_debug << " waitonsyncs finished since no non-stalled clients have any running syncs";
-            return result;
+            bool stallexit = stallStarted && chrono::steady_clock::now() - startStalled > std::chrono::milliseconds(2000);
+            if (stallexit)
+            {
+                // don't drop out of the wait if we are only stalled briefly.
+                // we've seen this happen if a .megaignore is not read properly -
+                // size is known, but read operations returns too few bytes, without error (in RenameReplaceIgnoreFile, on windows)
+                LOG_debug << " waitonsyncs detected syncs stalled for two seconds";
+            }
+            if (!stallStarted || stallexit)
+            {
+                LOG_debug << " waitonsyncs finished since no non-stalled clients have any running syncs";
+                return result;
+            }
         }
 
         if (any_activity || StandardClient::debugging)

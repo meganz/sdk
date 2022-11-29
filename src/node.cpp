@@ -1720,7 +1720,7 @@ void LocalNode::propagateAnySubtreeFlags()
     if (syncAgain == TREE_ACTION_SUBTREE) syncAgain = TREE_ACTION_HERE;
 }
 
-static bool isDoNotSyncFileName(const string& name)
+bool isDoNotSyncFileName(const string& name)
 {
     return name == "desktop.ini"
            || name == ".DS_Store"
@@ -1820,13 +1820,6 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             *availableScanSlot = ourScanRequest;
 
             LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
-
-            if (neverScanned)
-            {
-                neverScanned = 0;
-                --sync->threadSafeState->neverScannedFolderCount;
-                LOG_verbose << sync->syncname << "Remaining known unscanned folders: " << sync->threadSafeState->neverScannedFolderCount.load();
-            }
         }
     }
     else if (ourScanRequest &&
@@ -1875,6 +1868,14 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             }
 
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath;
+
+            if (neverScanned)
+            {
+                neverScanned = 0;
+                --sync->threadSafeState->neverScannedFolderCount;
+                LOG_debug << "neverScannedFolderCount decremented: " << getLocalPath() << " count: " << sync->threadSafeState->neverScannedFolderCount.load();
+                LOG_verbose << sync->syncname << "Remaining known unscanned folders: " << sync->threadSafeState->neverScannedFolderCount.load();
+            }
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
@@ -1972,7 +1973,11 @@ treestate_t LocalNode::checkTreestate(bool notifyChangeToApp)
 
     treestate_t ts = TREESTATE_NONE;
 
-    if (scanAgain == TREE_RESOLVED &&
+    if (ES_INCLUDED != exclusionState())
+    {
+        ts = TREESTATE_NONE;
+    }
+    else if (scanAgain == TREE_RESOLVED &&
         checkMovesAgain == TREE_RESOLVED &&
         syncAgain == TREE_RESOLVED)
     {
@@ -2103,6 +2108,12 @@ LocalNode::~LocalNode()
     if (!sync->mDestructorRunning && dbid)
     {
         sync->statecachedel(this);
+    }
+
+    if (neverScanned)
+    {
+        neverScanned = 0;
+        --sync->threadSafeState->neverScannedFolderCount;
     }
 
     if (sync->dirnotify && !sync->mDestructorRunning)
@@ -2401,10 +2412,9 @@ void LocalNode::updateTransferLocalname()
     }
 }
 
-void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
+bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
 {
-    if (!transferSP)
-        return;
+    if (!transferSP) return true;
 
     auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
@@ -2417,15 +2427,13 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
     {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
-            // checking for a race where we already sent putnodes and it hasn't completed,
-            // then we discover something that means we should abandon the transfer
-            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname();
-            assert(false);
+            return false;
         }
 
         LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
         resetTransfer(nullptr);
     }
+    return true;
 }
 
 void SyncTransfer_inClient::terminated(error e)
@@ -2910,40 +2918,28 @@ bool LocalNode::loadFiltersIfChanged(const FileFingerprint& fingerprint, const L
     // Only meaningful for directories.
     assert(type == FOLDERNODE);
 
-    // Convenience.
-    auto& filterChain = this->filterChain();
-
-    if (filterChain.isValid() && !filterChain.changed(fingerprint))
+    // we will end up with rare fields so access directly
+    auto& fc = rare().filterChain;
+    if (fc &&
+        fc->mFingerprint == fingerprint &&
+        fc->mLoadSucceeded)
     {
+        // already up to date
         return true;
     }
 
-    if (filterChain.isValid())
-    {
-        filterChain.invalidate();
-        setRecomputeExclusionState(false);
-    }
+    fc.reset(new FilterChain);
+    fc->mFingerprint = fingerprint;
+    fc->mLoadSucceeded = FLR_SUCCESS == fc->load(*sync->syncs.fsaccess, path);
 
-    // Try and load the ignore file.
-    if (FLR_SUCCESS != filterChain.load(*sync->syncs.fsaccess, path))
-    {
-        filterChain.invalidate();
-    }
+    // bear in mind that we may fail to read the file due to exclusive editing
+    // then we come back on some later iteration and read it successfully
+    setRecomputeExclusionState(false);
 
-    return filterChain.isValid();
+    return fc->mLoadSucceeded;
 }
 
-FilterChain& LocalNode::filterChain()
-{
-    auto& filterChainPtr = rare().filterChain;
-
-    if (!filterChainPtr)
-        filterChainPtr.reset(new FilterChain());
-
-    return *filterChainPtr;
-}
-
-bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
+ExclusionState LocalNode::calcExcluded(RemotePathPair namePath, nodetype_t type, bool inherited) const
 {
     // This specialization only makes sense for directories.
     assert(this->type == FOLDERNODE);
@@ -2962,26 +2958,26 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
             auto result = node->filterChainRO().match(namePath, type, inherited);
 
             // Was the file matched by any filters?
-            if (result.matched)
-                return !result.included;
+            if (result != ES_UNMATCHED)
+                return result;
         }
 
         // Update path so that it's applicable to the next node's path filters.
         namePath.second.prependWithSeparator(node->toName_of_localname);
     }
 
-    // File's included.
-    return false;
+    // If no rule matches, file's included.
+    return ES_INCLUDED;
 }
 
-bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
+ExclusionState LocalNode::calcExcluded(const RemotePathPair&, m_off_t size) const
 {
     // Specialization only meaningful for directories.
     assert(type == FOLDERNODE);
 
     // Consider files of unknown size included.
     if (size < 0)
-        return false;
+        return ES_INCLUDED;
 
     // Check whether this file is excluded by any size filters.
     for (auto* node = this; node; node = node->parent)
@@ -2995,31 +2991,14 @@ bool LocalNode::isExcluded(const RemotePathPair&, m_off_t size) const
             auto result = node->filterChainRO().match(size);
 
             // Was the file matched by any filters?
-            if (result.matched)
-                return !result.included;
+            if (result != ES_UNMATCHED)
+                return result;
         }
     }
 
     // File's included.
-    return false;
+    return ES_INCLUDED;
 }
-
-//void LocalNode::setWaitingForIgnoreFileLoad(bool pending)
-//{
-//    // Only meaningful for directories.
-//    assert(type == FOLDERNODE);
-//
-//    // Do we really need to update our children?
-//    if (!mWaitingForIgnoreFileLoad)
-//    {
-//        // Tell our children they need to recompute their state.
-//        for (auto& childIt : children)
-//            childIt.second->setRecomputeExclusionState();
-//    }
-//
-//    // Apply new pending state.
-//    mWaitingForIgnoreFileLoad = pending;
-//}
 
 void LocalNode::setRecomputeExclusionState(bool includingThisOne)
 {
@@ -3110,7 +3089,7 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
             break;
 
         // Is this path component excluded?
-        if (isExcluded(namePath, FOLDERNODE, false))
+        if (ES_EXCLUDED == calcExcluded(namePath, FOLDERNODE, false))
             return ES_EXCLUDED;
     }
 
@@ -3120,21 +3099,17 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     // Does the final path component represent a file?
     if (type == FILENODE)
     {
-        // Ignore files are only exluded if one of their parents is.
+        // Ignore files are only excluded if one of their parents is.
         if (namePath.first == IGNORE_FILE_NAME)
             return ES_INCLUDED;
 
         // Is the file excluded by any size filters?
-        if (node->isExcluded(namePath, size))
+        if (ES_EXCLUDED == node->calcExcluded(namePath, size))
             return ES_EXCLUDED;
     }
 
     // Is the file excluded by any name filters?
-    if (node->isExcluded(namePath, type, node != this))
-        return ES_EXCLUDED;
-
-    // File's included.
-    return ES_INCLUDED;
+    return node->calcExcluded(namePath, type, node != this);
 }
 
 // Make sure we instantiate the two types.  Jenkins gcc can't handle this in the header.
@@ -3155,6 +3130,7 @@ ExclusionState LocalNode::exclusionState(const string& name, nodetype_t type, m_
 
 ExclusionState LocalNode::exclusionState() const
 {
+    if (isDoNotSyncFileName(toName_of_localname)) return ES_EXCLUDED;
     return mExclusionState;
 }
 
@@ -3181,12 +3157,7 @@ bool LocalNode::recomputeExclusionState()
 void LocalNode::ignoreFilterPresenceChanged(bool present, FSNode* fsNode)
 {
     // ignore file appeared or disappeared
-    if (present)
-    {
-        // if the file is actually present locally, it'll be loaded after its syncItem()
-        filterChain().invalidate();
-    }
-    else
+    if (rareRO().filterChain)
     {
         rare().filterChain.reset();
     }
