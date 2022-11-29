@@ -1258,7 +1258,7 @@ bool CommandPutNodes::procresult(Result r)
 
                 if (!client->json.isnumeric())
                 {
-                    performAppCallback(API_EINTERNAL);
+                    performAppCallback(API_EINTERNAL, nn, false);
                     return false;
                 }
 
@@ -1286,7 +1286,7 @@ bool CommandPutNodes::procresult(Result r)
                 }
                 if (*client->json.pos != '}')
                 {
-                    performAppCallback(API_EINTERNAL);
+                    performAppCallback(API_EINTERNAL, nn, false);
                     return false;
                 }
                 break;
@@ -1310,7 +1310,7 @@ bool CommandPutNodes::procresult(Result r)
 	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
 	    bool targetOverride = (tempNode && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
+        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
         return true;
     }
     else
@@ -1324,7 +1324,7 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 
-        performAppCallback(r.errorOrOK());
+        performAppCallback(r.errorOrOK(), nn, false);
         return r.wasErrorOrOK();
     }
 }
