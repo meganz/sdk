@@ -628,7 +628,7 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
-    void performAppCallback(Error e, bool targetOverride = false);
+    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
 
 public:
 

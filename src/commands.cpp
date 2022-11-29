@@ -1230,10 +1230,10 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     }
 }
 
-void CommandPutNodes::performAppCallback(Error e, bool targetOverride)
+void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
 {
-    if (mResultFunction) mResultFunction(e, type, nn, targetOverride);
-	else client->app->putnodes_result(e, type, nn, targetOverride);
+    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride);
+	else client->app->putnodes_result(e, type, newnodes, targetOverride);
 }
 
 bool CommandPutNodes::procresult(Result r)
@@ -1258,7 +1258,7 @@ bool CommandPutNodes::procresult(Result r)
 
                 if (!client->json.isnumeric())
                 {
-                    performAppCallback(API_EINTERNAL);
+                    performAppCallback(API_EINTERNAL, nn, false);
                     return false;
                 }
 
@@ -1286,7 +1286,7 @@ bool CommandPutNodes::procresult(Result r)
                 }
                 if (*client->json.pos != '}')
                 {
-                    performAppCallback(API_EINTERNAL);
+                    performAppCallback(API_EINTERNAL, nn, false);
                     return false;
                 }
                 break;
@@ -1310,7 +1310,7 @@ bool CommandPutNodes::procresult(Result r)
 	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
 	    bool targetOverride = (tempNode && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, targetOverride);
+        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
         return true;
     }
     else
@@ -1324,7 +1324,7 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 
-        performAppCallback(r.errorOrOK());
+        performAppCallback(r.errorOrOK(), nn, false);
         return r.wasErrorOrOK();
     }
 }
@@ -9610,8 +9610,11 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     error e = API_EINTERNAL;
 
     TextChat* chat = it->second;
+
+    // remove children scheduled meetings (API requirement)
+    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
     mScheduledMeeting->setSchedId(schedId);
-    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
+    bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
@@ -9619,6 +9622,13 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 
         result = mScheduledMeeting.get();
         e = API_OK;
+    }
+    else if (deletedChildren)
+    {
+        // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+        LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(e, result); }
@@ -9655,6 +9665,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         TextChat* chat = it->second;
         if (chat->removeSchedMeeting(mSchedId))
         {
+            // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
@@ -9745,13 +9756,13 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     // this approach is an API requirement
 
     // we will clear old sched meetings although there's any malformed sched meeting during the json parse
-    LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
+    LOG_debug << "Invalidating outdated scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
     chat->clearSchedMeetingOccurrences();
 
     for (auto& schedMeeting: schedMeetings)
     {
         // add received scheduled meetings occurrences
-        chat->addSchedMeetingOccurrence(schedMeeting.get());
+        chat->addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>(schedMeeting->copy()));
     }
 
     // just notify once, for all ocurrences received for the same chat
