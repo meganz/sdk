@@ -751,6 +751,19 @@ bool CacheableReader::unserializesize_t(size_t& field)
     return true;
 }
 
+
+bool CacheableReader::unserializeu16(uint16_t &field)
+{
+    if (ptr + sizeof(uint16_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint16_t>(ptr);
+    ptr += sizeof(uint16_t);
+    fieldnum += 1;
+    return true;
+}
+
 bool CacheableReader::unserializeu32(uint32_t& field)
 {
     if (ptr + sizeof(uint32_t) > end)

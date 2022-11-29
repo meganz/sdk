@@ -575,7 +575,6 @@ private:
     string mAttr;
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
     string mAuthEd25519, mAuthCu25519;  // TODO: no need to maintain them here
-    string mPendingOutShares, mPendingInShares;
     string mBackups;
     string mWarnings;
     string mOther;
@@ -583,11 +582,18 @@ private:
     map<handle, bool> mTrustedShareKeys;
     map<handle, string> mShareKeys;
 
+    // maps node handle to the target users (encoded as len.1+value, where value can be a user's handle in B64 if len=0 or the email address otherwise)
+    map<handle, set<string>> mPendingOutShares;
+
+    // maps "name" to pairs of target user handle and share key
+    map<string, pair<handle, string>> mPendingInShares;
 
     // decode data from the decrypted ^!keys attribute
     bool unserialize(const string& keysContainer);
 
-    bool deserializeShareKeys(string& blob);
+    bool deserializeShareKeys(const string& blob);
+    bool deserializePendingOutshares(const string& blob);
+    bool deserializePendingInshares(const string& blob);
 };
 
 

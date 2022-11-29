@@ -605,6 +605,7 @@ struct CacheableReader
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
     bool unserializesize_t(size_t& s);
+    bool unserializeu16(uint16_t &s);
     bool unserializeu32(uint32_t& s);
     bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);

@@ -1683,7 +1683,7 @@ string AuthRing::toString(AuthRing &authRing)
     ostringstream result;
     for (auto& i : uhVector)
     {
-        result << "[" << toHandle(i) << "] " << Base64::btoa(authRing.getFingerprint(i)) << " | " <<AuthRing::authMethodToStr(authRing.getAuthMethod(i)) << std::endl;
+        result << "\t[" << toHandle(i) << "] " << Base64::btoa(authRing.getFingerprint(i)) << " | " <<AuthRing::authMethodToStr(authRing.getAuthMethod(i)) << std::endl;
     }
     return result.str();
 }

@@ -20808,7 +20808,7 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             mAuthEd25519.assign(blob + offset, len);
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
-            LOG_verbose << AuthRing::toString(mClient.mAuthRings.at(at));
+            LOG_verbose << "Autrhing Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
 
 //            LOG_verbose << "-keys-Authring Ed25519: " << Base64::btoa(mAuthEd25519);
 
@@ -20835,7 +20835,7 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             mAuthCu25519.assign(blob + offset, len);
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
-            LOG_verbose << AuthRing::toString(mClient.mAuthRings.at(at));
+            LOG_verbose << "Autrhing Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
 
 //            LOG_verbose << "-keys-Authring Cu25519: " << Base64::btoa(mAuthCu25519);
 
@@ -20864,20 +20864,19 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             break;
         }
         case TAG_PENDING_OUTSHARES:
-            mPendingOutShares.assign(blob + offset, len);
-            // TODO: deserialize it
-
-
-
-            LOG_verbose << "Pending outshares: " << Base64::btoa(mPendingOutShares);
+        {
+            string buf(blob + offset, len);
+            LOG_verbose << "Pending outshares: " << Base64::btoa(buf);
+            if (!deserializePendingOutshares(buf)) return false;
             break;
-
+        }
         case TAG_PENDING_INSHARES:
-            mPendingInShares.assign(blob + offset, len);
-            // TODO: deserialize it
-            LOG_verbose << "Pending inshares: " << Base64::btoa(mPendingInShares);
+        {
+            string buf(blob + offset, len);
+            LOG_verbose << "Pending inshares: " << Base64::btoa(buf);
+            if (!deserializePendingInshares(buf)) return false;
             break;
-
+        }
         case TAG_BACKUPS:
             mBackups.assign(blob + offset, len);
             // TODO: deserialize it
@@ -20901,14 +20900,14 @@ bool KeyManager::unserialize(const std::string &keysContainer)
     return true;
 }
 
-bool KeyManager::deserializeShareKeys(string &blob)
+bool KeyManager::deserializeShareKeys(const string &blob)
 {
     // nodeHandle.6 shareKey.16 trust.1
-    const size_t recordSize = 23;
+
+    CacheableReader r(blob);
 
     unsigned int count = 0;
-    size_t offset = 0;
-    while (offset < blob.size())
+    while(r.hasdataleft())
     {
         ++count;
 
@@ -20916,7 +20915,6 @@ bool KeyManager::deserializeShareKeys(string &blob)
         byte shareKey[SymmCipher::KEYLENGTH];
         byte trust = 0;
 
-        CacheableReader r(blob);
         if (!r.unserializenodehandle(h)
                 || !r.unserializebinary(shareKey, sizeof(shareKey))
                 || !r.unserializebyte(trust))
@@ -20943,8 +20941,134 @@ bool KeyManager::deserializeShareKeys(string &blob)
             n->sharekey = new SymmCipher(shareKey);
             mClient.notifynode(n);
         }
+    }
 
-        offset += recordSize;
+    return true;
+}
+
+bool KeyManager::deserializePendingOutshares(const string &blob)
+{
+    // [len.1 nodeHandle.6 uid]*
+    // if len=0  -> uid is a user handle
+    // if len!=0 -> uid is an email address
+
+    CacheableReader r(blob);
+
+    unsigned int count = 0;
+    while(r.hasdataleft())
+    {
+        ++count;
+
+        byte len = 0;
+        handle h = UNDEF;
+        string uid;
+
+        if (!r.unserializebyte(len)
+                || !r.unserializenodehandle(h))
+        {
+            LOG_err << "Pending outshare is corrupt: len or nodehandle";
+            return false;
+        }
+
+        bool success;
+        if (len == 0)   // user handle
+        {
+            handle uh = UNDEF;
+            success = r.unserializehandle(uh);
+
+            uid.assign((const char*)&len, 1);
+            uid.append((const char*)&uh, MegaClient::USERHANDLE);
+
+            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << toHandle(uh) << "\n";
+        }
+        else
+        {
+            byte buf[256];
+            success = r.unserializebinary(buf, len);
+
+            uid.assign((const char*)&len, 1);
+            uid.append((const char*)buf, len);
+
+            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid.substr(1) << "\n";
+        }
+        if (!success)
+        {
+            LOG_err << "Pending outshare is corrupt: uid";
+            return false;
+        }
+
+        mPendingOutShares[h].emplace(uid);
+    }
+
+    return true;
+}
+
+bool KeyManager::deserializePendingInshares(const string &blob)
+{
+    // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
+    // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
+    // if len < 0xFFFF      -> actual len (no extra bytes for length)
+    // blob includes the user's handle (8 bytes) and the encrypted share key
+
+    CacheableReader r(blob);
+
+    unsigned int count = 0;
+    while(r.hasdataleft())
+    {
+        ++count;
+
+        // len of the "name"
+        byte len = 0;
+        if (!r.unserializebyte(len))
+        {
+            LOG_err << "Pending inshare is corrupt: len of name";
+            return false;
+        }
+
+        // read the "name"
+        string name;
+        name.resize(len);
+        if (!r.unserializebinary((byte*)name.data(), name.size()))
+        {
+            LOG_err << "Pending inshare is corrupt: name";
+            return false;
+        }
+
+        // len of the blob (pairs of uh+sk for this node handle)
+        uint32_t lenBlob = 0;
+        uint16_t lenBlob16 = 0;
+        bool success = r.unserializeu16(lenBlob16);
+        lenBlob16 = be16toh(lenBlob16);
+        if (lenBlob16 == 0xFFFF)
+        {
+            success = r.unserializeu32(lenBlob);
+            lenBlob = be32toh(lenBlob);
+        }
+        else
+        {
+            lenBlob = lenBlob16;
+        }
+
+        if (!success && (lenBlob > sizeof(handle)))
+        {
+            LOG_err << "Pending inshare is corrupt: blob len";
+            return false;
+        }
+
+        // user handle (sharer) and share key
+        handle uh = UNDEF;
+        string shareKey;
+        shareKey.resize(lenBlob - sizeof(uh));
+        if (!r.unserializehandle(uh)
+                || !r.unserializebinary((byte*)shareKey.data(), shareKey.size()))
+        {
+            LOG_err << "Pending inshare is corrupt: blob";
+            return false;
+        }
+
+        mPendingInShares[name] = pair<handle, string>(uh, shareKey);
+
+        LOG_verbose << "Pending inshare #" << count << "\n\tn: " << name << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
     }
 
     return true;
