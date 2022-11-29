@@ -447,11 +447,6 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting title. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
-    if (mDescription.empty())
-    {
-        LOG_warn << "Invalid scheduled meeting description. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
-        return false;
-    }
     if (mRules && !mRules->isValid())
     {
         LOG_warn << "Invalid scheduled meeting rules. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
