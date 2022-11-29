@@ -8119,6 +8119,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
+    n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);
@@ -11152,6 +11153,7 @@ void NodeManager::notifyNode(Node* n)
             changed |= n->changed.newnode << 10;
             changed |= n->changed.name << 11;
             changed |= n->changed.favourite << 12;
+            changed |= n->changed.sensitive << 13;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;

@@ -676,6 +676,7 @@ void Node::setattr()
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
+        changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
         setfingerprint();
 

@@ -384,6 +384,25 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     LOG_err << "Conversion failure for node attr fav: " << ex.what();
                 }
             }
+            else if (it->first == AttrMap::string2nameid("sen"))
+            {
+                try
+                {
+                    int sen = it->second.empty() ? 0 : std::stoi(it->second);
+                    if (sen != 1 && it->second != "0")
+                    {
+                        LOG_err << "Invalid value for node attr sen: " << sen;
+                    }
+                    else
+                    {
+                        markedSensitive = sen;
+                    }
+                }
+                catch (std::exception& ex)
+                {
+                    LOG_err << "Conversion failure for node attr sen: " << ex.what();
+                }
+            }
             else if (it->first == AttrMap::string2nameid("lbl"))
             {
                 try
@@ -483,6 +502,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.counter)
     {
         this->changed |= MegaNode::CHANGE_TYPE_COUNTER;
+    }
+    if (node->changed.sensitive)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_SENSITIVE;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -717,6 +740,11 @@ int MegaNodePrivate::getDuration()
 bool MegaNodePrivate::isFavourite()
 {
     return mFavourite;
+}
+
+bool MegaNodePrivate::isMarkedSensitive()
+{
+    return markedSensitive;
 }
 
 int MegaNodePrivate::getLabel()
@@ -7169,6 +7197,29 @@ void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* 
     waiter->notify();
 }
 
+void MegaApiImpl::setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if (node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_SEN);
+    request->setNumDetails(sensitive);
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::isSensitiveInherited(MegaNode* node)
+{
+    // there is no MegaNode::getParentNode() so the traversal must be here in MegaApi
+
+    for (MegaNode* anode = node; anode != nullptr; anode = getParentNode(anode))
+    {
+        if (anode->isMarkedSensitive())
+            return true;
+    }
+    return false;
+}
+
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
 {
     lat = int(latitude);
@@ -11998,6 +12049,10 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
     {
         assert(type != MegaApi::FILE_TYPE_DEFAULT);
         nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(type), NodeHandle().set6byte(nodeHandle), cancelToken);
+        nameid aid = AttrMap::string2nameid("sen");
+        nodeVector[0]->attrs.map[aid] = 1;
+        nodeVector[0]->setattr();
+        
     }
     else
     {
@@ -12071,7 +12126,7 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
-MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int type, int target)
+MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
 {
     if (!n && !searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
     {
@@ -20526,7 +20581,7 @@ void MegaApiImpl::sendPendingRequests()
                         attrUpdates[nid] = request->getText();
                     }
                 }
-                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV)
+                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV || type == MegaApi::NODE_ATTR_SEN)
                 {
                     Node *current = node;
                     bool remove = false;
@@ -20543,6 +20598,12 @@ void MegaApiImpl::sendPendingRequests()
 
                         nid = AttrMap::string2nameid("lbl");
                         remove = (value == LBL_UNKNOWN);
+                    }
+                    else if (type == MegaApi::NODE_ATTR_SEN)
+                    {
+                        nid = AttrMap::string2nameid("sen");
+                        remove = !request->getNumDetails();
+                        value = 1;
                     }
                     else
                     {

@@ -537,6 +537,10 @@ bool MegaNode::isRemoved()
     return false;
 }
 
+bool MegaNode::isMarkedSensitive() {
+    return false;
+}
+
 bool MegaNode::hasChanged(int /*changeType*/)
 {
     return false;
@@ -2693,6 +2697,11 @@ void MegaApi::getFavourites(MegaNode* node, int count, MegaRequestListener* list
     pImpl->getFavourites(node, count, listener);
 }
 
+void MegaApi::setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener)
+{
+    pImpl->setNodeSensitive(node, sensitive, listener);
+}
+
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
@@ -3711,6 +3720,11 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
+bool MegaApi::isSensitiveInherited(MegaNode* node)
+{
+    return pImpl->isSensitiveInherited(node);
+}
+
 bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
@@ -4091,9 +4105,9 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
 {
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target, includeSensitive);
 }
 
 long long MegaApi::getSize(MegaNode *n)

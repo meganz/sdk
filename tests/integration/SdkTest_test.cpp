@@ -6253,7 +6253,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!subFolderA);
 
-    string filename1 = UPFILE;
+    string filename1 = IMAGEFILE;
     ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
 
     MegaHandle h = UNDEF;
@@ -6281,6 +6281,87 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
+}
+
+TEST_F(SdkTest, SdkSensitiveNodes)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SDKSensitive___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+
+    ASSERT_TRUE(rootnodeA);
+
+    // /
+    //    folder-A/
+    //        sub-folder-A/   <- sensitive
+    //             file1.txt
+
+    string folderAName = "folder-A";
+    MegaHandle nh = createFolder(0, folderAName.c_str(), rootnodeA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_TRUE(!!folderA);
+
+    string subFolderAName = "sub-folder-A";
+    MegaHandle snh = createFolder(0, subFolderAName.c_str(), folderA.get());
+    ASSERT_NE(snh, UNDEF);
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(snh));
+    ASSERT_TRUE(!!subFolderA);
+
+    string filename1 = IMAGEFILE;
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
+
+    MegaHandle fh = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, filename1.c_str(),
+        subFolderA.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> thefile(megaApi[0]->getNodeByHandle(fh));
+
+    bool null_pointer = (thefile.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    //synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    synchronousSetNodeSensitive(0, subFolderA.get(), true);
+
+    time_t start = time(nullptr);
+    while (time(nullptr) < start + 300) {
+        //SdkTest::fetchnodes(0);
+        Sleep(5000); // @todo: portable
+
+        //subFolderA.reset(megaApi[0]->getNodeByHandle(snh));
+        //subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str()));
+        subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
+        if (subFolderA.get() != nullptr && subFolderA->isMarkedSensitive())
+            //if (subFolderA.get() != nullptr && megaApi[0]->isSensitive(subFolderA.get()))
+            break;
+    }
+    time_t secs = time(nullptr) - start;
+    secs;
+    ASSERT_TRUE(!!subFolderA);
+    ASSERT_TRUE(subFolderA->isMarkedSensitive());
+
+    bool msen = subFolderA->isMarkedSensitive();
+    ASSERT_EQ(msen, true);
+    bool sen = megaApi[0]->isSensitiveInherited(subFolderA.get());
+    ASSERT_EQ(sen, true);
+    sen = megaApi[0]->isSensitiveInherited(thefile.get());
+    ASSERT_EQ(sen, true);
+    sen = megaApi[0]->isSensitiveInherited(folderA.get());
+    ASSERT_EQ(sen, false);
+    sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
+    ASSERT_EQ(sen, false);
+
+    MegaNodeList *list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, 0, MegaApi::FILE_TYPE_PHOTO, 4, true);
+    list;
+    
+
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
