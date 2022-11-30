@@ -21062,7 +21062,7 @@ bool KeyManager::deserializePendingInshares(const string &blob)
             lenBlob = lenBlob16;
         }
 
-        if (!success && (lenBlob > sizeof(handle)))
+        if (!success || (lenBlob < sizeof(handle)))    // it may have only the user handle (no share key yet)
         {
             LOG_err << "Pending inshare is corrupt: blob len";
             return false;
