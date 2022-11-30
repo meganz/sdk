@@ -397,8 +397,8 @@ namespace UserAlert
                 }
             }
 
-            unique_ptr<TitleChangeset> mUpdatedTitle;
             std::bitset<CHANGE_TYPE_SIZE> mUpdatedFields;
+            unique_ptr<TitleChangeset> mUpdatedTitle;
         };
 
         handle schedMeetingHandle = UNDEF;
