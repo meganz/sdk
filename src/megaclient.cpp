@@ -7404,10 +7404,11 @@ void MegaClient::sc_delscheduledmeeting()
                     if (chat->removeSchedMeeting(schedId))
                     {
                         // remove children scheduled meetings (API requirement)
-                        chat->removeChildSchedMeetings(schedId);
+                        handle_vector deletedChildren = chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        createDeletedSMAlert(originatingUser, schedId);
+                        for_each(begin(deletedChildren), end(deletedChildren),
+                                 [this, ou](handle sm) { createDeletedSMAlert(ou, sm); });
                         createDeletedSMAlert(ou, schedId);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
                         break;
@@ -7455,10 +7456,10 @@ void MegaClient::sc_scheduledmeetings()
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
         handle schedParentId = sm->parentSchedId();
-        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        handle_vector deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || deletedChildren)
+        if (res || !deletedChildren.empty())
         {
             if (!res)
             {
@@ -7468,6 +7469,9 @@ void MegaClient::sc_scheduledmeetings()
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             chat->setTag(0);    // external change
             notifychat(chat);
+
+            for_each(begin(deletedChildren), end(deletedChildren),
+                     [this, ou](handle& sm) { createDeletedSMAlert(ou, sm); });
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, schedId, schedParentId);

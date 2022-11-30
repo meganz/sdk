@@ -1167,28 +1167,25 @@ bool TextChat::removeSchedMeeting(handle schedId)
         return false;
     }
 
-    mScheduledMeetings.erase(schedId);
-    mSchedMeetingsChanged.emplace_back(schedId);
+    deleteSchedMeeting(schedId);
     return true;
 }
 
-unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
+handle_vector TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
     // remove all scheduled meeting whose parent is parentSchedId
-    unsigned int count = 0;
     vector<handle> deletedChildren;
     for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
     {
         if (it->second->parentSchedId() == parentSchedId)
         {
-            count++;
             deletedChildren.emplace_back(it->second->schedId());
         }
     }
 
     for_each(begin(deletedChildren), end(deletedChildren), [this](handle sm) { deleteSchedMeeting(sm); });
 
-    return count;
+    return deletedChildren;
 }
 
 bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)
