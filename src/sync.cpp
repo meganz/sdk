@@ -7178,8 +7178,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 assert(!s->rareRO().moveFromHere);
                 assert(!s->rareRO().moveToHere);
 
-                return resolve_delSyncNode(row, parentRow, fullPath, 100);
+                if (!s->children.empty())
+                {
+                    LOG_debug << syncname << "removing child LocalNodes from excluded " << s->getLocalPath();
+                    vector<LocalNode*> cs;
+                    cs.resize(s->children.size());
+                    for (auto& i : s->children)
+                    {
+                        cs.push_back(i.second);
+                    }
+                    for (auto p : cs)
+                    {
+                        delete p;
+                    }
+                }
             }
+            return true; // consider it synced (ie, do not revisit)
         }
     }
 
