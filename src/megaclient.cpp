@@ -12587,6 +12587,8 @@ void MegaClient::setkeypair()
                                       unsigned(privks.size()),
                                       (const byte*)pubks.data(),
                                       unsigned(pubks.size())));
+
+    mKeyManager.setPostRegistration(true);
 }
 
 bool MegaClient::fetchsc(DbTable* sctable)
@@ -13176,53 +13178,65 @@ void MegaClient::fetchkeys()
 
 void MegaClient::initializekeys()
 {
+    string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
+    string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
+    string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
+
     User *u = finduser(me);
 
-    // Initialize private keys
-    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-    if (av)
+    if (mKeyManager.isSecure() && mKeyManager.generation())   // account is secured and has ^!keys already available
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
-        if (tlvRecords)
+        prEd255 = mKeyManager.privEd25519();
+        prCu255 = mKeyManager.privCu25519();
+    }
+    else
+    {
+        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+        if (av)
         {
-
-            string prEd255;
-            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+            if (tlvRecords)
             {
-                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                if (!signkey->initializationOK)
-                {
-                    delete signkey;
-                    signkey = NULL;
-                    clearKeys();
-                    return;
-                }
+                tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+                tlvRecords->get(ECDH::TLV_KEY, prCu255);
             }
-
-            string prCu255;
-            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            else
             {
-                chatkey = new ECDH(prCu255);
-                if (!chatkey->initializationOK)
-                {
-                    delete chatkey;
-                    chatkey = NULL;
-                    clearKeys();
-                    return;
-                }
+                LOG_warn << "Failed to decrypt keyring while initialization";
             }
-            delete tlvRecords;
-        }
-        else
-        {
-            LOG_warn << "Failed to decrypt keyring while initialization";
         }
     }
 
-    string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
-    string puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
-    string sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
-    string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+    // get public keys and signatures
+    puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
+    puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
+    sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
+    sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+
+    // Initialize private keys
+    if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+    {
+        signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+        if (!signkey->initializationOK)
+        {
+            delete signkey;
+            signkey = NULL;
+            clearKeys();
+            return;
+        }
+    }
+
+    if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+    {
+        chatkey = new ECDH(prCu255);
+        if (!chatkey->initializationOK)
+        {
+            delete chatkey;
+            chatkey = NULL;
+            clearKeys();
+            return;
+        }
+    }
 
     if (chatkey && signkey)    // THERE ARE KEYS
     {
@@ -13322,6 +13336,15 @@ void MegaClient::initializekeys()
         // if we reached this point, everything is OK
         LOG_info << "Keypairs and signatures loaded successfully";
         fetchingkeys = false;
+
+        if (!mKeyManager.generation() && mKeyManager.isSecure())
+        {
+            mKeyManager.setKey(key);
+            mKeyManager.init(prEd255, prCu255, mPrivKey);
+            string buf = mKeyManager.serialize();
+            putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+        }
+
         return;
     }
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
@@ -13352,12 +13375,38 @@ void MegaClient::initializekeys()
                 return;
             }
 
-            // prepare the TLV for private keys
-            TLVstore tlvRecords;
-            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-            string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
+            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
 
+            // prepare map of attributes to set: ^!keys|*!keyring + puEd255 + puCu255 + sigPubk + sigCu255
+            userattr_map attrs;
+
+            // private keys
+            string buf;
+            attr_t atPrivKeys;
+            if (mKeyManager.isSecure()) // save private keys into the ^!keys attribute
+            {
+                assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
+                mKeyManager.setKey(key);
+                mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+                buf = mKeyManager.serialize();
+                atPrivKeys = ATTR_KEYS;
+            }
+            else // save private keys into the *!keyring attribute
+            {
+                // prepare the TLV for private keys
+                TLVstore tlvRecords;
+                tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+                tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+                unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
+
+                buf.assign(tlvContainer->data(), tlvContainer->size());
+
+                atPrivKeys = ATTR_KEYRING;
+            }
+            attrs[atPrivKeys] = buf;
+
+            // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
             {
                 // prepare signatures
@@ -13366,13 +13415,6 @@ void MegaClient::initializekeys()
                 signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
-
-            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-            userattr_map attrs;
-            string buf;
-
-            buf.assign(tlvContainer->data(), tlvContainer->size());
-            attrs[ATTR_KEYRING] = buf;
 
             buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             attrs[ATTR_ED25519_PUBK] = buf;
@@ -13391,7 +13433,6 @@ void MegaClient::initializekeys()
 
             putua(&attrs, 0);
 
-            delete tlvContainer;
             delete chatkey;
             delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
@@ -13571,7 +13612,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             getua(user, attrType, 0); // in getua_result(), we check signature actually matches
         }
     }
-    else if (!keyTracked)
+    else if (!keyTracked) // then it's the authring for public Ed25519 key
     {
         LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
 
@@ -13595,8 +13636,18 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         if (finished)
         {
+            userattr_map attrs;
+
             std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            attrs[authringType] = *newAuthring;
+            if (mKeyManager.isSecure())
+            {
+                attrs[ATTR_KEYS] = mKeyManager.serialize();
+            }
+            // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
+            // if found in the temporal ones.
+            putua(&attrs, 0);
+
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
         }
     }
@@ -13744,8 +13795,18 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         }
         if (finished)
         {
+            userattr_map attrs;
+
             std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            attrs[authringType] = *newAuthring;
+            if (mKeyManager.isSecure())
+            {
+                attrs[ATTR_KEYS] = mKeyManager.serialize();
+            }
+            // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
+            // if found in the temporal ones.
+            putua(&attrs, 0);
+
             mAuthRingsTemp.erase(authringType);
         }
     }
@@ -20685,6 +20746,42 @@ void NodeManager::FingerprintContainer::clear()
     mAllFingerprintsLoaded.clear();
 }
 
+void KeyManager::init(const string& prEd25519, const string& prCu25519, const string& prRSA)
+{
+    if (mVersion != 0 || mGeneration != 0)
+    {
+        LOG_err << "Init invoked incorrectly";
+        assert(false);
+        return;
+    }
+
+    if (mSecure && !mPostRegistration)
+    {
+        string msg = "We are upgrading the cryptographic resilience of your account. You will see this message only once. If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed.";
+
+        // TODO: for each inshare and outshare, get name of the folder and notify the app.
+        // if (shares)
+        //msg.append(" You are currently sharing the following folders: ");
+        // for(share:shares)
+        //msg.append(share.name);
+
+        // TODO: show a message to apps warning about "upgrading security"
+        // mClient.app->upgrading_security()
+    }
+    else
+    {
+        mPostRegistration = false;
+    }
+
+    mVersion = 1;
+    mCreationTime = static_cast<int32_t>(time(nullptr));
+    mIdentity = mClient.me;
+    mGeneration = 1;
+    mPrivEd25519 = prEd25519;
+    mPrivCu25519 = prCu25519;
+    mPrivRSA = prRSA;
+}
+
 void KeyManager::setKey(const mega::SymmCipher &masterKey)
 {
     // Derive key from MK
@@ -20719,6 +20816,17 @@ bool KeyManager::fromKeysContainer(const string &data)
     return false;
 }
 
+string KeyManager::serialize()
+{
+    string result;
+
+    // reminder: htobe32 for mCreationTime
+    // reminder: htobe32 for mCreationTime
+    // reminder: htobe16 for lenBlob16
+    // reminder: htobe32 for lenBlob (32bits version)
+
+    return result;
+}
 
 uint32_t KeyManager::generation() const
 {
@@ -20734,6 +20842,12 @@ string KeyManager::privCu25519() const
 {
     return mPrivCu25519;
 }
+
+void KeyManager::setPostRegistration(bool postRegistration)
+{
+    mPostRegistration = postRegistration;
+}
+
 bool KeyManager::unserialize(const std::string &keysContainer)
 {
     // Decode blob

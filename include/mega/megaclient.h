@@ -545,20 +545,24 @@ public:
         TAG_WARNINGS = 96,
     };
 
+    void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
+
     // it derives master key and sets mKey
     void setKey(const SymmCipher& masterKey);
 
     // decrypts and decodes the ^!keys attribute
     bool fromKeysContainer(const string& data);
 
-    // --- Getters ----
+    string serialize();
+
+    // --- Getters / Setters ----
 
     bool isSecure() const { return mSecure; }
     uint32_t generation() const;
-
     string privEd25519() const;
-
     string privCu25519() const;
+
+    void setPostRegistration(bool postRegistration);
 
 private:
     MegaClient& mClient;
@@ -568,6 +572,10 @@ private:
 
     // client is consider to exchange keys in a secure way
     bool mSecure = true;
+
+    // true when the account is being created -> don't show warning to user "updading security",
+    // false when the account is being upgraded to ^!keys -> show the warning
+    bool mPostRegistration = false;
 
     uint8_t mVersion = 0;
     uint32_t mCreationTime = 0;

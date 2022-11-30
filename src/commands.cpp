@@ -3013,6 +3013,8 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 
             if (type == ATTR_KEYRING)
             {
+                assert(client->mKeyManager.isSecure() == false);
+
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
                 if (tlvRecords)
                 {
@@ -3045,6 +3047,10 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                 {
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
+            }
+            else if (type == ATTR_KEYS)
+            {
+                client->mKeyManager.fromKeysContainer(attrs[type]);
             }
             else if (User::isAuthring(type))
             {
@@ -3168,6 +3174,10 @@ bool CommandPutUAVer::procresult(Result r)
             else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
             {
                 LOG_info << "JSON config data successfully created.";
+            }
+            else if (at == ATTR_KEYS)
+            {
+                client->mKeyManager.fromKeysContainer(av);
             }
 
             client->notifyuser(u);
@@ -4572,6 +4582,8 @@ bool CommandGetUserData::procresult(Result r)
                 if (keys.size())
                 {
                     changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
+                    client->mKeyManager.setKey(client->key);
+                    client->mKeyManager.fromKeysContainer(keys);
                 }
 
                 if (changes > 0)
