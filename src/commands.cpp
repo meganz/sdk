@@ -9384,11 +9384,18 @@ bool CommandMeetingStart::procresult(Command::Result r)
     }
 }
 
-CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, handle schedId, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    //TODO: add support for sfuId
+    if (schedId != UNDEF)
+    {
+        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
+        arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
+    }
     tag = client->reqtag;
 }
 
