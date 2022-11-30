@@ -1346,7 +1346,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     mOverquotaDeadlineTs = 0;
     looprequested = false;
 
-    mFetchingAuthrings = false;
+    mFetchingAuthrings = 0;
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
@@ -4620,7 +4620,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAuthRings.clear();
     mAuthRingsTemp.clear();
-    mFetchingAuthrings = false;
+    mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
@@ -13423,8 +13423,6 @@ void MegaClient::loadAuthrings()
 {
     if (User* ownUser = finduser(me))
     {
-        mFetchingAuthrings = true;
-
         std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
         for (auto at : attrs)
         {
@@ -13454,15 +13452,14 @@ void MegaClient::loadAuthrings()
             else
             {
                 LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
+                getua(ownUser, at, 0);
+                ++mFetchingAuthrings;
             }
-
-            getua(ownUser, at, 0);
         }
 
         // if all authrings were loaded from cache...
-        if (mAuthRings.size() == attrs.size())
+        if (mFetchingAuthrings == 0)
         {
-            mFetchingAuthrings = false;
             fetchContactsKeys();
         }
     }

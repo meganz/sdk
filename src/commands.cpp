@@ -3351,9 +3351,8 @@ bool CommandGetUA::procresult(Result r)
                 client->mAuthRings.erase(at);
                 client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
 
-                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                if (--client->mFetchingAuthrings == 0)
                 {
-                    client->mFetchingAuthrings = false;
                     client->fetchContactsKeys();
                 }
             }
@@ -3489,9 +3488,8 @@ bool CommandGetUA::procresult(Result r)
                                 client->mAuthRings.erase(at);
                                 client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
 
-                                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                                if (--client->mFetchingAuthrings == 0)
                                 {
-                                    client->mFetchingAuthrings = false;
                                     client->fetchContactsKeys();
                                 }
                             }

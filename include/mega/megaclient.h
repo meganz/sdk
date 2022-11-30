@@ -2130,8 +2130,8 @@ public:
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
 
-    // true while authrings are being fetched
-    bool mFetchingAuthrings;
+    // number of authrings being fetched
+    unsigned short mFetchingAuthrings = 0;
 
     // actual state of keys
     bool fetchingkeys;
@@ -2483,6 +2483,7 @@ private:
 // -------- end of Sets and Elements
 
 };
+
 } // namespace
 
 #if __cplusplus < 201100L
