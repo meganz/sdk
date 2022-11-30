@@ -5358,7 +5358,6 @@ bool CommandSetPH::procresult(Result r)
     }
     else if (mDeleting)
     {
-        client->json.getint(); // consume the 0 for success in the [`st`, 0] array
         completion(API_OK, h, UNDEF);
         return true;
     }
