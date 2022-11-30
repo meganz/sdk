@@ -102,7 +102,7 @@ public:
     {
         return false;
     }
-    bool getNodeSizeAndType(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType) override
+    bool getNodeSizeTypeAndFlags(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType, uint64_t& oldFlags) override
     {
         return false;
     }
@@ -123,6 +123,10 @@ public:
         return false;
     }
     void updateCounter(mega::NodeHandle, const std::string&) override
+    {
+
+    }
+    void updateCounterAndFlags(mega::NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override
     {
 
     }

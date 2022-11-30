@@ -810,6 +810,11 @@ bool MegaUserAlert::isOwnChange() const
     return false;
 }
 
+bool MegaUserAlert::isRemoved() const
+{
+    return false;
+}
+
 
 MegaShare::~MegaShare() { }
 
@@ -2948,11 +2953,8 @@ MegaScheduledFlags* MegaScheduledFlags::createInstance()
     return new MegaScheduledFlagsPrivate();
 }
 
-MegaScheduledFlags* MegaScheduledFlags::createInstance(bool emailsDisabled)
+void MegaScheduledFlags::importFlagsValue(unsigned long /*val*/)
 {
-    MegaScheduledFlagsPrivate *flags = new MegaScheduledFlagsPrivate();
-    flags->setEmailsDisabled(emailsDisabled);
-    return flags;
 }
 
 MegaScheduledFlags* MegaScheduledFlags::copy() const
@@ -5448,9 +5450,9 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
-void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApi::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
 {
-    pImpl->startChatCall(chatid, listener);
+    pImpl->startChatCall(chatid, schedId, listener);
 }
 
 void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)

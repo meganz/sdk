@@ -1933,7 +1933,10 @@ extern time_t stringToTimestamp(string stime, date_time_format_t format)
     }
     else
     {
-        dt.tm_isdst = 0;    // no daylight saving as we want to get UTC
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
         return mktime(&dt); // seconds
     }
 }
@@ -2530,6 +2533,59 @@ std::string getSafeUrl(const std::string &posturl)
     return safeurl;
 }
 
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
+}
+
 bool wildcardMatch(const string& text, const string& pattern)
 {
     return wildcardMatch(text.c_str(), pattern.c_str());
@@ -2820,7 +2876,6 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
 
     return std::min(1.0, progress);
 }
-
 
 } // namespace mega
 
