@@ -355,7 +355,7 @@ namespace UserAlert
             struct TitleChangeset { string oldValue, newValue; };
 
             const TitleChangeset* getUpdatedTitle() const { return mUpdatedTitle.get(); }
-            const unsigned long getChanges() const { return mUpdatedFields.to_ulong(); }
+            unsigned long getChanges() const { return mUpdatedFields.to_ulong(); }
             string changeToString(int changeType) const;
             bool hasChanged(int changeType) const
             { return isValidChange(changeType) ? mUpdatedFields[changeType] : false; }
