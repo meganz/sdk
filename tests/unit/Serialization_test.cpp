@@ -252,6 +252,8 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
     ASSERT_EQ(ref.parenthandle, dl.parenthandle);
     ASSERT_EQ(ref.owner, dl.owner);
     ASSERT_EQ(ref.ctime, dl.ctime);
+    ASSERT_EQ(!!dl.attrstring, !!ref.attrstring);
+    ASSERT_TRUE(!dl.attrstring || *dl.attrstring == *ref.attrstring);
     ASSERT_EQ(ref.nodekeyUnchecked(), dl.nodekeyUnchecked());
     ASSERT_EQ(ignore_fileattrstring ? "" : ref.fileattrstring, dl.fileattrstring);
     ASSERT_EQ(ref.attrs.map, dl.attrs.map);

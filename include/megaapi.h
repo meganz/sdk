@@ -2092,6 +2092,22 @@ public:
      * request sent by this instance of the SDK.
      */
     virtual bool isOwnChange() const;
+
+    /**
+     * @brief Indicates that the alert is about to be removed
+     *
+     * This value is useful to clean existing alerts that are not valid anymore.
+     * In example, a TYPE_REMOVEDSHAREDNODES may become TYPE_UPDATEDSHAREDNODES. In
+     * that case, the former will be notified as removed, and a new alert is added for
+     * the latter.
+     *
+     * The SDK purge old alerts in order to keep the list limited to maximum amount
+     * (currently up to 200). In result, the SDK may notify alerts as removed.
+     *
+     * @return True if the alert is about to be removed
+     */
+    virtual bool isRemoved() const;
+
 };
 
 /**
@@ -19508,10 +19524,15 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
+         * - Note: Scheduled meeting id: When a scheduled meeting exists for a chatroom, and a call is started in that scheduled meeting context, it won't
+         * ring the participants.
+         *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle() - Returns the scheduled meeting id;
+         * - MegaChatRequest::getAccess() - Returns the SFU id
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -19523,9 +19544,10 @@ class MegaApi
          * - MegaError::API_EEXIST - If there is a call in the chatroom
          *
          * @param chatid MegaHandle that identifies the chat room
+         * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call

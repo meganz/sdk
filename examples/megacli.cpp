@@ -718,7 +718,7 @@ void printAlert(UserAlert::Base& b)
 {
     string header, title;
     b.text(header, title, client);
-    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << displayTime(b.timestamp) << "]" << " seen: " << b.seen << endl;
+    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << displayTime(b.ts()) << "]" << " seen: " << b.seen() << endl;
 }
 
 void DemoApp::useralerts_updated(UserAlert::Base** b, int count)
@@ -727,7 +727,7 @@ void DemoApp::useralerts_updated(UserAlert::Base** b, int count)
     {
         for (int i = 0; i < count; ++i)
         {
-            if (!b[i]->seen)
+            if (!b[i]->seen())
             {
                 printAlert(*b[i]);
             }
@@ -7473,18 +7473,21 @@ void exec_alerts(autocomplete::ACState& s)
         if (showN)
         {
             size_t n = 0;
-            for (UserAlerts::Alerts::const_reverse_iterator i = client->useralerts.alerts.rbegin(); i != client->useralerts.alerts.rend(); ++i, ++n)
+            for (UserAlerts::Alerts::const_reverse_iterator j = client->useralerts.alerts.rbegin(); j != client->useralerts.alerts.rend(); ++j, ++n)
             {
-                showN += ((*i)->relevant || n >= showN) ? 0 : 1;
+                if (!(*j)->removed())
+                {
+                    showN += ((*j)->relevant() || n >= showN) ? 0 : 1;
+                }
             }
         }
 
         size_t n = client->useralerts.alerts.size();
         for (; i != client->useralerts.alerts.end(); ++i)
         {
-            if ((*i)->relevant)
+            if ((*i)->relevant() && !(*i)->removed())
             {
-                if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
+                if (--n < showN || (shownew && !(*i)->seen()) || (showold && (*i)->seen()))
                 {
                     printAlert(**i);
                 }

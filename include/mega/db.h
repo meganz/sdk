@@ -137,9 +137,11 @@ public:
 
     // -- get node properties --
 
-    virtual bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) = 0;
+    virtual bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t& oldFlags) = 0;
 
     virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
+
+    virtual void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) = 0;
 
     virtual void createIndexes() = 0;
 };

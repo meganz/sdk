@@ -508,7 +508,7 @@ private:
     Node* unserializeNode(const string*, bool fromOldCache);
 
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node, bool isInRubbish);
 
     // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
     FingerprintContainer mFingerPrints;
@@ -1603,7 +1603,10 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE } sctablerectype;
+    // allways add new ones at the end of the enum, otherwise it will mess up the db!
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT, CACHEDDBSTATE, CACHEDALERT } sctablerectype;
+
+    void persistAlert(UserAlert::Base* a);
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };

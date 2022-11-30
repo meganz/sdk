@@ -18,6 +18,14 @@ CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
 CONFIG -= qt
 
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
 
 win32 {
     CONFIG += USE_AUTOCOMPLETE

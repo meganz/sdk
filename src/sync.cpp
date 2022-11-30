@@ -827,7 +827,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 : syncs(us.syncs)
 , localroot(nullptr)
 , mUnifiedSync(us)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
 {
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
