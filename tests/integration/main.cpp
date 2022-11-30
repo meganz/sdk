@@ -535,6 +535,18 @@ int main (int argc, char *argv[])
 
     //SimpleLogger::setOutputClass(nullptr);
 
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; i++)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
+#endif
+
     return ret;
 }
 

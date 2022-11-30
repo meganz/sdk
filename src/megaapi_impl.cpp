@@ -19028,6 +19028,8 @@ void MegaApiImpl::sendPendingRequests()
                         }
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    delete s;
+                    delete els;
                 });
             break;
 
