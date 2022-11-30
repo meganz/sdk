@@ -1175,14 +1175,17 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
     // remove all scheduled meeting whose parent is parentSchedId
     unsigned int count = 0;
+    vector<handle> deletedChildren;
     for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
     {
         if (it->second->parentSchedId() == parentSchedId)
         {
-            removeSchedMeeting(it->second->schedId());
             count++;
+            deletedChildren.emplace_back(it->second->schedId());
         }
     }
+
+    for_each(begin(deletedChildren), end(deletedChildren), [this](handle sm) { deleteSchedMeeting(sm); });
 
     return count;
 }
