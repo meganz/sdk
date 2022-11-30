@@ -21021,13 +21021,22 @@ bool KeyManager::unserialize(const std::string &keysContainer)
         offset += headerSize + len;
     }
 
+    // TODO: iterate over outshares/inshares to detect nodes with sharekeys that are missing
+    // in ^!keys. Then, check if they should be added to the pendinginshares, pendingoutshares
+    // or directly to the sharekeys. If the share key for the share is already there, then the
+    // other client won and our client needs to update the local share key for the corresponding
+    // share (both, inshares and outshares of Node).
+
     return true;
 }
 
 bool KeyManager::deserializeShareKeys(const string &blob)
 {
-    // nodeHandle.6 shareKey.16 trust.1
+    // clean old data, so we don't left outdated sharekeys in place
+    mTrustedShareKeys.clear();
+    mShareKeys.clear();
 
+    // [nodeHandle.6 shareKey.16 trust.1]*
     CacheableReader r(blob);
 
     unsigned int count = 0;
@@ -21072,10 +21081,12 @@ bool KeyManager::deserializeShareKeys(const string &blob)
 
 bool KeyManager::deserializePendingOutshares(const string &blob)
 {
+    // clean old data, so we don't left outdated pending outshares in place
+    mPendingOutShares.clear();
+
     // [len.1 nodeHandle.6 uid]*
     // if len=0  -> uid is a user handle
     // if len!=0 -> uid is an email address
-
     CacheableReader r(blob);
 
     unsigned int count = 0;
@@ -21129,6 +21140,9 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
 
 bool KeyManager::deserializePendingInshares(const string &blob)
 {
+    // clean old data, so we don't left outdated pending inshares in place
+    mPendingInShares.clear();
+
     // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
     // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
     // if len < 0xFFFF      -> actual len (no extra bytes for length)
