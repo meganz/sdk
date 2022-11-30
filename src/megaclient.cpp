@@ -20700,20 +20700,20 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
     LOG_verbose << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH));
 }
 
-bool KeyManager::fromKeysContainer(const byte *data, unsigned l)
+bool KeyManager::fromKeysContainer(const string &data)
 {
-    if (data && l > 2 && data[0] == 20)
+    if (data.size() > 2 && data[0] == 20)
     {
         // data[1] is reserved, always 0
 
-        if (l > 14)
+        if (data.size() > 14)
         {
-            const string keysCiphered((const char*)(data + 14), (size_t)(l - 14));
-            const string iv((const char*)data + 2, 12);
+            const string keysCiphered((const char*)(data.data() + 14), (size_t)(data.size() - 14));
+            const string iv((const char*)data.data() + 2, 12);
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, data + 2, 12, 0, &keysPlain);
+            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, 12, 0, &keysPlain);
 
             return unserialize(keysPlain);
         }
@@ -20722,6 +20722,21 @@ bool KeyManager::fromKeysContainer(const byte *data, unsigned l)
     return false;
 }
 
+
+uint32_t KeyManager::generation() const
+{
+    return mGeneration;
+}
+
+string KeyManager::privEd25519() const
+{
+    return mPrivEd25519;
+}
+
+string KeyManager::privCu25519() const
+{
+    return mPrivCu25519;
+}
 bool KeyManager::unserialize(const std::string &keysContainer)
 {
     // Decode blob
@@ -20781,16 +20796,14 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             if (len != 32) return false;
             mPrivEd25519.assign(blob + offset, len);
             LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
-//                    delete client->signkey;
-//                    client->signkey = new EdDSA(client->rng, (unsigned char *) mPrivEd25519.data());
+            // TODO: should check if private key has not changed
             break;
 
         case TAG_PRIV_CU25519:
             if (len != 32) return false;
             mPrivCu25519.assign(blob + offset, len);
             LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
-//                    delete client->chatkey;
-//                    client->chatkey = new ECDH(mPrivCu25519);
+            // TODO: should check if private key has not changed
             break;
 
         case TAG_PRIV_RSA:

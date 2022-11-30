@@ -549,15 +549,16 @@ public:
     void setKey(const SymmCipher& masterKey);
 
     // decrypts and decodes the ^!keys attribute
-    bool fromKeysContainer(const byte* data, unsigned l);
-
-
-
+    bool fromKeysContainer(const string& data);
 
     // --- Getters ----
 
-    bool isSecure() { return mSecure; }
+    bool isSecure() const { return mSecure; }
+    uint32_t generation() const;
 
+    string privEd25519() const;
+
+    string privCu25519() const;
 
 private:
     MegaClient& mClient;
