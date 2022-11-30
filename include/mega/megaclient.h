@@ -1181,7 +1181,10 @@ public:
     void setchatretentiontime(handle chatid, unsigned period);
 
     // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
+                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 handle* originatingUser = nullptr,
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
 #endif
 
     // get mega achievements
@@ -1479,6 +1482,12 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
+
+    void createNewSMAlert(const handle&, handle schedId, handle parentSchedId);
+    void createDeletedSMAlert(const handle&, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle schedId, handle parentSchedId,
+                              UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
+    error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
     void sc_la();

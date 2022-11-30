@@ -868,6 +868,9 @@ protected:
     vector<string> extraStrings;
     vector<MegaHandle> handles;
     bool removed = false;
+    handle schedMeetingId = UNDEF;
+    handle parentSMId = UNDEF;
+    UserAlert::UpdatedScheduledMeeting::Changeset schedMeetingChangeset;
 };
 
 class MegaHandleListPrivate : public MegaHandleList

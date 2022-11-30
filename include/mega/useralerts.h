@@ -75,6 +75,10 @@ namespace UserAlert
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+    static const nameid type_psm = MAKENAMEID3('p', 's', 'm');                      // new scheduled meeting
+    static const nameid type_dsm = MAKENAMEID3('d', 's', 'm');                      // deleted scheduled meeting
+    static const nameid type_usm = MAKENAMEID3('u', 's', 'm');                      // updated scheduled meeting
+
 
     using handle_alerttype_map_t = map<handle, nameid>;
 
@@ -297,6 +301,125 @@ namespace UserAlert
         bool serialize(string*) override;
         static Takedown* unserialize(string*, unsigned id);
     };
+
+    struct NewScheduledMeeting : public Base
+    {
+        handle schedMeetingHandle = UNDEF;
+        handle parentSMHandle = UNDEF;
+
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM)
+            : Base(UserAlert::type_psm, _ou, string(), _ts, _id)
+            , schedMeetingHandle(_sm), parentSMHandle(_parentSM)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+
+        bool serialize(string* d) override;
+        static NewScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct DeletedScheduledMeeting : public Base
+    {
+        handle schedMeetingHandle = UNDEF;
+
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , schedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+
+        bool serialize(string* d) override;
+        static DeletedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct UpdatedScheduledMeeting : public Base
+    {
+        class Changeset
+        {
+        public:
+            enum
+            {
+                CHANGE_TYPE_TITLE,
+                CHANGE_TYPE_DESCRIPTION,
+                CHANGE_TYPE_CANCELLED,
+                CHANGE_TYPE_TIMEZONE,
+                CHANGE_TYPE_STARTDATE,
+                CHANGE_TYPE_ENDDATE,
+                CHANGE_TYPE_RULES,
+
+                CHANGE_TYPE_SIZE
+            };
+            struct TitleChangeset { string oldValue, newValue; };
+
+            const TitleChangeset* getUpdatedTitle() const { return mUpdatedTitle.get(); }
+            const unsigned long getChanges() const { return mUpdatedFields.to_ulong(); }
+            string changeToString(int changeType) const;
+            bool hasChanged(int changeType) const
+            { return isValidChange(changeType) ? mUpdatedFields[changeType] : false; }
+
+            void addChange(int changeType, const string& oldValue = "", const string& newValue = "");
+
+            Changeset() = default;
+            Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs, unique_ptr<TitleChangeset>& _titleCS);
+
+            Changeset(const Changeset& src) { replaceCurrent(src); }
+            Changeset& operator=(const Changeset& src) { replaceCurrent(src); return *this; }
+            Changeset(Changeset&&) = default;
+            Changeset& operator=(Changeset&&) = default;
+            ~Changeset() = default;
+
+        private:
+            /*
+             * invariant:
+             * - bitset size must be the maximum types of changes allowed
+             * - if title changed, there must be previous and new title string
+             */
+            bool invariant() const
+            {
+                return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
+                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]
+                            || !!mUpdatedTitle));
+            }
+
+            bool isValidChange(int changeType) const
+            { return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE); }
+
+            void replaceCurrent(const Changeset& src)
+            {
+                mUpdatedFields = src.mUpdatedFields;
+                if (src.mUpdatedTitle)
+                {
+                    mUpdatedTitle.reset(new TitleChangeset{src.mUpdatedTitle->oldValue,
+                                                           src.mUpdatedTitle->newValue});
+                }
+            }
+
+            unique_ptr<TitleChangeset> mUpdatedTitle;
+            std::bitset<CHANGE_TYPE_SIZE> mUpdatedFields;
+        };
+
+        handle schedMeetingHandle = UNDEF;
+        handle parentSMHandle = UNDEF;
+        Changeset updatedChangeset;
+
+        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm,
+                                handle _parentSM, Changeset&& _cs)
+            : Base(UserAlert::type_usm, _ou, string(),  _ts, _id)
+            , schedMeetingHandle(_sm)
+            , parentSMHandle(_parentSM)
+            , updatedChangeset(_cs)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+
+        bool serialize(string*) override;
+        static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
 };
 
 struct UserAlertFlags

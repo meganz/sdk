@@ -2007,7 +2007,37 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+    case UserAlert::type_psm:
+    {
+        UserAlert::NewScheduledMeeting* p = static_cast<UserAlert::NewScheduledMeeting*>(b);
+        type = TYPE_SCHEDULEDMEETING_NEW;
+        userHandle = p->user();
+        email = p->email();
+        schedMeetingId = p->schedMeetingHandle;
+        parentSMId = p->parentSMHandle;
     }
+    break;
+    case UserAlert::type_dsm:
+    {
+        UserAlert::DeletedScheduledMeeting* p = static_cast<UserAlert::DeletedScheduledMeeting*>(b);
+        type = TYPE_SCHEDULEDMEETING_DELETED;
+        userHandle = p->user();
+        email = p->email();
+        schedMeetingId = p->schedMeetingHandle;
+    }
+    break;
+    case UserAlert::type_usm:
+    {
+        UserAlert::UpdatedScheduledMeeting* p = static_cast<UserAlert::UpdatedScheduledMeeting*>(b);
+        type = TYPE_SCHEDULEDMEETING_UPDATED;
+        userHandle = p->user();
+        email = p->email();
+        schedMeetingId = p->schedMeetingHandle;
+        parentSMId = p->parentSMHandle;
+        schedMeetingChangeset = p->updatedChangeset;
+    }
+    break;
+    } // end switch
 }
 
 MegaUserAlert *MegaUserAlertPrivate::copy() const
@@ -2061,6 +2091,9 @@ const char *MegaUserAlertPrivate::getTypeString() const
     case TYPE_PAYMENTREMINDER:                          return "PAYMENT_REMINDER";
     case TYPE_TAKEDOWN:                                 return "TAKEDOWN";
     case TYPE_TAKEDOWN_REINSTATED:                      return "TAKEDOWN_REINSTATED";
+    case TYPE_SCHEDULEDMEETING_NEW:                     return "SCHEDULEDMEETING_NEW";
+    case TYPE_SCHEDULEDMEETING_UPDATED:                 return "SCHEDULEDMEETING_UPDATED";
+    case TYPE_SCHEDULEDMEETING_DELETED:                 return "SCHEDULEDMEETING_DELETED";
     }
     return "<new type>";
 }
