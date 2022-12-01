@@ -1295,6 +1295,7 @@ bool CommandPutNodes::procresult(Result r)
         }
     }
 
+    // TODO: probably needs something if 'secure'
     client->sendkeyrewrites();
 
     // when the target has been removed, the API automatically adds the new node/s
@@ -2031,6 +2032,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     {
         arg("r", a);
 
+        // TODO: this `k`, if `mKeyManager.secure`, should be skipped
         if (u && u->pubk.isvalid() && t)
         {
             arg("k", asymmkey, t);

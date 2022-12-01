@@ -6062,6 +6062,7 @@ bool MegaClient::sc_shares()
                 ou = jsonsc.gethandle(USERHANDLE);
                 break;
 
+                // TODO: replace 'ok' by action packets 'pk'
             case MAKENAMEID2('o', 'k'):  // owner key
                 ok = jsonsc.getvalue();
                 break;
@@ -6107,12 +6108,14 @@ bool MegaClient::sc_shares()
                     return false;
                 }
 
+                // TODO: the key received here is replaced by the shared-key
                 // am I the owner of the share? use ok, otherwise k.
                 if (ok && oh == me)
                 {
                     k = ok;
                 }
 
+                // TODO: if `mKeyManager.secure`, do not use `k` at all
                 if (k)
                 {
                     if (!decryptkey(k, sharekey, sizeof sharekey, &key, 1, h))
@@ -9071,6 +9074,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         if (sk)
                         {
+                            // TODO: do not use this key if 'secure'
                             decryptkey(sk, buf, sizeof buf, &key, 1, h);
                         }
                     }
@@ -9704,6 +9708,9 @@ void MegaClient::applykeys()
 
 void MegaClient::sendkeyrewrites()
 {
+    // TODO: if 'secure', return
+    // if (mKeyManager.secure) return;
+
     if (sharekeyrewrite.size())
     {
         reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
@@ -10762,6 +10769,9 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
+    // TODO:
+    // if (mKeyManager.secure) return;
+
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
 
@@ -10787,6 +10797,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
+    // TODO: needs adjustment, probably update ^!keys
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
 }
 
@@ -13384,7 +13395,10 @@ void MegaClient::initializekeys()
         if (!mKeyManager.generation() && mKeyManager.isSecure())
         {
             mKeyManager.setKey(key);
+            // TODO: initialization needs to add the sharekeys too, not only private keys
             mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+            // TODO: the migration may require to wait for user's acceptance
             string buf = mKeyManager.toKeysContainer();
             putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
         }
@@ -13914,6 +13928,8 @@ error MegaClient::verifyCredentials(handle uh)
     }
     }
 
+    // TODO: update the ^!keys with the new authring's value
+    // TODO: upon update of the authring, also process pendinginshares/pendingoutshares and update accordingly
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()));
 
@@ -20854,7 +20870,7 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
     {
         string msg = "We are upgrading the cryptographic resilience of your account. You will see this message only once. If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed.";
 
-        // TODO: for each inshare and outshare, get name of the folder and notify the app.
+        // TODO: for each outshare, get name of the folder and notify the app.
         // if (shares)
         //msg.append(" You are currently sharing the following folders: ");
         // for(share:shares)

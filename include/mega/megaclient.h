@@ -1830,6 +1830,7 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
+    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
     handle_vector sharekeyrewrite;
