@@ -7492,10 +7492,9 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 bool CommandChatLink::procresult(Result r)
 {
-    if (r.wasError(API_OK) && !mDelete)
+    if (r.wasError(API_OK) && mDelete)
     {
-        LOG_err << "Unexpected response for create/get chatlink";
-        client->app->chatlink_result(UNDEF, API_EINTERNAL);
+        client->app->chatlink_result(UNDEF, API_OK);
         return true;
     }
 
@@ -7509,6 +7508,7 @@ bool CommandChatLink::procresult(Result r)
         handle h = client->json.gethandle(MegaClient::CHATLINKHANDLE);
         if (ISUNDEF(h))
         {
+            LOG_err << "Unexpected response for create/get chatlink";
             client->app->chatlink_result(UNDEF, API_EINTERNAL);
             return false;
         }
@@ -8096,7 +8096,7 @@ CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, con
 
 bool CommandMultiFactorAuthSetup::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    if (r.wasErrorOrOK())  //[0] is valid response
     {
         client->app->multifactorauthsetup_result(NULL, r.errorOrOK());
         return true;
