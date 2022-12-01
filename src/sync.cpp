@@ -1634,19 +1634,25 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // If we don't stall, we'll trigger an infinite rename loop.
             {
                 auto sourcePath = sourceSyncNode->getLocalPath();
-                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false);
-                auto targetFSID = row.fsNode->fsid;
+                auto targetPath = fullPath.localPath;
 
-                if (sourcePath == fullPath.localPath)
+                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false, false);  // skipcasecheck == false here so we only get the fsid for an exact name match
+                auto targetFSID = syncs.fsaccess->fsidOf(targetPath, false, false);  // recheck this node again to be 100% confident there are two FSNodes with the same fsid
+
+                if (sourcePath == targetPath)
                 {
                     // if we run the pre-rework sync code against the same database,
                     // sometimes we end up with duplicate LocalNodes that then make it seem
                     // that we have hard links.
-                    LOG_debug << "Possible duplicate LocalNode at " << sourceSyncNode->debugGetParentList() << " vs " << row.syncNode->debugGetParentList();
+                    LOG_warn << "Possible duplicate LocalNode at " << sourceSyncNode->debugGetParentList() << " vs " << row.syncNode->debugGetParentList();
                     return rowResult = false, true;
                 }
-                else if (sourceFSID != UNDEF && sourceFSID == targetFSID)
+                else if (sourceFSID != UNDEF &&
+                         targetFSID != UNDEF &&
+                         sourceFSID == targetFSID)
                 {
+                    assert(targetFSID == row.fsNode->fsid);
+
                     // Let the user know why we can't perform the move.
                     // Actually we shouldn't even think this is a move since
                     // it's just due to duplicate fsids.  Just report these
@@ -1692,7 +1698,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // Is there something in the way at the move destination?
             string nameOverwritten;
 
-            if (row.cloudNode)
+            if (row.cloudNode && !row.hasCaseInsensitiveLocalNameChange())
             {
                 if (row.cloudNode->handle == sourceSyncNode->syncedCloudNodeHandle)
                 {
@@ -2217,7 +2223,12 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
             LocalNode* sourceSyncNode = syncs.findMoveFromLocalNode(moveHerePtr);
 
-            if (sourceSyncNode && sourceSyncNode->rareRO().moveFromHere == moveHerePtr)
+            if (sourceSyncNode == row.syncNode)
+            {
+                LOG_debug << syncname << "Resolving sync cloud case-only rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
+                sourceSyncNode->rare().moveFromHere.reset();
+            }
+            else if (sourceSyncNode && sourceSyncNode->rareRO().moveFromHere == moveHerePtr)
             {
                 LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
                 assert(sourceSyncNode == moveHerePtr->sourcePtr);
@@ -8915,7 +8926,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
         LocalPath lp = it->second->getLocalPath();
 
         if (it->second->fsid_lastSynced != UNDEF &&
-            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false))
+            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false))
         {
             sourceSyncNodeCurrent = it->second;
         }
