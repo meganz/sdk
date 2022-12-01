@@ -574,6 +574,7 @@ struct CacheableWriter
     void serializesize_t(size_t field);
     void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
+    void serializeu16(uint16_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializefsfp(fsfp_t field);

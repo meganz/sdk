@@ -213,6 +213,11 @@ void CacheableWriter::serializeu32(uint32_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu16(uint16_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));

@@ -526,6 +526,29 @@ class MEGA_API KeyManager
 public:
     KeyManager(MegaClient& client) : mClient(client) {}
 
+    // it's called to initialize the ^!keys attribute, since it does not exist yet
+    void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
+
+    // it derives master key and sets mKey
+    void setKey(const SymmCipher& masterKey);
+
+    // decrypts and decodes the ^!keys attribute
+    bool fromKeysContainer(const string& data);
+
+    // encodes and encrypts the ^!keys attribute
+    string toKeysContainer();
+
+    // --- Getters / Setters ----
+
+    bool isSecure() const { return mSecure; }
+    uint32_t generation() const;
+    string privEd25519() const;
+    string privCu25519() const;
+
+    void setPostRegistration(bool postRegistration);
+
+private:
+
     // Tags used by TLV blob
     enum {
         TAG_VERSION = 1,
@@ -545,26 +568,8 @@ public:
         TAG_WARNINGS = 96,
     };
 
-    void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
+    static const uint8_t IV_LEN = 12;
 
-    // it derives master key and sets mKey
-    void setKey(const SymmCipher& masterKey);
-
-    // decrypts and decodes the ^!keys attribute
-    bool fromKeysContainer(const string& data);
-
-    string serialize();
-
-    // --- Getters / Setters ----
-
-    bool isSecure() const { return mSecure; }
-    uint32_t generation() const;
-    string privEd25519() const;
-    string privCu25519() const;
-
-    void setPostRegistration(bool postRegistration);
-
-private:
     MegaClient& mClient;
 
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
@@ -600,9 +605,23 @@ private:
     // decode data from the decrypted ^!keys attribute
     bool unserialize(const string& keysContainer);
 
+    // prepares the header for a new serialized record of type 'tag' and 'len' bytes
+    string tagHeader(const byte tag, size_t len) const;
+
+    // encode data from the decrypted ^!keys attribute
+    string serialize() const;
+
+    string serializeShareKeys() const;
     bool deserializeShareKeys(const string& blob);
+
+    string serializePendingOutshares() const;
     bool deserializePendingOutshares(const string& blob);
+
+    string serializePendingInshares() const;
     bool deserializePendingInshares(const string& blob);
+
+    string serializeBackups() const;
+    bool deserializeBackups(const string& blob);
 };
 
 

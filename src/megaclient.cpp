@@ -13337,11 +13337,12 @@ void MegaClient::initializekeys()
         LOG_info << "Keypairs and signatures loaded successfully";
         fetchingkeys = false;
 
+        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
         if (!mKeyManager.generation() && mKeyManager.isSecure())
         {
             mKeyManager.setKey(key);
             mKeyManager.init(prEd255, prCu255, mPrivKey);
-            string buf = mKeyManager.serialize();
+            string buf = mKeyManager.toKeysContainer();
             putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
         }
 
@@ -13389,7 +13390,7 @@ void MegaClient::initializekeys()
                 mKeyManager.setKey(key);
                 mKeyManager.init(prEd255, prCu255, mPrivKey);
 
-                buf = mKeyManager.serialize();
+                buf = mKeyManager.toKeysContainer();
                 atPrivKeys = ATTR_KEYS;
             }
             else // save private keys into the *!keyring attribute
@@ -13642,7 +13643,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             attrs[authringType] = *newAuthring;
             if (mKeyManager.isSecure())
             {
-                attrs[ATTR_KEYS] = mKeyManager.serialize();
+                attrs[ATTR_KEYS] = mKeyManager.toKeysContainer();
             }
             // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
             // if found in the temporal ones.
@@ -13801,7 +13802,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             attrs[authringType] = *newAuthring;
             if (mKeyManager.isSecure())
             {
-                attrs[ATTR_KEYS] = mKeyManager.serialize();
+                attrs[ATTR_KEYS] = mKeyManager.toKeysContainer();
             }
             // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
             // if found in the temporal ones.
@@ -20800,14 +20801,14 @@ bool KeyManager::fromKeysContainer(const string &data)
     {
         // data[1] is reserved, always 0
 
-        if (data.size() > 14)
+        if (data.size() > 2 + IV_LEN)
         {
-            const string keysCiphered((const char*)(data.data() + 14), (size_t)(data.size() - 14));
-            const string iv((const char*)data.data() + 2, 12);
+            const string keysCiphered((const char*)(data.data() + 2 + IV_LEN), (size_t)(data.size() - 2 - IV_LEN));
+            const string iv((const char*)data.data() + 2, IV_LEN);
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, 12, 0, &keysPlain);
+            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 0, &keysPlain);
 
             return unserialize(keysPlain);
         }
@@ -20816,12 +20817,106 @@ bool KeyManager::fromKeysContainer(const string &data)
     return false;
 }
 
-string KeyManager::serialize()
+string KeyManager::toKeysContainer()
+{
+    if (mVersion == 0)
+    {
+        LOG_err << "Failed to prepare container from keys. Not initialized yet";
+        assert(false);
+        return string();
+    }
+
+    ++mGeneration;
+
+    const string iv = mClient.rng.genstring(IV_LEN);
+    const string keysPlain = serialize();
+
+    string keysCiphered;
+    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 0, &keysCiphered);
+
+    byte header[2] = {20, 0};
+    assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+
+    return string({20, 0}) + iv + keysCiphered;
+}
+
+string KeyManager::tagHeader(const byte tag, size_t len) const
+{
+    vector<byte> res;
+
+    res.push_back(tag);
+    res.push_back((len & 0xFF0000) >> 16);
+    res.push_back((len & 0xFF00) >> 8);
+    res.push_back(len & 0xFF);
+
+    return string((const char*)res.data(), res.size());
+}
+
+string KeyManager::serialize() const
 {
     string result;
 
-    // reminder: htobe32 for mCreationTime
-    // reminder: htobe32 for mCreationTime
+    result.append(tagHeader(TAG_VERSION, sizeof(mVersion)));
+    result.append((const char*)&mVersion, sizeof(mVersion));
+
+    result.append(tagHeader(TAG_CREATION_TIME, sizeof(mCreationTime)));
+    uint32_t creationTimeBE = htobe32(mCreationTime);
+    result.append((const char*)&creationTimeBE, sizeof(creationTimeBE));
+
+    result.append(tagHeader(TAG_IDENTITY, sizeof(mIdentity)));
+    result.append((const char*)&mIdentity, sizeof(mIdentity));
+
+    result.append(tagHeader(TAG_GENERATION, sizeof(mGeneration)));
+    uint32_t generationBE = htobe32(mGeneration);
+    result.append((const char*)&generationBE, sizeof(generationBE));
+
+    result.append(tagHeader(TAG_ATTR, mAttr.size()));
+    result.append(mAttr);
+
+    assert(mPrivEd25519.size() == EdDSA::SEED_KEY_LENGTH);
+    result.append(tagHeader(TAG_PRIV_ED25519, EdDSA::SEED_KEY_LENGTH));
+    result.append(mPrivEd25519);
+
+    assert(mPrivCu25519.size() == ECDH::PRIVATE_KEY_LENGTH);
+    result.append(tagHeader(TAG_PRIV_CU25519, ECDH::PRIVATE_KEY_LENGTH));
+    result.append(mPrivCu25519);
+
+    // FIXME: webclient sets a shorter format of private RSA key (pqd format)
+    // SDK doesn't support that format yet, but it will need to (unless web
+    // starts using the existing format, as received in `us` and `ug` commands
+    assert(mPrivRSA.size() > 512);
+    result.append(tagHeader(TAG_PRIV_RSA, mPrivRSA.size()));
+    result.append(mPrivRSA);
+
+    result.append(tagHeader(TAG_AUTHRING_ED25519, mAuthEd25519.size()));
+    result.append(mAuthEd25519);
+
+    result.append(tagHeader(TAG_AUTHRING_CU25519, mAuthCu25519.size()));
+    result.append(mAuthCu25519);
+
+    string shareKeys = serializeShareKeys();
+    result.append(tagHeader(TAG_SHAREKEYS, shareKeys.size()));
+    result.append(shareKeys);
+
+    string pendingOutshares = serializePendingOutshares();
+    result.append(tagHeader(TAG_PENDING_OUTSHARES, pendingOutshares.size()));
+    result.append(pendingOutshares);
+
+    string pendingInshares = serializePendingInshares();
+    result.append(tagHeader(TAG_PENDING_INSHARES, pendingInshares.size()));
+    result.append(pendingInshares);
+
+    string backups = serializeBackups();
+    result.append(tagHeader(TAG_BACKUPS, backups.size()));
+    result.append(backups);
+
+    result.append(tagHeader(TAG_WARNINGS, mAuthCu25519.size()));
+    result.append(mAuthCu25519);
+
+    result.append(mOther);
+
+
+
     // reminder: htobe16 for lenBlob16
     // reminder: htobe32 for lenBlob (32bits version)
 
@@ -20848,7 +20943,7 @@ void KeyManager::setPostRegistration(bool postRegistration)
     mPostRegistration = postRegistration;
 }
 
-bool KeyManager::unserialize(const std::string &keysContainer)
+bool KeyManager::unserialize(const string &keysContainer)
 {
     // Decode blob
 
@@ -20904,14 +20999,14 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             break;
 
         case TAG_PRIV_ED25519:
-            if (len != 32) return false;
+            if (len != EdDSA::SEED_KEY_LENGTH) return false;
             mPrivEd25519.assign(blob + offset, len);
             LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
             // TODO: should check if private key has not changed
             break;
 
         case TAG_PRIV_CU25519:
-            if (len != 32) return false;
+            if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
             mPrivCu25519.assign(blob + offset, len);
             LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
             // TODO: should check if private key has not changed
@@ -21002,11 +21097,12 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             break;
         }
         case TAG_BACKUPS:
-            mBackups.assign(blob + offset, len);
-            // TODO: deserialize it
-            LOG_verbose << "Backups: " << Base64::btoa(mBackups);
+        {
+            string buf(blob + offset, len);
+            LOG_verbose << "Backups: " << Base64::btoa(buf);
+            if (!deserializeBackups(buf)) return false;
             break;
-
+        }
         case TAG_WARNINGS:
             mWarnings.assign(blob + offset, len);
             // TODO: deserialize it
@@ -21014,7 +21110,7 @@ bool KeyManager::unserialize(const std::string &keysContainer)
             break;
 
         default:    // any other tag needs to be stored as well, and included in newer versions
-            mOther.append(blob, len + offset);
+            mOther.append(blob + offset - headerSize, headerSize + len);
             break;
         }
 
@@ -21079,6 +21175,29 @@ bool KeyManager::deserializeShareKeys(const string &blob)
     return true;
 }
 
+string KeyManager::serializeShareKeys() const
+{
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : mShareKeys)
+    {
+        handle h = it.first;
+        w.serializenodehandle(it.first);
+
+        size_t shareKeyLen = it.second.size();
+        byte *shareKey = (byte*)it.second.data();
+        w.serializebinary(shareKey, shareKeyLen);
+
+        auto itTrust = mTrustedShareKeys.find(h);
+        byte trust = (itTrust != mTrustedShareKeys.end() && itTrust->second) ? 1 : 0;
+        w.serializebyte(trust);
+    }
+
+    return result;
+}
+
 bool KeyManager::deserializePendingOutshares(const string &blob)
 {
     // clean old data, so we don't left outdated pending outshares in place
@@ -21136,6 +21255,39 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
     }
 
     return true;
+}
+
+string KeyManager::serializePendingOutshares() const
+{
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& itNodes : mPendingOutShares)
+    {
+        handle h = itNodes.first;   // handle of shared folder
+
+        for (const auto& it : itNodes.second)
+        {
+            w.serializebyte(it[0]);
+            w.serializenodehandle(h);
+
+            bool isEmail = it[0];
+            if (isEmail)
+            {
+                w.serializebinary((byte*)it.data() + 1, it.size() - 1);
+            }
+            else    // user's handle in binary format, 8 bytes
+            {
+                assert(it.size() == 1 + MegaClient::USERHANDLE);
+
+                handle uh; memcpy(&uh, it.data() + 1, it.size() - 1);
+                w.serializehandle(uh);
+            }
+        }
+    }
+
+    return result;
 }
 
 bool KeyManager::deserializePendingInshares(const string &blob)
@@ -21210,6 +21362,53 @@ bool KeyManager::deserializePendingInshares(const string &blob)
     }
 
     return true;
+}
+
+string KeyManager::serializePendingInshares() const
+{
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : mPendingInShares)
+    {
+        byte len = static_cast<byte>(it.first.size());
+        assert(len == 8); // node handle in B64
+        w.serializebyte(len);
+        w.serializebinary((byte*)it.first.data(), it.first.size());
+
+        uint32_t lenBlob = static_cast<uint32_t>(MegaClient::USERHANDLE + it.second.second.size());
+        if (lenBlob < 0xFFFF)
+        {
+            uint16_t lenBlob16 = static_cast<uint16_t>(lenBlob);
+            uint16_t lenBlob16BE = htobe16(lenBlob16);
+            w.serializeu16(lenBlob16BE);
+        }
+        else    // excess, 4 extra bytes
+        {
+            w.serializeu16(0xFFFF);
+            uint32_t lenBlobBE = htobe32(lenBlob);
+            w.serializeu32(lenBlobBE);
+        }
+
+        w.serializehandle(it.second.first); // share's owner user handle
+        w.serializebinary((byte*)it.second.second.data(), it.second.second.size());
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializeBackups(const string &blob)
+{
+    // FIXME: add support to deserialize backups
+    mBackups = blob;
+    return true;
+}
+
+string KeyManager::serializeBackups() const
+{
+    // FIXME: once we add support to deserialize, adjust it here too
+    return mBackups;
 }
 
 } // namespace
