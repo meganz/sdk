@@ -7164,14 +7164,13 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             // Can we remove the node from memory?
             auto removable = true;
 
-            // Excluded ignore files need to remain in memory so that we can
-            // track changes made to their filters.
-            removable &= !s->isIgnoreFile();
+            // ignore files cannot be ignored
+            assert(!s->isIgnoreFile());
 
             // Let transfers complete.
             removable &= !s->transferSP;
 
-            // Purge the node from memory.
+            // Keep the node (as ignored) but purge the children
             if (removable)
             {
                 // Extra sanity.
@@ -7192,6 +7191,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         delete p;
                     }
                 }
+
+
             }
             return true; // consider it synced (ie, do not revisit)
         }
@@ -8794,6 +8795,12 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
         //    // treat as different
         //    continue;
         //}
+
+
+        if (it->second->exclusionState() != ES_INCLUDED)
+        {
+            continue;
+        }
 
         // If we got this far, it's a good enough match to use
         // todo: come back for other matches?
