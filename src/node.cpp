@@ -2358,9 +2358,9 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 
     sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
-            upload->transferTag = mc.nextreqtag();
+            upload->tag = mc.nextreqtag();
             upload->selfKeepAlive = upload;
-            mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo);
+            mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
         });
 
 }
@@ -2371,9 +2371,8 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, 
 
     sync->syncs.queueClient([download, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
-            mc.nextreqtag();
             download->selfKeepAlive = download;
-            mc.startxfer(GET, download.get(), committer, false, queueFirst, false, NoVersioning);
+            mc.startxfer(GET, download.get(), committer, false, queueFirst, false, NoVersioning, nullptr, mc.nextreqtag());
         });
 
 }
@@ -2481,7 +2480,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
     weak_ptr<SyncUpload_inClient> self = shared_from_this();
 
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
-    syncThreadSafeState->client()->transferBackstop.forget(transferTag);
+    syncThreadSafeState->client()->transferBackstop.forget(tag);
 
     File::sendPutnodes(client,
         uploadHandle,
@@ -2489,7 +2488,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [self, stts](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride){
+        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
             // Is the originating transfer still alive?
             if (auto s = self.lock())
             {
@@ -2506,7 +2505,6 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 
             if (auto s = stts.lock())
             {
-                auto client = s->client();
                 if (e == API_EACCESS)
                 {
                     client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
@@ -2515,11 +2513,12 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
                 {
                     client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
-
-                // since we used a completion function, putnodes_result is not called.
-                // but the intermediate layer still needs that in order to call the client app back:
-                client->app->putnodes_result(e, t, nn, targetOverride);
             }
+
+            // since we used a completion function, putnodes_result is not called.
+            // but the intermediate layer still needs that in order to call the client app back:
+            client->app->putnodes_result(e, t, nn, targetOverride, tag);
+
         }, nullptr, syncThreadSafeState->mCanChangeVault);
 }
 

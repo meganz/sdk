@@ -8245,7 +8245,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
                         mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0, canChangeVault,
-                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
+                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
                                 //createFolderPtr.reset();  // lives until this point
                             });
 
@@ -10421,6 +10421,29 @@ void Syncs::syncLoop()
                     continue;
                 }
 
+                auto fa = fsaccess->newfileaccess();
+                if (fa->fopen(sync->localroot->localname, true, false, nullptr, true))
+                {
+                    if (fa->type != FOLDERNODE)
+                    {
+                        LOG_err << "Sync local root folder is not a folder: " << sync->localroot->localname;
+                        sync->changestate(INVALID_LOCAL_TYPE, false, true, true);
+                        continue;
+                    }
+                    else if (fa->fsid != sync->localroot->fsid_lastSynced)
+                    {
+                        LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
+                        sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        continue;
+                    }
+                }
+                else
+                {
+                    LOG_err << "Sync local root folder could not be opened: " << sync->localroot->localname;
+                    sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                    continue;
+                }
+
                 if (sync->fsfp)
                 {
                     fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
@@ -10428,7 +10451,7 @@ void Syncs::syncLoop()
                     {
                         LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                        sync->changestate(current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
                         continue;
                     }
                 }

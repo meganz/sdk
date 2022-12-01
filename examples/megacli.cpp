@@ -1123,7 +1123,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
 {
     if (t == USER_HANDLE)
     {
@@ -1158,7 +1158,7 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
         cout << "Target folder has changed!" << endl;
     }
 
-    auto i = gOnPutNodeTag.find(client->restag);
+    auto i = gOnPutNodeTag.find(tag);
     if (i != gOnPutNodeTag.end())
     {
         for (auto &newNode : nn)

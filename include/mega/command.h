@@ -616,7 +616,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
 
 private:
     friend class MegaClient;

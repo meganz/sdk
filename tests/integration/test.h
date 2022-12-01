@@ -662,7 +662,7 @@ struct StandardClient : public MegaApp
 
     handle lastPutnodesResultFirstHandle = UNDEF;
 
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override;
+    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag) override;
     void catchup_result() override;
 
     void disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result);

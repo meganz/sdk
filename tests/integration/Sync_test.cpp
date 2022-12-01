@@ -3357,9 +3357,9 @@ void StandardClient::unlink_result(handle h, error e)
     resultproc.processresult(UNLINK, e, h);
 }
 
-void StandardClient::putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride)
+void StandardClient::putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag)
 {
-    resultproc.processresult(PUTNODES, e, client.restag);
+    resultproc.processresult(PUTNODES, e, tag);
 }
 
 void StandardClient::catchup_result()
