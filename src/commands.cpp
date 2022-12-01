@@ -368,6 +368,9 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
             Node *node = client->nodeByHandle(file->h);
             if (node)
             {
+                assert(node->type != FILENODE);
+                assert(!node->parent || node->parent->type != FILENODE);
+
                 handle rootnode = client->getrootnode(node)->nodehandle;
                 if (targetRoots.find(rootnode) != targetRoots.end())
                 {
@@ -1008,6 +1011,15 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     //     vb:1 to force it on
     //     vb:0 to force it off
     // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+
+    if (vo == UseLocalVersioningFlag && client->loggedIntoWritableFolder())
+    {   // do not rely on local versioning flag when logged into writable folders
+        //  as the owner's ATTR_DISABLE_VERSIONS attribute is not received/updated in that case
+        // and MegaClient::versions_disabled will alwas be false.
+        // Instead, let the API server act according to user's settings
+        vo =  UseServerVersioningFlag;
+    }
+
     switch (vo)
     {
         case NoVersioning:
@@ -1112,6 +1124,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         Node* tn;
         if ((tn = client->nodeByHandle(th)))
         {
+            assert(tn->type != FILENODE);
+
             ShareNodeKeys snk;
 
             for (unsigned i = 0; i < nn.size(); i++)
@@ -1168,6 +1182,12 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     }
 }
 
+void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
+{
+    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride);
+	else client->app->putnodes_result(e, type, newnodes, targetOverride);
+}
+
 bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
@@ -1201,8 +1221,7 @@ bool CommandPutNodes::procresult(Result r)
 
             vector<NewNode> emptyVec;
 
-            if (mResultFunction) mResultFunction(r.errorOrOK(), type, emptyVec, false);
-            else client->app->putnodes_result(r.errorOrOK(), type, emptyVec);
+            performAppCallback(r.errorOrOK(), emptyVec, false);
 
             for (size_t i = 0; i < nn.size(); i++)
             {
@@ -1217,9 +1236,7 @@ bool CommandPutNodes::procresult(Result r)
 #endif
             if (source == PUTNODES_APP)
             {
-                if (mResultFunction) mResultFunction(r.errorOrOK(), type, nn, false);
-                else client->app->putnodes_result(r.errorOrOK(), type, nn);
-
+                performAppCallback(r.errorOrOK(), nn, false);
                 return true;
             }
 #ifdef ENABLE_SYNC
@@ -1288,9 +1305,7 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        if (mResultFunction) mResultFunction(e, type, nn, targetOverride);
-        else client->app->putnodes_result(e, type, nn, targetOverride);
-
+        performAppCallback(e, nn, targetOverride);
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1311,9 +1326,7 @@ bool CommandPutNodes::procresult(Result r)
         }
 #endif
         auto ec = (!e && empty) ? API_ENOENT : static_cast<error>(e);
-
-        if (mResultFunction) mResultFunction(ec, type, nn, targetOverride);
-        else client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
+        performAppCallback(ec, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1577,6 +1590,7 @@ bool CommandLogout::procresult(Result r)
         // stack for processing CS batches, as it deletes data currently in use.
         Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
+        LOG_debug << "setting mOnCSCompletion for final logout processing";  // track possible lack of logout callbacks
         client->mOnCSCompletion = [=](MegaClient* client){
             client->locallogout(true, keepSyncConfigsFile);
             completion(API_OK);
@@ -3699,7 +3713,7 @@ CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 
 bool CommandGetUserEmail::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->getuseremail_result(NULL, r.errorOrOK());
         return true;
@@ -5287,7 +5301,6 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
-    mWritable = writable;
     completion = move(f);
     assert(completion);
 
@@ -5296,6 +5309,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
     if (del)
     {
+        mDeleting = true;
         arg("d", 1);
     }
 
@@ -5306,6 +5320,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
     if (writable)
     {
+        mWritable = true;
         arg("w", "1");
     }
 
@@ -5318,7 +5333,7 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
 bool CommandSetPH::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         completion(r.errorOrOK(), UNDEF, UNDEF);
         return true;
@@ -5327,7 +5342,7 @@ bool CommandSetPH::procresult(Result r)
     handle ph = UNDEF;
     std::string authKey;
 
-    if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
+    if (mWritable) // apparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
     {
         bool exit = false;
         while (!exit)
@@ -5360,6 +5375,11 @@ bool CommandSetPH::procresult(Result r)
                 }
             }
         }
+    }
+    else if (mDeleting)
+    {
+        completion(API_OK, h, UNDEF);
+        return true;
     }
     else    // format: [XXXXXXXX]
     {
@@ -5500,7 +5520,7 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
 
 bool CommandSetMasterKey::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->changepw_result(r.errorOrOK());
     }
@@ -5532,7 +5552,7 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 
 bool CommandCreateEphemeralSession::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->ephemeralSession = false;
         client->ephemeralSessionPlusPlus = false;
@@ -5754,7 +5774,7 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 bool CommandSetKeyPair::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->setkeypair_result(r.errorOrOK());
         return true;
@@ -7038,7 +7058,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
 bool CommandChatURL::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chaturl_result(NULL, r.errorOrOK());
         return true;
@@ -7295,7 +7315,7 @@ CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 
 bool CommandChatPresenceURL::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chatpresenceurl_result(NULL, r.errorOrOK());
         return true;
@@ -7492,15 +7512,15 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 bool CommandChatLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK) && !mDelete)
     {
-        if (r.wasError(API_OK) && !mDelete)
-        {
-            LOG_err << "Unexpected response for create/get chatlink";
-            client->app->chatlink_result(UNDEF, API_EINTERNAL);
-            return true;
-        }
+        LOG_err << "Unexpected response for create/get chatlink";
+        client->app->chatlink_result(UNDEF, API_EINTERNAL);
+        return true;
+    }
 
+    if (r.wasStrictlyError())
+    {
         client->app->chatlink_result(UNDEF, r.errorOrOK());
         return true;
     }
@@ -7977,7 +7997,7 @@ CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool rene
 
 bool CommandContactLinkCreate::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->contactlinkcreate_result(r.errorOrOK(), UNDEF);
     }
@@ -8096,7 +8116,7 @@ CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, con
 
 bool CommandMultiFactorAuthSetup::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->multifactorauthsetup_result(NULL, r.errorOrOK());
         return true;
@@ -8386,7 +8406,7 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 
 bool CommandSMSVerificationCheck::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->smsverificationcheck_result(r.errorOrOK(), nullptr);
         return true;
@@ -8736,27 +8756,20 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
 
 bool CommandBackupPut::procresult(Result r)
 {
-    assert(r.wasStrictlyError() || r.hasJsonItem());
-    handle backupId = UNDEF;
-    Error e = API_OK;
-
-    if (r.hasJsonItem())
+    if (r.wasStrictlyError())
     {
-        backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
-        e = API_OK;
-    }
-    else
-    {
-        e = r.errorOrOK();
+        assert(r.errorOrOK() != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+        if (mCompletion) mCompletion(r.errorOrOK(), UNDEF);
+        client->app->backupput_result(r.errorOrOK(), UNDEF);
+        return true;
     }
 
-    assert(e != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+    handle backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
 
-    if (mCompletion) mCompletion(e, backupId);
+    if (mCompletion) mCompletion(API_OK, backupId);
+    client->app->backupput_result(API_OK, backupId);
 
-    client->app->backupput_result(e, backupId);
-
-    return r.wasStrictlyError() || r.hasJsonItem();
+    return true;
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
@@ -9390,11 +9403,18 @@ bool CommandMeetingStart::procresult(Command::Result r)
     }
 }
 
-CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, handle schedId, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    //TODO: add support for sfuId
+    if (schedId != UNDEF)
+    {
+        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
+        arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
+    }
     tag = client->reqtag;
 }
 
@@ -9576,8 +9596,11 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     error e = API_EINTERNAL;
 
     TextChat* chat = it->second;
+
+    // remove children scheduled meetings (API requirement)
+    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
     mScheduledMeeting->setSchedId(schedId);
-    bool res = chat->addOrUpdateSchedMeeting(mScheduledMeeting.get()); // add or update scheduled meeting if already exists
+    bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
     {
         chat->setTag(tag ? tag : -1);
@@ -9585,6 +9608,13 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 
         result = mScheduledMeeting.get();
         e = API_OK;
+    }
+    else if (deletedChildren)
+    {
+        // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+        LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(e, result); }
@@ -9621,6 +9651,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         TextChat* chat = it->second;
         if (chat->removeSchedMeeting(mSchedId))
         {
+            // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
@@ -9711,13 +9742,13 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     // this approach is an API requirement
 
     // we will clear old sched meetings although there's any malformed sched meeting during the json parse
-    LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
+    LOG_debug << "Invalidating outdated scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
     chat->clearSchedMeetingOccurrences();
 
     for (auto& schedMeeting: schedMeetings)
     {
         // add received scheduled meetings occurrences
-        chat->addSchedMeetingOccurrence(schedMeeting.get());
+        chat->addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>(schedMeeting->copy()));
     }
 
     // just notify once, for all ocurrences received for the same chat

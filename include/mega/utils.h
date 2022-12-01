@@ -457,7 +457,7 @@ public:
     static std::string replace(const std::string& str,
                                const std::string& search,
                                const std::string& replacement);
-        
+
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -470,6 +470,13 @@ extern m_time_t m_mktime(struct tm*);
 extern int m_clock_getmonotonictime(struct timespec *t);
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
+
+/**
+ * Converts a datetime from string format into a Unix timestamp
+ * Allowed input formats:
+ *  + FORMAT_SCHEDULED_COPY  => 20221205123045   => output format: Unix timestamp in deciseconds
+ *  + FORMAT_ISO8601         => 20221205T123045  => output format: Unix timestamp in seconds
+*/
 extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
 std::string rfc1123_datetime( time_t time );
@@ -568,10 +575,10 @@ struct CacheableWriter
     void serializecompressedu64(uint64_t field);
     void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
 
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
     void serializei8(int8_t field);
     void serializei32(int32_t field);
     void serializei64(int64_t field);
-    void serializesize_t(size_t field);
     void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
     void serializeu16(uint16_t field);
@@ -602,10 +609,10 @@ struct CacheableReader
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
 
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
     bool unserializei8(int8_t& s);
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
-    bool unserializesize_t(size_t& s);
     bool unserializeu16(uint16_t &s);
     bool unserializeu32(uint32_t& s);
     bool unserializeu64(uint64_t& s);
@@ -941,6 +948,10 @@ bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
+
+bool readLines(FileAccess& ifAccess, string_vector& destination);
+bool readLines(InputStreamAccess& isAccess, string_vector& destination);
+bool readLines(const std::string& input, string_vector& destination);
 
 bool wildcardMatch(const string& text, const string& pattern);
 bool wildcardMatch(const char* text, const char* pattern);

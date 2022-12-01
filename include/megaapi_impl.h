@@ -846,6 +846,7 @@ public:
     const char* getString(unsigned index) const override;
     MegaHandle getHandle(unsigned index) const override;
     bool isOwnChange() const override;
+    bool isRemoved() const override;
     MegaHandle getPcrHandle() const override;
 
 protected:
@@ -866,6 +867,7 @@ protected:
     vector<int64_t> timestamps;
     vector<string> extraStrings;
     vector<MegaHandle> handles;
+    bool removed = false;
 };
 
 class MegaHandleListPrivate : public MegaHandleList
@@ -2993,7 +2995,7 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
-        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
@@ -3470,7 +3472,7 @@ protected:
 
 protected:
         // suggest reload due to possible race condition with other clients
-        void reload(const char*) override;
+        void reload(const char*, ReasonsToReload) override;
 
         // reload forced automatically by server
         void reloading() override;
@@ -4136,6 +4138,7 @@ public:
     // setters
     void reset() override;
     void setEmailsDisabled(bool enabled);
+    void importFlagsValue(unsigned long val) override;
 
     // getters
     unsigned long getNumericValue() const override;

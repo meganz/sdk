@@ -506,6 +506,7 @@ enum SyncError {
     UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
     UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
     INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
+    FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
 };
 
 enum SyncWarning {
@@ -834,6 +835,13 @@ typedef enum {
 } AuthMethod;
 
 typedef std::map<attr_t, AuthRing> AuthRingsMap;
+
+typedef enum {
+    REASON_ERROR_UNSERIALIZE_NODE = 0,
+    REASON_ERROR_WRITE_DB = 1,
+    REASON_ERROR_NODE_INCONSISTENCY = 2,
+    REASON_ERROR_UNKNOWN = 3,
+} ReasonsToReload;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.

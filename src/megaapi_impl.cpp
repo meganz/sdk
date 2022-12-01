@@ -1842,15 +1842,16 @@ bool MegaSetElementPrivate::hasChanged(int changeType) const
 
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     : id(b->id)
-    , seen(b->seen)
-    , relevant(b->relevant)
+    , seen(b->seen())
+    , relevant(b->relevant())
     , type(-1)
     , tag(b->tag)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
+    , removed(b->removed())
 {
     b->text(heading, title, mc);
-    timestamps.push_back(b->timestamp);
+    timestamps.push_back(b->ts());
 
     switch (b->type)
     {
@@ -1869,9 +1870,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         {
             type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
-        userHandle = p->userHandle;
+        userHandle = p->user();
         mPcrHandle = p->mPcrHandle;
-        email = p->userEmail;
+        email = p->email();
     }
     break;
     case UserAlert::type_c:
@@ -1884,8 +1885,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_CONTACTCHANGE_ACCOUNTDELETED; break;
         case 3: type = TYPE_CONTACTCHANGE_BLOCKEDYOU; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_upci:
@@ -1897,8 +1898,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_ACCEPTED; break;
         case 3: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_DENIED; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_upco:
@@ -1910,16 +1911,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED; break;
         case 3: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_share:
     {
         UserAlert::NewShare* p = static_cast<UserAlert::NewShare*>(b);
         type = TYPE_NEWSHARE;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodeHandle = p->folderhandle;
         if (Node* node = mc->nodebyhandle(p->folderhandle))
         {
@@ -1932,12 +1933,12 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::DeletedShare* p = static_cast<UserAlert::DeletedShare*>(b);
         type = TYPE_DELETEDSHARE;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodePath = p->folderPath;
         nodeName = p->folderName;
         nodeHandle = p->folderHandle;
-        bool accessRevoked = p->userHandle == p->ownerHandle;
+        bool accessRevoked = p->user() == p->ownerHandle;
         numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
@@ -1945,8 +1946,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::NewSharedNodes* p = static_cast<UserAlert::NewSharedNodes*>(b);
         type = TYPE_NEWSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodeHandle = p->parentHandle;
         numbers.push_back(p->folderNodeHandles.size());
         numbers.push_back(p->fileNodeHandles.size());
@@ -1958,8 +1959,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::RemovedSharedNode* p = static_cast<UserAlert::RemovedSharedNode*>(b);
         type = TYPE_REMOVEDSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         numbers.push_back(p->nodeHandles.size());
     }
     break;
@@ -1967,8 +1968,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::UpdatedSharedNode* p = static_cast<UserAlert::UpdatedSharedNode*>(b);
         type = TYPE_UPDATEDSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         numbers.push_back(p->nodeHandles.size());
     }
     break;
@@ -2127,6 +2128,11 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
 bool MegaUserAlertPrivate::isOwnChange() const
 {
     return tag != 0;
+}
+
+bool mega::MegaUserAlertPrivate::isRemoved() const
+{
+    return removed;
 }
 
 MegaNode *MegaNodePrivate::fromNode(Node *node)
@@ -9054,7 +9060,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
                 client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err), true);
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
                     }, false, "");
 
                 return API_OK;
@@ -10741,10 +10747,11 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
     return true;
 }
 
-void MegaApiImpl::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
     request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11040,7 +11047,10 @@ MegaUserAlertList* MegaApiImpl::getUserAlerts()
     v.reserve(client->useralerts.alerts.size());
     for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
     {
-        v.push_back(*it);
+        if (!(*it)->removed())
+        {
+            v.push_back(*it);
+        }
     }
     MegaUserAlertList *alertList = new MegaUserAlertListPrivate(v.data(), int(v.size()), client);
 
@@ -11055,7 +11065,7 @@ int MegaApiImpl::getNumUnreadUserAlerts()
     sdkMutex.lock();
     for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
     {
-        if (!(*it)->seen)
+        if (!(*it)->removed() && !(*it)->seen())
         {
             result++;
         }
@@ -14944,9 +14954,16 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 }
 
 // reload needed
-void MegaApiImpl::reload(const char*)
+void MegaApiImpl::reload(const char* reason, ReasonsToReload reasonToReload)
 {
     fireOnReloadNeeded();
+
+    // TODO: when apps handle EVENT_RELOAD, fireOnReloadNeeded can be removed
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_RELOAD);
+    event->setText(reason);
+    event->setNumber(static_cast<int64_t>(reasonToReload));
+
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::reloading()
@@ -23296,7 +23313,9 @@ void MegaApiImpl::sendPendingRequests()
                break;
             }
 
-            client->reqs.add(new CommandMeetingStart(client, chatid, [request, this](Error e, std::string sfuUrl, handle callid)
+            handle schedId = request->getParentHandle();
+
+            client->reqs.add(new CommandMeetingStart(client, chatid, schedId, [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {
@@ -33476,6 +33495,11 @@ void MegaScheduledFlagsPrivate::reset()
 void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
 {
     mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
+}
+
+void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val)
+{
+    mFlags = val;
 }
 
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
