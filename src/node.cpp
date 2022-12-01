@@ -220,14 +220,17 @@ uint64_t Node::getDBFlag() const
     std::bitset<FLAGS_SIZE> flags;
     flags.set(FLAGS_IS_VERSION, parent && parent->type == FILENODE);
     flags.set(FLAGS_IS_IN_RUBBISH, isAncestor(client->mNodeManager.getRootNodeRubbish()));
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isMarkedSensitive());
     return flags.to_ulong();
 }
 
-uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion)
+//static
+uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
 {
     std::bitset<FLAGS_SIZE> flags = oldFlags;
     flags.set(FLAGS_IS_VERSION, isVersion);
     flags.set(FLAGS_IS_IN_RUBBISH, isInRubbish);
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isSensitive);
     return flags.to_ulong();
 }
 
@@ -706,6 +709,11 @@ nameid Node::sdsId()
 {
     constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
     return nid;
+}
+
+bool Node::isMarkedSensitive() const
+{
+    return attrs.getBool("sen");
 }
 
 vector<pair<handle, int>> Node::getSdsBackups() const

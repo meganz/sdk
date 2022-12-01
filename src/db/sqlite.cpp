@@ -1742,10 +1742,9 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     {
         // exclude previous versions <- parent handle is of type != FILENODE
         std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
-                "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
+            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
         query.append(std::to_string(FILENODE));
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
-
     }
     if (sqlResult == SQLITE_OK)
     {
@@ -1766,6 +1765,65 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     }
 
     sqlite3_reset(mStmtNodeByMimeType);
+
+    return result;
+}
+
+
+bool SqliteAccountState::getNodesByMimetypeNonSensitive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, NodeHandle ancestorHandle)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    bool result = false;
+    int sqlResult = SQLITE_OK;
+    
+    if (!mStmtNodeByMimeTypeNonSensitive)
+    {
+        int senMask = 1 << Node::FLAGS_IS_MARKED_SENSTIVE;
+        senMask;
+        // recursive query from ancestorHandle
+        // do not recurse if parent type is FILENODE (that would be version)
+        // do not recurse if sensative flag set
+        // exclude previous versions <- parent handle is of type != FILENODE
+        //query = "SELECT nodehandle, counter, node FROM nodes";
+
+        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, mimetype, counter, node) AS (SELECT nodehandle, parenthandle, flags, mimetype, counter, node "
+            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.mimetype, N.counter, N.node "
+            "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & " + std::to_string(senMask) + " = 0)) "
+            "SELECT node.nodehandle, node.counter, node.node "
+            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND node.mimetype=? AND parent.type!=" + std::to_string(FILENODE);
+
+        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeNonSensitive, nullptr);
+    }
+    
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeNonSensitive, 1, ancestorHandle.as8byte())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(mStmtNodeByMimeTypeNonSensitive, 2, static_cast<int>(mimeType))) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(mStmtNodeByMimeTypeNonSensitive, nodes);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get node by Mime type excluding sensitive nodes from database: " << dbfile << err;
+        assert(!"Unable to get node by Mime type excluding sensitive nodes from database.");
+    }
+
+    sqlite3_reset(mStmtNodeByMimeTypeNonSensitive);
 
     return result;
 }

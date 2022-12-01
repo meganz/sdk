@@ -6358,10 +6358,9 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
     ASSERT_EQ(sen, false);
 
-    MegaNodeList *list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, 0, MegaApi::FILE_TYPE_PHOTO, 4, true);
+    SdkTest::fetchnodes(0);
+    MegaNodeList *list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, 0, MegaApi::FILE_TYPE_PHOTO, 4, false);
     list;
-    
-
 }
 
 TEST_F(SdkTest, SdkDeviceNames)

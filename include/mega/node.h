@@ -173,6 +173,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // node attributes
     AttrMap attrs;
 
+    // 'sen' attribute
+    bool isMarkedSensitive() const;
+
     // {backup-id, state} pairs received in "sds" node attribute
     vector<pair<handle, int>> getSdsBackups() const;
     static nameid sdsId();
@@ -311,7 +314,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     uint64_t getDBFlag() const;
 
-    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion);
+    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
@@ -330,11 +333,20 @@ private:
 
     static nameid getExtensionNameId(const std::string& ext);
 
+ public:
+    // valkus that are used to populate the flags column in the database
+    // for efficent searching
     enum
     {
-        FLAGS_IS_VERSION = 0,  // This bit is active if node is a version
-        FLAGS_IS_IN_RUBBISH = 1, // This bit is active if node is in rubbish bin
-        FLAGS_SIZE = 2,
+        FLAGS_IS_VERSION = 0,        // This bit is active if node is a version
+                                     // i.e. the parent is a file not a folder
+        FLAGS_IS_IN_RUBBISH = 1,     // This bit is active if node is in rubbish bin
+                                     // i.e. the root ansestor is the rubbish bin
+        FLAGS_IS_MARKED_SENSTIVE = 2,// This bit is active if node is marked as sensitive
+                                     // that is it and every descendent is to be considered
+                                     // sensitive
+                                     // i.e. the 'sen' attribute is set
+        FLAGS_SIZE = 3,
     } Flags;
 };
 

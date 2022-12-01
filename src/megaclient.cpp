@@ -19289,7 +19289,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
+node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchString, CancelToken cancelFlag)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -19300,7 +19300,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
-    nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 
     return nodes;
 }
@@ -19530,7 +19530,7 @@ node_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink(ShareType_t::LINK);
 }
 
-node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
+node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag, bool includeSensitive)
 {
     if (!mTable || mNodes.empty())
     {
@@ -19539,7 +19539,10 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+    if (includeSensitive)
+        mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+    else
+        mTable->getNodesByMimetypeNonSensitive(mimeType, nodesFromTable, cancelFlag, ancestorHandle);
 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
@@ -19622,7 +19625,8 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
             return nc;
         }
 
-        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
+        std::bitset<Node::FLAGS_SIZE> bitset(flags);
+        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE, bitset.test(Node::FLAGS_IS_MARKED_SENSTIVE));
     }
 
     nodePtr_map children;

@@ -20,6 +20,7 @@
  */
 
 #include "mega/attrmap.h"
+#include <asio/error.hpp>
 
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
@@ -35,6 +36,13 @@ unsigned AttrMap::storagesize(int perrecord) const
     }
 
     return t;
+}
+
+bool AttrMap::getBool(const char* name) const {
+    nameid id = string2nameid(name);
+    attr_map::const_iterator iter = map.find(id);
+    bool value = iter != map.end() && iter->second == "1";
+    return value;
 }
 
 int AttrMap::nameid2string(nameid id, char* buf)
