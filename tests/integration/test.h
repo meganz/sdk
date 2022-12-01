@@ -444,7 +444,7 @@ struct StandardClient : public MegaApp
         {
         }
 
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool)
+        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
         {
             mCallable(e);
         }

@@ -173,7 +173,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;

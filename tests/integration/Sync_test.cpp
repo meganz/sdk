@@ -1851,7 +1851,7 @@ void StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
 
     error r = API_OK;
 
-    client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &r);
+    client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &r, client.nextreqtag());
     EXPECT_EQ(r , API_OK);
 
     if (r != API_OK)
@@ -1897,7 +1897,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     file->name = name;
 
     error result = API_OK;
-    client.startxfer(PUT, file.release(), committer, false, false, false, vo, &result);
+    client.startxfer(PUT, file.release(), committer, false, false, false, vo, &result, client.nextreqtag());
     EXPECT_EQ(result, API_OK);
 }
 
@@ -2024,7 +2024,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
             auto trampoline = [completion](const Error& result,
                                            targettype_t,
                                            vector<NewNode>&,
-                                           bool) {
+                                           bool, int tag) {
                 EXPECT_EQ(result, API_OK);
                 completion(result);
             };
@@ -2087,7 +2087,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                      false,
                      false,
                      versioningPolicy,
-                     &result);
+                     &result, client.nextreqtag());
 
     EXPECT_EQ(result, API_OK);
 
@@ -2338,14 +2338,15 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
             nodearray[i] = std::move(*n);
         }
 
-        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool) {
+        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool, int tag) {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
             pb->set_value(!e);
         };
 
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
+        int tag = ++next_request_tag;
+        resultproc.prepresult(COMPLETION, tag,
             [&]() {
-                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, false, std::move(completion));
+                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, tag, false, std::move(completion));
             },
             nullptr);
     }
