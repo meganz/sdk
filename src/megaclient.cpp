@@ -2226,7 +2226,7 @@ void MegaClient::exec()
                     if (useralerts.procsc_useralert(json))
                     {
                         // NULL vector: "notify all elements"
-                        app->useralerts_updated(NULL, int(useralerts.alerts.size()));
+                        app->useralerts_updated(NULL, int(useralerts.alerts.size())); // there are no 'removed' alerts at this point
                     }
                     pendingscUserAlerts.reset();
                     break;
@@ -4888,6 +4888,14 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+                            if (!loggedinfolderlink())
+                            {
+                                // historic user alerts are not supported for public folders
+                                // now that we have fetched everything and caught up actionpackets since that state,
+                                // our next sc request can be for useralerts
+                                useralerts.begincatchup = true;
+                            }
                         }
                         else
                         {
@@ -4949,14 +4957,6 @@ bool MegaClient::procsc()
                         app->chats_updated(NULL, int(chats.size()));
 #endif
                         mNodeManager.removeChanges();
-
-                        if (!loggedinfolderlink())
-                        {
-                            // historic user alerts are not supported for public folders
-                            // now that we have loaded cached state, and caught up actionpackets since that state
-                            // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                            useralerts.begincatchup = true;
-                        }
                     }
 
                     if (!insca_notlast)
@@ -5408,6 +5408,8 @@ void MegaClient::initsc()
             complete = initscsetelements();
         }
 
+        // Nothing to do for persisting Alerts. cmd("f") will not provide any data about Alerts
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
@@ -5584,13 +5586,8 @@ void MegaClient::finalizesc(bool complete)
     else
     {
         LOG_err << "Cache update DB write error - disabling caching";
-
-        mNodeManager.reset();   // may need to still keep nodes in RAM, but it won't work if not all nodes are loaded, anyway
-        sctable->remove();
-        sctable.reset();
-        pendingsccommit = false;
-
-        app->reload("Failed to write to database");
+        assert(false);
+        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -6879,8 +6876,8 @@ void MegaClient::sc_upc(bool incoming)
                     string email;
                     JSON::copystring(&email, m);
                     using namespace UserAlert;
-                    useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
-                                            : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
+                    useralerts.add(incoming ? (UserAlert::Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
+                                            : (UserAlert::Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
                 }
 
                 notifypcr(pcr);
@@ -7437,6 +7434,7 @@ void MegaClient::sc_delscheduledmeeting()
                     TextChat* chat = auxit->second;
                     if (chat->removeSchedMeeting(schedId))
                     {
+                        // remove children scheduled meetings (API requirement)
                         chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
@@ -7480,9 +7478,22 @@ void MegaClient::sc_scheduledmeetings()
 
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get());
-        chat->setTag(0);    // external change
-        notifychat(chat);
+
+        // remove children scheduled meetings (API requirement)
+        handle schedId = sm->schedId();
+        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
+        if (res || deletedChildren)
+        {
+            if (!res)
+            {
+                LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+            }
+
+            // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            chat->setTag(0);    // external change
+            notifychat(chat);
+        }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
 }
@@ -7680,6 +7691,7 @@ void MegaClient::notifypurge(void)
 
     if (mNodeManager.nodeNotifySize() || usernotify.size() || pcrnotify.size()
             || setnotify.size() || setelementnotify.size()
+            || !useralerts.useralertnotify.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7766,19 +7778,7 @@ void MegaClient::notifypurge(void)
         usernotify.clear();
     }
 
-    if ((t = int(useralerts.useralertnotify.size())))
-    {
-        LOG_debug << "Notifying " << t << " user alerts";
-        app->useralerts_updated(&useralerts.useralertnotify[0], t);
-
-        for (i = 0; i < t; i++)
-        {
-            UserAlert::Base *ua = useralerts.useralertnotify[i];
-            ua->tag = -1;
-        }
-
-        useralerts.useralertnotify.clear();
-    }
+    useralerts.purgescalerts();
 
     if (!setelementnotify.empty())
     {
@@ -7813,6 +7813,35 @@ void MegaClient::notifypurge(void)
 #endif
 
     totalNodes = mNodeManager.getNodeCount();
+}
+
+void MegaClient::persistAlert(UserAlert::Base* a)
+{
+    if (!sctable) return;
+
+    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
+    if (a->removed())
+    {
+        if (sctable->del(a->dbid))
+        {
+            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+        }
+        else
+        {
+            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+        }
+    }
+    else // insert or replace
+    {
+        if (sctable->put(CACHEDALERT, a, &key))
+        {
+            LOG_verbose << "UserAlert of type " << a->type << " inserted or replaced in db.";
+        }
+        else
+        {
+            LOG_err << "Failed to insert or update UserAlert of type " << a->type << " in db.";
+        }
+    }
 }
 
 // return node pointer derived from node handle
@@ -8277,7 +8306,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     {
         restag = tag;
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false);
         return;
     }
 
@@ -9011,7 +9040,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // node already present - check for race condition
                     if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
                     {
-                        app->reload("Node inconsistency");
+                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
 
                         static bool reloadnotified = false;
                         if (!reloadnotified)
@@ -11863,7 +11892,7 @@ void MegaClient::procmcsm(JSON *j)
         // add scheduled meeting
         handle h = sm->chatid();
         TextChat* chat = it->second;
-        chat->addOrUpdateSchedMeeting(sm.get(), false); // don't need to notify, as chats are also provided to karere
+        chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));
@@ -12721,6 +12750,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 break;
 
+            case CACHEDALERT:
+            {
+                if (!useralerts.unserializeAlert(&data, id))
+                {
+                    LOG_err << "Failed - user notification read error";
+                    // don't break execution, just ignore it
+                }
+                break;
+            }
+
             case CACHEDCHAT:
 #ifdef ENABLE_CHAT
                 {
@@ -12797,6 +12836,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
+
+    // user alerts are restored from DB upon session resumption. No need to send the sc50 to catchup, it will
+    // generate new alerts from action packets as usual, once the session is up and running
+    useralerts.catchupdone = true;
 
     return true;
 }
@@ -14368,6 +14411,16 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mEnabled = true;
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
+
+    // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
+    // until the account is reloaded (or the app restarts)
+    if (mNodeManager.accountShouldBeReloaded())
+    {
+        LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
+        syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
+        syncConfig.mEnabled = false;
+        return API_EINTERNAL;
+    }
 
     Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
@@ -19834,8 +19887,10 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     Node* node = unserializeNode(&nodeSerialized.mNode, false);
     if (!node)
     {
-        LOG_err << "Error unserializing a node. Reloading account";
-        mClient.fetchnodes(true);
+        assert(false);
+        LOG_err << "Failed to unserialize node. Requesting app to reload...";
+        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
+
         return nullptr;
     }
 
@@ -19865,7 +19920,7 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
     }
 }
 
-NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node)
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node, bool isInRubbish)
 {
     NodeCounter nc;
     if (!mTable)
@@ -19875,19 +19930,23 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
 
     m_off_t nodeSize = 0u;
+    uint64_t flags = 0;
     nodetype_t nodeType = TYPE_UNKNOWN;
     if (node)
     {
         nodeType = node->type;
         nodeSize = node->size;
+        flags = node->getDBFlag();
     }
     else
     {
-        if (!mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType))
+        if (!mTable->getNodeSizeTypeAndFlags(nodehandle, nodeSize, nodeType, flags))
         {
             assert(false);
             return nc;
         }
+
+        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
     }
 
     nodePtr_map children;
@@ -19899,7 +19958,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     for (const auto &itNode : children)
     {
-        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second);
+        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
     }
 
     if (nodeType == FILENODE)
@@ -19926,7 +19985,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         node->setCounter(nc, false);
     }
 
-    mTable->updateCounter(nodehandle, nc.serialize());
+    mTable->updateCounterAndFlags(nodehandle, flags, nc.serialize());
 
     return nc;
 }
@@ -20005,6 +20064,8 @@ void NodeManager::cleanNodes()
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
+
+    mAccountReload = false;
 
     if (mTable)
         mTable->removeNodes();
@@ -20282,13 +20343,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     if (encrypted)
     {
         // Have we encoded the node key data's length?
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(uint32_t) > end)
         {
             mNodes.erase(nodePosition);
             return nullptr;
         }
 
-        auto length = MemAccess::get<unsigned short>(ptr);
+        auto length = MemAccess::get<uint32_t>(ptr);
         ptr += sizeof(length);
 
         // Have we encoded the node key data?
@@ -20302,13 +20363,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         ptr += length;
 
         // Have we encoded the length of the attribute string?
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(uint32_t) > end)
         {
             mNodes.erase(nodePosition);
             return nullptr;
         }
 
-        length = MemAccess::get<unsigned short>(ptr);
+        length = MemAccess::get<uint32_t>(ptr);
         ptr += sizeof(length);
 
         // Have we encoded the attribute string?
@@ -20787,10 +20848,43 @@ void NodeManager::initCompleted()
     node_vector rootNodes = getRootNodesAndInshares();
     for (Node* node : rootNodes)
     {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node, node->type == RUBBISHNODE);
     }
 
     mTable->createIndexes();
+}
+
+void NodeManager::fatalError(ReasonsToReload reloadReason)
+{
+    if (!mAccountReload)
+    {
+        mAccountReload = true;
+
+#ifdef ENABLE_SYNC
+        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+#endif
+
+        std::string reason;
+        switch (reloadReason)
+        {
+            case ReasonsToReload::REASON_ERROR_WRITE_DB:
+                reason = "Failed to write to database";
+                break;
+            case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
+                reason = "Failed to unserialize a node";
+                break;
+            default:
+                reason = "Unknown reason";
+                break;
+        }
+
+        mClient.app->reload(reason.c_str(), reloadReason);
+    }
+}
+
+bool NodeManager::accountShouldBeReloaded() const
+{
+    return mAccountReload;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

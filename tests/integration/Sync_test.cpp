@@ -3533,15 +3533,11 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
 
 bool StandardClient::login_fetchnodes(const string& session)
 {
-    received_user_alerts = false;
-
     future<bool> p2;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-
-    EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;

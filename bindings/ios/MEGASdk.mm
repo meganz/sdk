@@ -1403,31 +1403,41 @@ using namespace mega;
 
 - (void)createSet:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->createSet(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->createSet(name.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                          singleListener:YES
+                                                                               queueType:ListenerQueueTypeCurrent]);
     }
 }
 
 - (void)fetchSetInPreviewMode: delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:delegate
+                                                             singleListener:YES
+                                                                  queueType:ListenerQueueTypeCurrent]);
     }
 }
 
 - (void)updateSetName:(MEGAHandle)sid name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->updateSetName(sid, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->updateSetName(sid, name.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                   singleListener:YES
+                                                                                        queueType:ListenerQueueTypeCurrent]);
     }
 }
 
 - (void)removeSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->removeSet(sid, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->removeSet(sid, [self createDelegateMEGARequestListener:delegate
+                                                              singleListener:YES
+                                                                   queueType:ListenerQueueTypeCurrent]);
     }
 }
 
 - (void)putSetCover:(MEGAHandle)sid eid:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->putSetCover(sid, eid, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->putSetCover(sid, eid, [self createDelegateMEGARequestListener:delegate
+                                                                     singleListener:YES
+                                                                          queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1439,7 +1449,9 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
         self.megaApi->createSetElement(sid,
                                        nodeId,
                                        name.UTF8String,
-                                       [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+                                       [self createDelegateMEGARequestListener:delegate
+                                                                singleListener:YES
+                                                                     queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1451,7 +1463,9 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
         self.megaApi->updateSetElementName(sid,
                                            eid,
                                            name.UTF8String,
-                                           [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+                                           [self createDelegateMEGARequestListener:delegate
+                                                                    singleListener:YES
+                                                                         queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1463,7 +1477,9 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
         self.megaApi->updateSetElementOrder(sid,
                                             eid,
                                             order,
-                                            [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+                                            [self createDelegateMEGARequestListener:delegate
+                                                                     singleListener:YES
+                                                                          queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1471,7 +1487,9 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
                      eid:(MEGAHandle)eid
                 delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->removeSetElement(sid, eid, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->removeSetElement(sid, eid, [self createDelegateMEGARequestListener:delegate
+                                                                          singleListener:YES
+                                                                               queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1680,6 +1698,13 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
         self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
+
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:queueType]);
+    }
+}
+
 
 - (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath {
     if (self.megaApi) {

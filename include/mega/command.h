@@ -87,7 +87,6 @@ public:
     void closeobject();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
-                    //CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
                     CmdItem };           // The reply was none of the above - so a string
@@ -572,8 +571,6 @@ class MEGA_API CommandGetPutUrl : public Command
     using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
-    string* result;
-
 public:
     bool procresult(Result) override;
 
@@ -614,6 +611,7 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
+    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
 
 public:
 
@@ -769,6 +767,7 @@ class MEGA_API CommandSetPH : public Command
     handle h;
     m_time_t ets;
     bool mWritable = false;
+    bool mDeleting = false;
     std::function<void(Error, handle, handle)> completion;
 
 public:
@@ -1580,7 +1579,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;

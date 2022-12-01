@@ -412,15 +412,47 @@ const mega::ScheduledRules *ScheduledMeeting::rules() const             { return
 
 bool ScheduledMeeting::isValid() const
 {
-    return mChatid != UNDEF
-            && mOrganizerUserId != UNDEF
-            && mSchedId != UNDEF
-            && !mTimezone.empty()
-            && !mStartDateTime.empty()
-            && !mEndDateTime.empty()
-            && !mTitle.empty()
-            && !mDescription.empty()
-            && (!mRules || mRules->isValid());
+    if (mSchedId == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting schedId. chatid: " << Base64Str<MegaClient::USERHANDLE>(mChatid);
+        return false;
+    }
+    if (mChatid == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting chatid. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mOrganizerUserId == UNDEF)
+    {
+        LOG_warn << "Invalid scheduled meeting organizer user id. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mTimezone.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting timezone. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mStartDateTime.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting StartDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mEndDateTime.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting EndDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mTitle.empty())
+    {
+        LOG_warn << "Invalid scheduled meeting title. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    if (mRules && !mRules->isValid())
+    {
+        LOG_warn << "Invalid scheduled meeting rules. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
+        return false;
+    }
+    return true;
 }
 
 bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
@@ -1003,13 +1035,18 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     for (auto i: scheduledMeetingsStr)
     {
-        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(i, chat->id));
+        ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
         if (auxMeet)
         {
-            chat->addSchedMeeting(auxMeet.get(), false /*notify*/);
-            // TODO: probably can give ownership to this method, avoiding a copy
+            chat->addSchedMeeting(std::unique_ptr<ScheduledMeeting>(auxMeet), false /*notify*/);
         }
-        // else -> FIXME: should return nullptr and force a full reload?
+        else
+        {
+            assert(false);
+            LOG_err << "Failure at schedule meeting unserialization";
+            delete userpriv;
+            return NULL;
+        }
     }
 
     memset(&chat->changed, 0, sizeof(chat->changed));
@@ -1079,9 +1116,9 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(const ScheduledMeeting* sm)
+void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::move(sm));
 }
 
 void TextChat::clearSchedMeetingOccurrences()
@@ -1099,7 +1136,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
+bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
     if (!sm || id != sm->chatid())
     {
@@ -1113,7 +1150,7 @@ bool TextChat::addSchedMeeting(const ScheduledMeeting *sm, bool notify)
         return false;
     }
 
-    mScheduledMeetings.emplace(schedId, std::unique_ptr<ScheduledMeeting>(sm->copy()));
+    mScheduledMeetings.emplace(schedId, std::move(sm));
     if (notify)
     {
         mSchedMeetingsChanged.emplace_back(schedId);
@@ -1151,7 +1188,7 @@ unsigned int TextChat::removeChildSchedMeetings(handle parentSchedId)
     return count;
 }
 
-bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
+bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)
 {
     assert(sm);
     auto it = mScheduledMeetings.find(sm->schedId());
@@ -1165,13 +1202,13 @@ bool TextChat::updateSchedMeeting(const ScheduledMeeting *sm)
     if (!sm->equalTo(it->second.get()))
     {
         mSchedMeetingsChanged.emplace_back(sm->schedId());
-        it->second.reset(sm->copy());
+        it->second = std::move(sm);
     }
 
     return true;
 }
 
-bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm, bool notify)
+bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
     if (!sm)
     {
@@ -1181,8 +1218,8 @@ bool TextChat::addOrUpdateSchedMeeting(const ScheduledMeeting* sm, bool notify)
     }
 
     return mScheduledMeetings.find(sm->schedId()) == mScheduledMeetings.end()
-            ? addSchedMeeting(sm, notify)
-            : updateSchedMeeting(sm);
+            ? addSchedMeeting(std::move(sm), notify)
+            : updateSchedMeeting(std::move(sm));
 }
 
 bool TextChat::setMode(bool publicchat)
