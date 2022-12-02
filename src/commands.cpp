@@ -7527,7 +7527,7 @@ bool CommandChatLink::procresult(Result r)
     }
     else if (r.wasErrorOrOK())
     {
-        client->app->chatlink_result(UNDEF, API_OK);
+        client->app->chatlink_result(UNDEF, r.errorOrOK());
         return true;
     }
 
