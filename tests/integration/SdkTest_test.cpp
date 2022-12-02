@@ -768,10 +768,9 @@ void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
     EXPECT_EQ(API_OK, mApi[apiIndex].lastError) << "Logout failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-std::string SdkTest::dumpSession()
+char* SdkTest::dumpSession()
 {
-    std::unique_ptr<char[]> rawSession { megaApi[0]->dumpSession() };
-    return std::string(rawSession.get());
+    return megaApi[0]->dumpSession();
 }
 
 void SdkTest::locallogout(int timeout)
@@ -1965,7 +1964,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
     LOG_info << "___TEST Resume session___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    std::string session = dumpSession();
+    std::string session = unique_ptr<char[]>(dumpSession()).get();
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session.c_str()) );
@@ -2889,7 +2888,7 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Locallogout from User1 and login with session ---
 
-    string session = dumpSession();
+    string session = unique_ptr<char[]>(dumpSession()).get();
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     resetlastEvent();
@@ -2905,8 +2904,7 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Locallogout from User2 and login with session ---
 
-    std::unique_ptr<char[]> rawSession { megaApi[1]->dumpSession() };
-    session = rawSession.get();
+    session = unique_ptr<char[]>(megaApi[1]->dumpSession()).get();
 
     auto logoutErr = doRequestLocalLogout(1);
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
@@ -3666,7 +3664,7 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     // --- UserA locallogout ---
 
-    string sessionA = dumpSession();
+    string sessionA = unique_ptr<char[]>(dumpSession()).get();
     locallogout();
 
 
@@ -3699,7 +3697,7 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     // --- UserB locallogout and login with session ---
 
-    string sessionB = megaApi[1]->dumpSession();
+    string sessionB = unique_ptr<char[]>(megaApi[1]->dumpSession()).get();
     auto logoutErr = doRequestLocalLogout(1);
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
     resetlastEvent();
@@ -3734,7 +3732,7 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     // --- UserB locallogout and login with session ---
 
-    sessionB = megaApi[1]->dumpSession();
+    sessionB = unique_ptr<char[]>(megaApi[1]->dumpSession()).get();
     logoutErr = doRequestLocalLogout(1);
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
     trackerB = asyncRequestFastLogin(1, sessionB.c_str());
@@ -5222,8 +5220,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/);
 
-        std::unique_ptr<char[]> rawSession { megaApi[0]->dumpSession() };
-        std::string sessionId = rawSession.get();
+        std::string sessionId = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
 
         onTransferUpdate_progress = 0;// updated in callbacks
         onTransferUpdate_filesize = 0;
@@ -6442,7 +6439,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // Verify sync after logout / login
-    string session = dumpSession();
+    string session = unique_ptr<char[]>(dumpSession()).get();
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
@@ -7582,7 +7579,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     //    if we don't wait for long enough after we get called back. A sync only gets flagged but
     //    is deleted later.
 
-    const std::string session = dumpSession();
+    const std::string session = unique_ptr<char[]>(dumpSession()).get();
 
     const fs::path basePath = "SyncResumptionAfterFetchNodes";
     const auto sync1Path = fs::current_path() / basePath / "sync1"; // stays active
@@ -7968,7 +7965,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     //    ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
     //}
 
-    std::string session = dumpSession();
+    std::string session = unique_ptr<char[]>(dumpSession()).get();
     ASSERT_NO_FATAL_FAILURE(locallogout());
     resetlastEvent();
     //loginBySessionId(0, session);
@@ -8051,7 +8048,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::string remoteFolder(sync->getLastKnownMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
-    std::string session = dumpSession();
+    std::string session = unique_ptr<char[]>(dumpSession()).get();
     ASSERT_NO_FATAL_FAILURE(locallogout());
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
@@ -8326,7 +8323,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     MegaNode* inshareNode = nodeList->get(0);
 
     LOG_verbose << "SyncOQTransitions :  Check for transition to OQ while offline.";
-    std::string session = dumpSession();
+    std::string session = unique_ptr<char[]>(dumpSession()).get();
     ASSERT_NO_FATAL_FAILURE(locallogout());
 
     std::unique_ptr<MegaNode> remote1GBFile2nd(megaApi[1]->getChildNode(inshareNode, remote1GBFile->getName()));
@@ -8654,8 +8651,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     for (unsigned index = 0 ; index < howMany; index++ )
     {
         out() << logTime() << "dump session of exported folder " << index;
-        std::unique_ptr<char[]> rawSession { exportedFolderApis[index]->dumpSession() };
-        sessions[index] = rawSession.get();
+        sessions[index] = unique_ptr<char[]>(exportedFolderApis[index]->dumpSession()).get();
     }
 
     // local logout
@@ -9729,11 +9725,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
     // 10. Logout / login
-    std::string session = dumpSession();
+    unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
     ASSERT_EQ(s1p, nullptr);
-    ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // load cached Sets
 
     s1p.reset(megaApi[0]->getSet(sh));
