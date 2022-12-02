@@ -8825,6 +8825,11 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
         if (it->second->type != type) continue;
         if (it->second->fsidScannedReused)   continue;
 
+        if (it->second->exclusionState() == ES_EXCLUDED)
+        {
+            continue;
+        }
+
         //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
         if (filesystemSync)

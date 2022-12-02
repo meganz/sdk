@@ -14461,7 +14461,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
     ASSERT_TRUE(confirm(*cdu, id, localFS));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
 
-    // Move x/d/f to x/f.
+    // Move x/d/f (where it is not ignored) to x/f (where it is ignored) (overwriting the f that was there already).
     fs::rename(root(*cdu) / "root" / "d" / "f",
                root(*cdu) / "root" / "f");
 
