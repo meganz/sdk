@@ -539,7 +539,7 @@ int main (int argc, char *argv[])
     if (CurlHttpIO::sslMutexes)
     {
         int numLocks = CRYPTO_num_locks();
-        for (int i = 0; i < numLocks; i++)
+        for (int i = 0; i < numLocks; ++i)
         {
             delete CurlHttpIO::sslMutexes[i];
         }
