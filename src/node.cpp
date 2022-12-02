@@ -716,6 +716,15 @@ bool Node::isMarkedSensitive() const
     return attrs.getBool("sen");
 }
 
+bool Node::isSensitiveInherited() const
+{
+    if (isMarkedSensitive())
+        return true;
+    if (parent == nullptr)
+        return false;
+    return parent->isSensitiveInherited();
+}
+
 vector<pair<handle, int>> Node::getSdsBackups() const
 {
     vector<pair<handle, int>> bkps;

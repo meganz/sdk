@@ -175,6 +175,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // 'sen' attribute
     bool isMarkedSensitive() const;
+    bool isSensitiveInherited() const;
 
     // {backup-id, state} pairs received in "sds" node attribute
     vector<pair<handle, int>> getSdsBackups() const;
@@ -259,6 +260,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setCounter(const NodeCounter &counter, bool notify);
 
     // parent
+    // nullptr is is root node
     Node* parent = nullptr;
 
     // own position in NodeManager::mFingerPrints (only valid for file nodes)

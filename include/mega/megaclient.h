@@ -306,7 +306,7 @@ public:
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
     // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
+    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool includeSensitive);
 
     node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);

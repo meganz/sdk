@@ -19289,7 +19289,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchString, CancelToken cancelFlag)
+node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchString, CancelToken cancelFlag, bool includeSensitive)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -19301,6 +19301,16 @@ node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchStr
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
     nodes = processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
+    if (!includeSensitive)
+    {
+        node_vector isnodes;
+        for (Node* node : nodes) {
+            if (node->isSensitiveInherited())
+                continue;
+            isnodes.push_back(node);
+        }
+        return isnodes;
+    }
 
     return nodes;
 }

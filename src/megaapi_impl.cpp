@@ -7214,16 +7214,16 @@ void MegaApiImpl::setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestLi
     waiter->notify();
 }
 
-bool MegaApiImpl::isSensitiveInherited(MegaNode* node)
+bool MegaApiImpl::isSensitiveInherited(MegaNode* mnode)
 {
     // there is no MegaNode::getParentNode() so the traversal must be here in MegaApi
 
-    for (MegaNode* anode = node; anode != nullptr; anode = getParentNode(anode))
-    {
-        if (anode->isMarkedSensitive())
-            return true;
-    }
-    return false;
+    SdkMutexGuard g(sdkMutex);
+
+    Node *node = client->nodeByHandle(NodeHandle().set6byte(mnode->getHandle()));
+    if (node == nullptr)
+        return false;
+    return node->isSensitiveInherited();
 }
 
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
@@ -12062,7 +12062,7 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const ch
     }
     else
     {
-        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(ancestorHandle), searchString, cancelToken);
+        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(ancestorHandle), searchString, cancelToken, includeSensitive);
 
         auto it = nodeVector.begin();
         while (it != nodeVector.end() && !cancelToken.isCancelled())
@@ -12182,14 +12182,25 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
         }
         else
         {
-            node_list list = client->getChildren(node);
-            for (node_list::iterator it = list.begin(); it != list.end()
-                 && !cancelToken.isCancelled(); it++)
-            {
-                Node* node = *it;
-                if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+            if (!includeSensitive && node->isSensitiveInherited()) {
+                // all children are sensitive
+            }
+            else {
+                node_list list = client->getChildren(node);
+                for (node_list::iterator it = list.begin(); it != list.end()
+                    && !cancelToken.isCancelled(); it++)
                 {
-                    nodeVector.push_back(node);
+                    Node* cnode = *it;
+                    if (cnode->type != type)
+                        continue;
+                    if (strcasestr(cnode->displayname(), searchString) == NULL)
+                        continue;
+                    if (!includeSensitive && cnode->isMarkedSensitive())
+                    {
+                        assert(!node->isSensitiveInherited()); // so only need to check isMarkedSensitive in child node
+                        continue;
+                    }
+                    nodeVector.push_back(cnode);                    
                 }
             }
         }
@@ -12226,13 +12237,15 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
-                    result.push_back(node);
+                    if (includeSensitive || !node->isSensitiveInherited())
+                        result.push_back(node);
                 }
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
-                    result.push_back(node);
+                    if (includeSensitive || node->isSensitiveInherited())
+                        result.push_back(node);
                 }
             }
         }
@@ -12253,6 +12266,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 {
                     if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                     {
+                        if (!includeSensitive && node->isSensitiveInherited())
+                            continue;
                         result.push_back(node);
                     }
                 }
@@ -12288,6 +12303,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 {
                     if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                     {
+                        if (!includeSensitive && node->isSensitiveInherited())
+                            continue;
                         result.push_back(node);
                     }
                 }

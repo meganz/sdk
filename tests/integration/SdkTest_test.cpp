@@ -6281,6 +6281,9 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
+
+    MegaNodeList* lista = megaApi[0]->search("");
+    lista;
 }
 
 TEST_F(SdkTest, SdkSensitiveNodes)
@@ -6327,7 +6330,6 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     bool null_pointer = (thefile.get() == nullptr);
     ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
 
-    //synchronousSetNodeFavourite(0, subFolderA.get(), true);
     synchronousSetNodeSensitive(0, subFolderA.get(), true);
 
     time_t start = time(nullptr);
@@ -6357,6 +6359,9 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(sen, false);
     sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
     ASSERT_EQ(sen, false);
+
+    //MegaNodeList* lista = megaApi[0]->search(rootnodeA.get(), "");
+    //lista;
 
     SdkTest::fetchnodes(0);
     MegaNodeList *list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, 0, MegaApi::FILE_TYPE_PHOTO, 4, false);

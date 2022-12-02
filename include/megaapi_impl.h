@@ -3126,6 +3126,7 @@ protected:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
+        // if seachString == "" type must not be default
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, CancelToken cancelToken, bool includeSensitive);
         bool isValidTypeNode(Node *node, int type);
 
