@@ -273,7 +273,7 @@ CurlHttpIO::CurlHttpIO()
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
-    // It's needed to check if sslMutexes has been already initialized because
+    // It's needed to check if sslMutexes have been already initialized because
     // in OpenSSL versions >= 1.1.0 these mutexes are not needed anymore and
     // CRYPTO_get_locking_callback() always returns NULL.
     // OPENSSL_VERSION_NUMBER could be used to skip this initialization, but
