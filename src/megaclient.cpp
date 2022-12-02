@@ -1242,6 +1242,8 @@ void MegaClient::init()
     insca = false;
     insca_notlast = false;
     scnotifyurl.clear();
+    mPendingCatchUps = 0;
+    mReceivingCatchUp = false;
     scsn.clear();
 
     // initialize random client application instance ID (for detecting own
@@ -2443,14 +2445,24 @@ void MegaClient::exec()
             {
                 pendingsc.reset(new HttpReq());
                 pendingsc->logname = clientname + "sc ";
-                if (scnotifyurl.size())
+                if (mPendingCatchUps && !mReceivingCatchUp)
                 {
-                    pendingsc->posturl = scnotifyurl;
+                    scnotifyurl.clear();
+                    pendingsc->posturl = httpio->APIURL;
+                    pendingsc->posturl.append("sc/wsc");
+                    mReceivingCatchUp = true;
                 }
                 else
                 {
-                    pendingsc->posturl = httpio->APIURL;
-                    pendingsc->posturl.append("wsc");
+                    if (scnotifyurl.size())
+                    {
+                        pendingsc->posturl = scnotifyurl;
+                    }
+                    else
+                    {
+                        pendingsc->posturl = httpio->APIURL;
+                        pendingsc->posturl.append("wsc");
+                    }
                 }
 
                 pendingsc->protect = true;
@@ -4414,14 +4426,13 @@ void MegaClient::disconnect()
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
+    mPendingCatchUps++;
     if (pendingsc && !jsonsc.pos)
     {
         pendingsc->disconnect();
-
         pendingsc.reset();
     }
     btsc.reset();
-    scnotifyurl.clear();
 }
 
 void MegaClient::abortlockrequest()
@@ -4924,11 +4935,14 @@ bool MegaClient::procsc()
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
+                        app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
                         mNodeManager.removeChanges();
                     }
 
-                    if (!insca_notlast)
+                    if (!insca_notlast && mReceivingCatchUp)
                     {
+                        mReceivingCatchUp = false;
+                        mPendingCatchUps--;
                         app->catchup_result();
                     }
                     return true;
@@ -13142,6 +13156,8 @@ void MegaClient::fetchnodes(bool nocache)
         pendingscUserAlerts.reset();
         jsonsc.pos = NULL;
         scnotifyurl.clear();
+        mPendingCatchUps = 0;
+        mReceivingCatchUp = false;
         insca = false;
         insca_notlast = false;
         btsc.reset();
