@@ -5775,7 +5775,7 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 bool CommandSetKeyPair::procresult(Result r)
 {
-    if (r.hasJsonObject())
+    if (r.hasJsonItem())
     {
         client->json.storeobject();
 
