@@ -8932,17 +8932,20 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        // check the file/folder actually exists (with same fsid) on disk for this LocalNode
-        LocalPath lp = it->second->getLocalPath();
+        if (it->second->exclusionState() != ES_EXCLUDED)
+        {
+            // check the file/folder actually exists (with same fsid) on disk for this LocalNode
+            LocalPath lp = it->second->getLocalPath();
 
-        if (it->second->fsid_lastSynced != UNDEF &&
-            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false))
-        {
-            sourceSyncNodeCurrent = it->second;
-        }
-        else
-        {
-            sourceSyncNodeOriginal = it->second;
+            if (it->second->fsid_lastSynced != UNDEF &&
+                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false))
+            {
+                sourceSyncNodeCurrent = it->second;
+            }
+            else
+            {
+                sourceSyncNodeOriginal = it->second;
+            }
         }
     }
 
