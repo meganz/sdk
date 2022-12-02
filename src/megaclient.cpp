@@ -4924,6 +4924,7 @@ bool MegaClient::procsc()
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
+                        app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
                         mNodeManager.removeChanges();
                     }
 
