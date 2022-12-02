@@ -1297,11 +1297,14 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
     if (type == ATTR_KEYS)
     {
-        KeyManager mKeyManager(*client);
-        mKeyManager.setKey(client->key);
-        mKeyManager.fromKeysContainer(data, l);
-
-
+        if (client->mKeyManager.isSecure())
+        {
+            string d((const char*)data, l);
+            if (!client->mKeyManager.fromKeysContainer(d))
+            {
+                cout << "Error processing new received values for the Key Manager." << endl;
+            }
+        }
     }
 }
 

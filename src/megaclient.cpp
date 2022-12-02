@@ -13424,6 +13424,12 @@ void MegaClient::initializekeys()
             EdDSA *signkey = new EdDSA(rng);
             ECDH *chatkey = new ECDH();
 
+            if (mKeyManager.isSecure())   // account is secured
+            {
+                prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
+                prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
+            }
+
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
@@ -20918,7 +20924,7 @@ bool KeyManager::fromKeysContainer(const string &data)
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 0, &keysPlain);
+            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
             return unserialize(keysPlain);
         }
@@ -20942,7 +20948,7 @@ string KeyManager::toKeysContainer()
     const string keysPlain = serialize();
 
     string keysCiphered;
-    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 0, &keysCiphered);
+    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
 
     byte header[2] = {20, 0};
     assert(string({20, 0}) == string((const char*)header, sizeof(header)));
