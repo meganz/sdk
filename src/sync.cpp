@@ -7175,22 +7175,37 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             // Can we remove the node from memory?
             auto removable = true;
 
-            // Excluded ignore files need to remain in memory so that we can
-            // track changes made to their filters.
-            removable &= !s->isIgnoreFile();
+            // ignore files cannot be ignored
+            assert(!s->isIgnoreFile());
 
             // Let transfers complete.
             removable &= !s->transferSP;
 
-            // Purge the node from memory.
+            // Keep the node (as ignored) but purge the children
             if (removable)
             {
                 // Extra sanity.
                 assert(!s->rareRO().moveFromHere);
                 assert(!s->rareRO().moveToHere);
 
-                return resolve_delSyncNode(row, parentRow, fullPath, 100);
+                if (!s->children.empty())
+                {
+                    LOG_debug << syncname << "removing child LocalNodes from excluded " << s->getLocalPath();
+                    vector<LocalNode*> cs;
+                    cs.resize(s->children.size());
+                    for (auto& i : s->children)
+                    {
+                        cs.push_back(i.second);
+                    }
+                    for (auto p : cs)
+                    {
+                        delete p;
+                    }
+                }
+
+
             }
+            return true; // consider it synced (ie, do not revisit)
         }
     }
 
@@ -8792,6 +8807,12 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
         //    continue;
         //}
 
+
+        if (it->second->exclusionState() != ES_INCLUDED)
+        {
+            continue;
+        }
+
         // If we got this far, it's a good enough match to use
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
@@ -8814,6 +8835,11 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
     {
         if (it->second->type != type) continue;
         if (it->second->fsidScannedReused)   continue;
+
+        if (it->second->exclusionState() == ES_EXCLUDED)
+        {
+            continue;
+        }
 
         //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
@@ -8922,17 +8948,20 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        // check the file/folder actually exists (with same fsid) on disk for this LocalNode
-        LocalPath lp = it->second->getLocalPath();
+        if (it->second->exclusionState() != ES_EXCLUDED)
+        {
+            // check the file/folder actually exists (with same fsid) on disk for this LocalNode
+            LocalPath lp = it->second->getLocalPath();
 
-        if (it->second->fsid_lastSynced != UNDEF &&
-            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false))
-        {
-            sourceSyncNodeCurrent = it->second;
-        }
-        else
-        {
-            sourceSyncNodeOriginal = it->second;
+            if (it->second->fsid_lastSynced != UNDEF &&
+                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false))
+            {
+                sourceSyncNodeCurrent = it->second;
+            }
+            else
+            {
+                sourceSyncNodeOriginal = it->second;
+            }
         }
     }
 
