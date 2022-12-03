@@ -99,8 +99,6 @@ struct SyncTransfer_inClient: public File
     bool wasTerminated = false;
     bool wasCompleted = false;
     bool wasRequesterAbandoned = false;
-
-    int transferTag = -1;
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
