@@ -12051,23 +12051,24 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const char *searchString, int type, CancelToken cancelToken, bool includeSensitive)
+
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const char *searchString, int mimeType, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken)
 {
     node_vector nodeVector;
 
     if (!searchString || strcmp("", searchString) == 0)
     {
-        assert(type != MegaApi::FILE_TYPE_DEFAULT);
-        nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(type), NodeHandle().set6byte(ancestorHandle), cancelToken, includeSensitive);
+        assert(mimeType != MegaApi::FILE_TYPE_DEFAULT);
+        nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(mimeType), NodeHandle().set6byte(ancestorHandle), requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
     }
     else
     {
-        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(ancestorHandle), searchString, cancelToken, includeSensitive);
+        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(ancestorHandle), searchString, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
 
         auto it = nodeVector.begin();
         while (it != nodeVector.end() && !cancelToken.isCancelled())
         {
-            if (!isValidTypeNode(*it, type))
+            if (!isValidTypeNode(*it, mimeType))
             {
                 it = nodeVector.erase(it);
             }
@@ -12132,11 +12133,21 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
-MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
-    if (!n && !searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
+    Node::Flags requiredFlags;
+    Node::Flags excludeFlags;
+    Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, !includeSensitive);
+    return searchWithFlags(n, searchString, cancelToken, recursive, order, mimeType, target, requiredFlags, excludeFlags, excludeRecursiveFlags);
+}
+
+MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_DOCUMENT))
     {
-        // If node is not valid, and no search string, and type is not valid
+        // If node is not valid, and no search string, and mimeType is not valid
         return new MegaNodeListPrivate();
     }
 
@@ -12145,19 +12156,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
         return new MegaNodeListPrivate();
     }
 
-    if (type != MegaApi::FILE_TYPE_DEFAULT
+    if (mimeType != MegaApi::FILE_TYPE_DEFAULT
             && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
 
-
     if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
-
-    SdkMutexGuard g(sdkMutex);
 
     if (cancelToken.isCancelled())
     {
@@ -12167,6 +12175,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
+        assert(target == MegaApi::SEARCH_TARGET_ALL); // target ignored if node specified
+
         // if node is provided, it will be the parent node of the tree to explore
         Node *node = client->nodebyhandle(n->getHandle());
         if (!node)
@@ -12178,29 +12188,24 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelToken, includeSensitive);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
         }
         else
         {
-            if (!includeSensitive && node->isSensitiveInherited()) {
-                // all children are sensitive
-            }
-            else {
+            if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
+            {
                 node_list list = client->getChildren(node);
                 for (node_list::iterator it = list.begin(); it != list.end()
                     && !cancelToken.isCancelled(); it++)
                 {
                     Node* cnode = *it;
-                    if (cnode->type != type)
+                    if (cnode->getMimeType() != mimeType)
                         continue;
                     if (strcasestr(cnode->displayname(), searchString) == NULL)
                         continue;
-                    if (!includeSensitive && cnode->isMarkedSensitive())
-                    {
-                        assert(!node->isSensitiveInherited()); // so only need to check isMarkedSensitive in child node
+                    if (!cnode->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                         continue;
-                    }
-                    nodeVector.push_back(cnode);                    
+                    nodeVector.push_back(cnode);
                 }
             }
         }
@@ -12219,38 +12224,42 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             return new MegaNodeListPrivate();
         }
 
-        if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
+        if (target == MegaApi::SEARCH_TARGET_ALL)
+        {
+            result = searchInNodeManager(UNDEF, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+
+        }
+        else if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
             // Search on rootnode (Cloud and Vault, excludes Rubbish)
             if (recursive)
             {
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, includeSensitive);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, includeSensitive);
+                nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
             {
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-                if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                 {
-                    if (includeSensitive || !node->isSensitiveInherited())
+                    if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                         result.push_back(node);
                 }
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                 {
-                    if (includeSensitive || node->isSensitiveInherited())
+                    if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                         result.push_back(node);
                 }
             }
-        }
 
-        if (target == MegaApi::SEARCH_TARGET_INSHARE)
+        } else if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
             // Search on inshares
             unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
@@ -12259,27 +12268,21 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, includeSensitive);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
                 {
-                    if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                    if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                     {
-                        if (!includeSensitive && node->isSensitiveInherited())
+                        if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                             continue;
                         result.push_back(node);
                     }
                 }
             }
-        }
 
-        if (target == MegaApi::SEARCH_TARGET_ALL)
-        {
-            result = searchInNodeManager(UNDEF, searchString, type, cancelToken, includeSensitive);
-        }
-
-        if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
+        } else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // Search on outshares
             std::set<MegaHandle> outsharesHandles;
@@ -12296,31 +12299,31 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, includeSensitive);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
                 {
-                    if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                    if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                     {
-                        if (!includeSensitive && node->isSensitiveInherited())
+                        if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                             continue;
                         result.push_back(node);
                     }
                 }
             }
-        }
-
-        if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
+        } else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
             node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !cancelToken.isCancelled(); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelToken, includeSensitive);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
+        } else {
+            assert(!"no start node specified and unknown target");
         }
 
         sortByComparatorFunction(result, order, *client);

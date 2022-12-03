@@ -994,7 +994,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
         sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
         sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlag());
+        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
         sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
         sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
@@ -1724,7 +1724,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
     return count;
 }
 
-bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag)
 {
     if (!db)
     {
@@ -1742,13 +1742,16 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     {
         // exclude previous versions <- parent handle is of type != FILENODE
         std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
-            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
+            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n1.flags & ? = ? AND n1.flags & ? = 0 AND n2.type !=";
         query.append(std::to_string(FILENODE));
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
     }
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int(mStmtNodeByMimeType, 1, static_cast<int>(mimeType))) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int  (mStmtNodeByMimeType, 1, static_cast<int>(mimeType))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 2, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 3, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 4, static_cast<sqlite3_int64>(excludeFlags.to_ullong()))) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtNodeByMimeType, nodes);
         }
@@ -1770,8 +1773,11 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
 }
 
 
-bool SqliteAccountState::getNodesByMimetypeNonSensitive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, NodeHandle ancestorHandle)
+bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
+    assert(!ancestorHandle.isUndef());
+    // must recurse from a specfic point
+
     if (!db)
     {
         return false;
@@ -1785,10 +1791,8 @@ bool SqliteAccountState::getNodesByMimetypeNonSensitive(MimeType_t mimeType, std
     bool result = false;
     int sqlResult = SQLITE_OK;
     
-    if (!mStmtNodeByMimeTypeNonSensitive)
+    if (!mStmtNodeByMimeTypeExcludeRecursiveFlags)
     {
-        int senMask = 1 << Node::FLAGS_IS_MARKED_SENSTIVE;
-        senMask;
         // recursive query from ancestorHandle
         // do not recurse if parent type is FILENODE (that would be version)
         // do not recurse if sensative flag set
@@ -1797,19 +1801,23 @@ bool SqliteAccountState::getNodesByMimetypeNonSensitive(MimeType_t mimeType, std
 
         std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, mimetype, counter, node) AS (SELECT nodehandle, parenthandle, flags, mimetype, counter, node "
             "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.mimetype, N.counter, N.node "
-            "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & " + std::to_string(senMask) + " = 0)) "
+            "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & ? = 0)) "
             "SELECT node.nodehandle, node.counter, node.node "
-            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND node.mimetype=? AND parent.type!=" + std::to_string(FILENODE);
+            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND node.mimetype = ? AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != " + std::to_string(FILENODE);
 
-        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeNonSensitive, nullptr);
+        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
     }
     
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeNonSensitive, 1, ancestorHandle.as8byte())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(mStmtNodeByMimeTypeNonSensitive, 2, static_cast<int>(mimeType))) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 1, ancestorHandle.as8byte())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 2, static_cast<sqlite3_int64>(excludeRecursiveFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int  (mStmtNodeByMimeTypeExcludeRecursiveFlags, 3, static_cast<int>(mimeType))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 4, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 5, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 6, static_cast<sqlite3_int64>(excludeFlags.to_ulong()))) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(mStmtNodeByMimeTypeNonSensitive, nodes);
+            result = processSqlQueryNodes(mStmtNodeByMimeTypeExcludeRecursiveFlags, nodes);
         }
     }
 
@@ -1819,11 +1827,11 @@ bool SqliteAccountState::getNodesByMimetypeNonSensitive(MimeType_t mimeType, std
     if (sqlResult != SQLITE_OK)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node by Mime type excluding sensitive nodes from database: " << dbfile << err;
-        assert(!"Unable to get node by Mime type excluding sensitive nodes from database.");
+        LOG_err << "Unable to get node by Mime type excluding recursive flags from database: " << dbfile << err;
+        assert(!"Unable to get node by Mime type excluding recursive flags from database.");
     }
 
-    sqlite3_reset(mStmtNodeByMimeTypeNonSensitive);
+    sqlite3_reset(mStmtNodeByMimeTypeExcludeRecursiveFlags);
 
     return result;
 }

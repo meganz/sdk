@@ -215,17 +215,22 @@ bool Node::hasChildWithName(const string& name) const
     return client->childnodebyname(this, name.c_str()) ? true : false;
 }
 
-uint64_t Node::getDBFlag() const
+Node::Flags Node::getDBFlagsBitset() const
 {
-    std::bitset<FLAGS_SIZE> flags;
+    Flags flags;
     flags.set(FLAGS_IS_VERSION, parent && parent->type == FILENODE);
     flags.set(FLAGS_IS_IN_RUBBISH, isAncestor(client->mNodeManager.getRootNodeRubbish()));
     flags.set(FLAGS_IS_MARKED_SENSTIVE, isMarkedSensitive());
-    return flags.to_ulong();
+    return flags;
+}
+
+uint64_t Node::getDBFlags() const
+{
+    return getDBFlagsBitset().to_ulong();
 }
 
 //static
-uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
+uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
 {
     std::bitset<FLAGS_SIZE> flags = oldFlags;
     flags.set(FLAGS_IS_VERSION, isVersion);
@@ -723,6 +728,29 @@ bool Node::isSensitiveInherited() const
     if (parent == nullptr)
         return false;
     return parent->isSensitiveInherited();
+}
+
+bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags) const
+{
+    if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
+        return false;
+    if (requiredFlags.any() || excludeFlags.any()) {
+        Node::Flags flags = getDBFlagsBitset();
+        if ((flags & excludeFlags).any())
+            return false;
+        if ((flags & requiredFlags) != requiredFlags)
+            return false;
+    }
+    return true;
+}
+
+bool Node::anyExcludeRecursiveFlag(Node::Flags flags) const
+{
+    if ((getDBFlagsBitset() & flags).any())
+        return true;
+    if (parent == nullptr)
+        return false;
+    return parent->anyExcludeRecursiveFlag(flags);
 }
 
 vector<pair<handle, int>> Node::getSdsBackups() const

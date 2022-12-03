@@ -26,6 +26,7 @@
 #include "filefingerprint.h"
 #include "file.h"
 #include "attrmap.h"
+#include <bitset>
 
 namespace mega {
 
@@ -314,9 +315,37 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
 
-    uint64_t getDBFlag() const;
 
-    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
+    // values that are used to populate the flags column in the database
+    // for efficent searching
+    enum
+    {
+        FLAGS_IS_VERSION = 0,        // This bit is active if node is a version
+        // i.e. the parent is a file not a folder
+        FLAGS_IS_IN_RUBBISH = 1,     // This bit is active if node is in rubbish bin
+        // i.e. the root ansestor is the rubbish bin
+        FLAGS_IS_MARKED_SENSTIVE = 2,// This bit is active if node is marked as sensitive
+        // that is it and every descendent is to be considered
+        // sensitive
+        // i.e. the 'sen' attribute is set
+        FLAGS_SIZE = 3,
+    };
+
+    typedef std::bitset<FLAGS_SIZE> Flags; 
+
+    // check if any of the flags are set in any of the anesestors
+    bool anyExcludeRecursiveFlag(Flags flags) const;
+
+    // should we keep the node
+    // requiredFlags are flags that must be set
+    // excludeFlags are flags that must not be set
+    // excludeRecursiveFlags are flags that must not be set or set in a ansestor
+    bool areFlagsValid(Flags requiredFlags, Flags excludeFlags, Flags excludeRecursiveFlags = Flags()) const;
+
+    Flags getDBFlagsBitset() const;
+    uint64_t getDBFlags() const;
+
+    static uint64_t getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
@@ -335,21 +364,6 @@ private:
 
     static nameid getExtensionNameId(const std::string& ext);
 
- public:
-    // valkus that are used to populate the flags column in the database
-    // for efficent searching
-    enum
-    {
-        FLAGS_IS_VERSION = 0,        // This bit is active if node is a version
-                                     // i.e. the parent is a file not a folder
-        FLAGS_IS_IN_RUBBISH = 1,     // This bit is active if node is in rubbish bin
-                                     // i.e. the root ansestor is the rubbish bin
-        FLAGS_IS_MARKED_SENSTIVE = 2,// This bit is active if node is marked as sensitive
-                                     // that is it and every descendent is to be considered
-                                     // sensitive
-                                     // i.e. the 'sen' attribute is set
-        FLAGS_SIZE = 3,
-    } Flags;
 };
 
 inline const string& Node::nodekey() const

@@ -19289,7 +19289,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchString, CancelToken cancelFlag, bool includeSensitive)
+node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchString, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -19301,11 +19301,11 @@ node_vector NodeManager::search(NodeHandle ancestorHandle, const char *searchStr
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
     nodes = processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
-    if (!includeSensitive)
+    if (requiredFlags.any() || excludeFlags.any() ||  excludeRecursiveFlags.any())
     {
         node_vector isnodes;
         for (Node* node : nodes) {
-            if (node->isSensitiveInherited())
+            if (!node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                 continue;
             isnodes.push_back(node);
         }
@@ -19540,7 +19540,7 @@ node_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink(ShareType_t::LINK);
 }
 
-node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag, bool includeSensitive)
+node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     if (!mTable || mNodes.empty())
     {
@@ -19549,10 +19549,10 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (includeSensitive)
-        mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+    if (excludeRecursiveFlags.none())
+        mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
     else
-        mTable->getNodesByMimetypeNonSensitive(mimeType, nodesFromTable, cancelFlag, ancestorHandle);
+        mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
@@ -19625,7 +19625,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     {
         nodeType = node->type;
         nodeSize = node->size;
-        flags = node->getDBFlag();
+        flags = node->getDBFlags();
     }
     else
     {
@@ -19636,7 +19636,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         }
 
         std::bitset<Node::FLAGS_SIZE> bitset(flags);
-        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE, bitset.test(Node::FLAGS_IS_MARKED_SENSTIVE));
+        flags = Node::getDBFlags(flags, isInRubbish, parentType == FILENODE, bitset.test(Node::FLAGS_IS_MARKED_SENSTIVE));
     }
 
     nodePtr_map children;
