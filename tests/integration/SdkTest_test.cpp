@@ -1961,10 +1961,10 @@ TEST_F(SdkTest, SdkTestResumeSession)
     LOG_info << "___TEST Resume session___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    std::string session = unique_ptr<char[]>(dumpSession()).get();
+    unique_ptr<char[]> session(dumpSession());
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_NO_FATAL_FAILURE( resumeSession(session.c_str()) );
+    ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
     ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 }
 
