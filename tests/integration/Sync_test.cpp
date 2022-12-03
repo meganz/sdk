@@ -10453,7 +10453,7 @@ struct TwoWaySyncSymmetryCase
             out() << " ---- local filesystem after sync of change ----";
             PrintLocalTree(fs::path(localTestBasePath()));
 
-            if (sync)
+            if (sync && sync->localroot)
             {
                 out() << " ---- local node tree after sync of change ----";
                 PrintLocalTree(*sync->localroot);
@@ -10466,7 +10466,8 @@ struct TwoWaySyncSymmetryCase
                 PrintRemoteTree(n);
             }
             out() << " ---- expected sync destination (model) ----";
-            PrintModelTree(destinationModel().findnode("f"));
+            auto n = destinationModel().findnode("f");
+            if (n) PrintModelTree(n);
         };
 
         if (printTreesBeforeAndAfter)
@@ -10512,7 +10513,7 @@ struct TwoWaySyncSymmetryCase
         }
 
         // Show the trees if there's been a mismatch.
-        if (printTrees && !confirmedOk)
+        if (printTreesBeforeAndAfter && printTrees && !confirmedOk)
         {
             printTrees();
         }
