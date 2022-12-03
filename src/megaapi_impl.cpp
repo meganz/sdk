@@ -12192,21 +12192,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         }
         else
         {
-            if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
+            node_list list = client->getChildren(node);
+            for (node_list::iterator it = list.begin(); it != list.end()
+                && !cancelToken.isCancelled(); it++)
             {
-                node_list list = client->getChildren(node);
-                for (node_list::iterator it = list.begin(); it != list.end()
-                    && !cancelToken.isCancelled(); it++)
-                {
-                    Node* cnode = *it;
-                    if (cnode->getMimeType() != mimeType)
-                        continue;
-                    if (strcasestr(cnode->displayname(), searchString) == NULL)
-                        continue;
-                    if (!cnode->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                        continue;
-                    nodeVector.push_back(cnode);
-                }
+                Node* cnode = *it;
+                if (cnode->getMimeType() != mimeType)
+                    continue;
+                if (strcasestr(cnode->displayname(), searchString) == NULL)
+                    continue;
+                if (!cnode->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
+                    continue;
+                nodeVector.push_back(cnode);
             }
         }
 
@@ -12276,8 +12273,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                     if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                     {
                         if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                            continue;
-                        result.push_back(node);
+                            result.push_back(node);
                     }
                 }
             }
@@ -12307,8 +12303,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                     if (node->getMimeType() == mimeType && strcasestr(node->displayname(), searchString) != NULL)
                     {
                         if (node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
-                            continue;
-                        result.push_back(node);
+                            result.push_back(node);
                     }
                 }
             }

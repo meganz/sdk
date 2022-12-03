@@ -6356,7 +6356,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
 
     synchronousSetNodeSensitive(0, sfile.get(), true);
     synchronousSetNodeSensitive(0, subFolderA.get(), true);
-    /*
+    
     time_t start = time(nullptr);
     while (time(nullptr) < start + 300) {
         //SdkTest::fetchnodes(0);
@@ -6368,8 +6368,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     }
     time_t secs = time(nullptr) - start;
     secs;
-    */
-
+    
     ASSERT_TRUE(!!subFolderA);
     ASSERT_TRUE(subFolderA->isMarkedSensitive());
 
@@ -6401,7 +6400,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     node specfied
         @recursive
            searchInNodeManager
-        @non recursive                *
+        @non recursive                
     no node
         SEARCH_TARGET_ROOTNODE
             @recursive
@@ -6490,10 +6489,34 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
     ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 
-    list = impl->searchWithFlags(nullptr, "o", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, bitset<3>(), bitset<3>().set(2), bitset<3>());
-    list = impl->searchWithFlags(nullptr, "folder", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, bitset<3>().set(2), bitset<3>(), bitset<3>());
+    // no node, specifid search string: main non recursive
+    // folderA
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 2);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), sfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 1); // non senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 
-    MegaNodeList* a = impl->search(nullptr, "folder", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, 4, false); a;
+    // no node, specifid search string: main non recursive
+    // subfolderA
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 0); // non sensitive files (recursvie exclude)
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 1); // non senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0); // the file itself does not have the senditvei flag it's parent fodler does
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 0); // senstive, but the file itself is not marked sensitvei it'sparent folder is
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
