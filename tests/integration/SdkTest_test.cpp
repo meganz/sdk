@@ -2804,8 +2804,8 @@ TEST_F(SdkTest, SdkTestShares2)
     sl.reset(megaApi[1]->getInSharesList());
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
-    std::unique_ptr<MegaUser> contact{ megaApi[1]->getContact(mApi[0].email.c_str()) };
-    std::unique_ptr<MegaNodeList> nl{ megaApi[1]->getInShares(contact.get()) };
+    std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
+    std::unique_ptr<MegaNodeList> nl(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     MegaNode* n = nl->get(0);
 
@@ -3116,7 +3116,7 @@ TEST_F(SdkTest, SdkTestShares)
     sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
-    std::unique_ptr<MegaUser> contact{ megaApi[1]->getContact(mApi[0].email.c_str()) };
+    std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
     nl = megaApi[1]->getInShares(contact.get());
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
@@ -3203,7 +3203,9 @@ TEST_F(SdkTest, SdkTestShares)
     ++ownedNodeCount;
 
     // --- Test that file in Rubbish bin can be restored ---
-    MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(movedNodeHandle);  // Different handle! the node must have been copied due to differing accounts
+
+    // Different handle! the node must have been copied due to differing accounts
+    std::unique_ptr<MegaNode> nodeMovedFile(megaApi[1]->getNodeByHandle(movedNodeHandle));
     ASSERT_EQ(nodeMovedFile->getRestoreHandle(), hfolder2) << "Incorrect restore handle for file in Rubbish Bin";
 
     delete nl;
@@ -3379,8 +3381,8 @@ TEST_F(SdkTest, SdkTestShares)
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE);
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_INSHARE);
 
-    MegaNode *node1 = megaApi[0]->getNodeByHandle(hfolder1);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node1, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE) );
+    std::unique_ptr<MegaNode> node1(megaApi[0]->getNodeByHandle(hfolder1));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(node1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
@@ -3389,15 +3391,14 @@ TEST_F(SdkTest, SdkTestShares)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
 
-    std::unique_ptr<MegaUser> contact2{ megaApi[1]->getContact(mApi[0].email.c_str()) };
-    nl = megaApi[1]->getInShares(contact2.get());
+    contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
+    nl = megaApi[1]->getInShares(contact.get());
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
     n = nl->get(0);
 
     ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_READWRITE).getErrorCode()) << "Wrong access level of incoming share";
 
     delete nl;
-    delete node1;
 
 
     // --- Revoke access to an outgoing share ---
@@ -3419,8 +3420,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
     delete sl;
 
-    std::unique_ptr<MegaUser> contact3{ megaApi[1]->getContact(mApi[0].email.c_str()) };
-    nl = megaApi[1]->getInShares(contact3.get());
+    contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
+    nl = megaApi[1]->getInShares(contact.get());
     ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
     delete nl;
 
@@ -3546,30 +3547,22 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Create a folder public link ---
 
-    MegaNode *nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    std::unique_ptr<MegaNode> nfolder1(megaApi[0]->getNodeByHandle(hfolder1));
 
-    string nodelink5 = createPublicLink(0, nfolder1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    string nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
     // The created link is stored in this->link at onRequestFinish()
 
-    delete nfolder1;
-
     // Get a fresh snapshot of the node and check it's actually exported
-    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
+    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
     ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
 
-    delete nfolder1;
-
-    nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
-
+    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
     ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
 
     // Regenerate the same link should not trigger a new request
-    string nodelink6 = createPublicLink(0, nfolder1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
     ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
-
-    delete nfolder1;
-    delete nodeMovedFile;
 }
 
 
@@ -3784,8 +3777,8 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 1u);
 
-    unique_ptr<MegaUser> c1 (megaApi[1]->getContact(mApi[0].email.c_str()));
-    unique_ptr<MegaUser> c2 (megaApi[2]->getContact(mApi[0].email.c_str()));
+    unique_ptr<MegaUser> c1(megaApi[1]->getContact(mApi[0].email.c_str()));
+    unique_ptr<MegaUser> c2(megaApi[2]->getContact(mApi[0].email.c_str()));
     unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(c1.get()));
     unique_ptr<MegaNodeList> nl2(megaApi[2]->getInShares(c2.get()));
 
@@ -8282,7 +8275,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1;
     }, 60*1000));
 
-    unique_ptr<MegaUser> contact{ megaApi[1]->getContact(mApi[0].email.c_str()) };
+    unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
     unique_ptr<MegaNodeList> nodeList(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
