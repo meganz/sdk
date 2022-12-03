@@ -284,7 +284,7 @@ struct StandardClient : public MegaApp
 
         // f is to return true if no more callbacks are expected, and the expected-entry will be removed
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF);
+        void processresult(resultprocenum rpe, error e, handle h, int tag);
     } resultproc;
 
     // thread as last member so everything else is initialised before we start it
@@ -532,7 +532,6 @@ struct StandardClient : public MegaApp
 
     void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     void uploadFile(const fs::path& sourcePath,
                     const string& targetName,
