@@ -12489,7 +12489,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     cdu->client.setmaxdownloadspeed(1024);
 
     // So we know when f has started transferring.
-    std::atomic<bool> uploading{false};
+    std::atomic<bool> downloadingf{false};
 
     // Exclude "f" once it begins downloading.
     cdu->mOnFileAdded = [&](File& file) {
@@ -12500,10 +12500,10 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
         if (name != "f")
             return;
 
-        // Let the completion callback know we've started uploading f.
-        uploading.store(true);
+        // Let the completion callback know we've started downloading f.
+        downloadingf.store(true);
 
-        // Change the filter rules.
+        // now we write over .megaignore to make it ignore the file f that is downloading
         ASSERT_TRUE(createFile(root(*cdu) / "root" / ".megaignore",
                                ignoreFile.data(),
                                ignoreFile.size()));
@@ -12514,7 +12514,7 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
     // Remove download limit once .megaignore is uploaded.
     cdu->mOnFileComplete = [&](File& file) {
         // Wait until we've started uploading f.
-        if (!uploading.load())
+        if (!downloadingf.load())
             return;
 
         string name;
@@ -12522,7 +12522,6 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
         // What transfer has completed?
         file.displayname(&name);
 
-        // Make sure the updated ignore file is uploaded first.
         ASSERT_TRUE(name == ".megaignore"
                     || cdu->client.getmaxdownloadspeed() == 0);
 
@@ -12537,6 +12536,9 @@ TEST_F(FilterFixture, FilterChangeWhileDownloading)
 
     // Wait for synchronization to complete.
     waitOnSyncs(cdu);
+
+    // we expect the download to have been removed once we ignored the node
+    localFS.removenode("f");
 
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
@@ -12599,6 +12601,9 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
 
     // Wait for synchronization to complete.
     waitonsyncs(std::chrono::seconds(30), cdu);  // 16 was too short, when an upload failed and retried, succeeded on 2nd go but did not get to putnodes in time
+
+    // we expect the upload to have been removed once we ignored the node
+    remoteTree.removenode("f");
 
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
@@ -14456,7 +14461,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
     ASSERT_TRUE(confirm(*cdu, id, localFS));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
 
-    // Move x/d/f to x/f.
+    // Move x/d/f (where it is not ignored) to x/f (where it is ignored) (overwriting the f that was there already).
     fs::rename(root(*cdu) / "root" / "d" / "f",
                root(*cdu) / "root" / "f");
 
