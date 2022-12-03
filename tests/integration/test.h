@@ -502,22 +502,29 @@ struct StandardClient : public MegaApp
     bool downloadFile(const CloudItem& item, const fs::path& destination);
 
     struct FilePut : public File {
+
+        std::function<void(bool)> completion;
+
+        FilePut(std::function<void(bool)>&& c) : completion(c) {}
+
         void completed(Transfer* t, putsource_t source) override
         {
             File::completed(t, source);
+            if (completion) completion(true);
             delete this;
         }
 
         void terminated(error e) override
         {
+            if (completion) completion(false);
             delete this;
         }
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
 
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo = NoVersioning);
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 

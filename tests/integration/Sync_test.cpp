@@ -1888,9 +1888,9 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
     return future.get();
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo)
+void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo)
 {
-    unique_ptr<File> file(new FilePut());
+    unique_ptr<File> file(new FilePut(move(completion)));
 
     file->h = parent->nodeHandle();
     file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
@@ -1901,20 +1901,16 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     EXPECT_EQ(result, API_OK);
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo)
+void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, std::function<void(bool)>&& completion, VersioningOption vo)
 {
-    resultproc.prepresult(PUTNODES,
+    resultproc.prepresult(COMPLETION,
                             ++next_request_tag,
                             [&]()
                             {
                                 TransferDbCommitter committer(client.tctable);
-                                uploadFile(path, name, parent, committer, vo);
+                                uploadFile(path, name, parent, committer, move(completion), vo);
                             },
-                            [pb](error e)
-                            {
-                                pb->set_value(!e);
-                                return true;
-                            });
+                            nullptr);
 }
 
 bool StandardClient::uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds, VersioningOption vo)
@@ -1924,7 +1920,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, const 
         if (!parentNode)
             return pb->set_value(false);
 
-        client.uploadFile(path, name, parentNode, pb, vo);
+        client.uploadFile(path, name, parentNode, [pb](bool b){ pb->set_value(b); }, vo);
     }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(timeoutSeconds));
@@ -1946,7 +1942,7 @@ void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::pat
     if (fs::is_regular_file(p))
     {
         ++inprogress;
-        uploadFile(p, p.filename().u8string(), target, committer, vo);
+        uploadFile(p, p.filename().u8string(), target, committer, nullptr, vo);
     }
     else if (fs::is_directory(p))
     {
