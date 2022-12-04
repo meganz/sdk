@@ -6356,7 +6356,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
 
     synchronousSetNodeSensitive(0, sfile.get(), true);
     synchronousSetNodeSensitive(0, subFolderA.get(), true);
-    
+  /*
     time_t start = time(nullptr);
     while (time(nullptr) < start + 300) {
         //SdkTest::fetchnodes(0);
@@ -6368,7 +6368,8 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     }
     time_t secs = time(nullptr) - start;
     secs;
-    
+  */
+    subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
     ASSERT_TRUE(!!subFolderA);
     ASSERT_TRUE(subFolderA->isMarkedSensitive());
 
