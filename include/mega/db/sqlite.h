@@ -77,7 +77,7 @@ public:
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
-    bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
+    bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t &oldFlags) override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
@@ -87,6 +87,7 @@ public:
     bool removeNodes() override;
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
+    void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override;
     void createIndexes() override;
 
     void remove() override;
@@ -104,6 +105,7 @@ private:
 
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
+    sqlite3_stmt* mStmtUpdateNodeAndFlags = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
     sqlite3_stmt* mStmtChildren = nullptr;

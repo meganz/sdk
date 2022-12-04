@@ -518,7 +518,7 @@ private:
     Node* unserializeNode(const string*, bool fromOldCache);
 
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node, bool isInRubbish);
 
     // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
     FingerprintContainer mFingerPrints;

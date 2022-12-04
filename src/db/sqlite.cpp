@@ -141,7 +141,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, size int64, share tinyint, fav tinyint, mimetype tinyint, "
-                      "ctime int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
+                      "ctime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -640,6 +640,7 @@ SqliteAccountState::~SqliteAccountState()
 {
     sqlite3_finalize(mStmtPutNode);
     sqlite3_finalize(mStmtUpdateNode);
+    sqlite3_finalize(mStmtUpdateNodeAndFlags);
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
     sqlite3_finalize(mStmtChildren);
@@ -789,6 +790,45 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
     sqlite3_reset(mStmtUpdateNode);
 }
 
+void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    checkTransaction();
+
+    int sqlResult = SQLITE_OK;
+    if (!mStmtUpdateNodeAndFlags)
+    {
+        sqlResult = sqlite3_prepare_v2(db, "UPDATE nodes SET counter = ?, flags = ? WHERE nodehandle = ?", -1, &mStmtUpdateNodeAndFlags, NULL);
+    }
+
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_blob(mStmtUpdateNodeAndFlags, 1, nodeCounterBlob.data(), static_cast<int>(nodeCounterBlob.size()), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNodeAndFlags, 2, flags)) == SQLITE_OK)
+            {
+                if ((sqlResult = sqlite3_bind_int64(mStmtUpdateNodeAndFlags, 3, nodeHandle.as8byte())) == SQLITE_OK)
+                {
+                    sqlResult = sqlite3_step(mStmtUpdateNodeAndFlags);
+                }
+            }
+        }
+    }
+
+    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to update counter and flags in database: " << dbfile << err;
+        assert(!"Unable to update counter and flags in database: ");
+    }
+
+    sqlite3_reset(mStmtUpdateNodeAndFlags);
+}
+
 void SqliteAccountState::createIndexes()
 {
     if (!db)
@@ -849,6 +889,9 @@ void SqliteAccountState::remove()
     
     sqlite3_finalize(mStmtUpdateNode);
     mStmtUpdateNode = nullptr;
+
+    sqlite3_finalize(mStmtUpdateNodeAndFlags);
+    mStmtUpdateNodeAndFlags = nullptr;
  
     sqlite3_finalize(mStmtTypeAndSizeNode);
     mStmtTypeAndSizeNode = nullptr;
@@ -911,8 +954,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, mimetype, ctime, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, mimetype, ctime, flags, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -952,9 +995,10 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
         sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
         sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
+        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlag());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1513,7 +1557,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
     return success;
 }
 
-bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType)
+bool SqliteAccountState::getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t& oldFlags)
 {
     if (!db)
     {
@@ -1523,7 +1567,7 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
     int sqlResult = SQLITE_OK;
     if (!mStmtTypeAndSizeNode)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT type, size FROM nodes WHERE nodehandle = ?", -1, &mStmtTypeAndSizeNode, NULL);
+        sqlResult = sqlite3_prepare_v2(db, "SELECT type, size, flags FROM nodes WHERE nodehandle = ?", -1, &mStmtTypeAndSizeNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1534,6 +1578,7 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
             {
                nodeType = (nodetype_t)sqlite3_column_int(mStmtTypeAndSizeNode, 0);
                size = sqlite3_column_int64(mStmtTypeAndSizeNode, 1);
+               oldFlags = sqlite3_column_int64(mStmtTypeAndSizeNode, 2);
             }
         }
     }
