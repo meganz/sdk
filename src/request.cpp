@@ -137,12 +137,15 @@ void Request::process(MegaClient* client)
         {
             // Some commands need to return seqtag and also some JSON,
             // in which case they are in an array with `st` first, and the JSON second
-            // If the command failed, the `st` is replaced with an error code.  OR there is no array and just the error code.
-            // In the case of a string return, but no `st`, the array is used with error code 0.
+            // Some commands might or might not produce `st`.  And might return a string.
+            // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
+            // If the command failed, there is no array, just the error code
             assert(cmd->mV3);
-            if (client->json.isnumeric() || 0 == strncmp(client->json.pos, "{\"err\":", 7))
+            assert(*client->json.pos == '0' || *client->json.pos == '\"');
+            if (*client->json.pos == '0' && *(client->json.pos+1) == ',')
             {
-                parsedOk = processCmdJSON(cmd, true);
+                client->json.pos += 2;
+                parsedOk = processCmdJSON(cmd, false);
             }
             else if (!processSeqTag(cmd, true, parsedOk, true)) // executes the command's procresult if we match the seqtag
             {
