@@ -18458,7 +18458,7 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
     }
 }
 
-NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node)
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node, bool isInRubbish)
 {
     NodeCounter nc;
     if (!mTable)
@@ -18468,19 +18468,23 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
 
     m_off_t nodeSize = 0u;
+    uint64_t flags = 0;
     nodetype_t nodeType = TYPE_UNKNOWN;
     if (node)
     {
         nodeType = node->type;
         nodeSize = node->size;
+        flags = node->getDBFlag();
     }
     else
     {
-        if (!mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType))
+        if (!mTable->getNodeSizeTypeAndFlags(nodehandle, nodeSize, nodeType, flags))
         {
             assert(false);
             return nc;
         }
+
+        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
     }
 
     nodePtr_map children;
@@ -18492,7 +18496,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     for (const auto &itNode : children)
     {
-        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second);
+        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
     }
 
     if (nodeType == FILENODE)
@@ -18519,7 +18523,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         node->setCounter(nc, false);
     }
 
-    mTable->updateCounter(nodehandle, nc.serialize());
+    mTable->updateCounterAndFlags(nodehandle, flags, nc.serialize());
 
     return nc;
 }
@@ -19200,7 +19204,7 @@ void NodeManager::initCompleted()
     node_vector rootNodes = getRootNodesAndInshares();
     for (Node* node : rootNodes)
     {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node, node->type == RUBBISHNODE);
     }
 
     mTable->createIndexes();
