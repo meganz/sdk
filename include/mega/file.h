@@ -90,6 +90,8 @@ struct MEGA_API File: public FileFingerprint
         // is the source file temporary?
         bool temporaryfile : 1;
 
+        // remember if the sync is from an inshare
+        bool fromInsycShare : 1;
     };
 
     VersioningOption mVersioningOption = NoVersioning;
@@ -146,7 +148,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated(error e) override;
 
-    SyncFileGet(Sync*, Node*, const LocalPath&);
+    SyncFileGet(Sync*, Node*, const LocalPath&, bool fromInshare);
     ~SyncFileGet();
 };
 

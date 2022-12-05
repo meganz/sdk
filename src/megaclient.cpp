@@ -10327,7 +10327,7 @@ void MegaClient::opensctable()
             // If permission is granted, then the existing DB is discarding and a new
             // is created from the response of fetchnodes (from server)
             // NOD is a special case where existing DB can be upgraded by renaming the existing
-            // file and migrating data to the new DB scheme. In consequence, we just want to 
+            // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
@@ -15439,7 +15439,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         {
                             LOG_debug << "Sync - requesting file " << localpath;
 
-                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath, l->sync->inshare);
                             nextreqtag();
                             TransferDbCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
                             error result = API_OK;
@@ -16042,7 +16042,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             // Check for filename anomalies.
             if (ll->type == FOLDERNODE)
             {
-                auto type = isFilenameAnomaly(*ll);
+                auto type = isFilenameAnomaly(ll->getLocalname(), ll->name, ll->type);
 
                 if (type != FILENAME_ANOMALY_NONE)
                 {
