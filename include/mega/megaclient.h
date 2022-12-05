@@ -799,7 +799,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
@@ -1830,7 +1830,7 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
-    // minute of the last created folder in SyncDebris
+    // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
     // activity flag

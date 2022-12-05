@@ -3306,7 +3306,7 @@ protected:
         void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
+        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

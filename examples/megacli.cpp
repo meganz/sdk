@@ -294,11 +294,11 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
-static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path, int tag)
 {
     error result = API_OK;
 
-    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
+    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result, tag))
     {
         file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.get());
         file.release();
@@ -317,9 +317,9 @@ static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> fi
     return result;
 }
 
-static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node, int tag)
 {
-    return startxfer(committer, std::move(file), node.displaypath());
+    return startxfer(committer, std::move(file), node.displaypath(), tag);
 }
 
 
@@ -367,7 +367,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)
             {
@@ -1118,7 +1118,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
 {
     if (t == USER_HANDLE)
     {
@@ -1153,7 +1153,7 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
         cout << "Target folder has changed!" << endl;
     }
 
-    auto i = gOnPutNodeTag.find(client->restag);
+    auto i = gOnPutNodeTag.find(tag);
     if (i != gOnPutNodeTag.end())
     {
         for (auto &newNode : nn)
@@ -3009,7 +3009,7 @@ void cycleDownload(LocalPath lp, int count)
 
     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
     TransferDbCommitter committer(client->tctable);
-    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+    client->startxfer(GET, f, committer, false, false, false, NoVersioning, nullptr, client->nextreqtag());
 
     // also delete the old local file
     lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
@@ -3929,6 +3929,28 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+void exec_simulatecondition(autocomplete::ACState& s)
+{
+    auto condition = s.words[1].s;
+    if (condition == "ETOOMANY")
+    {
+        globalMegaTestHooks.interceptSCRequest = [](std::unique_ptr<HttpReq>& pendingsc){
+            pendingsc.reset(new HttpReq);
+            pendingsc->status = REQ_SUCCESS;
+            pendingsc->in = "-6";
+            globalMegaTestHooks.interceptSCRequest = nullptr;
+            cout << "ETOOMANY prepared and reset" << endl;
+        };
+        client->waiter->notify();
+    }
+    else
+    {
+        cout << "unknown condition: " << condition << endl;
+    }
+}
+#endif
+
 #ifdef ENABLE_SYNC
 void exec_syncoutput(autocomplete::ACState& s)
 {
@@ -4137,12 +4159,15 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
 #endif
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
+#endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
-    p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
+    p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
@@ -4303,7 +4328,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         {
             TransferDbCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
-            error result = startxfer(committer, std::move(file), *n);
+            error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
     }
@@ -4351,7 +4376,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     if (regex_search(string(node->displayname()), re))
                     {
                         auto file = ::mega::make_unique<AppFileGet>(node);
-                        error result = startxfer(committer, std::move(file), *node);
+                        error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
                 }
@@ -5110,7 +5135,7 @@ void exec_get(autocomplete::ACState& s)
 
                         TransferDbCommitter committer(client->tctable);
                         auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
-                        startxfer(committer, std::move(file), *filename);
+                        startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
                     return true;
@@ -5173,7 +5198,7 @@ void exec_get(autocomplete::ACState& s)
                         memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
-                    startxfer(committer, std::move(f), *n);
+                    startxfer(committer, std::move(f), *n, client->nextreqtag());
                 }
                 else
                 {
@@ -5183,7 +5208,7 @@ void exec_get(autocomplete::ACState& s)
                         if (node->type == FILENODE)
                         {
                             auto f = ::mega::make_unique<AppFileGet>(node);
-                            startxfer(committer, std::move(f), *node);
+                            startxfer(committer, std::move(f), *node, client->nextreqtag());
                         }
                     }
                 }
@@ -5262,7 +5287,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-            client->startxfer(PUT, f, committer, false, false, false, vo);
+            client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
             total++;
         }
         else
@@ -5493,6 +5518,7 @@ void exec_llockfile(autocomplete::ACState& s)
 
     if (unlock)
     {
+        if (llockedFiles.find(localpath) == llockedFiles.end()) return;
         CloseHandle(llockedFiles[localpath]);
     }
     else
