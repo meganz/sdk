@@ -6218,25 +6218,25 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     return MegaApi::strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
 }
 
-//const char* MegaSync::getMegaSyncWarningCode()
-//{
-//    return MegaSync::getMegaSyncWarningCode(getWarning());
-//}
-//
-//const char* MegaSync::getMegaSyncWarningCode(int warningCode)
-//{
-//    switch(warningCode)
-//    {
-//    case MegaSync::Warning::NO_SYNC_WARNING:
-//        return "No error";
-//    case MegaSync::Warning::LOCAL_IS_FAT:
-//        return "Local filesystem is FAT";
-//    case MegaSync::Warning::LOCAL_IS_HGFS:
-//        return "Local filesystem is HGFS";
-//    default:
-//        return "Undefined warning";
-//    }
-//}
+const char* MegaSync::getMegaSyncWarningCode()
+{
+    return MegaSync::getMegaSyncWarningCode(getWarning());
+}
+
+const char* MegaSync::getMegaSyncWarningCode(int warningCode)
+{
+    switch(warningCode)
+    {
+    case MegaSync::Warning::NO_SYNC_WARNING:
+        return "No error";
+    case MegaSync::Warning::LOCAL_IS_FAT:
+        return "Local filesystem is FAT";
+    case MegaSync::Warning::LOCAL_IS_HGFS:
+        return "Local filesystem is HGFS";
+    default:
+        return "Undefined warning";
+    }
+}
 
 MegaSyncList *MegaSyncList::createInstance()
 {

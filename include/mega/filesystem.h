@@ -877,7 +877,6 @@ bool isReservedName(const FileSystemAccess& fsAccess,
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
 
-
 struct MEGA_API FSNode
 {
     // A structure convenient for containing just the attributes of one item from the filesystem
