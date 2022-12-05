@@ -20,7 +20,6 @@
  */
 
 #include "mega/attrmap.h"
-#include <asio/error.hpp>
 
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
