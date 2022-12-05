@@ -865,6 +865,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 {
     client.clientname = clientname + " ";
     client.syncs.mDetailedSyncLogging = true;
+    g_netLoggingOn = true;
 #ifdef GFX_CLASS
     gfx.startProcessingThread();
 #endif
@@ -1067,7 +1068,6 @@ void StandardClient::file_complete(File* file)
         mOnFileComplete(*file);
     }
 }
-
 
 void StandardClient::notify_retry(dstime t, retryreason_t r)
 {
