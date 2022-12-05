@@ -2116,6 +2116,12 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
 
 void UserAlerts::acknowledgeAll()
 {
+    // notify the API.  Eg. on when user closes the useralerts list
+    mc.reqs.add(new CommandSetLastAcknowledged(&mc));
+}
+
+void UserAlerts::acknowledgeAllSucceeded()
+{
     for (auto& a : alerts)
     {
         if (!a->seen())
@@ -2123,9 +2129,6 @@ void UserAlerts::acknowledgeAll()
             notifyAlert(a, true, mc.reqtag);
         }
     }
-
-    // notify the API.  Eg. on when user closes the useralerts list
-    mc.reqs.add(new CommandSetLastAcknowledged(&mc));
 }
 
 void UserAlerts::onAcknowledgeReceived()

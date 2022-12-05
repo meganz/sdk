@@ -436,8 +436,11 @@ public:
     bool isDeletedSharedNodesStashEmpty() const;
     void stashDeletedNotedSharedNodes(handle originatingUser);
 
-    // marks all as seen, and notifies the API also
+    // request from API to acknowledge all alerts
     void acknowledgeAll();
+
+    // marks all as seen, after API request has succeeded
+    void acknowledgeAllSucceeded();
 
     // the API notified us another client updated the last acknowleged
     void onAcknowledgeReceived();
