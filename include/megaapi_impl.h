@@ -3694,8 +3694,6 @@ protected:
         void syncupdate_conflicts(bool conflicts) override;
         void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
 
-        void syncupdate_local_lockretry(bool) override;
-
         // for the exclusive use of sync_syncable
         unique_ptr<FileAccess> mSyncable_fa;
         std::mutex mSyncable_fa_mutex;

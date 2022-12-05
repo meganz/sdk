@@ -160,10 +160,8 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
-    void addToNodePendingCommands(NodeHandle h, MegaClient* client);
     void addToNodePendingCommands(Node* n);
     void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
-    void removeFromNodePendingCommands(Node* n);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };

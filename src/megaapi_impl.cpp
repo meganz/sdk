@@ -13390,20 +13390,6 @@ void MegaApiImpl::syncs_disabled(SyncError syncError)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
-{
-    if (waiting)
-    {
-        LOG_debug << "Sync - waiting for local filesystem lock";
-    }
-    else
-    {
-        LOG_debug << "Sync - local filesystem lock issue resolved, continuing...";
-        client->abortbackoff(false);
-    }
-
-    this->fireOnGlobalSyncStateChanged();
-}
 #endif
 
 void MegaApiImpl::backupput_result(const Error& e, handle backupId)

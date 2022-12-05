@@ -1193,14 +1193,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     }
 
     tag = ctag;
-    addToNodePendingCommands(targethandle, client);
 }
 
 // add new nodes and handle->node handle mapping
 void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 {
-    removeFromNodePendingCommands(targethandle, client);
-
     pendingdbid_map::iterator it = client->pendingtcids.find(tag);
     if (it != client->pendingtcids.end())
     {
@@ -1360,17 +1357,11 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tpsk.get(this);
 
     tag = client->reqtag;
-
-    addToNodePendingCommands(n);
-    addToNodePendingCommands(t);
     completion = move(c);
 }
 
 bool CommandMoveNode::procresult(Result r)
 {
-    removeFromNodePendingCommands(h, client);
-    removeFromNodePendingCommands(np, client);
-
     if (r.wasErrorOrOK())
     {
         if (r.wasError(API_EOVERQUOTA))

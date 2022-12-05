@@ -737,7 +737,7 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
     std::lock_guard<std::mutex> lock{lastEventMutex};
     lastEvent.reset(event->copy());
     lastEvents.insert(event->getType());
-    LOG_debug << "Receved event " << event->getType();
+    LOG_debug << "Received event " << event->getType();
 }
 
 

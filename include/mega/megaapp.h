@@ -292,7 +292,6 @@ struct MEGA_API MegaApp
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_stalled(bool) { }
     virtual void syncupdate_conflicts(bool) { }
-    virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
 
 #ifdef DEBUG

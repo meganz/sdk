@@ -576,18 +576,6 @@ bool syncout_remote_change_detection = true;
 bool syncout_transfer_activity = true;
 bool syncout_folder_sync_state = false;
 
-void DemoApp::syncupdate_local_lockretry(bool locked)
-{
-    if (locked)
-    {
-        conlock(cout) << "Sync - waiting for local filesystem lock" << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - local filesystem lock issue resolved, continuing..." << endl;
-    }
-}
-
 static const char* treestatename(treestate_t ts)
 {
     switch (ts)
@@ -1396,7 +1384,6 @@ void exec_devcommand(autocomplete::ACState& s)
     const char *subcommand = s.words[1].s.c_str();
     client->senddevcommand(subcommand, email);
 }
-
 #endif
 
 

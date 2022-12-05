@@ -1857,51 +1857,6 @@ public:
     // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
-    // sync PUT Nagle timer
-    //bool syncnagleretry;
-    //BackoffTimer syncnaglebt;
-
-    //dstime filesystemNotificationsQuietTime = 0;
-
-    // timer for extra notifications
-    // (workaround for buggy network filesystems)
-    //bool syncextraretry;
-    //BackoffTimer syncextrabt;
-
-    // rescan timer if fs notification unavailable or broken
-    //bool syncscanfailed;
-    //BackoffTimer syncscanbt;
-
-    // Sync monitor timer.
-    //
-    // Meaningful only to backup syncs.
-    //
-    // Set when a backup is mirroring and syncdown(...) returned after
-    // having made changes to bring the cloud in line with local disk.
-    //
-    // That is, the backup remains in the mirror state.
-    //
-    // The timer is used to force another call to syncdown(...) so that we
-    // can give the sync a chance to transition into the monitor state,
-    // regardless of whether the local disk has changed.
-    //bool mSyncMonitorRetry;
-    //BackoffTimer mSyncMonitorTimer;
-
-
-    // local nodes that need to be added remotely
-//    localnode_vector synccreate;
-
-    // sync id dispatch
-    //handle nextsyncid();
-    //handle currsyncid;
-
-    // if no sync putnodes operation is in progress, apply the updates stored
-    // in syncadded/syncdeleted/syncoverwritten to the remote tree
-    //void syncupdate();
-
-    // sync putnodes() completion
-    //void putnodes_sync_result(error, vector<NewNode>&);
-
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
@@ -1920,13 +1875,6 @@ public:
     void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
 #endif
-
-    // recursively cancel transfers in a subtree
-    //void stopSyncXfers(LocalNode*, DBTableTransactionCommitter& committer);
-
-    // update paths of all PUT transfers
-    //void updateputs();
-
     // determine if all transfer slots are full
     bool slotavail() const;
 

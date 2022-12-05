@@ -227,7 +227,6 @@ struct DemoApp : public MegaApp
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled) override;
     void syncupdate_conflicts(bool conflicts) override;
-    void syncupdate_local_lockretry(bool) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 #endif
 
