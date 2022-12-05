@@ -583,7 +583,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             nodes.back().mAddedHandle != UNDEF);
 
         putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, NODEHANDLE,
-            tag, UNDEF, 0, 0, addua_completion);
+            -1, UNDEF, 0, 0, addua_completion);
     };
 
     putnodes(mNodeManager.getRootNodeVault(), NoVersioning, move(newnodes), nullptr, tag, true, addua);

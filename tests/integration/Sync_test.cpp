@@ -1414,8 +1414,6 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::syncupdate_local_lockretry(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
-
 void StandardClient::notify_retry(dstime t, retryreason_t r)
 {
     onCallback();

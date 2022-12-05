@@ -337,8 +337,6 @@ struct StandardClient : public MegaApp
     void file_added(File* file) override;
     void file_complete(File* file) override;
 
-    void syncupdate_local_lockretry(bool b) override;
-
 #ifdef DEBUG
     using SyncDebugNotificationHandler =
         std::function<void(const SyncConfig&, int, const Notification&)>;
