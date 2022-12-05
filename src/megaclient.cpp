@@ -19305,6 +19305,15 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
             n.setCounter(nc, true);
         }
     }
+    // newest element at chain versions has been removed, the second one element is the newest now. Update node counter properly
+    else if (oldParent && oldParent->type == FILENODE && n.parent->type != FILENODE)
+    {
+        nc.files++;
+        nc.storage += n.size;
+        nc.versions--;
+        nc.versionStorage -= n.size;
+        n.setCounter(nc, true);
+    }
 
     updateTreeCounter(n.parent, nc, INCREASE);
 }

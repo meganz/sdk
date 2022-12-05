@@ -1229,8 +1229,8 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 
 void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
 {
-    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, client->restag);
-	else client->app->putnodes_result(e, type, newnodes, targetOverride, client->restag);
+    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, tag);
+	else client->app->putnodes_result(e, type, newnodes, targetOverride, tag);
 }
 
 bool CommandPutNodes::procresult(Result r)
