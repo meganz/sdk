@@ -569,7 +569,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
     {
         if (e != API_OK)
         {
@@ -2237,6 +2237,13 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
+            #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                if (globalMegaTestHooks.interceptSCRequest)
+                {
+                    globalMegaTestHooks.interceptSCRequest(pendingsc);
+                }
+            #endif
+
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
@@ -4886,7 +4893,7 @@ bool MegaClient::procsc()
 
                         statecurrent = true;
                         app->nodes_current();
-                        LOG_debug << "Local filesystem up to date";
+                        LOG_debug << "Cloud node tree up to date";
 
                         if (notifyStorageChangeOnStateCurrent)
                         {
@@ -4906,9 +4913,8 @@ bool MegaClient::procsc()
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
                                 }
-                                nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
+                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -8281,9 +8287,8 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
 
     if (!(u = finduser(user, 0)) && !user)
     {
-        restag = tag;
-        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
-        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false);
+        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
         return;
     }
 
@@ -12993,9 +12998,8 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
             }
-            nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
+            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag()))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -14868,7 +14872,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning, move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride){
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
 
                 if (e)
                 {
@@ -15440,11 +15444,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             LOG_debug << "Sync - requesting file " << localpath;
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath, l->sync->inshare);
-                            nextreqtag();
                             TransferDbCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
                             error result = API_OK;
 
-                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag, &result);
+                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag, &result, nextreqtag());
                             syncactivity |= result != LOCAL_ENOSPC;
                         }
                     }
@@ -16237,8 +16240,7 @@ void MegaClient::syncupdate(localnode_vector& synccreate, bool canChangeVault)
                 l->treestate(TREESTATE_PENDING);
 
                 // the overwrite (or replace) will happen upon PUT completion
-                nextreqtag();
-                startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
+                startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag, nullptr, nextreqtag());
 
                 l->sync->threadSafeState->transferBegin(PUT, l->size);
 
@@ -16634,7 +16636,7 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
+bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag)
 {
     //assert(f->getLocalname().isAbsolute());  // this will be true after we merge SRW, since LocalNodes are Files for now
     f->mVersioningOption = vo;
@@ -16742,7 +16744,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
-            f->tag = reqtag;
+            f->tag = tag;
             if (!f->dbid && !donotpersist)
             {
                 filecacheadd(f, committer);
@@ -16853,8 +16855,8 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             t->skipserialization = donotpersist;
 
             t->lastaccesstime = m_time();
-            t->tag = reqtag;
-            f->tag = reqtag;
+            t->tag = tag;
+            f->tag = tag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
 
             f->file_it = t->files.insert(t->files.end(), f);
