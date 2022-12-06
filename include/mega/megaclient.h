@@ -1023,6 +1023,8 @@ public:
     std::string cypherTLVTextWithMasterKey(const char* name, const std::string& text);
     std::string decypherTLVTextWithMasterKey(const char* name, const std::string& text);
 
+    std::string attrPrefixInTLV(attr_t attrType, bool modifier) const;
+
     // close all open HTTP connections
     void disconnect();
 
