@@ -2176,6 +2176,74 @@ bool CommandSetShare::procresult(Result r)
     }
 }
 
+CommandPendingKeys::CommandPendingKeys(MegaClient *client, std::string lastcompleted, CommandPendingShareKeysCompletion completion)
+{
+    // Assume we've been passed a completion function.
+    mCompletion = std::move(completion);
+
+    cmd("pk");
+
+    if (lastcompleted.size())
+    {
+        arg("d", lastcompleted.c_str());
+    }
+
+    tag = client->reqtag;
+}
+
+bool CommandPendingKeys::procresult(Result r)
+{
+    Error e;
+    handle sharehandle;
+    std::string sharekey;
+    std::string lastcompleted;
+    std::shared_ptr<map<handle, map<handle, string>>> keys = std::make_shared<map<handle, map<handle, string>>>();
+
+    if (r.wasErrorOrOK())
+    {
+        LOG_err << "Unexpected response for ps: " << r.errorOrOK();
+        mCompletion(r.errorOrOK(), std::string(), nullptr);
+        return true;
+    }
+
+    // Response format:
+    // {"peeruserhandle1":{"sharehandle1":"key1","sharehandle2":"key2"},
+    //  "peeruserhandle2":{"sharehandle3":"key3"},...
+    //  "d":"lastcompleted"} (lastcompleted is a base64 string like oMl7nfj67Jw)
+
+    std::string key;
+    key = client->json.getname();
+    while (key.size())
+    {
+        if (key == "d")
+        {
+            client->json.storeobject(&lastcompleted);
+            key = client->json.getname();
+            continue;
+        }
+
+        handle userhandle = 0;
+        Base64::atob(key.c_str(), (byte*)&userhandle, MegaClient::USERHANDLE);
+        if (!client->json.enterobject())
+        {
+            mCompletion(API_EINTERNAL, std::string(), nullptr);
+            return false;
+        }
+
+        while (!ISUNDEF(sharehandle = client->json.gethandle()))
+        {
+            JSON::copystring(&sharekey, client->json.getvalue());
+            (*keys)[userhandle][sharehandle] = sharekey;
+        }
+
+        client->json.leaveobject();
+        key = client->json.getname();
+    }
+
+    mCompletion(API_OK, lastcompleted, keys);
+    return true;
+}
+
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
     cmd("upc");

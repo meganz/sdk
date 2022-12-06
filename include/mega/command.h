@@ -656,6 +656,18 @@ public:
         int tag, std::function<void(Error, bool writable)> f);
 };
 
+typedef std::function<void(Error, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)> CommandPendingShareKeysCompletion;
+class MEGA_API CommandPendingKeys : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandPendingKeys(MegaClient*, std::string, CommandPendingShareKeysCompletion);
+
+protected:
+    CommandPendingShareKeysCompletion mCompletion;
+};
+
 class MEGA_API CommandGetUserData : public Command
 {
 public:
