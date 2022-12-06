@@ -5893,6 +5893,11 @@ bool CommandFetchNodes::procresult(Result r)
         return true;
     }
 
+    if (client->mKeyManager.isSecure())
+    {
+        client->mKeyManager.loadShareKeys();
+    }
+
     for (;;)
     {
         switch (client->json.getnameid())

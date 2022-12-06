@@ -21158,14 +21158,19 @@ bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string 
     mTrustedShareKeys[sharehandle] = true;
     mShareKeys[sharehandle] = shareKey;
 
-    Node* n = mClient.nodebyhandle(sharehandle);
-    if (n && !n->sharekey)
-    {
-        n->sharekey = new SymmCipher((byte *)shareKey.data());
-        mClient.notifynode(n);
-    }
+    mClient.newshares.push_back(new NewShare(sharehandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
+    mClient.mergenewshares(1);
 
     return true;
+}
+
+void KeyManager::loadShareKeys()
+{
+    for (const auto& it : mShareKeys)
+    {
+        mClient.newshares.push_back(new NewShare(it.first, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)it.second.data()));
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.data());
+    }
 }
 
 bool KeyManager::unserialize(const string &keysContainer)
@@ -21387,14 +21392,20 @@ bool KeyManager::deserializeShareKeys(const string &blob)
         mTrustedShareKeys[h] = trust ? true : false;
         mShareKeys[h] = shareKeyStr;
 
+        // TODO: Check for a proper way to apply the keys
+        // In this moment, at least during a login+fetchnodes the nodes are not loaded yet
+
         // Set the sharekey to the node, if missing (since it might not have been received along with
         // the share itself (ok / k is discontinued since ^!keys)
-        Node* n = mClient.nodebyhandle(h);
-        if (n && !n->sharekey)
-        {
-            n->sharekey = new SymmCipher(shareKey);
-            mClient.notifynode(n);
-        }
+        //Node* n = mClient.nodebyhandle(h);
+        //if (n && !n->sharekey)
+        //{
+        //    n->sharekey = new SymmCipher(shareKey);
+        //    mClient.notifynode(n);
+        //}
+
+        mClient.newshares.push_back(new NewShare(h, 0, UNDEF, ACCESS_UNKNOWN, 0, shareKey));
+        mClient.mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(shareKey);
     }
 
     return true;

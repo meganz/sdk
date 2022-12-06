@@ -561,6 +561,8 @@ public:
 
     bool addShareKey(handle userhandle, handle sharehandle, std::string key);
 
+    void loadShareKeys();
+
 private:
 
     // Tags used by TLV blob
