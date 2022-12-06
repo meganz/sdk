@@ -1058,19 +1058,14 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {
-        nameid favnid = AttrMap::string2nameid("fav");
-        auto it = previousNode->attrs.map.find(favnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[favnid] = it->second;
-        }
-
-        nameid lblnid = AttrMap::string2nameid("lbl");
-        it = previousNode->attrs.map.find(lblnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[lblnid] = it->second;
+    {        
+        for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
+            nameid id = AttrMap::string2nameid(attr.c_str());
+            auto it = previousNode->attrs.map.find(id);
+            if (it != previousNode->attrs.map.end())
+            {
+                attrs.map[id] = it->second;
+            }
         }
     }
 }
@@ -19551,6 +19546,7 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     if (excludeRecursiveFlags.none())
         mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
+        //mTable->old_getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
     else
         mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
 
@@ -20641,7 +20637,6 @@ void NodeManager::removeFingerprint(Node *node)
 {
     if (node->type == FILENODE && node->mFingerPrintPosition != mFingerPrints.end())  // remove from mFingerPrints
     {
-
         mFingerPrints.erase(node->mFingerPrintPosition);
         node->mFingerPrintPosition = mFingerPrints.end();
     }
