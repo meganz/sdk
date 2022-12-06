@@ -34,6 +34,8 @@
 
 namespace mega {
 
+const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
+
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
