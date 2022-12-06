@@ -174,6 +174,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // node attributes
     AttrMap attrs;
 
+    static const vector<string> attributesToCopyIntoPreviousVersions;
+    
     // 'sen' attribute
     bool isMarkedSensitive() const;
     bool isSensitiveInherited() const;
