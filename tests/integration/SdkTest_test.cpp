@@ -6286,19 +6286,19 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
 TEST_F(SdkTest, SdkSensitiveNodes)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
     LOG_info << "___TEST SDKSensitive___";
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
     ASSERT_TRUE(rootnodeA);
-
+        
     // /
     //    folder-A/
-    //        mega.jpeg
-    //        senstive.jpeg   <- sensitive
+    //        amega.jpeg
+    //        asenstive.jpeg   <- sensitive
     //        sub-folder-A/   <- sensitive
-    //             logo.png
+    //             alogo.png
 
     string folderAName = "folder-A";
     MegaHandle nh = createFolder(0, folderAName.c_str(), rootnodeA.get());
@@ -6354,8 +6354,31 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
     std::unique_ptr<MegaNode> sfile(megaApi[0]->getNodeByHandle(fh3));
 
+    // setuip sharing from 
+    ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkTestShareKeys contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1; }, 60000));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+    ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    WaitMillisec(3000);
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
+    ASSERT_EQ(API_OK, synchronousShare(0, folderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
+    unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+
     synchronousSetNodeSensitive(0, sfile.get(), true);
     synchronousSetNodeSensitive(0, subFolderA.get(), true);
+
+    WaitMillisec(3000);
+    // wait for shared attrib action packets to propgate
+
+    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+    ASSERT_EQ(nl2->size(), 1);
+    unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
+    
+    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false); 
+    ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true);// share has to attributes
+
   /*
     time_t start = time(nullptr);
     while (time(nullptr) < start + 300) {
@@ -6388,7 +6411,6 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
     ASSERT_EQ(sen, false);
 
-
     /*
     MegaApiImpl::searchWithFlags
         MegaApiImpl::searchInNodeManager
@@ -6414,8 +6436,14 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         SEARCH_TARGET_OUTSHARE
             @recursive
             @not recursive            *
-        @SEARCH_TARGET_PUBLICLINK
+        @SEARCH_TARGET_PUBLICLINK     *
         */
+
+    typedef ::mega::Node Node;
+    typedef ::mega::Node::Flags Flags;
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaApiImpl* impl1 = *((MegaApiImpl**)(((char*)megaApi[1].get()) + sizeof(*megaApi[1].get())) - 1);
+
     // inherited sensitive flag
     // specifeid searh string
     MegaNodeList* list = megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true);
@@ -6438,10 +6466,6 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(list->size(), 1);
     list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false);
     ASSERT_EQ(list->size(), 0);
-
-    typedef ::mega::Node Node; 
-    typedef ::mega::Node::Flags Flags;
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1); //megaApi[0]->pImpl;
 
     // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
     list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
@@ -6518,6 +6542,23 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0); // the file itself does not have the senditvei flag it's parent fodler does
     list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
     ASSERT_EQ(list->size(), 0); // senstive, but the file itself is not marked sensitvei it'sparent folder is
+
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
+    ASSERT_EQ(API_OK, synchronousShare(0, sfile.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 2; }, 60000));
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 2u);
+
+    // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 0); // non sensitive files (recursvie exclude)
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 0); // non senstive, non recusrive exclude
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
@@ -9544,8 +9585,10 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload a test file";
-
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fh));
+    synchronousSetNodeSensitive(0, nodeFile.get(), true);
+    synchronousSetNodeFavourite(0, nodeFile.get(), true);
+
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
     long long size1 = nodeFile->getSize();
     waitForResponse(&mApi[0].nodeUpdated); // Wait until receive nodes updated at client 1
@@ -9584,6 +9627,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     deleteFile(fileName);
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+
+    nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
+    unique_ptr<MegaNodeList> list(megaApi[0]->getChildren(nodeFile.get())); // null
+    unique_ptr<MegaNodeList> vlist(megaApi[0]->getVersions(nodeFile.get()));
+    MegaNode *n0 = vlist->get(0);
+    MegaNode* n1 = vlist->get(1);
+    ASSERT_TRUE(n0->isFavourite());
+    ASSERT_TRUE(n0->isMarkedSensitive());
+    ASSERT_TRUE(n1->isFavourite());
+    ASSERT_TRUE(n1->isMarkedSensitive());
 
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     std::unique_ptr<MegaFolderInfo> initialFolderInfo1(mApi[0].mFolderInfo->copy());
