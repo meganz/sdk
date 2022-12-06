@@ -20863,6 +20863,9 @@ void NodeManager::FingerprintContainer::clear()
     mAllFingerprintsLoaded.clear();
 }
 
+
+const std::string KeyManager::SVCRYPTO_PAIRWISE_KEY = "strongvelope pairwise key\x01";
+
 void KeyManager::init(const string& prEd25519, const string& prCu25519, const string& prRSA)
 {
     if (mVersion != 0 || mGeneration != 0)
@@ -21057,6 +21060,64 @@ string KeyManager::privCu25519() const
 void KeyManager::setPostRegistration(bool postRegistration)
 {
     mPostRegistration = postRegistration;
+}
+
+bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string key)
+{
+    if (!mClient.areCredentialsVerified(userhandle))
+    {
+        return false;
+    }
+
+    User *u = mClient.finduser(userhandle, 0);
+    if (!u)
+    {
+        return false;
+    }
+
+    const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
+    if (!cachedav)
+    {
+        return false;
+    }
+
+    std::string sharedSecret;
+    sharedSecret.resize(crypto_scalarmult_BYTES);
+    crypto_scalarmult((unsigned char *)sharedSecret.data(),
+                      mClient.chatkey->privKey,
+                      (unsigned char *)cachedav->data());
+
+    std::string step1;
+    step1.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac1(nullptr, 0);
+    hmac1.CalculateDigest((byte *)step1.data(), (byte *)sharedSecret.data(), sharedSecret.size());
+
+    std::string step2;
+    step2.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac2((byte *)step1.data(), step1.size());
+    hmac2.CalculateDigest((byte *)step2.data(), (byte *)SVCRYPTO_PAIRWISE_KEY.data(), SVCRYPTO_PAIRWISE_KEY.size());
+
+    std::string sharedKey = step2;
+    sharedKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    std::string shareKey;
+    shareKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    std::string binaryKey = Base64::atob(key);
+    CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
+    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)binaryKey.data(), binaryKey.size());
+
+    mTrustedShareKeys[sharehandle] = true;
+    mShareKeys[sharehandle] = shareKey;
+
+    Node* n = mClient.nodebyhandle(sharehandle);
+    if (n && !n->sharekey)
+    {
+        n->sharekey = new SymmCipher((byte *)shareKey.data());
+        mClient.notifynode(n);
+    }
+
+    return true;
 }
 
 bool KeyManager::unserialize(const string &keysContainer)

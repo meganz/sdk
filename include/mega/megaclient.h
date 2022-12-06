@@ -559,6 +559,8 @@ public:
 
     void setPostRegistration(bool postRegistration);
 
+    bool addShareKey(handle userhandle, handle sharehandle, std::string key);
+
 private:
 
     // Tags used by TLV blob
@@ -581,6 +583,7 @@ private:
     };
 
     static const uint8_t IV_LEN = 12;
+    static const std::string SVCRYPTO_PAIRWISE_KEY;
 
     MegaClient& mClient;
 
