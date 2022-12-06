@@ -190,6 +190,11 @@ nameid JSON::getnameid(const char* ptr) const
     return id;
 }
 
+nameid JSON::getnameidvalue()
+{
+    return getnameid(false);
+}
+
 std::string JSON::getname()
 {
     const char* ptr = pos;
@@ -239,7 +244,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid()
+nameid JSON::getnameid(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
@@ -270,7 +275,7 @@ nameid JSON::getnameid()
         }
     }
 
-    bool skippedNull = id && skipnullvalue();
+    bool skippedNull = id && skipnullvalues && skipnullvalue();
 
     return skippedNull ? getnameid() : id;
 }

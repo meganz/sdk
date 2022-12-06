@@ -4964,7 +4964,7 @@ bool MegaClient::procsc()
                         fnstats.actionPackets++;
                     }
 
-                    name = jsonsc.getnameid();
+                    name = jsonsc.getnameidvalue();
 
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
