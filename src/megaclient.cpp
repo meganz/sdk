@@ -5201,6 +5201,10 @@ bool MegaClient::procsc()
                                 // removal of a Set Element
                                 sc_aer();
                                 break;
+                            case MAKENAMEID2('p', 'k'):
+                                // pending keys
+                                sc_pk();
+                                break;
                         }
                     }
                 }
@@ -7531,6 +7535,50 @@ void MegaClient::sc_sqac()
                 }
         }
     }
+}
+
+void MegaClient::sc_pk()
+{
+    reqs.add(new CommandPendingKeys(this, std::string(),
+    [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
+    {
+        if (e)
+        {
+            LOG_err << "Error getting share keys";
+            return;
+        }
+
+        bool allShareKeysProcessed = true;
+        LOG_debug << "Processing pending keys";
+        for (const auto& kv : *keys.get())
+        {
+            for (const auto& kv2 : kv.second)
+            {
+                allShareKeysProcessed &= mKeyManager.addShareKey(kv.first, kv2.first, kv2.second);
+            }
+        }
+
+        if (!allShareKeysProcessed)
+        {
+            LOG_warn << "Some pending keys were not processed";
+            return;
+        }
+
+        LOG_debug << "All pending keys were correctly processed";
+        string buf = mKeyManager.toKeysContainer();
+        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+
+        reqs.add(new CommandPendingKeys(this, lastcompleted,
+        [this] (Error e, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)
+        {
+            if (e)
+            {
+                LOG_err << "Error deleting pending keys";
+                return;
+            }
+            LOG_debug << "Pending keys deleted";
+        }));
+    }));
 }
 
 void MegaClient::sc_la()

@@ -1592,6 +1592,7 @@ public:
     void sc_la();
     void sc_ub();
     void sc_sqac();
+    void sc_pk();
 
     void init();
 
