@@ -12051,7 +12051,6 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-
 node_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const char *searchString, int mimeType, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken)
 {
     node_vector nodeVector;
