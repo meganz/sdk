@@ -357,7 +357,8 @@ nameid Node::getExtensionNameId(const std::string& ext)
         return 0;
     }
 
-    return JSON::getnameid(ext.c_str());
+    JSON json;
+    return json.getnameid(ext.c_str());
 }
 
 void Node::setkeyfromjson(const char* k)

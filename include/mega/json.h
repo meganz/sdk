@@ -57,8 +57,10 @@ struct MEGA_API JSON
     fsfp_t getfp();
     uint64_t getuint64();
 
-    nameid getnameid(bool skipnullvalues = true);
-    static nameid getnameid(const char*);
+    nameid getnameid();
+    nameid getnameid(const char*) const;
+
+    nameid getNameidSkipNull(bool skipnullvalues);
     nameid getnameidvalue();
 
     string getname();

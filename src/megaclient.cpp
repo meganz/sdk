@@ -21155,7 +21155,7 @@ bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string 
 
     std::string sharedSecret;
     sharedSecret.resize(crypto_scalarmult_BYTES);
-    if (!crypto_scalarmult((unsigned char *)sharedSecret.data(),
+    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
                       mClient.chatkey->privKey,
                       (const unsigned char *)cachedav->data()))
     {

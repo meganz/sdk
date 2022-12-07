@@ -178,7 +178,7 @@ bool JSON::isnumeric()
     return *ptr >= '0' && *ptr <= '9';
 }
 
-nameid JSON::getnameid(const char* ptr)
+nameid JSON::getnameid(const char* ptr) const
 {
     nameid id = EOO;
 
@@ -190,9 +190,14 @@ nameid JSON::getnameid(const char* ptr)
     return id;
 }
 
+nameid JSON::getnameid()
+{
+    return getNameidSkipNull(true);
+}
+
 nameid JSON::getnameidvalue()
 {
-    return getnameid(false);
+    return getNameidSkipNull(false);
 }
 
 std::string JSON::getname()
@@ -244,7 +249,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid(bool skipnullvalues)
+nameid JSON::getNameidSkipNull(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
