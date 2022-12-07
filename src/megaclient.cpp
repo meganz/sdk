@@ -19439,25 +19439,29 @@ Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &na
         return nullptr;
     }
 
-    if (!parent->mNodePosition->second.mChildren)
-    {
-        return nullptr; // valid case, no need to assert
-    }
-
     // mAllChildrenHandleLoaded = false -> if not found, need check DB
     // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
     bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
-    for (const auto& itNode : *parent->mNodePosition->second.mChildren)
+
+    if (allChildrenLoaded && !parent->mNodePosition->second.mChildren)
     {
-        Node* node = itNode.second;
-        if (node && node->type == nodeType && name == node->displayname())
+        return nullptr; // valid case
+    }
+
+    if (parent->mNodePosition->second.mChildren)
+    {
+        for (const auto& itNode : *parent->mNodePosition->second.mChildren)
         {
-            return node;
-        }
-        else if (!node)
-        {
-            // If no all children nodes are loaded, it's necessary check DB
-            allChildrenLoaded = false;
+            Node* node = itNode.second;
+            if (node && node->type == nodeType && name == node->displayname())
+            {
+                return node;
+            }
+            else if (!node)
+            {
+                // If not all child nodes have been loaded, check the DB
+                allChildrenLoaded = false;
+            }
         }
     }
 
