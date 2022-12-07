@@ -406,7 +406,7 @@ namespace UserAlert
 
         Changeset mUpdatedChangeset;
 
-        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_UPDATE) {}
+        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
         UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, Changeset&& _cs)
             : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_UPDATE)
             , mUpdatedChangeset(_cs)
@@ -419,7 +419,7 @@ namespace UserAlert
 
     struct DeletedScheduledMeeting : public ScheduledMeetingBase
     {
-        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_DELETED) {}
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
         DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
             : ScheduledMeetingBase(_ou, _ts, _id, _sm, UNDEF, UserAlert::type_dsm, SCHEDULED_USER_ALERT_NEW)
             {}

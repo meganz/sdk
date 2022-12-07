@@ -1336,6 +1336,18 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
     return nullptr;
 }
 
+UserAlert::DeletedScheduledMeeting::DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_DELETED)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "DeletedScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+}
+
 void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, MegaClient* mc)
 {
     Base::updateEmail(mc);
@@ -1379,6 +1391,33 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
     }
 
     return nullptr;
+}
+
+UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : ScheduledMeetingBase(un, id, UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "UpdatedScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+
+    JSON auxJson = un.field(MAKENAMEID2('c', 's'));
+    if (auxJson.pos)
+    {
+        if (auxJson.enterobject())
+        {
+            MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset);
+            auxJson.leaveobject();
+        }
+        else
+        {
+            assert(false);
+            LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+        }
+    }
 }
 
 void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, MegaClient* mc)

@@ -1490,7 +1490,7 @@ public:
     void createDeletedSMAlert(const handle&, handle schedId);
     void createUpdatedSMAlert(const handle&, handle schedId, handle parentSchedId,
                               UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
-    error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
+    static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
     void sc_la();
