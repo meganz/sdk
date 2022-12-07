@@ -75,10 +75,8 @@ namespace UserAlert
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
-    static const nameid type_psm = MAKENAMEID3('p', 's', 'm');                      // new scheduled meeting
-    static const nameid type_dsm = MAKENAMEID3('d', 's', 'm');                      // deleted scheduled meeting
-    static const nameid type_usm = MAKENAMEID3('u', 's', 'm');                      // updated scheduled meeting
-
+    static const nameid type_nusm = MAKENAMEID5('m', 'c', 's', 'm', 'p');           // new or updated scheduled meeting
+    static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
 
     using handle_alerttype_map_t = map<handle, nameid>;
 
@@ -302,24 +300,44 @@ namespace UserAlert
         static Takedown* unserialize(string*, unsigned id);
     };
 
-    struct NewScheduledMeeting : public Base
+
+    struct ScheduledMeetingBase : public Base
     {
+        enum
+        {
+            SCHEDULED_USER_ALERT_INVALID  = 0,
+            SCHEDULED_USER_ALERT_NEW      = 1,
+            SCHEDULED_USER_ALERT_UPDATE   = 2,
+            SCHEDULED_USER_ALERT_DELETED  = 3,
+        };
+
+        unsigned int mSchedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
         handle schedMeetingHandle = UNDEF;
         handle parentSMHandle = UNDEF;
 
-        NewScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        virtual ~ScheduledMeetingBase(){}
+        ScheduledMeetingBase(UserAlertRaw& un, unsigned int id, unsigned int type) : Base(un, id), mSchedMeetingsSubtype(type) {}
+        ScheduledMeetingBase(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, nameid _userAlertType, unsigned int _type)
+            : Base(_userAlertType, _ou, string(), _ts, _id)
+            , mSchedMeetingsSubtype(_type)
+            , schedMeetingHandle(_sm),
+              parentSMHandle(_parentSM)
+            {}
+    };
+
+    struct NewScheduledMeeting : public ScheduledMeetingBase
+    {
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_NEW) {}
         NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM)
-            : Base(UserAlert::type_psm, _ou, string(), _ts, _id)
-            , schedMeetingHandle(_sm), parentSMHandle(_parentSM)
+            : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_NEW)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-
         bool serialize(string* d) override;
         static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct UpdatedScheduledMeeting : public Base
+    struct UpdatedScheduledMeeting : public ScheduledMeetingBase
     {
         class Changeset
         {
@@ -385,33 +403,25 @@ namespace UserAlert
             unique_ptr<TitleChangeset> mUpdatedTitle;
         };
 
-        handle schedMeetingHandle = UNDEF;
-        handle parentSMHandle = UNDEF;
+
         Changeset updatedChangeset;
 
-        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
-        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm,
-                                handle _parentSM, Changeset&& _cs)
-            : Base(UserAlert::type_usm, _ou, string(),  _ts, _id)
-            , schedMeetingHandle(_sm)
-            , parentSMHandle(_parentSM)
+        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_UPDATE) {}
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, Changeset&& _cs)
+            : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_UPDATE)
             , updatedChangeset(_cs)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-
         bool serialize(string*) override;
         static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct DeletedScheduledMeeting : public Base
+    struct DeletedScheduledMeeting : public ScheduledMeetingBase
     {
-        handle schedMeetingHandle = UNDEF;
-
-        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_DELETED) {}
         DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
-            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
-            , schedMeetingHandle(_sm)
+            : ScheduledMeetingBase(_ou, _ts, _id, _sm, UNDEF, UserAlert::type_dsm, SCHEDULED_USER_ALERT_NEW)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;

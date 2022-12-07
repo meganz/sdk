@@ -2007,34 +2007,53 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
-    case UserAlert::type_psm:
+    case UserAlert::type_nusm:
     {
-        UserAlert::NewScheduledMeeting* p = static_cast<UserAlert::NewScheduledMeeting*>(b);
-        type = TYPE_SCHEDULEDMEETING_NEW;
-        userHandle = p->user();
-        email = p->email();
-        schedMeetingId = p->schedMeetingHandle;
-        parentSMId = p->parentSMHandle;
+         UserAlert::ScheduledMeetingBase* baseSched = static_cast<UserAlert::ScheduledMeetingBase*>(b);
+         if (baseSched->mSchedMeetingsSubtype == UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW)
+         {
+             UserAlert::NewScheduledMeeting* p = static_cast<UserAlert::NewScheduledMeeting*>(b);
+             type = TYPE_SCHEDULEDMEETING_NEW;
+             userHandle = p->user();
+             email = p->email();
+             schedMeetingId = p->schedMeetingHandle;
+             parentSMId = p->parentSMHandle;
+         }
+         else if (baseSched->mSchedMeetingsSubtype == UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE)
+         {
+             UserAlert::UpdatedScheduledMeeting* p = static_cast<UserAlert::UpdatedScheduledMeeting*>(b);
+             type = TYPE_SCHEDULEDMEETING_UPDATED;
+             userHandle = p->user();
+             email = p->email();
+             schedMeetingId = p->schedMeetingHandle;
+             parentSMId = p->parentSMHandle;
+             schedMeetingChangeset = p->updatedChangeset;
+         }
+         else
+         {
+             assert(false);
+             LOG_err << "Scheduled meeting user alert invalid sub-type: " << baseSched->mSchedMeetingsSubtype << ", expected: "
+                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW << " or "
+                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE;
+         }
     }
     break;
     case UserAlert::type_dsm:
     {
+        UserAlert::ScheduledMeetingBase* baseSched = static_cast<UserAlert::ScheduledMeetingBase*>(b);
+        if (baseSched->mSchedMeetingsSubtype != UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_DELETED)
+        {
+             assert(false);
+             LOG_err << "Scheduled meeting user alert invalid sub-type: " << baseSched->mSchedMeetingsSubtype << ", expected: "
+                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_DELETED;
+             break;
+        }
+
         UserAlert::DeletedScheduledMeeting* p = static_cast<UserAlert::DeletedScheduledMeeting*>(b);
         type = TYPE_SCHEDULEDMEETING_DELETED;
         userHandle = p->user();
         email = p->email();
         schedMeetingId = p->schedMeetingHandle;
-    }
-    break;
-    case UserAlert::type_usm:
-    {
-        UserAlert::UpdatedScheduledMeeting* p = static_cast<UserAlert::UpdatedScheduledMeeting*>(b);
-        type = TYPE_SCHEDULEDMEETING_UPDATED;
-        userHandle = p->user();
-        email = p->email();
-        schedMeetingId = p->schedMeetingHandle;
-        parentSMId = p->parentSMHandle;
-        schedMeetingChangeset = p->updatedChangeset;
     }
     break;
     } // end switch

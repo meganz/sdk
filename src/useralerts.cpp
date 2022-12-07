@@ -1497,7 +1497,7 @@ void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
 {
     if (isValidChange(changeType))
     {
-        mUpdatedFields[changeType] = true;
+        mUpdatedFields[static_cast<size_t>(changeType)] = true;
         if (changeType == CHANGE_TYPE_TITLE)
         {
             mUpdatedTitle.reset(new TitleChangeset{oldValue, newValue});
@@ -1618,14 +1618,19 @@ void UserAlerts::add(UserAlertRaw& un)
     case type_ph:
         unb = new Takedown(un, nextId());
         break;
-    case type_psm:
-        unb = new NewScheduledMeeting(un, nextId());
-        break;
+    case type_nusm:
+    {
+        if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present is a new scheduled meeting
+        {
+            unb = new NewScheduledMeeting(un, nextId());
+        }
+        else
+        {
+            unb = new UpdatedScheduledMeeting(un, nextId());
+        }
+    }
     case type_dsm:
         unb = new DeletedScheduledMeeting(un, nextId());
-        break;
-    case type_usm:
-        unb = new UpdatedScheduledMeeting(un, nextId());
         break;
     default:
         unb = NULL;   // If it's a notification type we do not recognise yet
