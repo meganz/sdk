@@ -19657,7 +19657,9 @@ void MegaApiImpl::sendPendingRequests()
             bool forceLoadFromServers = nocache;
             nocache = false;
 
-            client->fetchnodes(client->fetchnodesAlreadyCompletedThisSession, !client->syncsAlreadyLoadedOnStatecurrent, forceLoadFromServers);
+            client->fetchnodes(client->fetchnodesAlreadyCompletedThisSession,
+                              !client->syncsAlreadyLoadedOnStatecurrent,
+                               forceLoadFromServers);
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:

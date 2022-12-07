@@ -3596,7 +3596,6 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         return false;
     }
 
-    received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
     if (resetBaseCloudFolder)
