@@ -560,6 +560,7 @@ public:
     void setPostRegistration(bool postRegistration);
 
     bool addShareKey(handle userhandle, handle sharehandle, std::string key);
+    std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
 
     void loadShareKeys();
 
@@ -639,6 +640,8 @@ private:
 
     string serializeBackups() const;
     bool deserializeBackups(const string& blob);
+
+    std::string computeSymmetricKey(handle user);
 };
 
 

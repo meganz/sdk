@@ -21140,39 +21140,11 @@ bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string 
         return false;
     }
 
-    User *u = mClient.finduser(userhandle, 0);
-    if (!u)
+    std::string sharedKey = computeSymmetricKey(userhandle);
+    if (!sharedKey.size())
     {
         return false;
     }
-
-    const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
-    if (!cachedav)
-    {
-        return false;
-    }
-
-    std::string sharedSecret;
-    sharedSecret.resize(crypto_scalarmult_BYTES);
-    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                      mClient.chatkey->privKey,
-                      (const unsigned char *)cachedav->data()))
-    {
-        return false;
-    }
-
-    std::string step1;
-    step1.resize(32);
-    CryptoPP::HMAC<CryptoPP::SHA256> hmac1(nullptr, 0);
-    hmac1.CalculateDigest((byte *)step1.data(), (byte *)sharedSecret.data(), sharedSecret.size());
-
-    std::string step2;
-    step2.resize(32);
-    CryptoPP::HMAC<CryptoPP::SHA256> hmac2((byte *)step1.data(), step1.size());
-    hmac2.CalculateDigest((byte *)step2.data(), (byte *)SVCRYPTO_PAIRWISE_KEY.data(), SVCRYPTO_PAIRWISE_KEY.size());
-
-    std::string sharedKey = step2;
-    sharedKey.resize(CryptoPP::AES::BLOCKSIZE);
 
     std::string shareKey;
     shareKey.resize(CryptoPP::AES::BLOCKSIZE);
@@ -21188,6 +21160,28 @@ bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string 
     mClient.mergenewshares(1);
 
     return true;
+}
+
+string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
+{
+    if (!mClient.areCredentialsVerified(userhandle))
+    {
+        return std::string();
+    }
+
+    std::string sharedKey = computeSymmetricKey(userhandle);
+    if (!sharedKey.size())
+    {
+        return std::string();
+    }
+
+    std::string encryptedKey;
+    encryptedKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
+    aesencryption.ProcessData((byte *)encryptedKey.data(), (byte *)shareKey.data(), shareKey.size());
+
+    return encryptedKey;
 }
 
 void KeyManager::loadShareKeys()
@@ -21687,6 +21681,43 @@ bool KeyManager::deserializeBackups(const string &blob)
     // FIXME: add support to deserialize backups
     mBackups = blob;
     return true;
+}
+
+string KeyManager::computeSymmetricKey(handle user)
+{
+    User *u = mClient.finduser(user, 0);
+    if (!u)
+    {
+        return std::string();
+    }
+
+    const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
+    if (!cachedav)
+    {
+        return std::string();
+    }
+
+    std::string sharedSecret;
+    sharedSecret.resize(crypto_scalarmult_BYTES);
+    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
+                          mClient.chatkey->privKey,
+                          (unsigned char *)cachedav->data()))
+    {
+        return std::string();
+    }
+
+    std::string step1;
+    step1.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac1(nullptr, 0);
+    hmac1.CalculateDigest((byte *)step1.data(), (byte *)sharedSecret.data(), sharedSecret.size());
+
+    std::string sharedKey;
+    sharedKey.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac2((byte *)step1.data(), step1.size());
+    hmac2.CalculateDigest((byte *)sharedKey.data(), (byte *)SVCRYPTO_PAIRWISE_KEY.data(), SVCRYPTO_PAIRWISE_KEY.size());
+
+    sharedKey.resize(CryptoPP::AES::BLOCKSIZE);
+    return sharedKey;
 }
 
 string KeyManager::serializeBackups() const
