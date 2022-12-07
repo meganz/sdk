@@ -323,6 +323,21 @@ namespace UserAlert
             , mSchedMeetingHandle(_sm),
               mParentSMHandle(_parentSM)
             {}
+
+        bool serialize(string* d)
+        {
+            Base::serialize(d);
+            CacheableWriter w(*d);
+            w.serializeu32(mSchedMeetingsSubtype);
+            w.serializehandle(mSchedMeetingHandle);
+            if (mSchedMeetingsSubtype == SCHEDULED_USER_ALERT_NEW
+                  || mSchedMeetingsSubtype == SCHEDULED_USER_ALERT_UPDATE)
+            {
+                w.serializehandle(mParentSMHandle);
+            }
+
+            return true;
+        }
     };
 
     struct NewScheduledMeeting : public ScheduledMeetingBase
