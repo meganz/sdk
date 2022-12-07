@@ -2016,8 +2016,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              type = TYPE_SCHEDULEDMEETING_NEW;
              userHandle = p->user();
              email = p->email();
-             schedMeetingId = p->schedMeetingHandle;
-             parentSMId = p->parentSMHandle;
+             schedMeetingId = p->mSchedMeetingHandle;
+             parentSMId = p->mParentSMHandle;
          }
          else if (baseSched->mSchedMeetingsSubtype == UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE)
          {
@@ -2025,9 +2025,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              type = TYPE_SCHEDULEDMEETING_UPDATED;
              userHandle = p->user();
              email = p->email();
-             schedMeetingId = p->schedMeetingHandle;
-             parentSMId = p->parentSMHandle;
-             schedMeetingChangeset = p->updatedChangeset;
+             schedMeetingId = p->mSchedMeetingHandle;
+             parentSMId = p->mParentSMHandle;
+             schedMeetingChangeset = p->mUpdatedChangeset;
          }
          else
          {
@@ -2053,7 +2053,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_SCHEDULEDMEETING_DELETED;
         userHandle = p->user();
         email = p->email();
-        schedMeetingId = p->schedMeetingHandle;
+        schedMeetingId = p->mSchedMeetingHandle;
     }
     break;
     } // end switch

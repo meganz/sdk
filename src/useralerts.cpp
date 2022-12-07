@@ -1292,8 +1292,8 @@ void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaCli
     Base::updateEmail(mc);
     ostringstream oss;
     oss << "New Scheduled Meeting details:"
-        << "\n\tSched Meeting Id: " << toHandle(schedMeetingHandle)
-        << "\n\tParent Sched Meeting Id: " << toHandle(parentSMHandle)
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
+        << "\n\tParent Sched Meeting Id: " << toHandle(mParentSMHandle)
         << "\n\tCreated by: " << pst.userEmail;
 
     header = "New Scheduled Meeting";
@@ -1306,8 +1306,8 @@ bool UserAlert::NewScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializehandle(schedMeetingHandle);
-    w.serializehandle(parentSMHandle);
+    w.serializehandle(mSchedMeetingHandle);
+    w.serializehandle(mParentSMHandle);
     w.serializeexpansionflags();
 
     return true;
@@ -1341,7 +1341,7 @@ void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, Meg
     Base::updateEmail(mc);
     ostringstream oss;
     oss << "Deleted Scheduled Meeting details:"
-        << "\n\tSched Meeting Id: " << toHandle(schedMeetingHandle)
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
         << "\n\tDeleted by: " << pst.userEmail;
 
     header = "Deleted Scheduled Meeting";
@@ -1354,7 +1354,7 @@ bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializehandle(schedMeetingHandle);
+    w.serializehandle(mSchedMeetingHandle);
     w.serializeexpansionflags();
 
     return true;
@@ -1386,18 +1386,18 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
     Base::updateEmail(mc);
     ostringstream oss;
     oss << "Updated Scheduled Meeting details:"
-        << "\n\tSched Meeting Id: " << toHandle(schedMeetingHandle)
-        << "\n\tParent Sched Meeting Id: " << toHandle(parentSMHandle)
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
+        << "\n\tParent Sched Meeting Id: " << toHandle(mParentSMHandle)
         << "\n\tUpdated by: " << pst.userEmail;
 
     for (int changeType = 0; changeType < Changeset::CHANGE_TYPE_SIZE; ++changeType)
     {
-        if (!updatedChangeset.hasChanged(changeType)) continue;
+        if (!mUpdatedChangeset.hasChanged(changeType)) continue;
 
-        oss << "\n\t\t" << updatedChangeset.changeToString(changeType) << " updated";
-        if (changeType == Changeset::CHANGE_TYPE_TITLE && updatedChangeset.getUpdatedTitle())
+        oss << "\n\t\t" << mUpdatedChangeset.changeToString(changeType) << " updated";
+        if (changeType == Changeset::CHANGE_TYPE_TITLE && mUpdatedChangeset.getUpdatedTitle())
         {
-            const auto& titleCS = updatedChangeset.getUpdatedTitle();
+            const auto& titleCS = mUpdatedChangeset.getUpdatedTitle();
             oss << ": previous title |" << Base64::atob(titleCS->oldValue)
                 << "| new title |" << Base64::atob(titleCS->newValue) << "|";
         }
@@ -1413,14 +1413,14 @@ bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
-    w.serializehandle(schedMeetingHandle);
-    w.serializehandle(parentSMHandle);
+    w.serializehandle(mSchedMeetingHandle);
+    w.serializehandle(mParentSMHandle);
 
-    w.serializeu64(static_cast<uint64_t>(updatedChangeset.getChanges()));
-    if (updatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
-        && updatedChangeset.getUpdatedTitle())
+    w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
+        && mUpdatedChangeset.getUpdatedTitle())
     {
-        const auto& titleCS = updatedChangeset.getUpdatedTitle();
+        const auto& titleCS = mUpdatedChangeset.getUpdatedTitle();
         w.serializestring(titleCS->oldValue);
         w.serializestring(titleCS->newValue);
     }

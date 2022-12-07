@@ -312,16 +312,16 @@ namespace UserAlert
         };
 
         unsigned int mSchedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
-        handle schedMeetingHandle = UNDEF;
-        handle parentSMHandle = UNDEF;
+        handle mSchedMeetingHandle = UNDEF;
+        handle mParentSMHandle = UNDEF;
 
         virtual ~ScheduledMeetingBase(){}
         ScheduledMeetingBase(UserAlertRaw& un, unsigned int id, unsigned int type) : Base(un, id), mSchedMeetingsSubtype(type) {}
         ScheduledMeetingBase(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, nameid _userAlertType, unsigned int _type)
             : Base(_userAlertType, _ou, string(), _ts, _id)
             , mSchedMeetingsSubtype(_type)
-            , schedMeetingHandle(_sm),
-              parentSMHandle(_parentSM)
+            , mSchedMeetingHandle(_sm),
+              mParentSMHandle(_parentSM)
             {}
     };
 
@@ -404,12 +404,12 @@ namespace UserAlert
         };
 
 
-        Changeset updatedChangeset;
+        Changeset mUpdatedChangeset;
 
         UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_UPDATE) {}
         UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, Changeset&& _cs)
             : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_UPDATE)
-            , updatedChangeset(_cs)
+            , mUpdatedChangeset(_cs)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
