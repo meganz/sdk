@@ -19657,16 +19657,19 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
     }
 
-    nodePtr_map children;
+    const nodePtr_map* children = nullptr;
     auto it = mNodes.find(nodehandle);
-    if (it != mNodes.end() && it->second.mChildren)
+    if (it != mNodes.end())
     {
-        children = *it->second.mChildren; // should this really be a copy ?
+        children = it->second.mChildren.get();
     }
 
-    for (const auto &itNode : children)
+    if (children)
     {
-        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        for (const auto& itNode : *children)
+        {
+            nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        }
     }
 
     if (nodeType == FILENODE)
