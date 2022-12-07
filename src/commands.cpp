@@ -2011,7 +2011,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
         client->key.ecb_encrypt(key);
         arg("ok", key, sizeof key);
 
-        if (u && u->pubk.isvalid())
+        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid())
         {
             t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
         }
@@ -2032,8 +2032,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     {
         arg("r", a);
 
-        // TODO: this `k`, if `mKeyManager.secure`, should be skipped
-        if (u && u->pubk.isvalid() && t)
+        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid() && t)
         {
             arg("k", asymmkey, t);
         }

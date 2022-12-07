@@ -2228,6 +2228,7 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
+    User *getUserForSharing(const char *uid);
     void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 

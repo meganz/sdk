@@ -10801,7 +10801,7 @@ void MegaClient::queuepubkeyreq(User* u, std::unique_ptr<PubKeyAction> pka)
     }
 }
 
-void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> pka)
+User *MegaClient::getUserForSharing(const char *uid)
 {
     User *u = finduser(uid, 0);
     if (!u && uid)
@@ -10828,7 +10828,12 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
             }
         }
     }
+    return u;
+}
 
+void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> pka)
+{
+    User *u = getUserForSharing(uid);
     queuepubkeyreq(u, std::move(pka));
 }
 
@@ -10863,8 +10868,50 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    // TODO: needs adjustment, probably update ^!keys
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
+    if (!mKeyManager.isSecure())
+    {
+        queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
+        return;
+    }
+
+    // do we already have a share key for this node?
+    int newshare;
+    if ((newshare = !n->sharekey))
+    {
+        // no: create
+        byte key[SymmCipher::KEYLENGTH];
+        rng.genblock(key, sizeof key);
+        n->sharekey = new SymmCipher(key);
+    }
+
+    User *u = getUserForSharing(user);
+    handle userhandle = u ? u->userhandle : UNDEF;
+    handle nodehandle = n->nodehandle;
+    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+    reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, personal_representation ? personal_representation : "", tag,
+    [this, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
+    {
+        if (e || ISUNDEF(userhandle) || a == ACCESS_UNKNOWN)
+        {
+            completion(e, writable);
+            return;
+        }
+
+        std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
+        reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
+        [completion, e, writable](Error err)
+        {
+            if (err)
+            {
+                LOG_err << "Error sending share key: " << e;
+            }
+            else
+            {
+                LOG_debug << "Share key correctly sent";
+            }
+            completion(e, writable);
+        }));
+    }));
 }
 
 // Add/delete/remind outgoing pending contact request
