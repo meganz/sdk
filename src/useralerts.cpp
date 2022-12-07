@@ -1287,6 +1287,18 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
     return nullptr;
 }
 
+UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : ScheduledMeetingBase(un, id, UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "NewScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+}
+
 void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaClient* mc)
 {
     Base::updateEmail(mc);
@@ -1668,6 +1680,7 @@ void UserAlerts::add(UserAlertRaw& un)
             unb = new UpdatedScheduledMeeting(un, nextId());
         }
     }
+    break;
     case type_dsm:
         unb = new DeletedScheduledMeeting(un, nextId());
         break;

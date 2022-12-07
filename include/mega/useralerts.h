@@ -327,7 +327,7 @@ namespace UserAlert
 
     struct NewScheduledMeeting : public ScheduledMeetingBase
     {
-        NewScheduledMeeting(UserAlertRaw& un, unsigned int id) : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_NEW) {}
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
         NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM)
             : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_NEW)
             {}
