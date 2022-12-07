@@ -2647,7 +2647,10 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     LOG_debug << "Making sure we've received latest cloud changes...";
 
     // Make sure the client's received all its action packets.
-    catchup(std::move(completion));
+    //catchup(std::move(completion));
+    WaitMillisec(1000);
+    completion(API_OK);
+    WaitMillisec(1000);
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
@@ -3596,7 +3599,6 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         return false;
     }
 
-    received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
     if (resetBaseCloudFolder)

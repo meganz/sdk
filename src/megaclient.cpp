@@ -2733,17 +2733,17 @@ int MegaClient::preparewait()
     // get current dstime and clear wait events
     WAIT_CLASS::bumpds();
 
+#ifdef ENABLE_SYNC
+    if (!syncs.clientThreadActions.empty())
+    {
+        nds = Waiter::ds;
+        return Waiter::NEEDEXEC;
+    }
+    else
+#endif
     {
         // next retry of a failed transfer
         nds = NEVER;
-
-#ifdef ENABLE_SYNC
-        if (!syncs.clientThreadActions.empty())
-        {
-            nds = Waiter::ds;
-            return Waiter::NEEDEXEC;
-        }
-#endif
 
         if (httpio->success && chunkfailed)
         {
@@ -3751,6 +3751,7 @@ void MegaClient::catchup()
     mPendingCatchUps++;
     if (pendingsc && !jsonsc.pos)
     {
+        LOG_debug << "Terminating pendingsc connection for catchup.   Pending: " << mPendingCatchUps;
         pendingsc->disconnect();
         pendingsc.reset();
     }
@@ -3878,13 +3879,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
-
-// moved this out of purgenodesusersabortsc as it's not appropriate for the other place it's called (fetchnodes result)
-// but it's not needed anyway as we did syncs.locallogout() above
-//    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
-//#ifdef ENABLE_SYNC
-//    syncs.purgeRunningSyncs();
-//#endif
 
     purgenodesusersabortsc(false);
 
@@ -4315,6 +4309,7 @@ bool MegaClient::procsc()
                         {
                             mReceivingCatchUp = false;
                             mPendingCatchUps--;
+                            LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
                             app->catchup_result();
                         }
                     }
@@ -12478,15 +12473,14 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             }
 
             enabletransferresumption();
-            app->fetchnodes_result(API_OK);
-            fetchnodesAlreadyCompletedThisSession = true;
-
-            loadAuthrings();
 
 #ifdef ENABLE_SYNC
             if (loadSyncs)
                 syncs.loadSyncConfigsOnFetchnodesComplete(true);
 #endif
+            app->fetchnodes_result(API_OK);
+            fetchnodesAlreadyCompletedThisSession = true;
+            loadAuthrings();
 
             WAIT_CLASS::bumpds();
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -12523,11 +12517,12 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // don't allow to start new sc requests yet
         scsn.clear();
 
-        if (!loggedinfolderlink() && !forceLoadFromServers)
+        if (!loggedinfolderlink())
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
+            // we need this one to ensure we have the sync config read/write key for example
             getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e){
 
                 if (e != API_OK)
