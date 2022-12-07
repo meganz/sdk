@@ -1320,6 +1320,7 @@ bool UserAlert::NewScheduledMeeting::serialize(string* d)
     CacheableWriter w(*d);
     w.serializehandle(mSchedMeetingHandle);
     w.serializehandle(mParentSMHandle);
+    w.serializeu32(mSchedMeetingsSubtype);
     w.serializeexpansionflags();
 
     return true;
@@ -1332,11 +1333,13 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
 
     handle sm = UNDEF;
     handle psm = UNDEF;
+    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
     unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(sm)
         && r.unserializehandle(psm)
+        && r.unserializeu32(schedMeetingsSubtype)
         && r.unserializeexpansionflags(expF, 0))
     {
         auto* nsm = new NewScheduledMeeting(b->userHandle, b->timestamp, id, sm, psm);
@@ -1379,6 +1382,7 @@ bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
     Base::serialize(d);
     CacheableWriter w(*d);
     w.serializehandle(mSchedMeetingHandle);
+    w.serializeu32(mSchedMeetingsSubtype);
     w.serializeexpansionflags();
 
     return true;
@@ -1390,10 +1394,12 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
     if (!b) return nullptr;
 
     handle sm = UNDEF;
+    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
     unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(sm)
+        && r.unserializeu32(schedMeetingsSubtype)
         && r.unserializeexpansionflags(expF, 0))
     {
         auto* dsm = new DeletedScheduledMeeting(b->userHandle, b->timestamp, id, sm);
@@ -1466,6 +1472,7 @@ bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
     CacheableWriter w(*d);
     w.serializehandle(mSchedMeetingHandle);
     w.serializehandle(mParentSMHandle);
+    w.serializeu32(mSchedMeetingsSubtype);
 
     w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
     if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
@@ -1489,11 +1496,12 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     handle sm = UNDEF;
     handle psm = UNDEF;
     uint64_t bits = 0;
-
+    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
 
     CacheableReader r(*d);
     if (r.unserializehandle(sm)
         && r.unserializehandle(psm)
+        && r.unserializeu32(schedMeetingsSubtype)
         && r.unserializeu64(bits))
     {
         unique_ptr<Changeset::TitleChangeset> tcs;
