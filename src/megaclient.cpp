@@ -17846,6 +17846,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                         << "field. Expected 1 received " << v;
                 assert(false);
             }
+            // else => field has changed but don't receive old|new values due to size reasons
         }
 
         return updated;
@@ -17916,7 +17917,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 break;
 
             case MAKENAMEID1('r'):
-                // discard any value at default
+                // rules are unset if this field is empty
                 auxCS.addChange(Changeset::CHANGE_TYPE_RULES);
                 break;
 
