@@ -3751,6 +3751,7 @@ void MegaClient::catchup()
     mPendingCatchUps++;
     if (pendingsc && !jsonsc.pos)
     {
+        LOG_debug << "Terminating pendingsc connection for catchup.   Pending: " << mPendingCatchUps;
         pendingsc->disconnect();
         pendingsc.reset();
     }
@@ -4308,6 +4309,7 @@ bool MegaClient::procsc()
                         {
                             mReceivingCatchUp = false;
                             mPendingCatchUps--;
+                            LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
                             app->catchup_result();
                         }
                     }
