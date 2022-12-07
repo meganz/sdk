@@ -20724,6 +20724,7 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 
 void NodeManager::removeChild(Node* parent, NodeHandle child)
 {
+    assert(parent->mNodePosition->second.mChildren);
     if (parent->mNodePosition->second.mChildren)
     {
         parent->mNodePosition->second.mChildren->erase(child);
