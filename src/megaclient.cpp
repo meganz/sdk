@@ -21213,7 +21213,10 @@ bool KeyManager::unserialize(const string &keysContainer)
     while (offset <= blobLength)
     {
         byte tag = blob[offset - headerSize];
-        size_t len = (blob[offset - 3] << 16) + (blob[offset - 2] << 8) + blob[offset - 1];
+        size_t len = (static_cast<uint32_t>(blob[offset - 3]) << 16) +
+                     (static_cast<uint32_t>(blob[offset - 2]) << 8) +
+                      static_cast<uint32_t>(blob[offset - 1]);
+
         if (offset + len > blobLength)
         {
             LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
