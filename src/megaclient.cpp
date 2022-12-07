@@ -21256,26 +21256,45 @@ bool KeyManager::unserialize(const string &keysContainer)
             break;
 
         case TAG_PRIV_ED25519:
-            if (len != EdDSA::SEED_KEY_LENGTH) return false;
-            mPrivEd25519.assign(blob + offset, len);
-            LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
-            // TODO: should check if private key has not changed
+            if (!mPrivEd25519.size())
+            {
+                if (len != EdDSA::SEED_KEY_LENGTH) return false;
+                mPrivEd25519.assign(blob + offset, len);
+                LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
+            }
+            else
+            {
+                // TODO: should check if private key has not changed
+            }
             break;
 
         case TAG_PRIV_CU25519:
-            if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
-            mPrivCu25519.assign(blob + offset, len);
-            LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
-            // TODO: should check if private key has not changed
+            if (!mPrivCu25519.size())
+            {
+                if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
+                mPrivCu25519.assign(blob + offset, len);
+                LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
+            }
+            else
+            {
+                // TODO: should check if private key has not changed
+            }
             break;
 
         case TAG_PRIV_RSA:
         {
-            if (len < 512) return false;
-            mPrivRSA.assign(blob + offset, len);
-            LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
-            // TODO: check if ^!keys.privRSA matches as part of the actual us.privk. In that case, keep privk. Otherwise, trigger warning
-            // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
+            if (!mPrivRSA.size())
+            {
+                if (len < 512) return false;
+                mPrivRSA.assign(blob + offset, len);
+                LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
+                // TODO: check if ^!keys.privRSA matches as part of the actual us.privk. In that case, keep privk. Otherwise, trigger warning
+                // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
+            }
+            else
+            {
+                // TODO: should check if private key has not changed
+            }
             break;
         }
         case TAG_AUTHRING_ED25519:
