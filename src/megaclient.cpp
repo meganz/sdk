@@ -7559,7 +7559,7 @@ void MegaClient::sc_sqac()
 
 void MegaClient::sc_pk()
 {
-    reqs.add(new CommandPendingKeys(this, std::string(),
+    reqs.add(new CommandPendingKeys(this,
     [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
     {
         if (e)
@@ -7588,8 +7588,7 @@ void MegaClient::sc_pk()
         string buf = mKeyManager.toKeysContainer();
         putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
 
-        reqs.add(new CommandPendingKeys(this, lastcompleted,
-        [this] (Error e, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)
+        reqs.add(new CommandPendingKeys(this, lastcompleted, [this] (Error e)
         {
             if (e)
             {

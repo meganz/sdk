@@ -2176,17 +2176,36 @@ bool CommandSetShare::procresult(Result r)
     }
 }
 
-CommandPendingKeys::CommandPendingKeys(MegaClient *client, std::string lastcompleted, CommandPendingShareKeysCompletion completion)
+CommandPendingKeys::CommandPendingKeys(MegaClient *client, CommandPendingKeysReadCompletion completion)
+{
+    // Assume we've been passed a completion function.
+    mReadCompletion = std::move(completion);
+
+    cmd("pk");
+
+    tag = client->reqtag;
+}
+
+CommandPendingKeys::CommandPendingKeys(MegaClient *client, std::string lastcompleted, std::function<void (Error)> completion)
 {
     // Assume we've been passed a completion function.
     mCompletion = std::move(completion);
 
     cmd("pk");
+    arg("d", lastcompleted.c_str());
 
-    if (lastcompleted.size())
-    {
-        arg("d", lastcompleted.c_str());
-    }
+    tag = client->reqtag;
+}
+
+CommandPendingKeys::CommandPendingKeys(MegaClient *client, handle user, handle share, byte *key, std::function<void (Error)> completion)
+{
+    // Assume we've been passed a completion function.
+    mCompletion = std::move(completion);
+
+    cmd("pk");
+    arg("u", (byte*)&user, MegaClient::USERHANDLE);
+    arg("h", (byte*)&share, MegaClient::NODEHANDLE);
+    arg("k", key, SymmCipher::KEYLENGTH);
 
     tag = client->reqtag;
 }
@@ -2201,9 +2220,20 @@ bool CommandPendingKeys::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        LOG_err << "Unexpected response for ps: " << r.errorOrOK();
-        mCompletion(r.errorOrOK(), std::string(), nullptr);
+        if (mReadCompletion)
+        {
+            mReadCompletion(r.errorOrOK(), std::string(), nullptr);
+            return true;
+        }
+
+        mCompletion(r.errorOrOK());
         return true;
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(API_EINTERNAL);
+        return false;
     }
 
     // Response format:
@@ -2226,7 +2256,7 @@ bool CommandPendingKeys::procresult(Result r)
         Base64::atob(key.c_str(), (byte*)&userhandle, MegaClient::USERHANDLE);
         if (!client->json.enterobject())
         {
-            mCompletion(API_EINTERNAL, std::string(), nullptr);
+            mReadCompletion(API_EINTERNAL, std::string(), nullptr);
             return false;
         }
 
@@ -2240,7 +2270,7 @@ bool CommandPendingKeys::procresult(Result r)
         key = client->json.getname();
     }
 
-    mCompletion(API_OK, lastcompleted, keys);
+    mReadCompletion(API_OK, lastcompleted, keys);
     return true;
 }
 
