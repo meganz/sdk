@@ -319,22 +319,6 @@ namespace UserAlert
         static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct DeletedScheduledMeeting : public Base
-    {
-        handle schedMeetingHandle = UNDEF;
-
-        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
-        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
-            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
-            , schedMeetingHandle(_sm)
-            {}
-
-        virtual void text(string& header, string& title, MegaClient* mc) override;
-
-        bool serialize(string* d) override;
-        static DeletedScheduledMeeting* unserialize(string*, unsigned id);
-    };
-
     struct UpdatedScheduledMeeting : public Base
     {
         class Changeset
@@ -420,6 +404,20 @@ namespace UserAlert
         static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
+    struct DeletedScheduledMeeting : public Base
+    {
+        handle schedMeetingHandle = UNDEF;
+
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id) : Base(un, id) {}
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , schedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string* d) override;
+        static DeletedScheduledMeeting* unserialize(string*, unsigned id);
+    };
 };
 
 struct UserAlertFlags
