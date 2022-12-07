@@ -19162,7 +19162,12 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
     // if handles of all children are known, load missing child nodes one by one
     if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
     {
-        for (const auto &child : parent->mNodePosition->second.mChildren)
+        if (!parent->mNodePosition->second.mChildren)
+        {
+            return childrenList;
+        }
+
+        for (const auto &child : *parent->mNodePosition->second.mChildren)
         {
             if (cancelToken.isCancelled())
             {
@@ -19187,11 +19192,14 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
     }
     else // get all children from DB directly and load missing ones
     {
-        for (const auto &child : parent->mNodePosition->second.mChildren)
+        if (parent->mNodePosition->second.mChildren)
         {
-            if (child.second)
+            for (const auto& child : *parent->mNodePosition->second.mChildren)
             {
-                childrenList.push_back(child.second);
+                if (child.second)
+                {
+                    childrenList.push_back(child.second);
+                }
             }
         }
 
@@ -19203,6 +19211,11 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
             return  childrenList;
         }
 
+        if (!nodesFromTable.empty() && !parent->mNodePosition->second.mChildren)
+        {
+            parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
+        }
+
         for (auto nodeSerializedIt : nodesFromTable)
         {
             if (cancelToken.isCancelled())
@@ -19211,8 +19224,8 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
                 return  childrenList;
             }
 
-            auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
-            if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
+            auto childIt = parent->mNodePosition->second.mChildren->find(nodeSerializedIt.first);
+            if (childIt == parent->mNodePosition->second.mChildren->end() || !childIt->second) // handle or node not loaded
             {
                 auto itNode = mNodes.find(nodeSerializedIt.first);
                 if ( itNode == mNodes.end() || !itNode->second.mNode)    // not loaded
@@ -19431,17 +19444,26 @@ Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &na
     // mAllChildrenHandleLoaded = false -> if not found, need check DB
     // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
     bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
-    for (const auto& itNode : parent->mNodePosition->second.mChildren)
+
+    if (allChildrenLoaded && !parent->mNodePosition->second.mChildren)
     {
-        Node* node = itNode.second;
-        if (node && node->type == nodeType && name == node->displayname())
+        return nullptr; // valid case
+    }
+
+    if (parent->mNodePosition->second.mChildren)
+    {
+        for (const auto& itNode : *parent->mNodePosition->second.mChildren)
         {
-            return node;
-        }
-        else if (!node)
-        {
-            // If no all children nodes are loaded, it's necessary check DB
-            allChildrenLoaded = false;
+            Node* node = itNode.second;
+            if (node && node->type == nodeType && name == node->displayname())
+            {
+                return node;
+            }
+            else if (!node)
+            {
+                // If not all child nodes have been loaded, check the DB
+                allChildrenLoaded = false;
+            }
         }
     }
 
@@ -19641,16 +19663,19 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
     }
 
-    nodePtr_map children;
+    const nodePtr_map* children = nullptr;
     auto it = mNodes.find(nodehandle);
     if (it != mNodes.end())
     {
-        children = it->second.mChildren;
+        children = it->second.mChildren.get();
     }
 
-    for (const auto &itNode : children)
+    if (children)
     {
-        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        for (const auto& itNode : *children)
+        {
+            nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        }
     }
 
     if (nodeType == FILENODE)
@@ -19706,9 +19731,8 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     auto parentIt = mNodes.find(parentHandle);
     if (parentIt != mNodes.end() && parentIt->second.mAllChildrenHandleLoaded)
     {
-        return parentIt->second.mChildren.size();
+        return parentIt->second.mChildren ? parentIt->second.mChildren->size() : 0;
     }
-
 
     return mTable->getNumberOfChildren(parentHandle);
 }
@@ -20708,13 +20732,21 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 {
     auto pair = mNodes.emplace(parent, NodeManagerNode());
     // The NodeManagerNode could have been added in add node, only update the child
-    assert(!pair.first->second.mChildren[child]);
-    pair.first->second.mChildren[child] = node;
+    assert(!pair.first->second.mChildren || !(*pair.first->second.mChildren)[child]);
+    if (!pair.first->second.mChildren)
+    {
+        pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
+    }
+    (*pair.first->second.mChildren)[child] = node;
 }
 
 void NodeManager::removeChild(Node* parent, NodeHandle child)
 {
-    parent->mNodePosition->second.mChildren.erase(child);
+    assert(parent->mNodePosition->second.mChildren);
+    if (parent->mNodePosition->second.mChildren)
+    {
+        parent->mNodePosition->second.mChildren->erase(child);
+    }
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
