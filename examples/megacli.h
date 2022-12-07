@@ -230,6 +230,8 @@ struct DemoApp : public MegaApp
     bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
+    void upgrading_security() override;
+
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;

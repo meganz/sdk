@@ -20952,16 +20952,13 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
 
     if (mSecure && !mPostRegistration)
     {
-        string msg = "We are upgrading the cryptographic resilience of your account. You will see this message only once. If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed.";
-
         // TODO: for each outshare, get name of the folder and notify the app.
         // if (shares)
         //msg.append(" You are currently sharing the following folders: ");
         // for(share:shares)
         //msg.append(share.name);
 
-        // TODO: show a message to apps warning about "upgrading security"
-        // mClient.app->upgrading_security()
+        mClient.app->upgrading_security();
     }
     else
     {

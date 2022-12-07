@@ -15615,6 +15615,12 @@ void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::upgrading_security()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_UPGRADE_SECURITY);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -33880,6 +33886,7 @@ const char *MegaEventPrivate::getEventString(int type)
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
+        case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
     }
 
     return "UNKNOWN";

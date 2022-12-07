@@ -4948,6 +4948,7 @@ public:
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
         EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
     };
 
     enum

@@ -8590,6 +8590,14 @@ void DemoApp::whyamiblocked_result(int code)
     }
 }
 
+void DemoApp::upgrading_security()
+{
+    cout << "We are upgrading the cryptographic resilience of your account. You will see this message only once. "
+         << "If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed." << endl;
+
+    // TODO List outshares too.
+}
+
 // password change result
 void DemoApp::changepw_result(error e)
 {
