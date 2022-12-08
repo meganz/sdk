@@ -10705,6 +10705,13 @@ bool MegaClient::discardnotifieduser(User *u)
 // and submit public key requests
 void MegaClient::procsr(JSON* j)
 {
+    // insecure functionality - disable
+    if (mKeyManager.isSecure())
+    {
+        j->storeobject();
+        return;
+    }
+
     User* u;
     handle sh, uh;
 
