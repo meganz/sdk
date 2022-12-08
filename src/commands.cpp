@@ -2002,23 +2002,35 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
 
     if (a != ACCESS_UNKNOWN)
     {
-        // securely store/transmit share key
-        // by creating a symmetrically (for the sharer) and an asymmetrically
-        // (for the sharee) encrypted version
-        memcpy(key, n->sharekey->key, sizeof key);
-        memcpy(asymmkey, key, sizeof key);
-
-        client->key.ecb_encrypt(key);
-        arg("ok", key, sizeof key);
-
-        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid())
+        if (!client->mKeyManager.isSecure())
         {
-            t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
-        }
+            // securely store/transmit share key
+            // by creating a symmetrically (for the sharer) and an asymmetrically
+            // (for the sharee) encrypted version
+            memcpy(key, n->sharekey->key, sizeof key);
+            memcpy(asymmkey, key, sizeof key);
 
-        // outgoing handle authentication
-        client->handleauth(sh, auth);
-        arg("ha", auth, sizeof auth);
+            client->key.ecb_encrypt(key);
+            arg("ok", key, sizeof key);
+
+
+            if (u && u->pubk.isvalid())
+            {
+                t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
+            }
+
+            // outgoing handle authentication
+            client->handleauth(sh, auth);
+            arg("ha", auth, sizeof auth);
+        }
+        else
+        {
+            // TODO: dummy key/handleauth - FIXME: remove
+            memset(key, 0, sizeof key);
+            memset(auth, 0, sizeof auth);
+            arg("ok", key, sizeof key);
+            arg("ha", auth, sizeof auth);
+        }
     }
 
     beginarray("s");
