@@ -21285,9 +21285,9 @@ bool KeyManager::unserialize(const string &keysContainer)
     while (offset <= blobLength)
     {
         byte tag = blob[offset - headerSize];
-        size_t len = (static_cast<uint32_t>(blob[offset - 3]) << 16) +
-                     (static_cast<uint32_t>(blob[offset - 2]) << 8) +
-                      static_cast<uint32_t>(blob[offset - 1]);
+        size_t len = (static_cast<byte>(blob[offset - 3]) << 16) +
+                     (static_cast<byte>(blob[offset - 2]) << 8) +
+                      static_cast<byte>(blob[offset - 1]);
 
         if (offset + len > blobLength)
         {
