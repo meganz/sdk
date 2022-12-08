@@ -14060,6 +14060,14 @@ error MegaClient::verifyCredentials(handle uh)
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()));
 
+    mKeyManager.setAuthRing(authring.serializeForJS());
+    string buf = mKeyManager.toKeysContainer();
+    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0,
+    [this](Error e)
+    {
+        mKeyManager.promotePendingShares();
+    });
+
     return API_OK;
 }
 
@@ -14089,6 +14097,18 @@ error MegaClient::resetCredentials(handle uh)
     {
         LOG_debug << "Removing credentials for user " << uid << "...";
         putua(&attrs);
+
+        auto it = mAuthRings.find(ATTR_AUTHRING);
+        if (it != mAuthRings.end())
+        {
+            AuthRing authring = it->second;
+            if (authring.remove(uh))
+            {
+                mKeyManager.setAuthRing(authring.serializeForJS());
+                string buf = mKeyManager.toKeysContainer();
+                putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size());
+            }
+        }
     }
     else
     {
