@@ -1308,7 +1308,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
         // exclude previous versions <- n2.type != FILENODE
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1  INNER JOIN nodes n2 on "
-                               "n2.nodehandle = n1.parenthandle where LOWER(n1.name) LIKE LOWER(?) AND n2.type !=";
+                               "n2.nodehandle = n1.parenthandle where LOWER(n1.name) GLOB LOWER(?) AND n2.type !=";
         sqlQuery.append(std::to_string(FILENODE));
         // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
         // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
@@ -1318,7 +1318,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        string wildCardName = "%" + name + "%";
+        string wildCardName = "*" + name + "*";
         if ((sqlResult = sqlite3_bind_text(mStmtNodeByName, 1, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtNodeByName, nodes);
