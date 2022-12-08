@@ -21378,7 +21378,7 @@ bool KeyManager::unserialize(const string &keysContainer)
             mAuthEd25519.assign(blob + offset, len);
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
-            LOG_verbose << "Autrhing Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
+            LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
 
 //            LOG_verbose << "-keys-Authring Ed25519: " << Base64::btoa(mAuthEd25519);
 
@@ -21405,7 +21405,7 @@ bool KeyManager::unserialize(const string &keysContainer)
             mAuthCu25519.assign(blob + offset, len);
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
-            LOG_verbose << "Autrhing Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
+            LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
 
 //            LOG_verbose << "-keys-Authring Cu25519: " << Base64::btoa(mAuthCu25519);
 
