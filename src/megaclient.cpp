@@ -7574,7 +7574,7 @@ void MegaClient::sc_pk()
         {
             for (const auto& kv2 : kv.second)
             {
-                allShareKeysProcessed &= mKeyManager.addShareKey(kv.first, kv2.first, kv2.second);
+                allShareKeysProcessed &= mKeyManager.addInShareKey(kv.first, kv2.first, kv2.second);
             }
         }
 
@@ -21219,7 +21219,25 @@ void KeyManager::setPostRegistration(bool postRegistration)
     mPostRegistration = postRegistration;
 }
 
-bool KeyManager::addShareKey(handle userhandle, handle sharehandle, std::string key)
+bool KeyManager::addPendingOutShare(handle sharehandle, std::string uid)
+{
+    mPendingOutShares[sharehandle].insert(uid);
+    return true;
+}
+
+bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
+{
+    return mPendingOutShares[sharehandle].erase(uid);
+}
+
+bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey)
+{
+    mShareKeys[sharehandle] = shareKey;
+    mTrustedShareKeys[sharehandle] = true;
+    return true;
+}
+
+bool KeyManager::addInShareKey(handle userhandle, handle sharehandle, std::string key)
 {
     if (!mClient.areCredentialsVerified(userhandle))
     {
@@ -21268,6 +21286,65 @@ string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
     aesencryption.ProcessData((byte *)encryptedKey.data(), (byte *)shareKey.data(), shareKey.size());
 
     return encryptedKey;
+}
+
+void KeyManager::setAuthRing(std::string authring)
+{
+    mAuthEd25519 = authring;
+}
+
+void KeyManager::promotePendingShares()
+{
+    bool attributeUpdated = false;
+    for (const auto& it : mPendingOutShares)
+    {
+        handle nodehandle = it.first;
+        std::vector<std::string> uidsToDelete;
+
+        for (const auto& uid : it.second)
+        {
+            User *u = mClient.getUserForSharing(uid.c_str());
+            if (u && mClient.areCredentialsVerified(u->userhandle))
+            {
+                LOG_debug << "Promoting pending outshare of node " << toNodeHandle(nodehandle) << " for " << uid;
+                auto shareit = mShareKeys.find(nodehandle);
+                if (shareit != mShareKeys.end())
+                {
+                    std::string encryptedKey = encryptShareKeyTo(u->userhandle, shareit->second);
+                    if (encryptedKey.size())
+                    {
+                        mClient.reqs.add(new CommandPendingKeys(&mClient, u->userhandle, nodehandle, (byte *)encryptedKey.data(),
+                        [this, uid, nodehandle](Error err)
+                        {
+                            if (err)
+                            {
+                                LOG_err << "Error sending share key: " << err;
+                            }
+                            else
+                            {
+                                LOG_debug << "Share key correctly sent";
+                            }
+                        }));
+
+                        uidsToDelete.push_back(uid);
+                        attributeUpdated = true;
+                    }
+                }
+            }
+        }
+
+        for (const auto& uid : uidsToDelete)
+        {
+            removePendingOutShare(nodehandle, uid);
+        }
+        uidsToDelete.clear();
+    }
+
+    if (attributeUpdated)
+    {
+        string buf = toKeysContainer();
+        mClient.putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+    }
 }
 
 void KeyManager::loadShareKeys()

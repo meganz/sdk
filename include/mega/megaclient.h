@@ -559,8 +559,13 @@ public:
 
     void setPostRegistration(bool postRegistration);
 
-    bool addShareKey(handle userhandle, handle sharehandle, std::string key);
+    bool addPendingOutShare(handle sharehandle, std::string uid);
+    bool removePendingOutShare(handle sharehandle, std::string uid);
+    bool addOutShareKey(handle sharehandle, std::string shareKey);
+    bool addInShareKey(handle userhandle, handle sharehandle, std::string key);
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
+    void setAuthRing(std::string authring);
+    void promotePendingShares();
 
     void loadShareKeys();
 
