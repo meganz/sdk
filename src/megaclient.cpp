@@ -21587,20 +21587,18 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
             handle uh = UNDEF;
             success = r.unserializehandle(uh);
 
-            uid.assign((const char*)&len, 1);
-            uid.append((const char*)&uh, MegaClient::USERHANDLE);
+            uid = toHandle(uh);
 
-            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << toHandle(uh) << "\n";
+            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid << "\n";
         }
         else
         {
             byte buf[256];
             success = r.unserializebinary(buf, len);
 
-            uid.assign((const char*)&len, 1);
             uid.append((const char*)buf, len);
 
-            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid.substr(1) << "\n";
+            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid << "\n";
         }
         if (!success)
         {
@@ -21624,21 +21622,42 @@ string KeyManager::serializePendingOutshares() const
     {
         handle h = itNodes.first;   // handle of shared folder
 
-        for (const auto& it : itNodes.second)
+        for (const std::string& uid : itNodes.second)
         {
-            w.serializebyte(it[0]);
+            byte len = 0;
+            if (strchr(uid.c_str(), '@'))
+            {
+                if (uid.size() >= 256)
+                {
+                    LOG_err << "Incorrect email size in pending outshare: " << uid;
+                    assert(!"Incorrect email size in pending outshare");
+                    continue;
+                }
+                len = static_cast<byte>(uid.size());
+            }
+            else
+            {
+                if (uid.size() != 11)
+                {
+                    LOG_err << "Incorrect user handle in pending outshare: " << uid;
+                    assert(!"Incorrect user handle in pending outshare");
+                    continue;
+                }
+            }
+
+            w.serializebyte(len);
             w.serializenodehandle(h);
 
-            bool isEmail = it[0];
-            if (isEmail)
+            bool isEmail = len;
+            if (isEmail) // uid is an email
             {
-                w.serializebinary((byte*)it.data() + 1, it.size() - 1);
+                w.serializebinary((byte*)uid.data(), uid.size());
             }
             else    // user's handle in binary format, 8 bytes
             {
-                assert(it.size() == 1 + MegaClient::USERHANDLE);
-
-                handle uh; memcpy(&uh, it.data() + 1, it.size() - 1);
+                handle uh;
+                int uhsize = Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
+                assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
             }
         }
