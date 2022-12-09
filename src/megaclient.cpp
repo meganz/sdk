@@ -7568,26 +7568,24 @@ void MegaClient::sc_pk()
             return;
         }
 
-        bool allShareKeysProcessed = true;
         LOG_debug << "Processing pending keys";
         for (const auto& kv : *keys.get())
         {
             for (const auto& kv2 : kv.second)
             {
-                allShareKeysProcessed &= mKeyManager.addInShareKey(kv.first, kv2.first, kv2.second);
+                handle userHandle = kv.first;
+                handle shareHandle = kv2.first;
+                std::string key = kv2.second;
+
+                mKeyManager.addPendingInShare(toNodeHandle(shareHandle), userHandle, key);
             }
         }
 
-        if (!allShareKeysProcessed)
-        {
-            LOG_warn << "Some pending keys were not processed";
-            return;
-        }
-
-        LOG_debug << "All pending keys were correctly processed";
+        mKeyManager.promotePendingShares();
         string buf = mKeyManager.toKeysContainer();
         putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
 
+        LOG_debug << "All pending keys were processed";
         reqs.add(new CommandPendingKeys(this, lastcompleted, [this] (Error e)
         {
             if (e)
@@ -14172,17 +14170,23 @@ error MegaClient::verifyCredentials(handle uh)
     }
     }
 
-    // TODO: update the ^!keys with the new authring's value
-    // TODO: upon update of the authring, also process pendinginshares/pendingoutshares and update accordingly
+    int tag = reqtag;
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()));
-
-    mKeyManager.setAuthRing(authring.serializeForJS());
-    string buf = mKeyManager.toKeysContainer();
-    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0,
-    [this](Error e)
+    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
+    [this, tag, authring](Error e)
     {
+        if (e)
+        {
+            restag = tag;
+            app->putua_result(e);
+            return;
+        }
+
+        mKeyManager.setAuthRing(authring.serializeForJS());
         mKeyManager.promotePendingShares();
+
+        string buf = mKeyManager.toKeysContainer();
+        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), tag);
     });
 
     return API_OK;
@@ -14213,7 +14217,6 @@ error MegaClient::resetCredentials(handle uh)
     if (attrs.size())
     {
         LOG_debug << "Removing credentials for user " << uid << "...";
-        putua(&attrs);
 
         auto it = mAuthRings.find(ATTR_AUTHRING);
         if (it != mAuthRings.end())
@@ -14226,6 +14229,8 @@ error MegaClient::resetCredentials(handle uh)
                 putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size());
             }
         }
+
+        putua(&attrs);
     }
     else
     {
@@ -21364,40 +21369,37 @@ bool KeyManager::addPendingOutShare(handle sharehandle, std::string uid)
     return true;
 }
 
+bool KeyManager::addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey)
+{
+    mPendingInShares[sharehandle] = pair<handle, string>(userHandle, encrytedKey);
+    return true;
+}
+
 bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
 {
     return mPendingOutShares[sharehandle].erase(uid);
+}
+
+bool KeyManager::removePendingInShare(std::string shareHandle)
+{
+    return mPendingInShares.erase(shareHandle);
 }
 
 bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey)
 {
     mShareKeys[sharehandle] = shareKey;
     mTrustedShareKeys[sharehandle] = true;
+
+    mClient.newshares.push_back(new NewShare(sharehandle, -1, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
+    mClient.mergenewshares(1);
+
     return true;
 }
 
-bool KeyManager::addInShareKey(handle userhandle, handle sharehandle, std::string key)
+bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey)
 {
-    if (!mClient.areCredentialsVerified(userhandle))
-    {
-        return false;
-    }
-
-    std::string sharedKey = computeSymmetricKey(userhandle);
-    if (!sharedKey.size())
-    {
-        return false;
-    }
-
-    std::string shareKey;
-    shareKey.resize(CryptoPP::AES::BLOCKSIZE);
-
-    std::string binaryKey = Base64::atob(key);
-    CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
-    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)binaryKey.data(), binaryKey.size());
-
-    mTrustedShareKeys[sharehandle] = true;
     mShareKeys[sharehandle] = shareKey;
+    mTrustedShareKeys[sharehandle] = true;
 
     mClient.newshares.push_back(new NewShare(sharehandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
     mClient.mergenewshares(1);
@@ -21427,19 +21429,42 @@ string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
     return encryptedKey;
 }
 
+string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
+{
+    if (!mClient.areCredentialsVerified(userhandle))
+    {
+        return std::string();
+    }
+
+    std::string sharedKey = computeSymmetricKey(userhandle);
+    if (!sharedKey.size())
+    {
+        return std::string();
+    }
+
+    std::string shareKey;
+    shareKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    std::string encryptedKey = Base64::atob(key);
+    CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
+    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)encryptedKey.data(), encryptedKey.size());
+
+    return shareKey;
+}
+
 void KeyManager::setAuthRing(std::string authring)
 {
     mAuthEd25519 = authring;
 }
 
-void KeyManager::promotePendingShares()
+bool KeyManager::promotePendingShares()
 {
     bool attributeUpdated = false;
+    std::vector<std::string> keysToDelete;
+
     for (const auto& it : mPendingOutShares)
     {
         handle nodehandle = it.first;
-        std::vector<std::string> uidsToDelete;
-
         for (const auto& uid : it.second)
         {
             User *u = mClient.getUserForSharing(uid.c_str());
@@ -21465,25 +21490,53 @@ void KeyManager::promotePendingShares()
                             }
                         }));
 
-                        uidsToDelete.push_back(uid);
+                        keysToDelete.push_back(uid);
                         attributeUpdated = true;
                     }
                 }
             }
         }
 
-        for (const auto& uid : uidsToDelete)
+        for (const auto& uid : keysToDelete)
         {
             removePendingOutShare(nodehandle, uid);
         }
-        uidsToDelete.clear();
+        keysToDelete.clear();
     }
 
-    if (attributeUpdated)
+    for (const auto& it : mPendingInShares)
     {
-        string buf = toKeysContainer();
-        mClient.putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+        handle nodeHandle = 0;
+        Base64::atob(it.first.c_str(), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+
+        handle userHandle = it.second.first;
+        const std::string &encryptedShareKey = it.second.second;
+
+        if (mShareKeys.find(nodeHandle) != mShareKeys.end())
+        {
+            // already have it
+            keysToDelete.push_back(it.first);
+            attributeUpdated = true;
+        }
+        else if (mClient.areCredentialsVerified(userHandle))
+        {
+            std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
+            if (shareKey.size())
+            {
+                addInShareKey(nodeHandle, shareKey);
+                keysToDelete.push_back(it.first);
+                attributeUpdated = true;
+            }
+        }
     }
+
+    for (const auto& shareHandle : keysToDelete)
+    {
+        removePendingInShare(shareHandle);
+    }
+    keysToDelete.clear();
+
+    return attributeUpdated;
 }
 
 void KeyManager::loadShareKeys()

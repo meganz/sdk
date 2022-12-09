@@ -560,12 +560,15 @@ public:
     void setPostRegistration(bool postRegistration);
 
     bool addPendingOutShare(handle sharehandle, std::string uid);
+    bool addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey);
     bool removePendingOutShare(handle sharehandle, std::string uid);
+    bool removePendingInShare(std::string shareHandle);
     bool addOutShareKey(handle sharehandle, std::string shareKey);
-    bool addInShareKey(handle userhandle, handle sharehandle, std::string key);
+    bool addInShareKey(handle sharehandle, std::string shareKey);
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
+    std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
     void setAuthRing(std::string authring);
-    void promotePendingShares();
+    bool promotePendingShares();
 
     void loadShareKeys();
 
@@ -622,7 +625,7 @@ private:
     // maps node handle to the target users (encoded as len.1+value, where value can be a user's handle in B64 if len=0 or the email address otherwise)
     map<handle, set<string>> mPendingOutShares;
 
-    // maps "name" to pairs of target user handle and share key
+    // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
 
     // decode data from the decrypted ^!keys attribute
