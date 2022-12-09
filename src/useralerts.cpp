@@ -176,6 +176,11 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     pst.timestamp = m_time() - timeDelta;
     pst.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+    if (pst.userHandle == UNDEF)
+    {
+        // just for scheduled meetings user alerts (requested API to unify with above)
+        pst.userHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
+    }
     pst.userEmail = un.getstring('m', "");
 
     tag = -1;
