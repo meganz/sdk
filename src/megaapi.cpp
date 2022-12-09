@@ -2468,6 +2468,16 @@ void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListe
     pImpl->sendFileToUser(node, email, listener);
 }
 
+void MegaApi::upgradeSecurity(MegaRequestListener* listener)
+{
+    pImpl->upgradeSecurity(listener);
+}
+
+void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->openShareDialog(node, listener);
+}
+
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);

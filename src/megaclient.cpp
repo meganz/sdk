@@ -10860,6 +10860,51 @@ void MegaClient::rewriteforeignkeys(Node* n)
     }
 }
 
+// Migrate the account to start using the new ^!keys attr.
+void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
+{
+
+    if (!mKeyManager.isSecure())
+    {
+        completion(API_ENOENT);
+        return;
+    }
+
+    LOG_debug << "Upgrading cryptographic subsystem.";
+
+    // TODO
+    // Actually migrate and put the new keys attr to the API.
+    string buf = mKeyManager.toKeysContainer();
+    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [completion](Error e)
+    {
+        completion(e);
+    });
+}
+
+// Creates a new share key for the node if there is no share key already created.
+void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
+{
+    if (!n)
+    {
+        completion(API_EARGS);
+        return;
+    }
+
+    if (n->sharekey)
+    {
+        completion(API_OK);
+        return;
+    }
+
+    LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
+
+    // TODO
+    // Create and set sharekey, update ^!keys and node tree snapshot.
+    // mKeyManager.addShareKey();
+
+    completion(API_OK);
+}
+
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
@@ -13592,8 +13637,8 @@ void MegaClient::initializekeys()
             mKeyManager.init(prEd255, prCu255, mPrivKey);
 
             // TODO: the migration may require to wait for user's acceptance
-            string buf = mKeyManager.toKeysContainer();
-            putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+            // string buf = mKeyManager.toKeysContainer();
+            // putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
         }
 
         return;
@@ -21127,6 +21172,14 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         return;
     }
 
+    mVersion = 1;
+    mCreationTime = static_cast<int32_t>(time(nullptr));
+    mIdentity = mClient.me;
+    mGeneration = 1;
+    mPrivEd25519 = prEd25519;
+    mPrivCu25519 = prCu25519;
+    mPrivRSA = prRSA;
+
     if (mSecure && !mPostRegistration)
     {
         // TODO: for each outshare, get name of the folder and notify the app.
@@ -21135,20 +21188,14 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         // for(share:shares)
         //msg.append(share.name);
 
+        // Notify app about the cryptographic upgrade.
+        // TODO Notify once all sharekeys and other stuff is available and migrated to the keymanager.
         mClient.app->upgrading_security();
     }
     else
     {
         mPostRegistration = false;
     }
-
-    mVersion = 1;
-    mCreationTime = static_cast<int32_t>(time(nullptr));
-    mIdentity = mClient.me;
-    mGeneration = 1;
-    mPrivEd25519 = prEd25519;
-    mPrivCu25519 = prCu25519;
-    mPrivRSA = prRSA;
 }
 
 void KeyManager::setKey(const mega::SymmCipher &masterKey)

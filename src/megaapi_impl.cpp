@@ -4081,6 +4081,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
+        case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
+        case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
     }
     return "UNKNOWN";
 }
@@ -6798,6 +6800,65 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestL
         request->setNodeHandle(node->getHandle());
     }
     request->setEmail(email);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_UPGRADE_SECURITY, listener);
+    request->performRequest = [this, request]() {
+
+        if (!client->mKeyManager.isSecure())
+        {
+            return API_ENOENT;
+        }
+
+        // TODO: Ensure keymanager is not initialized at this point if migration is pending
+        // or add a new flag in key manager to wait before sending the attr to the API.
+        if (!client->mKeyManager.generation())
+        {
+            return API_EEXIST;
+        }
+
+        client->upgradeSecurity([this, request](Error e) {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_OPEN_SHARE_DIALOG, listener);
+
+    if(node) request->setNodeHandle(node->getHandle());
+    request->performRequest = [this, request]() {
+
+        Node *node = client->nodebyhandle(request->getNodeHandle());
+
+        if(!node)
+        {
+            return API_EARGS;
+        }
+
+        if (node->sharekey)
+        {
+            return API_OK;
+        }
+
+        client->openShareDialog(node, [this, request](Error e) {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+    return API_OK;
+
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }

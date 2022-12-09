@@ -8596,6 +8596,18 @@ void DemoApp::upgrading_security()
          << "If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed." << endl;
 
     // TODO List outshares too.
+
+    client->upgradeSecurity([](Error e) {
+        if (e)
+        {
+            cout << "Security upgrade failed (" << errorstring(e) << ")" << endl;
+        }
+        else
+        {
+            cout << "Security upgrade succeeded." << endl;
+        }
+    });
+
 }
 
 // password change result

@@ -2494,6 +2494,8 @@ class MegaApiImpl : public MegaApp
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);

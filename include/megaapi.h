@@ -4069,7 +4069,9 @@ class MegaRequest
             TYPE_DEL_SCHEDULED_MEETING                                      = 159,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 160,
             TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES                        = 161,
-            TOTAL_OF_REQUEST_TYPES                                          = 162,
+            TYPE_OPEN_SHARE_DIALOG                                          = 162,
+            TYPE_UPGRADE_SECURITY                                           = 163,
+            TOTAL_OF_REQUEST_TYPES                                          = 164,
         };
 
         virtual ~MegaRequest();
@@ -11317,6 +11319,27 @@ class MegaApi
         * @param listener MegaRequestListener to track this request
         */
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Upgrade cryptographic security
+         *
+         * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+         * proceed with the cryptographic upgrade process.
+         * This should happen only once per account.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Creates a new share key for the node if there is no share key already created.
+         *
+         * Call it before starting any new share.
+         *
+         * @param node The folder to share. It must be a non-root folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser

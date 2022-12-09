@@ -1002,6 +1002,12 @@ public:
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
+    // Migrate the account to start using the new ^!keys attr.
+    void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Creates a new share key for the node if there is no share key already created.
+    void openShareDialog(Node* n, std::function<void (Error)> completion);
+
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
