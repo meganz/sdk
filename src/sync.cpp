@@ -409,7 +409,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 
     size_t index = 0;
     size_t separatorBias = 0;
-    LocalPath accumulated;
+    LocalPath::string_type accumulated;
     while (index <= path1End && index <= path2End)
     {
         const auto value1 = path1.localpath[path1End - index];
@@ -418,17 +418,14 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
         {
             break;
         }
-        accumulated.localpath.push_back(value1);
+        accumulated.push_back(value1); // accumulated will clearly have content after this
 
         ++index;
 
-        if (!accumulated.localpath.empty())
+        if (accumulated.back() == LocalPath::localPathSeparator)
         {
-            if (accumulated.localpath.back() == LocalPath::localPathSeparator)
-            {
-                ++separatorBias;
-                accumulated.clear();
-            }
+            ++separatorBias;
+            accumulated.clear();
         }
     }
 
@@ -438,7 +435,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
     }
     else // the paths only partly match
     {
-        return static_cast<int>(index - separatorBias - accumulated.localpath.size());
+        return static_cast<int>(index - separatorBias - accumulated.size());
     }
 }
 
