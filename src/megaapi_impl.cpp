@@ -21954,7 +21954,7 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->deregisterThenRemoveSync(backupId, completion, false);
+            client->syncs.deregisterThenRemoveSync(backupId, completion, false);
             break;
         }
 #endif  // ENABLE_SYNC
