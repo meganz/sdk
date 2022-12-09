@@ -800,6 +800,21 @@ const char* MegaUserAlert::getString(unsigned) const
     return NULL;
 }
 
+MegaHandle MegaUserAlert::getSchedId() const
+{
+    return INVALID_HANDLE;
+}
+
+MegaHandle MegaUserAlert::getParentSchedId() const
+{
+    return INVALID_HANDLE;
+}
+
+bool MegaUserAlert::hasSchedMeetingChanged(int) const
+{
+    return false;
+}
+
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
     return INVALID_HANDLE;

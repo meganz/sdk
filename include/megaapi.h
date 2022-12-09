@@ -1848,6 +1848,17 @@ public:
         TOTAL_OF_ALERT_TYPES
     };
 
+    enum
+    {
+        SM_CHANGE_TYPE_TITLE            = 0,
+        SM_CHANGE_TYPE_DESCRIPTION      = 1,
+        SM_CHANGE_TYPE_CANCELLED        = 2,
+        SM_CHANGE_TYPE_TIMEZONE         = 3,
+        SM_CHANGE_TYPE_STARTDATE        = 4,
+        SM_CHANGE_TYPE_ENDDATE          = 5,
+        SM_CHANGE_TYPE_RULES            = 6,
+    };
+
     virtual ~MegaUserAlert();
 
     /**
@@ -1915,7 +1926,8 @@ public:
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
-    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES,
+    *  TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @warning This value is still valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
@@ -1966,6 +1978,7 @@ public:
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *   TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @return email string of the relevant user, or NULL if not available
     */
@@ -2073,6 +2086,50 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
+
+    /**
+    * @brief Returns the MegaHandle that identifies the scheduled meeting id related to this alert
+    *
+    * This value is currently only valid for:
+    *   TYPE_SCHEDULEDMEETING_NEW
+    *   TYPE_SCHEDULEDMEETING_DELETED
+    *   TYPE_SCHEDULEDMEETING_UPDATED
+    *
+    * @return MegaHandle that identifies the scheduled meeting id related to this alert
+    */
+    virtual MegaHandle getSchedId() const;
+
+    /**
+    * @brief Returns the MegaChatHandle that identifies the parent scheduled meeting id related to this alert
+    *
+    * This value is currently only valid for:
+    *   TYPE_SCHEDULEDMEETING_NEW
+    *   TYPE_SCHEDULEDMEETING_DELETED
+    *   TYPE_SCHEDULEDMEETING_UPDATED
+    *
+    * @return MegaHandle that identifies the parent scheduled meeting id related to this alert,
+    * or INVALID_HANDLE if not available
+    */
+    virtual MegaHandle getParentSchedId() const;
+
+    /**
+     * @brief Returns true if the scheduled meeting associated to this alert has an specific change
+     *
+     * This value is currently only valid for:
+     *   TYPE_SCHEDULEDMEETING_UPDATED
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     * - MegaUserAlerts::SC_TITLE     [0]  - Title has changed
+     * - MegaUserAlerts::SC_DESC      [1]  - Description has changed
+     * - MegaUserAlerts::SC_CANC      [2]  - Cancelled flag has changed
+     * - MegaUserAlerts::SC_TZONE     [3]  - Timezone has changed
+     * - MegaUserAlerts::SC_START     [4]  - Start date time has changed
+     * - MegaUserAlerts::SC_END       [5]  - End date time has changed
+     * - MegaUserAlerts::SC_RULES     [6]  - Repetition rules have changed
+     *
+     * @return true if this scheduled meeting associated to this alert has an specific change
+     */
+    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
 
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.

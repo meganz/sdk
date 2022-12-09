@@ -2177,6 +2177,21 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
     return index < handles.size() ? handles[index] : INVALID_HANDLE;
 }
 
+MegaHandle MegaUserAlertPrivate::getSchedId() const
+{
+    return schedMeetingId;
+}
+
+MegaHandle MegaUserAlertPrivate::getParentSchedId() const
+{
+   return parentSMId;
+}
+
+bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
+{
+    return schedMeetingChangeset.hasChanged(changeType);
+}
+
 bool MegaUserAlertPrivate::isOwnChange() const
 {
     return tag != 0;

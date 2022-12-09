@@ -1425,13 +1425,16 @@ UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, un
     {
         if (auxJson.enterobject())
         {
-            MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset);
+            if (MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset) != API_OK)
+            {
+                LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+            }
             auxJson.leaveobject();
         }
         else
         {
             assert(false);
-            LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+            LOG_err << "UpdatedScheduledMeeting user alert ctor: Ill-formed user alert";
         }
     }
 }
@@ -1524,7 +1527,7 @@ UserAlert::UpdatedScheduledMeeting::Changeset::Changeset(const std::bitset<CHANG
 {
     if (!invariant())
     {
-        LOG_err << "ScheduledMeetings: Ill-formed Changest construction";
+        LOG_err << "ScheduledMeetings: Ill-formed Changeset construction";
         assert(false);
     }
 }
@@ -1673,7 +1676,7 @@ void UserAlerts::add(UserAlertRaw& un)
         break;
     case type_nusm:
     {
-        if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present is a new scheduled meeting
+        if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present, is a new scheduled meeting
         {
             unb = new NewScheduledMeeting(un, nextId());
         }

@@ -845,6 +845,9 @@ public:
     int64_t getTimestamp(unsigned index) const override;
     const char* getString(unsigned index) const override;
     MegaHandle getHandle(unsigned index) const override;
+    MegaHandle getSchedId() const override;
+    MegaHandle getParentSchedId() const override;
+    bool hasSchedMeetingChanged(int changeType) const override;
     bool isOwnChange() const override;
     bool isRemoved() const override;
     MegaHandle getPcrHandle() const override;
