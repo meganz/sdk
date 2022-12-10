@@ -5954,16 +5954,44 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
-                    if (e)
+                handle nodehandle = n->nodehandle;
+                std::function<void()> completeShare = [nodehandle, s, a, writable, personal_representation]()
+                {
+                    Node* n = client->nodebyhandle(nodehandle);
+                    if (!n)
                     {
-                        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                        cout << "Node not found." << endl;
+                        return;
                     }
-                    else
+
+                    client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool)
                     {
-                        cout << "Share creation/modification succeeded." << endl;
-                    }
-                });
+                        if (e)
+                        {
+                            cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                        }
+                        else
+                        {
+                            cout << "Share creation/modification succeeded." << endl;
+                        }
+                    });
+                };
+
+                if (a != ACCESS_UNKNOWN)
+                {
+                    client->openShareDialog(n, [completeShare](Error e)
+                    {
+                        if (e)
+                        {
+                            cout << "Error creating share key (" << errorstring(e) << ")" << endl;
+                            return;
+                        }
+
+                        completeShare();
+                    });
+                    return;
+                }
+                completeShare();
             }
         }
         else
