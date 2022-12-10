@@ -569,6 +569,7 @@ public:
     std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
     void setAuthRing(std::string authring);
     bool promotePendingShares();
+    bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
 
     void loadShareKeys();
 
@@ -1820,6 +1821,9 @@ public:
 
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     node_vector getInShares();
+
+    // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getUnverifiedInShares();
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];

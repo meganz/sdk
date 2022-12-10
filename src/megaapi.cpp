@@ -848,6 +848,11 @@ bool MegaShare::isPending()
     return false;
 }
 
+bool MegaShare::isVerified()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
@@ -2476,6 +2481,16 @@ void MegaApi::upgradeSecurity(MegaRequestListener* listener)
 void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->openShareDialog(node, listener);
+}
+
+MegaShareList *MegaApi::getUnverifiedInShares(int order)
+{
+    return pImpl->getUnverifiedInShares(order);
+}
+
+MegaShareList *MegaApi::getUnverifiedOutShares(int order)
+{
+    return pImpl->getUnverifiedOutShares(order);
 }
 
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)

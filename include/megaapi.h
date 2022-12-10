@@ -2280,6 +2280,16 @@ class MegaShare
          * @return True if the sharing is pending, otherwise false.
          */
         virtual bool isPending();
+
+        /**
+         * @brief Returns true if the sharing is verified
+         *
+         * A sharing is verified when the keys have been shared with the other user after
+         * verifying his credentials (see MegaApi::verifyCredentials).
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isVerified();
 };
 
 #ifdef ENABLE_CHAT
@@ -15872,7 +15882,7 @@ class MegaApi
         int getNumUnreadUserAlerts();
 
         /**
-         * @brief Get a list with all inbound sharings from one MegaUser
+         * @brief Get a list with all active inbound sharings from one MegaUser
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15886,7 +15896,7 @@ class MegaApi
         MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all inboud sharings
+         * @brief Get a list with all active inbound sharings
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15899,7 +15909,7 @@ class MegaApi
         MegaNodeList *getInShares(int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all active inboud sharings
+         * @brief Get a list with all active inbound sharings
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15910,6 +15920,16 @@ class MegaApi
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getInSharesList(int order = ORDER_NONE);
+
+        /**
+         * @brief Get a list with all unverified inbound sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects that other users are sharing with this account
+         */
+        MegaShareList *getUnverifiedInShares(int order = ORDER_NONE);
 
         /**
          * @brief Get the user relative to an incoming share
@@ -16025,6 +16045,16 @@ class MegaApi
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
+
+        /**
+         * @brief Get a list with all unverified sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects
+         */
+        MegaShareList *getUnverifiedOutShares(int order);
 
         /**
          * @brief Check if a node belongs to your own cloud

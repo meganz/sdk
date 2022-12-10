@@ -513,7 +513,25 @@ node_vector MegaClient::getInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && n->sharekey)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
+
+node_vector MegaClient::getUnverifiedInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent && !n->sharekey)    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -21537,6 +21555,30 @@ bool KeyManager::promotePendingShares()
     keysToDelete.clear();
 
     return attributeUpdated;
+}
+
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, handle userHandle)
+{
+    if (ISUNDEF(userHandle))
+    {
+        return true;
+    }
+
+    auto it = mPendingOutShares.find(nodeHandle);
+    if (it == mPendingOutShares.end())
+    {
+        return false;
+    }
+
+    for (const auto& uid : it->second)
+    {
+        User *u = mClient.finduser(uid.c_str(), 0);
+        if (u && u->userhandle == userHandle)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void KeyManager::loadShareKeys()

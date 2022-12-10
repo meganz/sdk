@@ -908,7 +908,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -916,9 +916,10 @@ class MegaSharePrivate : public MegaShare
         virtual int getAccess();
         virtual int64_t getTimestamp();
         virtual bool isPending();
+        virtual bool isVerified();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -926,6 +927,7 @@ class MegaSharePrivate : public MegaShare
 		int access;
 		int64_t ts;
         bool pending;
+        bool mVerified;
 };
 
 class MegaCancelTokenPrivate : public MegaCancelToken
@@ -2092,7 +2094,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
@@ -2737,12 +2739,14 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
+        MegaShareList *getUnverifiedInShares(int order);
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        MegaShareList *getUnverifiedOutShares(int order);
         bool isPrivateNode(MegaHandle h);
         bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
