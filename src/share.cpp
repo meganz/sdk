@@ -92,7 +92,7 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     upgrade_pending_to_full = cupgrade_pending_to_full;
     remove_key = okremoved;
 
-    if (ckey)
+    if (ckey && memcmp(ckey, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", SymmCipher::BLOCKSIZE))
     {
         memcpy(key, ckey, sizeof key);
         have_key = 1;
