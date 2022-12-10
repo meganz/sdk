@@ -1822,6 +1822,9 @@ public:
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     node_vector getInShares();
 
+    // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getVerifiedInShares();
+
     // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
     node_vector getUnverifiedInShares();
 

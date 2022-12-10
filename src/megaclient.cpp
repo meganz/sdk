@@ -513,6 +513,24 @@ node_vector MegaClient::getInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
+            if (n && !n->parent)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
+
+node_vector MegaClient::getVerifiedInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
             if (n && !n->parent && n->sharekey)    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
