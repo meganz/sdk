@@ -6842,13 +6842,15 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_OPEN_SHARE_DIALOG, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
 
-    if(node) request->setNodeHandle(node->getHandle());
-    request->performRequest = [this, request]() {
-
+    request->performRequest = [this, request]()
+    {
         Node *node = client->nodebyhandle(request->getNodeHandle());
-
-        if(!node)
+        if (!node)
         {
             return API_EARGS;
         }
@@ -6862,8 +6864,7 @@ void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         });
 
-    return API_OK;
-
+        return API_OK;
     };
 
     requestQueue.push(request);

@@ -10931,12 +10931,19 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
     }
 
     LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
+    byte key[SymmCipher::KEYLENGTH];
+    rng.genblock(key, sizeof key);
+    n->sharekey = new SymmCipher(key);
 
-    // TODO
-    // Create and set sharekey, update ^!keys and node tree snapshot.
-    // mKeyManager.addShareKey();
+    // Add outshare key into ^!keys
+    mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)key, SymmCipher::KEYLENGTH));
 
-    completion(API_OK);
+    string buf = mKeyManager.toKeysContainer();
+    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0,
+    [completion](Error e)
+    {
+        completion(e);
+    });
 }
 
 // if user has a known public key, complete instantly
@@ -10973,103 +10980,80 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         return;
     }
 
-    // do we already have a share key for this node?
-    int newshare;
-    if ((newshare = !n->sharekey))
-    {
-        // no: create
-        byte key[SymmCipher::KEYLENGTH];
-        rng.genblock(key, sizeof key);
-        n->sharekey = new SymmCipher(key);
-    }
-
     std::string uid;
     if (user)
     {
         uid = user;
     }
 
+    // do we already have a share key for this node?
+    int newshare;
+    if ((newshare = !n->sharekey))
+    {
+        LOG_warn << "You should first create the key using MegaClient::openShareDialog";
+
+        // no: create
+        byte key[SymmCipher::KEYLENGTH];
+        rng.genblock(key, sizeof key);
+        n->sharekey = new SymmCipher(key);
+
+        // Add outshare key into ^!keys
+        mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)key, SymmCipher::KEYLENGTH));
+        if (!uid.size())
+        {
+            std::string buf = mKeyManager.toKeysContainer();
+            putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+        }
+    }
+
     handle userhandle = u ? u->userhandle : UNDEF;
     handle nodehandle = n->nodehandle;
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
-    // Add outshare key into ^!keys
-    mKeyManager.addOutShareKey(n->nodehandle, shareKey);
-
-    // Commit outshare key to ^!keys
-    // TODO: Manage possible clashes
-    string buf = mKeyManager.toKeysContainer();
-    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0,
-    [this, uid, userhandle, nodehandle, msg, a, tag, writable, newshare, shareKey, completion](Error e)
+    if (uid.size())
     {
-        // TODO: The previous actions should be done when the user opens the share dialog
-        // Also, a snapshot of the tree should be created.
-        // The code below should be executed when the share is being finally created
+        LOG_debug << "Adding pending outshare";
+        mKeyManager.addPendingOutShare(nodehandle, uid);
+        std::string buf = mKeyManager.toKeysContainer();
+        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+    }
 
-        std::function<void(Error)> completeShare = [this, uid, userhandle, nodehandle, msg, a, tag, writable, newshare, shareKey, completion](Error e)
+    reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
+    [this, uid, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
+    {
+        if (e || ISUNDEF(userhandle))
         {
-            User *u = getUserForSharing(uid.c_str());
-            Node *n;
-
-            // node vanished: bail
-            if (!(n = nodebyhandle(nodehandle)))
-            {
-                completion(API_ENOENT, writable);
-                return;
-            }
-
-            reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
-            [this, uid, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
-            {
-                if (e || ISUNDEF(userhandle))
-                {
-                    completion(e, writable);
-                    return;
-                }
-
-                std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-                if (!encryptedKey.size())
-                {
-                    LOG_debug << "Unable to send keys to the target. The outshare is pending.";
-                    completion(e, writable);
-                    return;
-                }
-
-                reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-                [this, uid, nodehandle, completion, e, writable](Error err)
-                {
-                    if (err)
-                    {
-                        LOG_err << "Error sending share key: " << err;
-                    }
-                    else
-                    {
-                        LOG_debug << "Share key correctly sent";
-
-                        // Removing pending outshare
-                        mKeyManager.removePendingOutShare(nodehandle, uid);
-                        string buf = mKeyManager.toKeysContainer();
-                        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
-                    }
-                    completion(e, writable);
-                }));
-            }));
-        };
-
-        if (uid.size())
-        {
-            LOG_debug << "Adding pending outshare";
-            mKeyManager.addPendingOutShare(nodehandle, uid);
-            std::string buf = mKeyManager.toKeysContainer();
-            putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, completeShare);
+            completion(e, writable);
             return;
         }
-        else
+
+        std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
+        if (!encryptedKey.size())
         {
-            // Public link. No pending outshare.
-            completeShare(API_OK);
+            LOG_debug << "Unable to send keys to the target. The outshare is pending.";
+            completion(e, writable);
+            return;
         }
-    });
+
+        reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
+        [this, uid, nodehandle, completion, e, writable](Error err)
+        {
+            if (err)
+            {
+                LOG_err << "Error sending share key: " << err;
+            }
+            else
+            {
+                LOG_debug << "Share key correctly sent";
+
+                // Removing pending outshare
+                mKeyManager.removePendingOutShare(nodehandle, uid);
+                string buf = mKeyManager.toKeysContainer();
+                putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+            }
+            completion(e, writable);
+        }));
+    }));
 }
 
 // Add/delete/remind outgoing pending contact request
