@@ -9373,6 +9373,7 @@ void MegaClient::readokelement(JSON* j)
     handle h = UNDEF;
     byte ha[SymmCipher::BLOCKSIZE];
     byte buf[SymmCipher::BLOCKSIZE];
+    byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     const char* k = NULL;
 
@@ -9414,7 +9415,14 @@ void MegaClient::readokelement(JSON* j)
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
                     newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
-                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                    if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
+                    {
+                        handleauth(h, auth);
+                        if (!memcmp(auth, ha, sizeof buf))
+                        {
+                            mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                        }
+                    }
                 }
                 return;
 
