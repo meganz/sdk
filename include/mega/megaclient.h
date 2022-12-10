@@ -571,6 +571,7 @@ public:
     bool promotePendingShares();
     bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
 
+    void cacheShareKeys();
     void loadShareKeys();
 
 private:

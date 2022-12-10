@@ -435,8 +435,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
                             n->inshare->user->sharing.insert(n->nodehandle);
-                            NodeHandle nodeHandle;
-                            nodeHandle.set6byte(n->nodehandle);
                         }
 
                         if (notify)
@@ -6218,7 +6216,7 @@ bool MegaClient::sc_shares()
                 }
                 else
                 {
-                    // Outshare or pending outsahre
+                    // Outshare or pending outshare
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         handle peer = outbound ? uh : oh;
@@ -10897,7 +10895,6 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // Migrate the account to start using the new ^!keys attr.
 void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
 {
-
     if (!mKeyManager.isSecure())
     {
         completion(API_ENOENT);
@@ -21410,9 +21407,6 @@ bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey)
     mShareKeys[sharehandle] = shareKey;
     mTrustedShareKeys[sharehandle] = true;
 
-    mClient.newshares.push_back(new NewShare(sharehandle, -1, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
-    mClient.mergenewshares(1);
-
     return true;
 }
 
@@ -21420,9 +21414,6 @@ bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey)
 {
     mShareKeys[sharehandle] = shareKey;
     mTrustedShareKeys[sharehandle] = true;
-
-    mClient.newshares.push_back(new NewShare(sharehandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
-    mClient.mergenewshares(1);
 
     return true;
 }
@@ -21487,7 +21478,7 @@ bool KeyManager::promotePendingShares()
         handle nodehandle = it.first;
         for (const auto& uid : it.second)
         {
-            User *u = mClient.getUserForSharing(uid.c_str());
+            User *u = mClient.finduser(uid.c_str(), 0);
             if (u && mClient.areCredentialsVerified(u->userhandle))
             {
                 LOG_debug << "Promoting pending outshare of node " << toNodeHandle(nodehandle) << " for " << uid;
@@ -21544,6 +21535,7 @@ bool KeyManager::promotePendingShares()
             if (shareKey.size())
             {
                 addInShareKey(nodeHandle, shareKey);
+                mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
                 attributeUpdated = true;
             }
@@ -21555,6 +21547,7 @@ bool KeyManager::promotePendingShares()
         removePendingInShare(shareHandle);
     }
     keysToDelete.clear();
+    mClient.mergenewshares(1);
 
     return attributeUpdated;
 }
@@ -21583,13 +21576,28 @@ bool KeyManager::isUnverifiedOutShare(handle nodeHandle, handle userHandle)
     return false;
 }
 
+void KeyManager::cacheShareKeys()
+{
+    for (const auto& it : mShareKeys)
+    {
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.data());
+    }
+}
+
 void KeyManager::loadShareKeys()
 {
     for (const auto& it : mShareKeys)
     {
-        mClient.newshares.push_back(new NewShare(it.first, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)it.second.data()));
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.data());
+        handle sharehandle = it.first;
+        std::string shareKey = it.second;
+
+        Node *n = mClient.nodebyhandle(sharehandle);
+        if (n && !n->sharekey)
+        {
+            mClient.newshares.push_back(new NewShare(sharehandle, n->inshare ? 0 : -1, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
+        }
     }
+    mClient.mergenewshares(1);
 }
 
 bool KeyManager::unserialize(const string &keysContainer)
@@ -21844,10 +21852,9 @@ bool KeyManager::deserializeShareKeys(const string &blob)
         //    n->sharekey = new SymmCipher(shareKey);
         //    mClient.notifynode(n);
         //}
-
-        mClient.newshares.push_back(new NewShare(h, 0, UNDEF, ACCESS_UNKNOWN, 0, shareKey));
-        mClient.mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(shareKey);
     }
+
+    loadShareKeys();
 
     return true;
 }
