@@ -1294,18 +1294,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
     }
-
-    if (type == ATTR_KEYS)
-    {
-        if (client->mKeyManager.isSecure())
-        {
-            string d((const char*)data, l);
-            if (!client->mKeyManager.fromKeysContainer(d))
-            {
-                cout << "Error processing new received values for the Key Manager." << endl;
-            }
-        }
-    }
 }
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)

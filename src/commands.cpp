@@ -3663,6 +3663,19 @@ bool CommandGetUA::procresult(Result r)
                         {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
+
+                            if (at == ATTR_KEYS)
+                            {
+                                if (client->mKeyManager.isSecure())
+                                {
+                                    string d((const char*)value.data(), value.size());
+                                    if (!client->mKeyManager.fromKeysContainer(d))
+                                    {
+                                        LOG_err << "Error processing new received values for the Key Manager.";
+                                    }
+                                }
+                            }
+
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (at == ATTR_DISABLE_VERSIONS)
