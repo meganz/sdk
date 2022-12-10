@@ -1797,6 +1797,7 @@ static void listnodeshares(Node* n)
             if (it->first)
             {
                 cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
+                     << (n->client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->user->userhandle) ? " (unverified)" : "")
                      << endl;
             }
             else
@@ -5902,7 +5903,9 @@ void exec_share(autocomplete::ACState& s)
                     if ((n = client->nodebyhandle(*sit)))
                     {
                         cout << "\t" << n->displayname() << " ("
-                            << getAccessLevelStr(n->inshare->access) << ")" << endl;
+                            << getAccessLevelStr(n->inshare->access) << ")"
+                            << (n->sharekey ? "" : " (unverified)")
+                            << endl;
                     }
                 }
             }
