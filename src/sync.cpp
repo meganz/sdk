@@ -2708,9 +2708,9 @@ void Syncs::queueSync(std::function<void()>&& f)
     f();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
 {
-    assert(onSyncThread());
+    assert(onSyncThread() || fromAnyThread);
 
     // when sync rework gets merged, this function will be run (asynchronously) off a queue in MegaClient::exec()
     TransferDbCommitter committer(mClient.tctable);
@@ -4115,11 +4115,48 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     //assert(!onSyncThread());
 
-    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    {
+        // since we are only setting flags, we can actually do this off-thread
+        // (but using mSyncVecMutex and hidden inside Syncs class)
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (size_t i = 0; i < mSyncVec.size(); ++i)
+        {
+            auto& config = mSyncVec[i]->mConfig;
+            if (config.mBackupId == backupId)
+            {
+                // prevent any sp or sphb messages being queued after
+                config.mSyncDeregisterSent = true;
+
+                // Prevent notifying the client app for this sync's state changes
+                config.mRemovingSyncBySds = removingSyncBySds;
+            }
+        }
+    }
+
+    // use queueClient since we are not certain to be locked on client thread
+    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+
+        mc.reqs.add(new CommandBackupRemove(&mc, backupId,
+                [backupId, completion, this](Error e){
+                    if (e)
+                    {
+                        // de-registering is not critical - we continue anyway
+                        LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                    }
+
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                }));
+    }, true);
+
 }
 
 void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)

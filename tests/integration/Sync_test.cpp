@@ -2325,7 +2325,7 @@ string StandardClient::exportSyncConfigs()
 
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    client.deregisterThenRemoveSync(backupId,
+    client.syncs.deregisterThenRemoveSync(backupId,
       [=](Error error) { result->set_value(error == API_OK); }, false);
 }
 
