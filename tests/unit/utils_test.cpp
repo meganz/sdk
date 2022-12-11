@@ -606,6 +606,7 @@ public:
             fsAccess.emptydirlocal(rootPath);
 
             bool result = fsAccess.rmdirlocal(rootPath);
+            result;
             assert(result);
         }
 
