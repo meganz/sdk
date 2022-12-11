@@ -4979,6 +4979,12 @@ bool MegaClient::procsc()
 #endif
                         app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
                         mNodeManager.removeChanges();
+
+                        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
+                        if (!mKeyManager.generation() && mKeyManager.isSecure())
+                        {
+                            app->upgrading_security();
+                        }
                     }
 
                     if (!insca_notlast && mReceivingCatchUp)
@@ -7593,6 +7599,12 @@ void MegaClient::sc_sqac()
 
 void MegaClient::sc_pk()
 {
+    if (!mKeyManager.isSecure() || !mKeyManager.generation())
+    {
+        // Security upgrade not active yet
+        return;
+    }
+
     reqs.add(new CommandPendingKeys(this,
     [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
     {
@@ -10909,14 +10921,118 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         return;
     }
 
+    if (mKeyManager.generation())
+    {
+        LOG_warn << "Already upgraded";
+        completion(API_OK);
+        return;
+    }
+
     LOG_debug << "Upgrading cryptographic subsystem.";
 
-    // TODO
-    // Actually migrate and put the new keys attr to the API.
+    string prEd255;
+    string prCu255;
+    User *u = finduser(me);
+    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+    if (av)
+    {
+        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+        if (tlvRecords)
+        {
+            tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+            tlvRecords->get(ECDH::TLV_KEY, prCu255);
+        }
+        else
+        {
+            LOG_warn << "Failed to decrypt keyring while initialization";
+            completion(API_EKEY);
+            return;
+        }
+    }
+    else
+    {
+        LOG_warn << "Keys not available";
+        completion(API_ETEMPUNAVAIL);
+        return;
+    }
+
+    assert(prEd255.size() == EdDSA::SEED_KEY_LENGTH);
+    assert(prCu255.size() == ECDH::PRIVATE_KEY_LENGTH);
+    if ((prEd255.size() != EdDSA::SEED_KEY_LENGTH) || (prCu255.size() != ECDH::PRIVATE_KEY_LENGTH))
+    {
+        LOG_warn << "Invalid keys";
+        completion(API_EKEY);
+        return;
+    }
+
+    mKeyManager.setKey(key);
+    mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+    int migratedInShares = 0;
+    int totalInShares = 0;
+    int migratedOutShares = 0;
+    int totalOutShares = 0;
+
+    node_vector shares = getInShares();
+    for (auto &n : shares)
+    {
+        ++totalInShares;
+        if (n->sharekey)
+        {
+            ++migratedInShares;
+            mKeyManager.addInShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithOutShares();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithPendingOutShares();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithLinks();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    LOG_debug << "Migrated inshares: " << migratedInShares << " of " << totalInShares;
+    LOG_debug << "Migrated outshares: " << migratedOutShares << " of " << totalOutShares;
+
+    auto it = mAuthRings.find(ATTR_AUTHRING);
+    if (it != mAuthRings.end())
+    {
+        mKeyManager.setAuthRing(it->second.serializeForJS());
+    }
+
     string buf = mKeyManager.toKeysContainer();
-    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [completion](Error e)
+    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [this, completion](Error e)
     {
         completion(e);
+
+        // Get pending keys for inshares
+        sc_pk();
     });
 }
 
@@ -13651,19 +13767,6 @@ void MegaClient::initializekeys()
         // if we reached this point, everything is OK
         LOG_info << "Keypairs and signatures loaded successfully";
         fetchingkeys = false;
-
-        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
-        if (!mKeyManager.generation() && mKeyManager.isSecure())
-        {
-            mKeyManager.setKey(key);
-            // TODO: initialization needs to add the sharekeys too, not only private keys
-            mKeyManager.init(prEd255, prCu255, mPrivKey);
-
-            // TODO: the migration may require to wait for user's acceptance
-            // string buf = mKeyManager.toKeysContainer();
-            // putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
-        }
-
         return;
     }
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
@@ -21212,15 +21315,8 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
 
     if (mSecure && !mPostRegistration)
     {
-        // TODO: for each outshare, get name of the folder and notify the app.
-        // if (shares)
-        //msg.append(" You are currently sharing the following folders: ");
-        // for(share:shares)
-        //msg.append(share.name);
-
-        // Notify app about the cryptographic upgrade.
-        // TODO Notify once all sharekeys and other stuff is available and migrated to the keymanager.
-        mClient.app->upgrading_security();
+        // We request the upgrade after nodes_current to be able to migrate shares
+        // mClient.app->upgrading_security();
     }
     else
     {
@@ -21272,6 +21368,13 @@ string KeyManager::toKeysContainer()
     }
 
     ++mGeneration;
+
+    // TODO: Properly update this field and mAuthEd25519
+    auto it = mClient.mAuthRings.find(ATTR_AUTHCU255);
+    if (it != mClient.mAuthRings.end())
+    {
+        mAuthCu25519 = it->second.serializeForJS();
+    }
 
     const string iv = mClient.rng.genstring(IV_LEN);
     const string keysPlain = serialize();

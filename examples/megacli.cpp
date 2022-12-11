@@ -1796,6 +1796,41 @@ static void listnodeshares(Node* n)
     }
 }
 
+static void listallshares()
+{
+    cout << "Shared folders:" << endl;
+
+    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    for (auto& share : outshares)
+    {
+        listnodeshares(share);
+    }
+
+    for (user_map::iterator uit = client->users.begin();
+        uit != client->users.end(); uit++)
+    {
+        User* u = &uit->second;
+        Node* n;
+
+        if (u->show == VISIBLE && u->sharing.size())
+        {
+            cout << "From " << u->email << ":" << endl;
+
+            for (handle_set::iterator sit = u->sharing.begin();
+                sit != u->sharing.end(); sit++)
+            {
+                if ((n = client->nodebyhandle(*sit)))
+                {
+                    cout << "\t" << n->displayname() << " ("
+                        << getAccessLevelStr(n->inshare->access) << ")"
+                        << (n->sharekey ? "" : " (unverified)")
+                        << endl;
+                }
+            }
+        }
+    }
+}
+
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
     std::ostream& stream = toFile ? *toFile : cout;
@@ -5867,37 +5902,7 @@ void exec_share(autocomplete::ACState& s)
     {
     case 1:		// list all shares (incoming and outgoing)
     {
-        cout << "Shared folders:" << endl;
-
-        node_vector outshares = client->mNodeManager.getNodesWithOutShares();
-        for (auto& share : outshares)
-        {
-            listnodeshares(share);
-        }
-
-        for (user_map::iterator uit = client->users.begin();
-            uit != client->users.end(); uit++)
-        {
-            User* u = &uit->second;
-            Node* n;
-
-            if (u->show == VISIBLE && u->sharing.size())
-            {
-                cout << "From " << u->email << ":" << endl;
-
-                for (handle_set::iterator sit = u->sharing.begin();
-                    sit != u->sharing.end(); sit++)
-                {
-                    if ((n = client->nodebyhandle(*sit)))
-                    {
-                        cout << "\t" << n->displayname() << " ("
-                            << getAccessLevelStr(n->inshare->access) << ")"
-                            << (n->sharekey ? "" : " (unverified)")
-                            << endl;
-                    }
-                }
-            }
-        }
+        listallshares();
     }
     break;
 
@@ -8614,19 +8619,21 @@ void DemoApp::upgrading_security()
     cout << "We are upgrading the cryptographic resilience of your account. You will see this message only once. "
          << "If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed." << endl;
 
-    // TODO List outshares too.
+    cout << "You are currently sharing the following folders." << endl;
+    listallshares();
+    cout << "------------------------------------------------" << endl;
 
     client->upgradeSecurity([](Error e) {
         if (e)
         {
             cout << "Security upgrade failed (" << errorstring(e) << ")" << endl;
+            exit(1);
         }
         else
         {
             cout << "Security upgrade succeeded." << endl;
         }
     });
-
 }
 
 // password change result
