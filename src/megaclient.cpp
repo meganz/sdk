@@ -19328,7 +19328,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
+    mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
     nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
 
     return nodes;
