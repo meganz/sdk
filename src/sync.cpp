@@ -3207,18 +3207,28 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         // Try and create the missing ignore file.
         if (!filter->create(us.mConfig.mLocalPath, *fsaccess))
         {
-            LOG_debug << "Failed to create ignore file for sync without one";
+            LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
 
-            us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
-            us.mConfig.mEnabled = false;
-            us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
+            // for backups, it's ok to be backup up read-only folders.
+            // for syncs, we can't sync if we can't bring changes back
 
-            us.changedConfigState(true, notifyApp);
+            if (us.mConfig.isBackup())
+            {
+                LOG_debug << "As it's a Backup, continuing without .megaigore for: " << us.mConfig.mLocalPath;
+            }
+            else
+            {
+                us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
+                us.mConfig.mEnabled = false;
+                us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-            if (completion)
-                completion(API_EWRITE, us.mConfig.mError, backupId);
+                us.changedConfigState(true, notifyApp);
 
-            return;
+                if (completion)
+                    completion(API_EWRITE, us.mConfig.mError, backupId);
+
+                return;
+            }
         }
     }
 
