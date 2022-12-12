@@ -19,6 +19,15 @@ CONFIG += USE_FFMPEG
 CONFIG -= qt
 CONFIG += object_parallel_to_source
 
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
+
 win32 {
     CONFIG += USE_AUTOCOMPLETE
     CONFIG += console

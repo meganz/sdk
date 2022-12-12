@@ -241,7 +241,7 @@ bool Transfer::serialize(string *d)
     assert(t->localfilename == localfilename);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
-    assert(t->fingerprint() == fingerprint());
+    assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
 #endif
 
 
@@ -1100,7 +1100,7 @@ void Transfer::completefiles()
                 // However, if the sync gets shut down before that is sent, or the
                 // operation turns out to be invalidated (eg. uploaded file deleted before putnodes)
                 // then we must inform the app of the final transfer outcome.
-                client->transferBackstop.remember(put->transferTag, put->selfKeepAlive);
+                client->transferBackstop.remember(put->tag, put->selfKeepAlive);
             }
         }
 #endif // ENABLE_SYNC

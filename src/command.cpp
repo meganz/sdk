@@ -44,14 +44,6 @@ void Command::cancel()
     canceled = true;
 }
 
-void Command::addToNodePendingCommands(NodeHandle h, MegaClient* client)
-{
-    if (auto node = client->nodeByHandle(h))
-    {
-        addToNodePendingCommands(node);
-    }
-}
-
 void Command::addToNodePendingCommands(Node* node)
 {
     node->mPendingChanges.push_back(this);
@@ -61,13 +53,8 @@ void Command::removeFromNodePendingCommands(NodeHandle h, MegaClient* client)
 {
     if (auto node = client->nodeByHandle(h))
     {
-        removeFromNodePendingCommands(node);
+        node->mPendingChanges.erase(this);
     }
-}
-
-void Command::removeFromNodePendingCommands(Node* node)
-{
-    node->mPendingChanges.erase(this);
 }
 
 // returns completed command JSON string

@@ -826,11 +826,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;

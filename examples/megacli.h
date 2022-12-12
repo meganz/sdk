@@ -98,12 +98,6 @@ struct AppReadContext
     SymmCipher key;
 };
 
-class TreeProcListOutShares : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
-
 struct DemoApp : public MegaApp
 {
     FileAccess* newfile();
@@ -141,7 +135,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int) override;
+    void nodes_updated(Node**, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
@@ -179,7 +173,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -233,7 +227,6 @@ struct DemoApp : public MegaApp
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled) override;
     void syncupdate_conflicts(bool conflicts) override;
-    void syncupdate_local_lockretry(bool) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 #endif
 
@@ -266,7 +259,7 @@ struct DemoApp : public MegaApp
 
     void reqstat_progress(int) override;
 
-    void reload(const char*) override;
+    void reload(const char*, ReasonsToReload reasonToReload) override;
     void reloading() override;
     void clearing() override;
 
@@ -285,7 +278,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **, int);
+    void nodes_updated(Node **n, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
@@ -326,6 +319,9 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_syncrescan(autocomplete::ACState& s);
+void exec_nodecounter(autocomplete::ACState& s);
+void exec_numberofnodes(autocomplete::ACState& s);
+void exec_numberofchildren(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_encryptLink(autocomplete::ACState& s);
 void exec_decryptLink(autocomplete::ACState& s);

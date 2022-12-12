@@ -795,10 +795,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
                                      bool followSymLinks,
                                      unsigned& nFingerprinted) = 0;
 
-
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
-    handle fsidOf(const LocalPath& path, bool follow);
+    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck);
 
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
@@ -877,7 +876,6 @@ bool isReservedName(const FileSystemAccess& fsAccess,
 // - If no anomalies were detected.
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
-
 
 struct MEGA_API FSNode
 {

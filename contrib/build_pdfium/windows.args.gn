@@ -1,7 +1,0 @@
-pdf_is_standalone = true
-pdf_bundle_freetype = true
-is_component_build = false
-is_official_build = true
-is_debug = false
-pdf_enable_xfa = false
-pdf_enable_v8 = false

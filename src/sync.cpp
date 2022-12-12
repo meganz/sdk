@@ -439,8 +439,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
-    case WHOLE_ACCOUNT_REFETCHED:
-        return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
+    //case WHOLE_ACCOUNT_REFETCHED:
+    //    return "The whole account was reloaded, missed updates could not have been applied in an orderly fashion";
     case MISSING_PARENT_NODE:
         return "Unable to figure out some node correspondence";
     case BACKUP_MODIFIED:
@@ -471,6 +471,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to open state cache database.";
     case INSUFFICIENT_DISK_SPACE:
         return "Insufficient disk space.";
+    case FAILURE_ACCESSING_PERSISTENT_STORAGE:
+        return "Failure accessing to persistent storage";
     default:
         return "Undefined error";
     }
@@ -651,7 +653,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED));
 
             // Did the call above create the database?
             us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -1581,7 +1583,17 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+                if (!resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false))
+                {
+                    // this can happen if eg. we can't read the fingerprint
+                    monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
+                        SyncWaitReason::FileIssue, false, false,
+                        {}, {},
+                        {sourceSyncNode->getLocalPath(), PathProblem::CannotFingerprintFile}, {}));
+
+                    row.suppressRecursion = true;
+                    return rowResult = false, true;
+                }
                 assert(row.syncNode);
             }
 
@@ -1622,19 +1634,25 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // If we don't stall, we'll trigger an infinite rename loop.
             {
                 auto sourcePath = sourceSyncNode->getLocalPath();
-                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false);
-                auto targetFSID = row.fsNode->fsid;
+                auto targetPath = fullPath.localPath;
 
-                if (sourcePath == fullPath.localPath)
+                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false, false);  // skipcasecheck == false here so we only get the fsid for an exact name match
+                auto targetFSID = syncs.fsaccess->fsidOf(targetPath, false, false);  // recheck this node again to be 100% confident there are two FSNodes with the same fsid
+
+                if (sourcePath == targetPath)
                 {
                     // if we run the pre-rework sync code against the same database,
                     // sometimes we end up with duplicate LocalNodes that then make it seem
                     // that we have hard links.
-                    LOG_debug << "Possible duplicate LocalNode at " << sourceSyncNode->debugGetParentList() << " vs " << row.syncNode->debugGetParentList();
+                    LOG_warn << "Possible duplicate LocalNode at " << sourceSyncNode->debugGetParentList() << " vs " << row.syncNode->debugGetParentList();
                     return rowResult = false, true;
                 }
-                else if (sourceFSID != UNDEF && sourceFSID == targetFSID)
+                else if (sourceFSID != UNDEF &&
+                         targetFSID != UNDEF &&
+                         sourceFSID == targetFSID)
                 {
+                    assert(targetFSID == row.fsNode->fsid);
+
                     // Let the user know why we can't perform the move.
                     // Actually we shouldn't even think this is a move since
                     // it's just due to duplicate fsids.  Just report these
@@ -1680,7 +1698,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // Is there something in the way at the move destination?
             string nameOverwritten;
 
-            if (row.cloudNode)
+            if (row.cloudNode && !row.hasCaseInsensitiveLocalNameChange())
             {
                 if (row.cloudNode->handle == sourceSyncNode->syncedCloudNodeHandle)
                 {
@@ -2212,7 +2230,12 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
             LocalNode* sourceSyncNode = syncs.findMoveFromLocalNode(moveHerePtr);
 
-            if (sourceSyncNode && sourceSyncNode->rareRO().moveFromHere == moveHerePtr)
+            if (sourceSyncNode == row.syncNode)
+            {
+                LOG_debug << syncname << "Resolving sync cloud case-only rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
+                sourceSyncNode->rare().moveFromHere.reset();
+            }
+            else if (sourceSyncNode && sourceSyncNode->rareRO().moveFromHere == moveHerePtr)
             {
                 LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
                 assert(sourceSyncNode == moveHerePtr->sourcePtr);
@@ -2833,6 +2856,25 @@ dstime Sync::procscanq()
         // Notify the node or its parent
         LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder, false);
 
+        // Check it's not an excluded path
+        if (nearest && !remainder.empty())
+        {
+            LocalPath firstComponent;
+            size_t index = 0;
+            if (remainder.nextPathComponent(index, firstComponent))
+            {
+                if (isDoNotSyncFileName(firstComponent.toPath(false)))
+                {
+                    continue;
+                }
+
+                if (ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0))
+                {
+                    continue;
+                }
+            }
+        }
+
         bool scanDescendants = false;
 
         if (match)
@@ -3172,18 +3214,28 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         // Try and create the missing ignore file.
         if (!filter->create(us.mConfig.mLocalPath, *fsaccess))
         {
-            LOG_debug << "Failed to create ignore file for sync without one";
+            LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
 
-            us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
-            us.mConfig.mEnabled = false;
-            us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
+            // for backups, it's ok to be backup up read-only folders.
+            // for syncs, we can't sync if we can't bring changes back
 
-            us.changedConfigState(true, notifyApp);
+            if (us.mConfig.isBackup())
+            {
+                LOG_debug << "As it's a Backup, continuing without .megaigore for: " << us.mConfig.mLocalPath;
+            }
+            else
+            {
+                us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
+                us.mConfig.mEnabled = false;
+                us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-            if (completion)
-                completion(API_EWRITE, us.mConfig.mError, backupId);
+                us.changedConfigState(true, notifyApp);
 
-            return;
+                if (completion)
+                    completion(API_EWRITE, us.mConfig.mError, backupId);
+
+                return;
+            }
         }
     }
 
@@ -3336,7 +3388,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -3389,9 +3441,9 @@ void Syncs::queueSync(std::function<void()>&& f)
     waiter.notify();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
 {
-    assert(onSyncThread());
+    assert(onSyncThread() || fromAnyThread);
     clientThreadActions.pushBack(move(f));
     mClient.waiter->notify();
 }
@@ -5137,7 +5189,11 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
                 syncError = UNLOADING_SYNC;
             }
 
-            us.changeState(syncError, newEnabledFlag, true, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+            // if we are logging out, we don't need to bother the user about
+            // syncs stopping, the user expects everything to stop
+            bool notifyApp = !mClient.loggingout;
+
+            us.changeState(syncError, newEnabledFlag, notifyApp, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
             mHeartBeatMonitor->updateOrRegisterSync(us);
         }
@@ -5162,11 +5218,48 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     assert(!onSyncThread());
 
-    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    {
+        // since we are only setting flags, we can actually do this off-thread
+        // (but using mSyncVecMutex and hidden inside Syncs class)
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (size_t i = 0; i < mSyncVec.size(); ++i)
+        {
+            auto& config = mSyncVec[i]->mConfig;
+            if (config.mBackupId == backupId)
+            {
+                // prevent any sp or sphb messages being queued after
+                config.mSyncDeregisterSent = true;
+
+                // Prevent notifying the client app for this sync's state changes
+                config.mRemovingSyncBySds = removingSyncBySds;
+            }
+        }
+    }
+
+    // use queueClient since we are not certain to be locked on client thread
+    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+
+        mc.reqs.add(new CommandBackupRemove(&mc, backupId,
+                [backupId, completion, this](Error e){
+                    if (e)
+                    {
+                        // de-registering is not critical - we continue anyway
+                        LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                    }
+
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                }));
+    }, true);
+
 }
 
 void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
@@ -5262,6 +5355,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
@@ -5399,8 +5493,9 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 
     SyncConfigVector configs;
 
-    if (syncConfigStoreLoad(configs) != API_OK)
+    if (error e = syncConfigStoreLoad(configs))
     {
+        LOG_warn << "syncConfigStoreLoad failed: " << e;
         mClient.app->syncs_restored(SYNC_CONFIG_READ_FAILURE);
         return;
     }
@@ -5451,7 +5546,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -6338,7 +6433,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         auto sequences = computeSyncSequences(childRows);
 
         bool ignoreFilePresent = sequences.size() > 1;
-        bool hasFilter = !!row.syncNode->rareRO().filterChain;
+        bool hasFilter = row.syncNode->rareRO().filterChain &&
+                         row.syncNode->rareRO().filterChain->mLoadSucceeded;
 
         if (ignoreFilePresent != hasFilter && !sequences.empty())
         {
@@ -6563,7 +6659,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
             if (ignoreFilePresent)
             {
-                if (!row.syncNode->filterChainRO().isValid())
+                if (!row.syncNode->rareRO().filterChain ||
+                    !row.syncNode->rareRO().filterChain->mLoadSucceeded)
                 {
                     // we can't calculate what's included, come back when the .megaignore is present and well-formed
                     break;
@@ -7095,22 +7192,37 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             // Can we remove the node from memory?
             auto removable = true;
 
-            // Excluded ignore files need to remain in memory so that we can
-            // track changes made to their filters.
-            removable &= !s->isIgnoreFile();
+            // ignore files cannot be ignored
+            assert(!s->isIgnoreFile());
 
             // Let transfers complete.
             removable &= !s->transferSP;
 
-            // Purge the node from memory.
+            // Keep the node (as ignored) but purge the children
             if (removable)
             {
                 // Extra sanity.
                 assert(!s->rareRO().moveFromHere);
                 assert(!s->rareRO().moveToHere);
 
-                return resolve_delSyncNode(row, parentRow, fullPath, 100);
+                if (!s->children.empty())
+                {
+                    LOG_debug << syncname << "removing child LocalNodes from excluded " << s->getLocalPath();
+                    vector<LocalNode*> cs;
+                    cs.resize(s->children.size());
+                    for (auto& i : s->children)
+                    {
+                        cs.push_back(i.second);
+                    }
+                    for (auto p : cs)
+                    {
+                        delete p;
+                    }
+                }
+
+
             }
+            return true; // consider it synced (ie, do not revisit)
         }
     }
 
@@ -7325,6 +7437,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 return true;
 
             case ES_INCLUDED:
+                break;
+
+            case ES_UNMATCHED:
+                assert(false); // cannot occur.  Just here to keep the compilers happy
                 break;
         }
 
@@ -7911,7 +8027,12 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
 
         // upload the file if we're not already uploading it
-        row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint);
+        if (!row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint))
+        {
+            // if we are in the putnodes stage of a transfer though, then
+            // wait for that to finish and then re-evaluate
+            return false;
+        }
 
         shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
 
@@ -8167,7 +8288,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
                         mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0, canChangeVault,
-                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
+                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
                                 //createFolderPtr.reset();  // lives until this point
                             });
 
@@ -8703,6 +8824,12 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
         //    continue;
         //}
 
+
+        if (it->second->exclusionState() != ES_INCLUDED)
+        {
+            continue;
+        }
+
         // If we got this far, it's a good enough match to use
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
@@ -8725,6 +8852,11 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
     {
         if (it->second->type != type) continue;
         if (it->second->fsidScannedReused)   continue;
+
+        if (it->second->exclusionState() == ES_EXCLUDED)
+        {
+            continue;
+        }
 
         //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
@@ -8833,17 +8965,20 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        // check the file/folder actually exists (with same fsid) on disk for this LocalNode
-        LocalPath lp = it->second->getLocalPath();
+        if (it->second->exclusionState() != ES_EXCLUDED)
+        {
+            // check the file/folder actually exists (with same fsid) on disk for this LocalNode
+            LocalPath lp = it->second->getLocalPath();
 
-        if (it->second->fsid_lastSynced != UNDEF &&
-            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false))
-        {
-            sourceSyncNodeCurrent = it->second;
-        }
-        else
-        {
-            sourceSyncNodeOriginal = it->second;
+            if (it->second->fsid_lastSynced != UNDEF &&
+                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false))
+            {
+                sourceSyncNodeCurrent = it->second;
+            }
+            else
+            {
+                sourceSyncNodeOriginal = it->second;
+            }
         }
     }
 
@@ -10177,6 +10312,51 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
+bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups)
+{
+    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress) return false;
+
+    bool deleteSync = false;
+
+    // check if any command arrived from backupcentre to stop any syncs
+    for (auto it  = sdsBackups.begin(); it != sdsBackups.end(); )
+    {
+        if (it->first == us.mConfig.mBackupId)
+        {
+            if (it->second == CommandBackupPut::DELETED)
+            {
+                deleteSync = true;
+            }
+            it = sdsBackups.erase(it);
+            us.sdsUpdateInProgress.reset(new bool(true));
+        }
+        else ++it;
+    }
+
+    if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
+    {
+        LOG_debug << "SDS: clearing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode;
+
+        auto sdsCopy = sdsBackups;
+        auto remoteNode = us.mConfig.mRemoteNode;
+        auto boolsptr = us.sdsUpdateInProgress;
+        queueClient([remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
+        {
+            Node* node = mc.nodeByHandle(remoteNode);
+            mc.setattr(node,
+                    attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
+                    [boolsptr](NodeHandle handle, Error result) {
+                        LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
+                        *boolsptr = false;
+                    },
+                    true);
+        });
+    }
+
+    return deleteSync;
+}
+
+
 void Syncs::syncLoop()
 {
     syncThreadId = std::this_thread::get_id();
@@ -10230,10 +10410,67 @@ void Syncs::syncLoop()
             f();
         }
 
+        waiter.bumpds();
+
+        // Process filesystem notifications.
+        for (auto& us : mSyncVec)
+        {
+            if (Sync* sync = us->mSync.get())
+            {
+                if (sync->dirnotify)
+                {
+                    sync->procscanq();
+                }
+            }
+        }
+
+        processTriggerHandles();
+
+        waiter.bumpds();
+
+        // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
+        // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
+        if (!mClient.actionpacketsCurrent)
+            continue;
+
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
         for (auto& us : mSyncVec)
         {
+
+            vector<pair<handle, int>> sdsBackups;
+
+            CloudNode cloudNode;
+            string cloudRootPath;
+            bool inTrash = false;
+            unsigned rootDepth;
+            bool foundRootNode = lookupCloudNode(us->mConfig.mRemoteNode,
+                                                    cloudNode,
+                                                    &cloudRootPath,
+                                                    &inTrash,
+                                                    nullptr,
+                                                    nullptr,
+                                                    &rootDepth,
+                                                    Syncs::FOLDER_ONLY,
+                                                    &sdsBackups);
+
+            if (checkSdsCommandsForDelete(*us, sdsBackups))
+            {
+                LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
+
+                if (Sync* sync = us->mSync.get())
+                {
+                    // prevent the sync doing anything more before we delete it
+                    sync->changestate(NO_SYNC_ERROR, false, false, false);
+                }
+
+                auto backupId = us->mConfig.mBackupId;
+                queueClient([backupId](MegaClient& mc, TransferDbCommitter& committer) {
+                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true);
+                });
+                continue;
+            }
+
             if (Sync* sync = us->mSync.get())
             {
                 if (us->mConfig.mError != NO_SYNC_ERROR)
@@ -10241,27 +10478,44 @@ void Syncs::syncLoop()
                     continue;
                 }
 
+                auto fa = fsaccess->newfileaccess();
+                if (fa->fopen(sync->localroot->localname, true, false, nullptr, true))
+                {
+                    if (fa->type != FOLDERNODE)
+                    {
+                        LOG_err << "Sync local root folder is not a folder: " << sync->localroot->localname;
+                        sync->changestate(INVALID_LOCAL_TYPE, false, true, true);
+                        continue;
+                    }
+                    else if (fa->fsid != sync->localroot->fsid_lastSynced)
+                    {
+                        LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
+                        sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        continue;
+                    }
+                }
+                else
+                {
+                    LOG_err << "Sync local root folder could not be opened: " << sync->localroot->localname;
+                    sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                    continue;
+                }
+
                 if (sync->fsfp)
                 {
                     fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
-                    if (sync->fsfp != current)
+                    if (current != 0 && sync->fsfp != current)
                     {
                         LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                        sync->changestate(current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
                         continue;
                     }
                 }
 
-                bool inTrash = false;
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle,
-                                                     sync->cloudRoot,
-                                                     &sync->cloudRootPath,
-                                                     &inTrash,
-                                                     nullptr,
-                                                     nullptr,
-                                                     &sync->mCurrentRootDepth,
-                                                     Syncs::FOLDER_ONLY);
+                sync->cloudRoot = cloudNode;
+                sync->cloudRootPath = cloudRootPath;
+                sync->mCurrentRootDepth = rootDepth;
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
                 bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
@@ -10289,30 +10543,6 @@ void Syncs::syncLoop()
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
-
-        waiter.bumpds();
-
-        // Process filesystem notifications.
-        for (auto& us : mSyncVec)
-        {
-            // Only process active syncs.
-            if (Sync* sync = us->mSync.get())
-            {
-                // And only those that make use of filesystem events.
-                if (sync->dirnotify)
-                {
-                    sync->procscanq();
-                }
-            }
-        }
-
-        processTriggerHandles();
-
-        waiter.bumpds();
-
-        // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-        if (!mClient.actionpacketsCurrent)
-            continue;
 
         // This block is to cater to periodic syncs but it is preventing one last pass
         // over the flag checks at the end of the loop for normal syncs, and so
@@ -10480,6 +10710,13 @@ void Syncs::syncLoop()
                             sync->setBackupMonitoring();
                         }
                     }
+                }
+
+                if (!us->mConfig.mFinishedInitialScanning &&
+                    !sync->localroot->scanRequired())
+                {
+                    LOG_debug << "Finished initial sync scan at " << sync->localroot->getLocalPath();
+                    us->mConfig.mFinishedInitialScanning = true;
                 }
             }
         }
@@ -10833,7 +11070,11 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-        bool* nodeIsInActiveUnpausedSyncQuery, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion whichVersion)
+        bool* nodeIsInActiveUnpausedSyncQuery,
+        bool* nodeIsDefinitelyExcluded,
+        unsigned* depth,
+        WhichCloudVersion whichVersion,
+        vector<pair<handle, int>>* sdsBackups)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
@@ -10906,12 +11147,14 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (isInTrash)
         {
-            *isInTrash = n->firstancestor()->nodeHandle() == mClient.rootnodes.rubbish;
+            *isInTrash = n->firstancestor()->nodeHandle() == mClient.mNodeManager.getRootNodeRubbish();
         }
 
         if (cloudPath) *cloudPath = n->displaypath();
 
         if (depth) *depth = n->depth();
+
+        if (sdsBackups) *sdsBackups = n->getSdsBackups();
 
         cn = CloudNode(*n);
 
@@ -10945,8 +11188,11 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     {
         assert(n->type > FILENODE);
         assert(!n->parent || n->parent->type > FILENODE);
-        cloudChildren.reserve(n->children.size());
-        for (auto c : n->children)
+
+        node_list nl = mClient.mNodeManager.getChildren(n);
+        cloudChildren.reserve(nl.size());
+
+        for (auto c : nl)
         {
             cloudChildren.push_back(*c);
             assert(cloudChildren.back().parentHandle == h);

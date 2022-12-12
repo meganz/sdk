@@ -59,10 +59,10 @@ void Request::get(string* req, bool& suppressSID, MegaClient* client) const
     req->append("]");
 }
 
-bool Request::processCmdJSON(Command* cmd)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError)
 {
     Error e;
-    if (cmd->checkError(e, cmd->client->json))
+    if (couldBeError && cmd->checkError(e, cmd->client->json))
     {
         return cmd->procresult(Command::Result(Command::CmdError, e));
     }
@@ -80,17 +80,23 @@ bool Request::processCmdJSON(Command* cmd)
     }
 }
 
-bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
+bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray)
 {
     string st;
     cmd->client->json.storeobject(&st);
 
-    if (cmd->client->mCurrentSeqtag == st)
+    if (inSeqTagArray)
+    {
+        if (*cmd->client->json.pos == ',') ++cmd->client->json.pos;
+    }
+
+    if (cmd->client->mCurrentSeqtag == st ||
+        !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
     {
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;
-        parsedOk = withJSON ? processCmdJSON(cmd)
-                            : cmd->procresult(Command::CmdActionpacket);
+        parsedOk = withJSON ? processCmdJSON(cmd, false)
+                            : cmd->procresult(Command::Result(Command::CmdError, API_OK)); // just an `st` returned is implicitly successful
         return true;
     }
     else
@@ -129,14 +135,19 @@ void Request::process(MegaClient* client)
 
         if (cmd->mSeqtagArray && client->json.enterarray())
         {
-            // Some commands need to return not just a seqtag but also some JSON, in which case they are in an array
-            // These can also return 0 instead of a seqtag if no actionpacket was produced. Coding for any error in that field
+            // Some commands need to return seqtag and also some JSON,
+            // in which case they are in an array with `st` first, and the JSON second
+            // Some commands might or might not produce `st`.  And might return a string.
+            // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
+            // If the command failed, there is no array, just the error code
             assert(cmd->mV3);
-            if (client->json.isnumeric())
+            assert(*client->json.pos == '0' || *client->json.pos == '\"');
+            if (*client->json.pos == '0' && *(client->json.pos+1) == ',')
             {
-                parsedOk = processCmdJSON(cmd);
+                client->json.pos += 2;
+                parsedOk = processCmdJSON(cmd, false);
             }
-            else if (!processSeqTag(cmd, true, parsedOk))
+            else if (!processSeqTag(cmd, true, parsedOk, true)) // executes the command's procresult if we match the seqtag
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
@@ -149,11 +160,10 @@ void Request::process(MegaClient* client)
                 parsedOk = false;
             }
         }
-        else if (mV3 && !cmd->mStringIsNotSeqtag && *client->json.pos == '"')
+        else if (mV3 && *client->json.pos == '"')
         {
-            // For v3 commands, a string result is a seqtag.
-            // Except for commands with mStringIsNotSeqtag which already returned a string and don't produce actionpackets.
-            if (!processSeqTag(cmd, false, parsedOk))
+            // For v3 commands, a string result is a string which is a seqtag.
+            if (!processSeqTag(cmd, false, parsedOk, false))
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
@@ -162,8 +172,8 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            // straightforward case - plain JSON response, no seqtag, no error
-            parsedOk = processCmdJSON(cmd);
+            // straightforward case - plain JSON response, no seqtag
+            parsedOk = processCmdJSON(cmd, true);
         }
 
         if (!parsedOk)

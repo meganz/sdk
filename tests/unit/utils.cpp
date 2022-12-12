@@ -73,27 +73,13 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app)
 
 mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, mega::NodeHandle handle, mega::Node* const parent)
 {
-    assert(client.nodes.find(handle) == client.nodes.end());
-    mega::node_vector dp;
+    assert(client.nodeByHandle(handle) == nullptr);
     const auto ph = parent ? parent->nodeHandle() : ::mega::NodeHandle();
-    auto n = new mega::Node{&client, &dp, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
+    auto n = new mega::Node{client, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
     n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     return *n;
 }
 
-//void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
-//{
-//    const auto path = node.getPath();
-//    assert(nodes.find(path) == nodes.end());
-//    nodes[path] = &node;
-//    if (node.getType() == mega::FOLDERNODE)
-//    {
-//        for (const auto child : node.getChildren())
-//        {
-//            collectAllFsNodes(nodes, *child);
-//        }
-//    }
-//}
 
 std::uint16_t nextRandomInt()
 {

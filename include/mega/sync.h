@@ -167,6 +167,15 @@ public:
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
 
+    // not serialized.  Prevent re-enabling sync after removal
+    bool mSyncDeregisterSent = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mRemovingSyncBySds = false;
+
+    // not serialized.  Prevent notifying the client app for this sync's state changes
+    bool mFinishedInitialScanning = false;
+
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
 
@@ -219,6 +228,7 @@ struct UnifiedSync
     // Update state and signal to application
     void changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
+    shared_ptr<bool> sdsUpdateInProgress;
 
 private:
     friend class Sync;
@@ -949,7 +959,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1070,7 +1080,7 @@ public:
 
     void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
-    void queueClient(QueuedClientFunc&&);
+    void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
@@ -1109,7 +1119,7 @@ public:
     bool mSyncVecIsEmpty = true;
 
     // directly accessed flag that makes sync-related logging a lot more detailed
-    bool mDetailedSyncLogging = false;
+    bool mDetailedSyncLogging = true;
 
     // total number of LocalNode objects (only updated by syncs thread)
     long long totalLocalNodes = 0;
@@ -1158,7 +1168,7 @@ private:
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
-
+    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups);
 
     void syncLoop();
 
@@ -1170,8 +1180,14 @@ private:
         FOLDER_ONLY
     };
 
-    bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion);
+    bool lookupCloudNode(NodeHandle h, CloudNode& cn,
+            string* cloudPath,
+            bool* isInTrash,
+            bool* nodeIsInActiveSync,
+            bool* nodeIsDefinitelyExcluded,
+            unsigned* depth,
+            WhichCloudVersion,
+            vector<pair<handle, int>>* sdsBackups = nullptr);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 
@@ -1273,7 +1289,7 @@ private:
             auto result = mFilterChain.load(fsAccess, mPath);
 
             // Resolved if the file's been deleted or corrected.
-            if (result == FLR_FAILED || result == FLR_SKIPPED)
+            if (result == FLR_FAILED)
                 return false;
 
             // Clear the failure condition.

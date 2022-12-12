@@ -24,7 +24,6 @@
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
-#import "MEGAChildrenLists.h"
 #import "MEGAContactRequest.h"
 #import "MEGAContactRequestList.h"
 #import "MEGADelegate.h"
@@ -4172,6 +4171,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * will be used as the file name inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
  *
+ * @param delegate MEGARequestDelegate to track this request.
+ * @param queueType ListenerQueueType to receive the global events on..
+ */
+- (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
+ * @brief Get the avatar of any user in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
  */
 - (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
 
@@ -7186,80 +7205,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param node Folder node to inspect
  */
 - (void)getFolderInfoForNode:(MEGANode *)node;
-
-/**
- * @brief Get file and folder children of a MEGANode separatedly
- *
- * @param parent Parent node.
- * @param order Order for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- * Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return Lists with files and folders child MegaNode objects
- */
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
-
-/**
- * @brief Get file and folder children of a MEGANode separatedly
- *
- * @param parent Parent node.
- *
- * @return Lists with files and folders child MegaNode objects
- */
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the parent node of a MEGANode.

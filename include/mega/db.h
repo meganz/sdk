@@ -29,9 +29,16 @@ namespace mega {
 // generic host transactional database access interface
 class DBTableTransactionCommitter;
 
+// Class to load serialized node from data base
+class NodeSerialized
+{
+public:
+    std::string mNode;
+    std::string mNodeCounter;
+};
+
 class MEGA_API DbTable
 {
-    static const int IDSPACING = 16;
     PrnGen &rng;
 
 protected:
@@ -43,6 +50,7 @@ protected:
     void resetCommitter();
 
 public:
+    static const int IDSPACING = 16;
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
 
@@ -87,6 +95,55 @@ public:
     DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
     DBTableTransactionCommitter *getTransactionCommitter() const;
+};
+
+class MEGA_API DBTableNodes
+{
+public:
+
+    // add or update a node
+    virtual bool put(Node* node) = 0;
+
+    // remove one node from 'nodes' table
+    virtual bool remove(NodeHandle nodehandle) = 0;
+
+    // remove all nodes from 'nodes' table (truncate)
+    virtual bool removeNodes() = 0;
+
+    // get nodes and queries about nodes
+    virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) = 0;
+    virtual bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) = 0;
+    virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
+    virtual bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
+    virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) = 0;
+    virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
+    virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
+    virtual bool childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
+    virtual bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
+
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
+
+    // count of items in 'nodes' table. Returns 0 if error
+    virtual uint64_t getNumberOfNodes() = 0;
+
+    // count of children nodes of by type
+    virtual uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) = 0;
+
+
+    // -- get node properties --
+
+    virtual bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t& oldFlags) = 0;
+
+    virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
+
+    virtual void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) = 0;
+
+    virtual void createIndexes() = 0;
 };
 
 class MEGA_API DBTableTransactionCommitter
@@ -188,6 +245,7 @@ struct MEGA_API DbAccess
 {
     static const int LEGACY_DB_VERSION;
     static const int DB_VERSION;
+    static const int LAST_DB_VERSION_WITHOUT_NOD;
 
     DbAccess();
 
@@ -195,7 +253,10 @@ struct MEGA_API DbAccess
 
     virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) = 0;
+
+    // use this method to get a `DbTable` that also implements `DbTableNodes` interface
+    virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 

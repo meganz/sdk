@@ -61,10 +61,7 @@ public:
     // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
     bool mV3 = true;
 
-    // true if the command returns strings that are never a seqtag (despite the URI v3 is in use)
-    bool mStringIsNotSeqtag = false;
-
-    // true if the command returns strings, arrays or objects, but a seqtag is also required. In example: ["seqtag", <JSON from before v3>]
+    // true if the command returns strings, arrays or objects, but a seqtag is (optionally) also required. In example: ["seqtag"/error, <JSON from before v3>]
     bool mSeqtagArray = false;
 
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
@@ -95,8 +92,8 @@ public:
     void openobject();
     void closeobject();
 
+    // `st` seqtags are always extracted before the command's procresult() is called
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
-                    CmdActionpacket,     // The reply was a seqtag string, and we have processed the corresponding actionpackets
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
                     CmdItem };           // The reply was none of the above - so a string
@@ -130,21 +127,10 @@ public:
             return mOutcome == CmdItem;
         }
 
-        // convenience function for commands that should only return numeric or actionpacket, consider anything else EINTERNAL
-        Error errorResultOrActionpacket()
-        {
-            return mOutcome == CmdError ? mError : Error(mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
-        }
-
         Error errorOrOK() const
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : Error(API_EINTERNAL);
-        }
-
-        bool wasErrorOrActionpacket()
-        {
-            return mOutcome == CmdError || mOutcome == CmdActionpacket;
         }
 
         bool wasErrorOrOK() const
@@ -174,10 +160,8 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
-    void addToNodePendingCommands(NodeHandle h, MegaClient* client);
     void addToNodePendingCommands(Node* n);
     void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
-    void removeFromNodePendingCommands(Node* n);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -630,7 +614,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
 
 private:
     friend class MegaClient;
@@ -642,7 +626,7 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
-    void performAppCallback(Error e, bool targetOverride = false);
+    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
 
 public:
 
@@ -804,6 +788,7 @@ class MEGA_API CommandSetPH : public Command
     handle h;
     m_time_t ets;
     bool mWritable = false;
+    bool mDeleting = false;
     std::function<void(Error, handle, handle)> completion;
 
 public:
@@ -1609,7 +1594,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
@@ -1632,6 +1617,50 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
+typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
+class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
+{
+    std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
+    CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+};
+
+typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
+class MEGA_API CommandScheduledMeetingRemove : public Command
+{
+    handle mChatId;
+    handle mSchedId;
+    CommandScheduledMeetingRemoveCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingRemove(MegaClient *, handle, handle, CommandScheduledMeetingRemoveCompletion completion);
+};
+
+typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchCompletion;
+class MEGA_API CommandScheduledMeetingFetch : public Command
+{
+    handle mChatId;
+    CommandScheduledMeetingFetchCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingFetch(MegaClient *, handle, handle, CommandScheduledMeetingFetchCompletion completion);
+};
+
+typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchEventsCompletion;
+class MEGA_API CommandScheduledMeetingFetchEvents : public Command
+{
+    handle mChatId;
+    CommandScheduledMeetingFetchEventsCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
+};
 #endif
 
 } // namespace

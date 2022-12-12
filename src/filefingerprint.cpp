@@ -41,21 +41,16 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
         return false;
     }
 
-#ifndef __ANDROID__
-    // mtime check disabled on Android due to this bug:
-    // https://code.google.com/p/android/issues/detail?id=18624
-
     // mtime differs - cannot be equal
     if (abs(lhs.mtime-rhs.mtime) > 2)
     {
         return false;
     }
-#endif
 
     // FileFingerprints not fully available - give it the benefit of the doubt
     if (!lhs.isvalid || !rhs.isvalid)
     {
-        return true;
+        return false;
     }
 
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
@@ -413,6 +408,11 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     }
 
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
+}
+
+bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
+{
+     return operator()(&a, &b);
 }
 
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
