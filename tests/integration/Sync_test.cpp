@@ -1996,7 +1996,7 @@ SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
 {
     SyncConfig c;
     bool found = client.syncs.syncConfigByBackupId(backupID, c);
-    found = found; // to compile on g++ release build
+    if (found); // to compile on g++ release build
     assert(found);
 
     return c;
@@ -2030,7 +2030,7 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId)
     out() << "looking up BackupId " << toHandle(backupId);
 
     bool found = syncSet(backupId, result);
-    found = found; // to compile on g++ release build
+    if (found); // to compile on g++ release build
     assert(found);
 
     return result;

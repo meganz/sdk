@@ -597,7 +597,7 @@ public:
 
             // Create root path.
             result = fsAccess.mkdirlocal(rootPath, false, true);
-            result = result; // to compile on g++ release build
+            if (result); // to compile on g++ release build
             assert(result);
         }
 
