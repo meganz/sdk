@@ -7419,6 +7419,10 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_vector deletedChildren = chat->removeChildSchedMeetings(schedId);
+
+                        // remove scheduled meetings occurrences and children
+                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
+
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
@@ -7471,9 +7475,16 @@ void MegaClient::sc_scheduledmeetings()
         handle schedId = sm->schedId();
         handle schedParentId = sm->parentSchedId();
         handle_vector deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+
+        // remove all child scheduled meeting occurrences
+        // API currently just supports 1 level in scheduled meetings hierarchy
+        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || !deletedChildren.empty())
+        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
         {
             if (!res)
             {

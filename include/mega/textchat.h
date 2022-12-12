@@ -259,6 +259,13 @@ private:        // use setter to modify these members
         mSchedMeetingsChanged.emplace_back(sm);
     }
 
+    void deleteSchedMeetingOccurrBySchedId(const handle sm)
+    {
+        // multiple entries can be deleted (multimap)
+        mScheduledMeetingsOcurrences.erase(sm);
+        mSchedMeetingsChanged.emplace_back(sm);
+    }
+
 public:
     int tag;    // source tag, to identify own changes
 
@@ -307,6 +314,14 @@ public:
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
     // returns vector with the meeting id of the removed children
     handle_vector removeChildSchedMeetings(handle parentSchedId);
+
+    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeSchedMeetingsOccurrencesAndChildren(handle schedId);
+
+    // removes all scheduled meeting occurrences whose parent scheduled meeting id, is equal to parentSchedId provided
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetingsOccurrences(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
