@@ -17928,8 +17928,15 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 break;
 
             case MAKENAMEID1('r'):
-                // rules are unset if this field is empty
-                auxCS.addChange(Changeset::CHANGE_TYPE_RULES);
+                /* - empty rules field           => scheduled meeting doesn't have rules
+                 * - rules array with 1 element  => rules not modified
+                 * - rules array with 2 elements => rules modified [old value, new value]
+                 *   + note: if 2º value in array is empty, rules have been removed
+                 */
+                if (wasFieldUpdated())
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_RULES);
+                }
                 break;
 
             case EOO:
