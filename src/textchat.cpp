@@ -1188,6 +1188,40 @@ handle_vector TextChat::removeChildSchedMeetings(handle parentSchedId)
     return deletedChildren;
 }
 
+handle_set TextChat::removeSchedMeetingsOccurrencesAndChildren(handle schedId)
+{
+    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
+    handle_set deletedOccurr;
+    for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
+    {
+        if (it->second->schedId() == schedId || it->second->parentSchedId() == schedId)
+        {
+            deletedOccurr.insert(it->second->schedId());
+        }
+    }
+
+    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
+
+    return deletedOccurr;
+}
+
+handle_set TextChat::removeChildSchedMeetingsOccurrences(handle parentSchedId)
+{
+    // remove all scheduled meeting occurrences, whose parent is scheduled meeting id, is equal to parentSchedId
+    handle_set deletedOccurr;
+    for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
+    {
+        if (it->second->parentSchedId() == parentSchedId)
+        {
+            deletedOccurr.insert(it->second->schedId());
+        }
+    }
+
+    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
+
+    return deletedOccurr;
+}
+
 bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)
 {
     assert(sm);
