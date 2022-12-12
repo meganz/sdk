@@ -1996,8 +1996,8 @@ SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
 {
     SyncConfig c;
     bool found = client.syncs.syncConfigByBackupId(backupID, c);
-    if (found); // to compile on g++ release build
-    assert(found);
+    if (!found)
+        assert(found);
 
     return c;
 }
