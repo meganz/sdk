@@ -11003,6 +11003,25 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         {
             ++migratedOutShares;
             mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+            for (auto &outShare : *n->pendingshares)
+            {
+                string targetMail = outShare.second->pcr->targetemail;
+                if (targetMail.size())
+                {
+                    if (targetMail.size() >= 256)
+                    {
+                        LOG_err << "Too long mail while migrating a pending outshare. " << "n:" << toHandle(n->nodehandle) << "t:" << targetMail;
+                        continue;
+                    }
+
+                    string uid; // len.1+targetMail
+                    byte len = static_cast<byte>(targetMail.size());
+                    uid.append((char*)&len, sizeof(byte));
+                    uid.append(targetMail);
+
+                    mKeyManager.addPendingOutShare(n->nodehandle, uid);
+                }
+            }
         }
     }
 
