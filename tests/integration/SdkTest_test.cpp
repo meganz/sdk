@@ -745,7 +745,7 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
-    ASSERT_TRUE(API_OK == rt.waitForResult(180)) << "Fetchnodes failed or took more than 3 minutes";
+    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -8120,7 +8120,7 @@ TEST_F(SdkTest, MidSessionFetchnodes)
     LOG_info << "___TEST MidSessionFetchnodes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    for (int i = 0; i < 20; ++i)
+    for (int i = 0; i < 5; ++i)
     {
         MegaNode *rootnode = megaApi[0]->getRootNode();
 
