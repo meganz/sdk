@@ -2030,8 +2030,7 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId)
     out() << "looking up BackupId " << toHandle(backupId);
 
     bool found = syncSet(backupId, result);
-    if (found); // to compile on g++ release build
-    assert(found);
+    EXPECT_TRUE(found);
 
     return result;
 }
