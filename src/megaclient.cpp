@@ -11014,12 +11014,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
                         continue;
                     }
 
-                    string uid; // len.1+targetMail
-                    byte len = static_cast<byte>(targetMail.size());
-                    uid.append((char*)&len, sizeof(byte));
-                    uid.append(targetMail);
-
-                    mKeyManager.addPendingOutShare(n->nodehandle, uid);
+                    mKeyManager.addPendingOutShare(n->nodehandle, targetMail);
                 }
             }
         }
