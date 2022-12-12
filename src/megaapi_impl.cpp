@@ -13342,7 +13342,7 @@ void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath
 {
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
-        string s = lp.platformEncoded();
+        string s = lp.toPath(false);  // MegaSync was changed to expect utf8 for all platforms
 
         fireOnFileSyncStateChanged(megaSync, &s, (int)ts);
     }
