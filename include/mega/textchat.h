@@ -305,7 +305,8 @@ public:
     bool removeSchedMeeting(handle schedId);
 
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
-    unsigned int removeChildSchedMeetings(handle parentSchedId);
+    // returns vector with the meeting id of the removed children
+    handle_vector removeChildSchedMeetings(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);

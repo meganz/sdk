@@ -7472,9 +7472,9 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
-        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        handle_vector deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || deletedChildren)
+        if (res || !deletedChildren.empty())
         {
             if (!res)
             {

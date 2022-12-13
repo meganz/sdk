@@ -9611,7 +9611,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     TextChat* chat = it->second;
 
     // remove children scheduled meetings (API requirement)
-    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
+    handle_vector deletedChildren = chat->removeChildSchedMeetings(schedId);
     mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
@@ -9622,7 +9622,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (deletedChildren)
+    else if (!deletedChildren.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
