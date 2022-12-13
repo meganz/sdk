@@ -22317,6 +22317,9 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
 
 string KeyManager::serializePendingOutshares() const
 {
+    // [len.1 nodeHandle.6 uid]
+    // if uid is a user handle    --> len = 0
+    // if uid is an email address --> len = emailAddress.size()
     string result;
 
     CacheableWriter w(result);

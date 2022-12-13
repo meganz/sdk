@@ -637,7 +637,7 @@ private:
     map<handle, bool> mTrustedShareKeys;
     map<handle, string> mShareKeys;
 
-    // maps node handle to the target users (encoded as len.1+value, where value can be a user's handle in B64 if len=0 or the email address otherwise)
+    // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
 
     // maps base64 node handles to pairs of source user handle and share key
