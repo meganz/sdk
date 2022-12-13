@@ -3069,9 +3069,14 @@ void CommandRemoveContact::doComplete(error result)
     mCompletion(result);
 }
 
-CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
+CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
     this->attrs = *attrs;
+
+    mCompletion = completion ? move(completion) :
+        [this](Error e) {
+            this->client->app->putua_result(e);
+        };
 
     cmd("upv");
 
@@ -3101,7 +3106,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     {
         client->sendevent(99419, "Error attaching keys", 0);
 
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
         return true;
     }
 
@@ -3119,7 +3124,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         string version = string(ptr, (end-ptr));
@@ -3128,7 +3133,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
         if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         else
@@ -3194,7 +3199,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     }
 
     client->notifyuser(u);
-    client->app->putua_result(API_OK);
+    mCompletion(API_OK);
     return true;
 }
 

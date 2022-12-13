@@ -996,7 +996,7 @@ public:
         std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
-    void putua(userattr_map *attrs, int ctag = -1);
+    void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
     void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);

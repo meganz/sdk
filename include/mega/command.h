@@ -313,8 +313,11 @@ class MEGA_API CommandPutMultipleUAVer : public Command
 {
     userattr_map attrs;  // attribute values
 
+    std::function<void(Error)> mCompletion;
+
 public:
-    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int,
+                            std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };

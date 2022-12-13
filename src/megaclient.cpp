@@ -11445,15 +11445,22 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
     }
 }
 
-void MegaClient::putua(userattr_map *attrs, int ctag)
+void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
     int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
 
+    if (!completion)
+    {
+        completion = [this](Error e){
+            app->putua_result(e);
+        };
+    }
+
     if (!u || !attrs || !attrs->size())
     {
         restag = tag;
-        return app->putua_result(API_EARGS);
+        return completion(API_EARGS);
     }
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
@@ -11463,18 +11470,18 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
         if (User::needversioning(type) != 1)
         {
             restag = tag;
-            return app->putua_result(API_EARGS);
+            return completion(API_EARGS);
         }
 
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(type) && !u->isattrvalid(type))
         {
             restag = tag;
-            return app->putua_result(API_EEXPIRED);
+            return completion(API_EEXPIRED);
         }
     }
 
-    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag));
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag, std::move(completion)));
 }
 
 /**
