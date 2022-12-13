@@ -1676,6 +1676,7 @@ void UserAlerts::add(UserAlertRaw& un)
     case type_ph:
         unb = new Takedown(un, nextId());
         break;
+#ifdef ENABLE_CHAT
     case type_nusm:
     {
         if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present, is a new scheduled meeting
@@ -1691,6 +1692,7 @@ void UserAlerts::add(UserAlertRaw& un)
     case type_dsm:
         unb = new DeletedScheduledMeeting(un, nextId());
         break;
+#endif
     default:
         unb = NULL;   // If it's a notification type we do not recognise yet
     }

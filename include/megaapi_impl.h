@@ -873,7 +873,9 @@ protected:
     vector<MegaHandle> handles;
     bool removed = false;
     handle schedMeetingId = UNDEF;
+#ifdef ENABLE_CHAT
     UserAlert::UpdatedScheduledMeeting::Changeset schedMeetingChangeset;
+#endif
 };
 
 class MegaHandleListPrivate : public MegaHandleList
