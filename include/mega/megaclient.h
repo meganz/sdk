@@ -565,9 +565,11 @@ public:
     bool removePendingInShare(std::string shareHandle);
     bool addOutShareKey(handle sharehandle, std::string shareKey);
     bool addInShareKey(handle sharehandle, std::string shareKey);
+    std::string getShareKey(handle sharehandle);
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
     std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
     void setAuthRing(std::string authring);
+    void setAuthCU255(std::string authring);
     bool promotePendingShares();
     bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
 

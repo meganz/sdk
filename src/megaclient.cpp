@@ -21550,6 +21550,16 @@ bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey)
     return true;
 }
 
+string KeyManager::getShareKey(handle sharehandle)
+{
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end())
+    {
+        return it->second;
+    }
+    return std::string();
+}
+
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 {
     if (!mClient.areCredentialsVerified(userhandle))
@@ -21598,6 +21608,11 @@ string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
 void KeyManager::setAuthRing(std::string authring)
 {
     mAuthEd25519 = authring;
+}
+
+void KeyManager::setAuthCU255(std::string authring)
+{
+    mAuthCu25519 = authring;
 }
 
 bool KeyManager::promotePendingShares()
@@ -22340,6 +22355,8 @@ string KeyManager::computeSymmetricKey(handle user)
     const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
     if (!cachedav)
     {
+        LOG_warn << "Unable to generate symmetric key. Public key not cached.";
+        // TODO: Do we need to request it and retry?
         return std::string();
     }
 
