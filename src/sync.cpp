@@ -579,7 +579,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
                           nullptr,
                           nullptr,
                           nullptr,
-                          Syncs::FOLDER_ONLY);
+                          Syncs::FOLDER_ONLY,
+                          &cloudRootOwningUser);
 
     isnetwork = false;
     inshare = cinshare;
@@ -1512,37 +1513,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         // also possible: was the file overwritten by moving an existing file over it?
 
-        if (LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
+        if (LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, this, nullptr, cloudRootOwningUser))   // todo: maybe null for sync* to detect moves between sync?
         {
             // We've found a node associated with the local file's FSID.
-            //
-            // Note however, that the lookup function above doesn't
-            // guarantee that the node we've retrieved was previously synced
-            // as this file, just that it has been associated with it.
-            //
-            // So, we perform a special check here to ensure that the node
-            // that's matched was synced against a prior version of this
-            // file.
-            //
-            // The reason why we're performing this strange lookup and check
-            // is that the user may have moved a file that was in the
-            // process of uploading up the directory hierarchy.
-            //
-            // When the engine discovers the potential move target, it'd try
-            // to match it against a previously synced node.  Unfortunately,
-            // this'd fail because the source would only be considered
-            // synced if the upload had completed.
-            //
-            // The result of this is that the move-target would be
-            // considered a new file and could be uploaded before we
-            // properly processed the move-source which would cause a stall.
-            //
-            // With this check in place, we'll locate the move-target and
-            // correctly recognize the move-source as being part of a
-            // move-in-progress, even though the move-source was in the
-            // process of being uploaded.
-//            if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
-//                return false;
 
             assert(parentRow.syncNode);
             ProgressingMonitor monitor(syncs);
@@ -1760,7 +1733,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                                              row.syncNode->type,
                                                              &row.syncNode->syncedFingerprint,
                                                              this,
-                                                             nullptr);
+                                                             nullptr,
+                                                             cloudRootOwningUser);
 
                 // Then it's probably part of another move.
                 if (other && other != row.syncNode && other != sourceSyncNode)
@@ -1866,10 +1840,11 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    before we can be sure we can remove nodes or upload/download.
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
+            handle sourceNodeUser = UNDEF, targetNodeUser = UNDEF;
             // Note that we get the EXACT_VERSION, not the latest version of that file.  A new file may have been added locally at that location
             // in the meantime, causing a version chain for that node.  But, we need the exact node (and especially so the Filefingerprint matches once the row lines up)
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, sourceRequirement);
-            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, sourceRequirement, &sourceNodeUser);
+            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY, &targetNodeUser);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
             {
@@ -1878,7 +1853,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     << " old localnode: " << sourceSyncNode->getLocalPath()
                     << logTriplet(row, fullPath);
 
-                if (belowRemovedCloudNode)
+                if (sourceNodeUser != targetNodeUser)
+                {
+                    LOG_debug << syncname << "Move cannot be performed in the cloud, node would be moved to a different user";
+                    // act like we did not find a move.  Sync will be by upload new, trash old
+                    return rowResult = false, false;
+                }
+                else if (belowRemovedCloudNode)
                 {
                     LOG_debug << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid) << " but we are belowRemovedCloudNode, must wait for resolution at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
@@ -2100,6 +2081,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                     LOG_warn << mc.clientname << "SYNC Rename not permitted due to err " << err << ": " << fromNode->displaypath()
                                         << " to " << toNode->displaypath()
                                         << (newName.empty() ? "" : (" as " + newName).c_str());
+
+                                    movePtr->failed = true;
 
                                     // todo: figure out if the problem could be overcome by copying and later deleting the source
                                     // but for now, mark the sync as disabled
@@ -7532,7 +7515,8 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
                                                   movePtr->sourceType,
                                                   movePtr->sourceFingerprint,
                                                   this,
-                                                  nullptr);
+                                                  nullptr,
+                                                  cloudRootOwningUser);
 
     // No longer associated with the move source.
     if (!source)
@@ -7604,7 +7588,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
 
     LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
-    if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr)))
+    if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr, cloudRootOwningUser)))
     {
         LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << " resolved here! " << logTriplet(row, fullPath);
 
@@ -7940,7 +7924,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
             fsNodeIsElsewhere = true;
         }
         else if (row.syncNode->fsid_lastSynced != UNDEF &&
-            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, this, nullptr)))
+            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, this, nullptr, cloudRootOwningUser)))
         {
             fsNodeIsElsewhere = true;
             fsElsewhereLocation = fsElsewhere->getCloudPath(false);
@@ -8768,7 +8752,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
     return false;
 }
 
-LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
+LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -8779,6 +8763,13 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
     {
         if (it->second->type != type) continue;
         if (it->second->fsidSyncedReused)   continue;
+
+        // we can't move a ndoe between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
+        if (owningUser != UNDEF &&
+            it->second->sync->cloudRootOwningUser != owningUser)
+        {
+            continue;
+        }
 
         //todo: make sure that when we compare fsids, they are from the same filesystem.  (eg on windows, same drive)
 
@@ -8841,7 +8832,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
+LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -8854,6 +8845,13 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
         if (it->second->fsidScannedReused)   continue;
 
         if (it->second->exclusionState() == ES_EXCLUDED)
+        {
+            continue;
+        }
+
+        // we can't move a ndoe between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
+        if (owningUser != UNDEF &&
+            it->second->sync->cloudRootOwningUser != owningUser)
         {
             continue;
         }
@@ -8989,7 +8987,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
                 sourceSyncNodeOriginal->getLocalPath(),
                 sourceSyncNodeOriginal->type,
                 &sourceSyncNodeOriginal->syncedFingerprint,
-                sameSync, nullptr);
+                sameSync, nullptr, sourceSyncNodeOriginal->sync->cloudRootOwningUser);
 
         if (!sourceSyncNodeCurrent && !mSyncFlags->scanningWasComplete)
         {
@@ -9145,7 +9143,8 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                 row.syncNode->type,
                 &row.syncNode->syncedFingerprint,
                 this,
-                std::move(predicate));
+                std::move(predicate),
+                cloudRootOwningUser);
     }
 
     if (movedLocalNode)
@@ -10452,6 +10451,7 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &rootDepth,
                                                     Syncs::FOLDER_ONLY,
+                                                    nullptr,
                                                     &sdsBackups);
 
             if (checkSdsCommandsForDelete(*us, sdsBackups))
@@ -11074,6 +11074,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         bool* nodeIsDefinitelyExcluded,
         unsigned* depth,
         WhichCloudVersion whichVersion,
+        handle* owningUser,
         vector<pair<handle, int>>* sdsBackups)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
@@ -11169,6 +11170,18 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
                     if (nodeIsDefinitelyExcluded)
                         *nodeIsDefinitelyExcluded = isDefinitelyExcluded(rn, n);
                 }
+            }
+        }
+
+        if (owningUser)
+        {
+            if (auto inshare = n->firstancestor()->inshare)
+            {
+                *owningUser = inshare->user->userhandle;
+            }
+            else
+            {
+                *owningUser = mClient.me;
             }
         }
 

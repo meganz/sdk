@@ -5148,7 +5148,11 @@ bool CommandGetUserTransactions::procresult(Result r)
             details->transactions[t].currency[3] = 0;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, true, false);
@@ -5190,7 +5194,11 @@ bool CommandGetUserPurchases::procresult(Result r)
             details->purchases[t].method = method;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, true, false, false);
@@ -5229,7 +5237,11 @@ bool CommandGetUserSessions::procresult(Result r)
         details->sessions[t].id = client->json.gethandle(8);
         details->sessions[t].alive = (int)client->json.getint();
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, false, true);

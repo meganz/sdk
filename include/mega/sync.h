@@ -430,6 +430,7 @@ public:
     // Cloud node to sync to
     CloudNode cloudRoot;
     string cloudRootPath;
+    handle cloudRootOwningUser;
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
@@ -1048,8 +1049,8 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
+    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
     //LocalNode* findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck);
 
     void setSyncedFsidReused(mega::handle fsid);
@@ -1187,6 +1188,7 @@ private:
             bool* nodeIsDefinitelyExcluded,
             unsigned* depth,
             WhichCloudVersion,
+            handle* owningUser = nullptr,
             vector<pair<handle, int>>* sdsBackups = nullptr);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
