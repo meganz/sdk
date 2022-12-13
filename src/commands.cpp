@@ -2946,7 +2946,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
         {
             break;
         }
-        string version = version;
+        string version = string(ptr, (end-ptr));
         attr_t type = User::string2attr(version.c_str());
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
