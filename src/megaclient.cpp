@@ -7508,7 +7508,7 @@ void MegaClient::sc_scheduledmeetings()
             notifychat(chat);
 
             for_each(begin(deletedChildren), end(deletedChildren),
-                     [this, ou](handle& sm) { createDeletedSMAlert(ou, sm); });
+                     [this, ou](const handle& sm) { createDeletedSMAlert(ou, sm); });
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
