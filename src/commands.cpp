@@ -1184,8 +1184,8 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 
 void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
 {
-    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride);
-	else client->app->putnodes_result(e, type, newnodes, targetOverride);
+    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, tag);
+	else client->app->putnodes_result(e, type, newnodes, targetOverride, tag);
 }
 
 bool CommandPutNodes::procresult(Result r)
@@ -9611,7 +9611,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     TextChat* chat = it->second;
 
     // remove children scheduled meetings (API requirement)
-    handle_vector deletedChildren = chat->removeChildSchedMeetings(schedId);
+    handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
 
     // remove all child scheduled meeting occurrences
     // API currently just supports 1 level in scheduled meetings hierarchy

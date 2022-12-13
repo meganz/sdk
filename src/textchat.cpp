@@ -1153,7 +1153,7 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify
     mScheduledMeetings.emplace(schedId, std::move(sm));
     if (notify)
     {
-        mSchedMeetingsChanged.emplace_back(schedId);
+        mSchedMeetingsChanged.insert(schedId);
     }
     return true;
 }
@@ -1171,15 +1171,15 @@ bool TextChat::removeSchedMeeting(handle schedId)
     return true;
 }
 
-handle_vector TextChat::removeChildSchedMeetings(handle parentSchedId)
+handle_set TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
     // remove all scheduled meeting whose parent is parentSchedId
-    vector<handle> deletedChildren;
+    handle_set deletedChildren;
     for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
     {
         if (it->second->parentSchedId() == parentSchedId)
         {
-            deletedChildren.emplace_back(it->second->schedId());
+            deletedChildren.insert(it->second->schedId());
         }
     }
 
@@ -1235,7 +1235,7 @@ bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)
     // compare current scheduled meeting with received from API
     if (!sm->equalTo(it->second.get()))
     {
-        mSchedMeetingsChanged.emplace_back(sm->schedId());
+        mSchedMeetingsChanged.insert(sm->schedId());
         it->second = std::move(sm);
     }
 

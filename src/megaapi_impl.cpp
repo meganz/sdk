@@ -13968,7 +13968,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride)
+void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
 {
     handle h = UNDEF;
     Node *n = NULL;
@@ -13987,7 +13987,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         }
     }
 
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(client->restag);
+    MegaTransferPrivate* transfer = getMegaTransferPrivate(tag);
     if (transfer)
     {
         if (transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)
@@ -14030,8 +14030,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         return;
     }
 
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(requestMap.find(tag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(tag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
@@ -18479,7 +18479,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     f->cancelToken = transfer->accessCancelToken();
 
                     error result = API_OK;
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result);
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result, nextTag);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18719,7 +18719,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     mega::error cause;
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause);
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -22017,7 +22017,7 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->deregisterThenRemoveSync(backupId, completion, false);
+            client->syncs.deregisterThenRemoveSync(backupId, completion, false);
             break;
         }
 #endif  // ENABLE_SYNC
@@ -25940,8 +25940,8 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->reqtag, false,
-            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool)
+        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
+            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;
