@@ -2009,18 +2009,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     break;
     case UserAlert::type_nusm:
     {         
-         if (dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
-         {             
-             UserAlert::NewScheduledMeeting* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b);
+         if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
+         {
              type = TYPE_SCHEDULEDMEETING_NEW;
              userHandle = p->user();
              email = p->email();
              schedMeetingId = p->mSchedMeetingHandle;             
          }
          else
-         {             
-             UserAlert::UpdatedScheduledMeeting* p = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b);
-             if (p)
+         {
+             if (auto* p = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b))
              {
                  type = TYPE_SCHEDULEDMEETING_UPDATED;
                  userHandle = p->user();
@@ -2031,15 +2029,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              else
              {
                  assert(false);
-                 LOG_err << "Scheduled meeting new or update user alert ill-formed: ";
+                 LOG_err << "Scheduled meeting user alert invalid sub-type (mangled): "
+                         << typeid(*b).name()
+                         << ", expected: NewSchedulingMeeting or UpdatedSchedulingMeeting";
              }
          }         
     }
     break;
     case UserAlert::type_dsm:
     {
-        UserAlert::DeletedScheduledMeeting* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b);
-        if (p)
+        if (auto* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b))
         {
             type = TYPE_SCHEDULEDMEETING_DELETED;
             userHandle = p->user();
@@ -2048,9 +2047,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
         else
         {
-             assert(false);
-             LOG_err << "Scheduled meeting deleted user alert ill-formed";
-             break;
+            LOG_err << "Scheduled meeting user alert invalid sub-type (mangled): "
+                    << typeid(*b).name()
+                    << ", expected: DeletedScheduledMeeting";
         }
     }
     break;

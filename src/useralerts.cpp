@@ -1334,12 +1334,10 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
     if (!b) return nullptr;
 
     handle sm = UNDEF;
-    handle psm = UNDEF;
     unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(sm)
-        && r.unserializehandle(psm)
         && r.unserializeexpansionflags(expF, 0))
     {
         auto* nsm = new NewScheduledMeeting(b->userHandle, b->timestamp, id, sm);
@@ -1491,13 +1489,11 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     if (!b) return nullptr;
 
     handle sm = UNDEF;
-    handle psm = UNDEF;
     uint64_t bits = 0;
-
+    unsigned char expF[8];
 
     CacheableReader r(*d);
     if (r.unserializehandle(sm)
-        && r.unserializehandle(psm)
         && r.unserializeu64(bits))
     {
         unique_ptr<Changeset::TitleChangeset> tcs;
@@ -1511,9 +1507,13 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
                 tcs.reset(new Changeset::TitleChangeset{oldTitle, newTitle});
             }
         }
-        auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
-        usm->setRelevant(b->relevant);
-        usm->setSeen(b->seen);
+
+        if (r.unserializeexpansionflags(expF, 0))
+        {
+            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
+            usm->setRelevant(b->relevant);
+            usm->setSeen(b->seen);
+        }
     }
 
     return nullptr;
