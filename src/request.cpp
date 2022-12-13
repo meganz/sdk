@@ -181,6 +181,9 @@ void Request::process(MegaClient* client)
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
             client->json = cmdJSON;
             client->json.storeobject();
+
+            // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
+            assert(false);
         }
         else
         {
