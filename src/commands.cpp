@@ -2946,19 +2946,20 @@ bool CommandPutMultipleUAVer::procresult(Result r)
         {
             break;
         }
-        attr_t type = User::string2attr(string(ptr, (end-ptr)).c_str());
+        string version = version;
+        attr_t type = User::string2attr(version.c_str());
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
             client->app->putua_result(API_EINTERNAL);
             return false;
         }
-        string version = string(ptr, (end-ptr));
 
         userattr_map::iterator it = this->attrs.find(type);
         if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
         {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
+            LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << version;
+            for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
             client->app->putua_result(API_EINTERNAL);
             return false;
         }
