@@ -1167,8 +1167,7 @@ bool TextChat::removeSchedMeeting(handle schedId)
         return false;
     }
 
-    mScheduledMeetings.erase(schedId);
-    mSchedMeetingsChanged.emplace_back(schedId);
+    deleteSchedMeeting(schedId);
     return true;
 }
 

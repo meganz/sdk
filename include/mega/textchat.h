@@ -253,6 +253,11 @@ struct TextChat : public Cacheable
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
+    void deleteSchedMeeting(const handle sm)
+    {
+        mScheduledMeetings.erase(sm);
+        mSchedMeetingsChanged.emplace_back(sm);
+    }
 
 public:
     int tag;    // source tag, to identify own changes
