@@ -574,6 +574,17 @@ public:
     void cacheShareKeys();
     void loadShareKeys();
 
+    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+
+protected:
+
+    std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
+    std::pair<std::function<void()>, std::function<void()>> *activeCommit = nullptr;
+
+    void nextCommit();
+    void tryCommit(Error e, std::function<void ()> completion);
+    void updateAttribute(std::function<void (Error)> completion);
+
 private:
 
     // Tags used by TLV blob

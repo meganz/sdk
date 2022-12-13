@@ -21725,6 +21725,95 @@ void KeyManager::loadShareKeys()
     mClient.mergenewshares(1);
 }
 
+void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
+{
+    LOG_debug << "[keymgr] New commit requested";
+    commitQueue.emplace(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
+    if (activeCommit)
+    {
+        LOG_debug << "[keymgr] Another commit is in progress. Waiting...";
+        return;
+    }
+
+    nextCommit();
+}
+
+void KeyManager::nextCommit()
+{
+    assert(!activeCommit);
+    if (commitQueue.size())
+    {
+        LOG_debug << "[keymgr] Initializing a new commit.";
+        activeCommit = &commitQueue.front();
+        tryCommit(API_EINCOMPLETE, [this]() { nextCommit(); });
+    }
+    else
+    {
+        LOG_debug << "[keymgr] No more commits in the queue.";
+    }
+}
+
+void KeyManager::tryCommit(Error e, std::function<void ()> completion)
+{
+    if (!e)
+    {
+        LOG_debug << "[keymgr] Commit completed";
+        activeCommit->second(); // Run commit completion callback
+        activeCommit = nullptr;
+        commitQueue.pop();
+
+        completion();
+        return;
+    }
+
+    LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying") << " commit";
+    activeCommit->first(); // Apply commit changes
+    updateAttribute([this, completion](Error e)
+    {
+        tryCommit(e, completion);
+    });
+}
+
+void KeyManager::updateAttribute(std::function<void (Error)> completion)
+{
+    string buf = toKeysContainer();
+    mClient.putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [this, completion](Error e)
+    {
+        if (!e)
+        {
+            completion(API_OK);
+            return;
+        }
+
+        User *ownUser = mClient.finduser(mClient.me);
+        if (!ownUser)
+        {
+            LOG_err << "[keymgr] Not logged in during commit";
+            completion(API_OK); // Returning API_OK to stop the loop
+            return;
+        }
+
+        LOG_warn << "[keymgr] Error setting the value of ^!keys: (" << e << ")";
+        if (e != API_EEXPIRED)
+        {
+            completion(e);
+            return;
+        }
+
+        mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
+        [this, e, completion](error err)
+        {
+            LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
+            completion(e);
+        },
+        [this, e, completion](byte*, unsigned, attr_t)
+        {
+            LOG_debug << "[keymgr] Success getting the value of ^!keys";
+            completion(e);
+        }, nullptr));
+    });
+}
+
 bool KeyManager::unserialize(const string &keysContainer)
 {
     // Decode blob
