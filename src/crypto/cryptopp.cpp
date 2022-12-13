@@ -706,7 +706,7 @@ void AsymmCipher::serializekey(string* d, int keytype)
 void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool headers)
 {
     unsigned size = 0;
-    char c;
+    unsigned char c;
 
     for (int i = numints; i--;)
     {
@@ -724,17 +724,18 @@ void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool hea
     {
         if (headers)
         {
-            c = static_cast<char>(t[i].BitCount() >> 8);
-            d->append(&c, sizeof c);
+            unsigned int bitCount = t[i].ByteCount() * 8;
+            c = (bitCount & 0x0000FF00) >> 8;
+            d->append((char*)(&c), sizeof c);
 
-            c = (char)t[i].BitCount();
-            d->append(&c, sizeof c);
+            c = bitCount & 0x000000FF;
+            d->append((char*)&c, sizeof c);
         }
 
         for (int j = t[i].ByteCount(); j--;)
         {
             c = t[i].GetByte(j);
-            d->append(&c, sizeof c);
+            d->append((char*)&c, sizeof c);
         }
     }
 }
