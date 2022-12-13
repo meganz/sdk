@@ -3820,12 +3820,12 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     std::atomic<int> requestcount{0};
     p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
 
-        if (auto vault = sc.client.nodeByHandle(sc.client.rootnodes.vault))
+        if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
         {
-            for (auto n : vault->children)
+            for (auto n : sc.client.mNodeManager.getChildren(vault))
             {
                 LOG_debug << "vault child: " << n->displaypath();
-                for (auto n2 : n->children)
+                for (auto n2 : sc.client.mNodeManager.getChildren(n))
                 {
                     LOG_debug << "Unlinking: " << n2->displaypath();
                     ++requestcount;
