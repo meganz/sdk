@@ -1847,7 +1847,7 @@ public:
 
         TOTAL_OF_ALERT_TYPES
     };
-
+#ifdef ENABLE_CHAT
     enum
     {
         SM_CHANGE_TYPE_TITLE            = 0,
@@ -1858,7 +1858,7 @@ public:
         SM_CHANGE_TYPE_ENDDATE          = 5,
         SM_CHANGE_TYPE_RULES            = 6,
     };
-
+#endif
     virtual ~MegaUserAlert();
 
     /**
@@ -2086,7 +2086,7 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
-
+#ifdef ENABLE_CHAT
     /**
     * @brief Returns the MegaHandle that identifies the scheduled meeting id related to this alert
     *
@@ -2106,18 +2106,18 @@ public:
      *   TYPE_SCHEDULEDMEETING_UPDATED
      *
      * @param changeType The type of change to check. It can be one of the following values:
-     * - MegaUserAlerts::SC_TITLE     [0]  - Title has changed
-     * - MegaUserAlerts::SC_DESC      [1]  - Description has changed
-     * - MegaUserAlerts::SC_CANC      [2]  - Cancelled flag has changed
-     * - MegaUserAlerts::SC_TZONE     [3]  - Timezone has changed
-     * - MegaUserAlerts::SC_START     [4]  - Start date time has changed
-     * - MegaUserAlerts::SC_END       [5]  - End date time has changed
-     * - MegaUserAlerts::SC_RULES     [6]  - Repetition rules have changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
     virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
-
+#endif
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.
      *

@@ -2007,6 +2007,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+#ifdef ENABLE_CHAT
     case UserAlert::type_nusm:
     {         
          if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
@@ -2053,6 +2054,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+#endif
     } // end switch
 }
 
@@ -2174,6 +2176,7 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
     return index < handles.size() ? handles[index] : INVALID_HANDLE;
 }
 
+#ifdef ENABLE_CHAT
 MegaHandle MegaUserAlertPrivate::getSchedId() const
 {
     return schedMeetingId;
@@ -2183,6 +2186,7 @@ bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
 {
     return schedMeetingChangeset.hasChanged(changeType);
 }
+#endif
 
 bool MegaUserAlertPrivate::isOwnChange() const
 {

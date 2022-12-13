@@ -176,11 +176,13 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     pst.timestamp = m_time() - timeDelta;
     pst.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+#ifdef ENABLE_CHAT
     if (pst.userHandle == UNDEF)
     {
         // just for scheduled meetings user alerts (requested API to unify with above)
         pst.userHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
     }
+#endif
     pst.userEmail = un.getstring('m', "");
 
     tag = -1;
@@ -1292,6 +1294,7 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
     return nullptr;
 }
 
+#ifdef ENABLE_CHAT
 UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -1563,6 +1566,7 @@ void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
         assert(false);
     }
 }
+#endif
 
 UserAlerts::UserAlerts(MegaClient& cmc)
     : mc(cmc)

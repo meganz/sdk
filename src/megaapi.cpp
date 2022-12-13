@@ -799,7 +799,7 @@ const char* MegaUserAlert::getString(unsigned) const
 {
     return NULL;
 }
-
+#ifdef ENABLE_CHAT
 MegaHandle MegaUserAlert::getSchedId() const
 {
     return INVALID_HANDLE;
@@ -809,7 +809,7 @@ bool MegaUserAlert::hasSchedMeetingChanged(int) const
 {
     return false;
 }
-
+#endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
     return INVALID_HANDLE;

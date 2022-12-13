@@ -75,8 +75,10 @@ namespace UserAlert
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+#ifdef ENABLE_CHAT
     static const nameid type_nusm = MAKENAMEID5('m', 'c', 's', 'm', 'p');           // new or updated scheduled meeting
     static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
+#endif
 
     using handle_alerttype_map_t = map<handle, nameid>;
 
@@ -300,6 +302,7 @@ namespace UserAlert
         static Takedown* unserialize(string*, unsigned id);
     };
 
+#ifdef ENABLE_CHAT
     struct NewScheduledMeeting : public Base
     {
         handle mSchedMeetingHandle = UNDEF;
@@ -408,6 +411,7 @@ namespace UserAlert
         bool serialize(string* d) override;
         static DeletedScheduledMeeting* unserialize(string*, unsigned id);
     };
+#endif
 };
 
 struct UserAlertFlags
