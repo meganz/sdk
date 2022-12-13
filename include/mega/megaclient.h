@@ -665,6 +665,8 @@ private:
     bool deserializeBackups(const string& blob);
 
     std::string computeSymmetricKey(handle user);
+
+    bool decodeRSAKey(const string& pqdKey);
 };
 
 

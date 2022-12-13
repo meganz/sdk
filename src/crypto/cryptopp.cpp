@@ -765,6 +765,12 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
         p += n;
     }
 
+    // If u is not present, calculate it.
+    if (numints == PRIVKEY_SHORT)
+    {
+        t[PRIV_U] = t[PRIV_P].InverseMod(t[PRIV_Q]);
+    }
+
     return i == numints && len - p < 16;
 }
 
@@ -775,7 +781,7 @@ int AsymmCipher::isvalid(int keytype)
         return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
     }
 
-    if (keytype == PRIVKEY)
+    if (keytype == PRIVKEY || keytype == PRIVKEY_SHORT)
     {
         // detect private key blob corruption - prevent API-exploitable RSA oracle requiring 500+ logins
         return key[PRIV_P].BitCount() > 1000 &&

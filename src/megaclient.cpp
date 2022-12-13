@@ -21469,7 +21469,13 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
     mGeneration = 1;
     mPrivEd25519 = prEd25519;
     mPrivCu25519 = prCu25519;
-    mPrivRSA = prRSA;
+
+    // To store it in the short format if it is not already: pqd.
+    AsymmCipher ac;
+    ac.setkey(AsymmCipher::PRIVKEY_SHORT, (unsigned char*)prRSA.data(), (int)prRSA.size());
+    string d;
+    mPrivRSA.clear();
+    ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
 
     if (mSecure && !mPostRegistration)
     {
@@ -22057,7 +22063,11 @@ bool KeyManager::unserialize(const string &keysContainer)
                 if (len < 512) return false;
                 mPrivRSA.assign(blob + offset, len);
                 LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
-                // TODO: check if ^!keys.privRSA matches as part of the actual us.privk. In that case, keep privk. Otherwise, trigger warning
+                if (!decodeRSAKey(mPrivRSA)) // TODO Shall we replace current RSA as wc?
+                {
+                    LOG_warn << "Private key malformed while unserializing ^!keys.";
+                    return false;
+                }
                 // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
             }
             else
@@ -22511,6 +22521,31 @@ string KeyManager::computeSymmetricKey(handle user)
 
     sharedKey.resize(CryptoPP::AES::BLOCKSIZE);
     return sharedKey;
+}
+
+bool KeyManager::decodeRSAKey(const string& pqdKey)
+{
+    string currentPK;
+    string keysPK;
+    bool keyOk;
+
+    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
+    // TODO review pqdKey field sizes between web and SDK to remove the following AsymmCipher.
+    // TODO review if we shall set an AsymmCipher in KeyManger for the RSA key
+    AsymmCipher keysPKCipher = AsymmCipher();
+    keyOk = keysPKCipher.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)pqdKey.data(), (int)pqdKey.size());
+
+    if (!keyOk)
+    {
+        return keyOk;
+    }
+
+    keysPKCipher.serializekey(&keysPK, AsymmCipher::PRIVKEY_SHORT);
+
+    keyOk = currentPK == keysPK;
+    assert(keyOk);
+
+    return keyOk;
 }
 
 string KeyManager::serializeBackups() const
