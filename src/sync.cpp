@@ -3693,6 +3693,35 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive, bool excludePaused) const
     return v;
 }
 
+handle Syncs::getSyncIdContainingActivePath(const LocalPath& lp) const
+{
+    assert(onSyncThread() || !onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    SyncConfigVector v;
+    for (auto& s : mSyncVec)
+    {
+        if ((s->mSync && !s->mConfig.mTemporarilyPaused))
+        {
+            if (s->mConfig.mLocalPath.isContainingPathOf(lp))
+            {
+                auto debrisPath = s->mConfig.mLocalPath;
+                debrisPath.appendWithSeparator(LocalPath::fromRelativePath(DEBRISFOLDER), false);
+                if (debrisPath.isContainingPathOf(lp))
+                {
+                    return UNDEF;
+                }
+                else
+                {
+                    return s->mConfig.mBackupId;
+                }
+            }
+        }
+    }
+    return UNDEF;
+}
+
 bool Syncs::configById(handle backupId, SyncConfig& configResult) const
 {
     assert(!onSyncThread());
@@ -3965,6 +3994,26 @@ treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp
         }
     }
     return TREESTATE_NONE;
+}
+
+bool Syncs::getSyncStateForLocalPath(const LocalPath& lp, treestate_t& ts, nodetype_t& nt, SyncConfig& sc)
+{
+    assert(onSyncThread());
+    for (auto& us : mSyncVec)
+    {
+        if (us->mSync && us->mConfig.mLocalPath.isContainingPathOf(lp))
+        {
+            if (LocalNode* match = us->mSync->localnodebypath(nullptr, lp, nullptr, nullptr, true))
+            {
+                ts = match->checkTreestate(false);
+                nt = match->type;
+                sc = us->mConfig;
+                return true;
+            }
+            return false;
+        }
+    }
+    return false;
 }
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)

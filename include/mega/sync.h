@@ -935,6 +935,7 @@ struct Syncs
     bool configById(handle backupId, SyncConfig&) const;
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector) const;
+    handle getSyncIdContainingActivePath(const LocalPath& lp) const;
 
     // Add new sync setups
     void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
@@ -975,6 +976,9 @@ struct Syncs
 
     // synchronous and requires first locking mLocalNodeChangeMutex
     treestate_t getSyncStateForLocalPath(handle backupId, const LocalPath&);
+
+    // a variant for recovery after not being able to lock the mutex in time, all on the sync thread
+    bool getSyncStateForLocalPath(const LocalPath& lp, treestate_t& ts, nodetype_t& nt, SyncConfig& sc);
 
     Syncs(MegaClient& mc);
     ~Syncs();
