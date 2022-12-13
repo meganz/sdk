@@ -7426,7 +7426,7 @@ void MegaClient::sc_delscheduledmeeting()
                     if (chat->removeSchedMeeting(schedId))
                     {
                         // remove children scheduled meetings (API requirement)
-                        handle_vector deletedChildren = chat->removeChildSchedMeetings(schedId);
+                        chat->removeChildSchedMeetings(schedId);
 
                         // remove scheduled meetings occurrences and children
                         chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
@@ -7475,7 +7475,7 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
-        handle_vector deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
 
         // remove all child scheduled meeting occurrences
         // API currently just supports 1 level in scheduled meetings hierarchy

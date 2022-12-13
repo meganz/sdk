@@ -242,7 +242,7 @@ struct TextChat : public Cacheable
     map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
     // list of scheduled meetings changed
-    std::vector<handle> mSchedMeetingsChanged;
+    handle_set mSchedMeetingsChanged;
 
     // maps a scheduled meeting id to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
@@ -256,14 +256,14 @@ private:        // use setter to modify these members
     void deleteSchedMeeting(const handle sm)
     {
         mScheduledMeetings.erase(sm);
-        mSchedMeetingsChanged.emplace_back(sm);
+        mSchedMeetingsChanged.insert(sm);
     }
 
     void deleteSchedMeetingOccurrBySchedId(const handle sm)
     {
         // multiple entries can be deleted (multimap)
         mScheduledMeetingsOcurrences.erase(sm);
-        mSchedMeetingsChanged.emplace_back(sm);
+        mSchedMeetingsChanged.insert(sm);
     }
 
 public:
@@ -312,8 +312,8 @@ public:
     bool removeSchedMeeting(handle schedId);
 
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
-    // returns vector with the meeting id of the removed children
-    handle_vector removeChildSchedMeetings(handle parentSchedId);
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetings(handle parentSchedId);
 
     // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
     // returns handle_set with the meeting id of the removed children
