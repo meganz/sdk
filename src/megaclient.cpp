@@ -7614,33 +7614,38 @@ void MegaClient::sc_pk()
             return;
         }
 
-        LOG_debug << "Processing pending keys";
-        for (const auto& kv : *keys.get())
+        mKeyManager.commit(
+        [this, keys]()
         {
-            for (const auto& kv2 : kv.second)
+            // Changes to apply in the commit
+            LOG_debug << "Processing pending keys";
+            for (const auto& kv : *keys.get())
             {
-                handle userHandle = kv.first;
-                handle shareHandle = kv2.first;
-                std::string key = kv2.second;
+                for (const auto& kv2 : kv.second)
+                {
+                    handle userHandle = kv.first;
+                    handle shareHandle = kv2.first;
+                    std::string key = kv2.second;
 
-                mKeyManager.addPendingInShare(toNodeHandle(shareHandle), userHandle, key);
+                    mKeyManager.addPendingInShare(toNodeHandle(shareHandle), userHandle, key);
+                }
             }
-        }
 
-        mKeyManager.promotePendingShares();
-        string buf = mKeyManager.toKeysContainer();
-        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
-
-        LOG_debug << "All pending keys were processed";
-        reqs.add(new CommandPendingKeys(this, lastcompleted, [this] (Error e)
+            mKeyManager.promotePendingShares();
+        },
+        [this, lastcompleted]()
         {
-            if (e)
+            LOG_debug << "All pending keys were processed";
+            reqs.add(new CommandPendingKeys(this, lastcompleted, [this] (Error e)
             {
-                LOG_err << "Error deleting pending keys";
-                return;
-            }
-            LOG_debug << "Pending keys deleted";
-        }));
+                if (e)
+                {
+                    LOG_err << "Error deleting pending keys";
+                    return;
+                }
+                LOG_debug << "Pending keys deleted";
+            }));
+        });
     }));
 }
 
@@ -11040,10 +11045,22 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         mKeyManager.setAuthRing(it->second.serializeForJS());
     }
 
-    string buf = mKeyManager.toKeysContainer();
-    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [this, completion](Error e)
+    it = mAuthRings.find(ATTR_AUTHCU255);
+    if (it != mAuthRings.end())
     {
-        completion(e);
+        mKeyManager.setAuthCU255(it->second.serializeForJS());
+    }
+
+    mKeyManager.commit(
+    []()
+    {
+        // Nothing to include in this commit (apart from the changes already applied to mKeyManager).
+        // putua shouldn't fail in this case. Otherwise, another client would have upgraded the account
+        // at the same time and therefore we wouldn't have to apply the changes again.
+    },
+    [this, completion]()
+    {
+        completion(API_OK);
 
         // Get pending keys for inshares
         sc_pk();
@@ -11059,7 +11076,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         return;
     }
 
-    if (n->sharekey)
+    if (n->sharekey || !mKeyManager.isSecure())
     {
         completion(API_OK);
         return;
@@ -11070,14 +11087,18 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
     rng.genblock(key, sizeof key);
     n->sharekey = new SymmCipher(key);
 
-    // Add outshare key into ^!keys
-    mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)key, SymmCipher::KEYLENGTH));
+    handle nodehandle = n->nodehandle;
+    std::string shareKey((const char *)key, SymmCipher::KEYLENGTH);
 
-    string buf = mKeyManager.toKeysContainer();
-    putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0,
-    [completion](Error e)
+    mKeyManager.commit(
+    [this, nodehandle, shareKey]()
     {
-        completion(e);
+        // Changes to apply in the commit
+        mKeyManager.addOutShareKey(nodehandle, shareKey);
+    },
+    [completion]()
+    {
+        completion(API_OK);
     });
 }
 
@@ -11102,7 +11123,6 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         return;
     }
 
-    User *u = getUserForSharing(user);
     std::string msg;
     if (personal_representation)
     {
@@ -11111,6 +11131,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
 
     if (a == ACCESS_UNKNOWN)
     {
+        User *u = getUserForSharing(user);
         reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, msg.c_str(), tag, move(completion)));
         return;
     }
@@ -11131,64 +11152,92 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         byte key[SymmCipher::KEYLENGTH];
         rng.genblock(key, sizeof key);
         n->sharekey = new SymmCipher(key);
-
-        // Add outshare key into ^!keys
-        mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)key, SymmCipher::KEYLENGTH));
-        if (!uid.size())
-        {
-            std::string buf = mKeyManager.toKeysContainer();
-            putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
-        }
     }
 
-    handle userhandle = u ? u->userhandle : UNDEF;
     handle nodehandle = n->nodehandle;
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
-    if (uid.size())
+    std::function<void()> completeShare =
+    [this, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
     {
-        LOG_debug << "Adding pending outshare";
-        mKeyManager.addPendingOutShare(nodehandle, uid);
-        std::string buf = mKeyManager.toKeysContainer();
-        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
-    }
-
-    reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
-    [this, uid, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
-    {
-        if (e || ISUNDEF(userhandle))
+        Node *n;
+        // node vanished: bail
+        if (!(n = nodebyhandle(nodehandle)))
         {
-            completion(e, writable);
+            completion(API_ENOENT, writable);
             return;
         }
 
-        std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-        if (!encryptedKey.size())
+        User *u = getUserForSharing(uid.c_str());
+        handle userhandle = u ? u->userhandle : UNDEF;
+        reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
+        [this, uid, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
         {
-            LOG_debug << "Unable to send keys to the target. The outshare is pending.";
-            completion(e, writable);
-            return;
-        }
-
-        reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-        [this, uid, nodehandle, completion, e, writable](Error err)
-        {
-            if (err)
+            if (e || ISUNDEF(userhandle))
             {
-                LOG_err << "Error sending share key: " << err;
+                completion(e, writable);
+                return;
             }
-            else
-            {
-                LOG_debug << "Share key correctly sent";
 
-                // Removing pending outshare
-                mKeyManager.removePendingOutShare(nodehandle, uid);
-                string buf = mKeyManager.toKeysContainer();
-                putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0);
+            std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
+            if (!encryptedKey.size())
+            {
+                LOG_debug << "Unable to send keys to the target. The outshare is pending.";
+                completion(e, writable);
+                return;
             }
-            completion(e, writable);
+
+            reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
+            [this, uid, nodehandle, completion, e, writable](Error err)
+            {
+                if (err)
+                {
+                    LOG_err << "Error sending share key: " << err;
+                    completion(e, writable);
+                }
+                else
+                {
+                    LOG_debug << "Share key correctly sent";
+                    mKeyManager.commit(
+                    [this, nodehandle, uid]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.removePendingOutShare(nodehandle, uid);
+                    },
+                    [completion, writable]()
+                    {
+                        completion(API_OK, writable);
+                    });
+                }
+            }));
         }));
-    }));
+    };
+
+    if (newshare || uid.size())
+    {
+        mKeyManager.commit(
+        [this, newshare, nodehandle, shareKey, uid]()
+        {
+            // Changes to apply in the commit
+            if (newshare)
+            {
+                // Add outshare key into ^!keys
+                mKeyManager.addOutShareKey(nodehandle, shareKey);
+            }
+
+            if (uid.size())
+            {
+                // Add pending outshare;
+                mKeyManager.addPendingOutShare(nodehandle, uid);
+            }
+        },
+        [completeShare]()
+        {
+            completeShare();
+        });
+        return;
+    }
+    completeShare();
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -13838,6 +13887,8 @@ void MegaClient::initializekeys()
                 mKeyManager.setKey(key);
                 mKeyManager.init(prEd255, prCu255, mPrivKey);
 
+                // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
+                // Since the account is being initialized, putua should not fail.
                 buf = mKeyManager.toKeysContainer();
                 atPrivKeys = ATTR_KEYS;
             }
@@ -14087,15 +14138,38 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         {
             userattr_map attrs;
 
+            std::string serializedAuthring = authring->serializeForJS();
             std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
             attrs[authringType] = *newAuthring;
-            if (mKeyManager.isSecure())
-            {
-                attrs[ATTR_KEYS] = mKeyManager.toKeysContainer();
-            }
+
             // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
             // if found in the temporal ones.
-            putua(&attrs, 0);
+            putua(&attrs, 0,
+            [this, authringType, serializedAuthring](Error e)
+            {
+                if (e || !mKeyManager.isSecure())
+                {
+                    return;
+                }
+
+                if (authringType == ATTR_AUTHRING || authringType == ATTR_AUTHCU255)
+                {
+                    mKeyManager.commit(
+                    [this, authringType, serializedAuthring]()
+                    {
+                        // Changes to apply in the commit
+                        if (authringType == ATTR_AUTHRING)
+                        {
+                            mKeyManager.setAuthRing(serializedAuthring);
+                            mKeyManager.promotePendingShares();
+                        }
+                        else if (authringType == ATTR_AUTHCU255)
+                        {
+                            mKeyManager.setAuthCU255(serializedAuthring);
+                        }
+                    }); // No completion callback in this case
+                }
+            });
 
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
         }
@@ -14246,15 +14320,30 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         {
             userattr_map attrs;
 
+            std::string serializedAuthring = authring->serializeForJS();
             std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
             attrs[authringType] = *newAuthring;
-            if (mKeyManager.isSecure())
-            {
-                attrs[ATTR_KEYS] = mKeyManager.toKeysContainer();
-            }
+
             // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
             // if found in the temporal ones.
-            putua(&attrs, 0);
+            putua(&attrs, 0,
+            [this, authringType, serializedAuthring](Error e)
+            {
+                if (e || !mKeyManager.isSecure())
+                {
+                    return;
+                }
+
+                if (authringType == ATTR_AUTHCU255)
+                {
+                    mKeyManager.commit(
+                    [this, serializedAuthring]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.setAuthCU255(serializedAuthring);
+                    }); // No completion callback in this case
+                }
+            });
 
             mAuthRingsTemp.erase(authringType);
         }
@@ -14321,21 +14410,34 @@ error MegaClient::verifyCredentials(handle uh)
 
     int tag = reqtag;
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+    std::string serializedAuthring = authring.serializeForJS();
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
-    [this, tag, authring](Error e)
+    [this, tag, serializedAuthring](Error e)
     {
-        if (e)
+        if (e || !mKeyManager.isSecure())
         {
+            // We have failed, so we don't propagate the changes to mKeyManager
             restag = tag;
             app->putua_result(e);
             return;
         }
 
-        mKeyManager.setAuthRing(authring.serializeForJS());
-        mKeyManager.promotePendingShares();
-
-        string buf = mKeyManager.toKeysContainer();
-        putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), tag);
+        // Here, the modified authring should be already active,
+        // so promotePendingShares should succeed for any pending
+        // share with the verified user.
+        mKeyManager.commit(
+        [this, serializedAuthring]()
+        {
+            // Changes to apply in the commit
+            mKeyManager.setAuthRing(serializedAuthring);
+            mKeyManager.promotePendingShares();
+        },
+        [this, tag]()
+        {
+            restag = tag;
+            app->putua_result(API_OK);
+            return;
+        });
     });
 
     return API_OK;
@@ -14354,6 +14456,8 @@ error MegaClient::resetCredentials(handle uh)
 
     // store all required changes into user attributes
     userattr_map attrs;
+    std::string serializedAuthring;
+    std::string serializedAuthCU255;
     for (auto &it : mAuthRings)
     {
         AuthRing authring = it.second; // copy, do not update cached authring yet
@@ -14361,25 +14465,47 @@ error MegaClient::resetCredentials(handle uh)
         {
             attrs[it.first] = *authring.serialize(rng, key);
         }
+
+        if (it.first == ATTR_AUTHRING)
+        {
+            serializedAuthring = authring.serializeForJS();
+        }
+        else if (it.first == ATTR_AUTHCU255)
+        {
+            serializedAuthCU255 = authring.serializeForJS();
+        }
     }
 
     if (attrs.size())
     {
         LOG_debug << "Removing credentials for user " << uid << "...";
 
-        auto it = mAuthRings.find(ATTR_AUTHRING);
-        if (it != mAuthRings.end())
+        int tag = reqtag;
+        putua(&attrs, 0,
+        [this, tag, serializedAuthring, serializedAuthCU255](Error e)
         {
-            AuthRing authring = it->second;
-            if (authring.remove(uh))
+            if (e || !mKeyManager.isSecure())
             {
-                mKeyManager.setAuthRing(authring.serializeForJS());
-                string buf = mKeyManager.toKeysContainer();
-                putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size());
+                // We have failed, so we don't propagate the changes to mKeyManager
+                restag = tag;
+                app->putua_result(e);
+                return;
             }
-        }
 
-        putua(&attrs);
+            mKeyManager.commit(
+            [this, tag, serializedAuthring, serializedAuthCU255]()
+            {
+                // Changes to apply in the commit
+                mKeyManager.setAuthRing(serializedAuthring);
+                mKeyManager.setAuthCU255(serializedAuthCU255);
+            },
+            [this, tag]()
+            {
+                restag = tag;
+                app->putua_result(API_OK);
+                return;
+            });
+        });
     }
     else
     {
@@ -21389,13 +21515,6 @@ string KeyManager::toKeysContainer()
     }
 
     ++mGeneration;
-
-    // TODO: Properly update this field and mAuthEd25519
-    auto it = mClient.mAuthRings.find(ATTR_AUTHCU255);
-    if (it != mClient.mAuthRings.end())
-    {
-        mAuthCu25519 = it->second.serializeForJS();
-    }
 
     const string iv = mClient.rng.genstring(IV_LEN);
     const string keysPlain = serialize();
