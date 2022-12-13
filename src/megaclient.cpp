@@ -19340,7 +19340,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
     if (nodesFromTable.size())
     {
@@ -19401,7 +19401,7 @@ Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 
     NodeSerialized nodeSerialized;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
     if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
