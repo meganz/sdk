@@ -190,6 +190,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         return;
     }
 
+    if (!s->have_key)
+    {
+        // Check if the key is already in the key manager
+        std::string shareKey = mKeyManager.getShareKey(s->h);
+        if (shareKey.size() == sizeof(s->key))
+        {
+            memcpy(s->key, shareKey.data(), sizeof(s->key));
+            s->have_key = 1;
+        }
+    }
+
     // n was no shared or it was shared but sharekey has changed
     if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
     {
