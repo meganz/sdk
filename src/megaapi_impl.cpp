@@ -2008,52 +2008,50 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
     break;
     case UserAlert::type_nusm:
-    {
-         UserAlert::ScheduledMeetingBase* baseSched = static_cast<UserAlert::ScheduledMeetingBase*>(b);
-         if (baseSched->mSchedMeetingsSubtype == UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW)
-         {
-             UserAlert::NewScheduledMeeting* p = static_cast<UserAlert::NewScheduledMeeting*>(b);
+    {         
+         if (dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
+         {             
+             UserAlert::NewScheduledMeeting* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b);
              type = TYPE_SCHEDULEDMEETING_NEW;
              userHandle = p->user();
              email = p->email();
-             schedMeetingId = p->mSchedMeetingHandle;
-             parentSMId = p->mParentSMHandle;
-         }
-         else if (baseSched->mSchedMeetingsSubtype == UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE)
-         {
-             UserAlert::UpdatedScheduledMeeting* p = static_cast<UserAlert::UpdatedScheduledMeeting*>(b);
-             type = TYPE_SCHEDULEDMEETING_UPDATED;
-             userHandle = p->user();
-             email = p->email();
-             schedMeetingId = p->mSchedMeetingHandle;
-             parentSMId = p->mParentSMHandle;
-             schedMeetingChangeset = p->mUpdatedChangeset;
+             schedMeetingId = p->mSchedMeetingHandle;             
          }
          else
-         {
-             assert(false);
-             LOG_err << "Scheduled meeting user alert invalid sub-type: " << baseSched->mSchedMeetingsSubtype << ", expected: "
-                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW << " or "
-                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE;
-         }
+         {             
+             UserAlert::UpdatedScheduledMeeting* p = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b);
+             if (p)
+             {
+                 type = TYPE_SCHEDULEDMEETING_UPDATED;
+                 userHandle = p->user();
+                 email = p->email();
+                 schedMeetingId = p->mSchedMeetingHandle;
+                 schedMeetingChangeset = p->mUpdatedChangeset;
+             }
+             else
+             {
+                 assert(false);
+                 LOG_err << "Scheduled meeting new or update user alert ill-formed: ";
+             }
+         }         
     }
     break;
     case UserAlert::type_dsm:
     {
-        UserAlert::ScheduledMeetingBase* baseSched = static_cast<UserAlert::ScheduledMeetingBase*>(b);
-        if (baseSched->mSchedMeetingsSubtype != UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_DELETED)
+        UserAlert::DeletedScheduledMeeting* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b);
+        if (p)
+        {
+            type = TYPE_SCHEDULEDMEETING_DELETED;
+            userHandle = p->user();
+            email = p->email();
+            schedMeetingId = p->mSchedMeetingHandle;
+        }
+        else
         {
              assert(false);
-             LOG_err << "Scheduled meeting user alert invalid sub-type: " << baseSched->mSchedMeetingsSubtype << ", expected: "
-                     << UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_DELETED;
+             LOG_err << "Scheduled meeting deleted user alert ill-formed";
              break;
         }
-
-        UserAlert::DeletedScheduledMeeting* p = static_cast<UserAlert::DeletedScheduledMeeting*>(b);
-        type = TYPE_SCHEDULEDMEETING_DELETED;
-        userHandle = p->user();
-        email = p->email();
-        schedMeetingId = p->mSchedMeetingHandle;
     }
     break;
     } // end switch
@@ -2180,11 +2178,6 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
 MegaHandle MegaUserAlertPrivate::getSchedId() const
 {
     return schedMeetingId;
-}
-
-MegaHandle MegaUserAlertPrivate::getParentSchedId() const
-{
-   return parentSMId;
 }
 
 bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const

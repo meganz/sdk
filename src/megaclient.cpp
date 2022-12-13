@@ -7473,7 +7473,6 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
-        handle schedParentId = sm->parentSchedId();
         handle_vector deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
 
         // remove all child scheduled meeting occurrences
@@ -7499,15 +7498,15 @@ void MegaClient::sc_scheduledmeetings()
                      [this, ou](handle& sm) { createDeletedSMAlert(ou, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, schedId, schedParentId);
-                else createUpdatedSMAlert(ou, schedId, schedParentId, std::move(cs));
+                if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
+                else createUpdatedSMAlert(ou, schedId, std::move(cs));
             }
         }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle sm, handle psm)
+void MegaClient::createNewSMAlert(const handle& ou, handle sm)
 {
     if (ou == me)
     {
@@ -7515,7 +7514,7 @@ void MegaClient::createNewSMAlert(const handle& ou, handle sm, handle psm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, psm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
 }
 
 void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
@@ -7529,7 +7528,7 @@ void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
     useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
 }
 
-void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm, handle psm,
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
                                       UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
 {
     if (ou == me)
@@ -7538,8 +7537,7 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm, handle psm,
                     << " in a differet session";
         return;
     }
-    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, psm,
-                                                          std::move(cs)));
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, std::move(cs)));
 }
 
 #endif

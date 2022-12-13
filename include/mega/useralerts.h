@@ -300,51 +300,13 @@ namespace UserAlert
         static Takedown* unserialize(string*, unsigned id);
     };
 
-
-    struct ScheduledMeetingBase : public Base
+    struct NewScheduledMeeting : public Base
     {
-        enum
-        {
-            SCHEDULED_USER_ALERT_INVALID  = 0,
-            SCHEDULED_USER_ALERT_NEW      = 1,
-            SCHEDULED_USER_ALERT_UPDATE   = 2,
-            SCHEDULED_USER_ALERT_DELETED  = 3,
-        };
-
-        unsigned int mSchedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
         handle mSchedMeetingHandle = UNDEF;
-        handle mParentSMHandle = UNDEF;
-
-        virtual ~ScheduledMeetingBase(){}
-        ScheduledMeetingBase(UserAlertRaw& un, unsigned int id, unsigned int type) : Base(un, id), mSchedMeetingsSubtype(type) {}
-        ScheduledMeetingBase(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, nameid _userAlertType, unsigned int _type)
-            : Base(_userAlertType, _ou, string(), _ts, _id)
-            , mSchedMeetingsSubtype(_type)
-            , mSchedMeetingHandle(_sm),
-              mParentSMHandle(_parentSM)
-            {}
-
-        bool serialize(string* d)
-        {
-            Base::serialize(d);
-            CacheableWriter w(*d);
-            w.serializeu32(mSchedMeetingsSubtype);
-            w.serializehandle(mSchedMeetingHandle);
-            if (mSchedMeetingsSubtype == SCHEDULED_USER_ALERT_NEW
-                  || mSchedMeetingsSubtype == SCHEDULED_USER_ALERT_UPDATE)
-            {
-                w.serializehandle(mParentSMHandle);
-            }
-
-            return true;
-        }
-    };
-
-    struct NewScheduledMeeting : public ScheduledMeetingBase
-    {
         NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM)
-            : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_NEW)
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+            : Base(UserAlert::type_nusm, _ou, string(), _ts, _id)
+            , mSchedMeetingHandle(_sm)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
@@ -352,7 +314,7 @@ namespace UserAlert
         static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct UpdatedScheduledMeeting : public ScheduledMeetingBase
+    struct UpdatedScheduledMeeting : public Base
     {
         class Changeset
         {
@@ -418,12 +380,13 @@ namespace UserAlert
             unique_ptr<TitleChangeset> mUpdatedTitle;
         };
 
-
+        handle mSchedMeetingHandle = UNDEF;
         Changeset mUpdatedChangeset;
 
         UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, handle _parentSM, Changeset&& _cs)
-            : ScheduledMeetingBase(_ou, _ts, _id, _sm, _parentSM, UserAlert::type_nusm, SCHEDULED_USER_ALERT_UPDATE)
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, Changeset&& _cs)
+            : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
+            , mSchedMeetingHandle(_sm)
             , mUpdatedChangeset(_cs)
             {}
 
@@ -432,11 +395,13 @@ namespace UserAlert
         static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct DeletedScheduledMeeting : public ScheduledMeetingBase
+    struct DeletedScheduledMeeting : public Base
     {
+        handle mSchedMeetingHandle = UNDEF;
         DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
         DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
-            : ScheduledMeetingBase(_ou, _ts, _id, _sm, UNDEF, UserAlert::type_dsm, SCHEDULED_USER_ALERT_NEW)
+            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , mSchedMeetingHandle(_sm)
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;

@@ -846,7 +846,6 @@ public:
     const char* getString(unsigned index) const override;
     MegaHandle getHandle(unsigned index) const override;
     MegaHandle getSchedId() const override;
-    MegaHandle getParentSchedId() const override;
     bool hasSchedMeetingChanged(int changeType) const override;
     bool isOwnChange() const override;
     bool isRemoved() const override;
@@ -872,7 +871,6 @@ protected:
     vector<MegaHandle> handles;
     bool removed = false;
     handle schedMeetingId = UNDEF;
-    handle parentSMId = UNDEF;
     UserAlert::UpdatedScheduledMeeting::Changeset schedMeetingChangeset;
 };
 

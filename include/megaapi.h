@@ -2100,19 +2100,6 @@ public:
     virtual MegaHandle getSchedId() const;
 
     /**
-    * @brief Returns the MegaChatHandle that identifies the parent scheduled meeting id related to this alert
-    *
-    * This value is currently only valid for:
-    *   TYPE_SCHEDULEDMEETING_NEW
-    *   TYPE_SCHEDULEDMEETING_DELETED
-    *   TYPE_SCHEDULEDMEETING_UPDATED
-    *
-    * @return MegaHandle that identifies the parent scheduled meeting id related to this alert,
-    * or INVALID_HANDLE if not available
-    */
-    virtual MegaHandle getParentSchedId() const;
-
-    /**
      * @brief Returns true if the scheduled meeting associated to this alert has an specific change
      *
      * This value is currently only valid for:

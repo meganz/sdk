@@ -1293,7 +1293,7 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
 }
 
 UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned int id)
-    : ScheduledMeetingBase(un, id, UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_NEW)
+    : Base(un, id)
 {
     mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
     if (mSchedMeetingHandle == UNDEF)
@@ -1310,7 +1310,6 @@ void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaCli
     ostringstream oss;
     oss << "New Scheduled Meeting details:"
         << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
-        << "\n\tParent Sched Meeting Id: " << toHandle(mParentSMHandle)
         << "\n\tCreated by: " << pst.userEmail;
 
     header = "New Scheduled Meeting";
@@ -1321,9 +1320,11 @@ void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaCli
 
 bool UserAlert::NewScheduledMeeting::serialize(string* d)
 {
-    ScheduledMeetingBase::serialize(d);
+    Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
     w.serializeexpansionflags();
+
     return true;
 }
 
@@ -1334,16 +1335,14 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
 
     handle sm = UNDEF;
     handle psm = UNDEF;
-    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
     unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializeu32(schedMeetingsSubtype)
-        && r.unserializehandle(sm)
+    if (r.unserializehandle(sm)
         && r.unserializehandle(psm)
         && r.unserializeexpansionflags(expF, 0))
     {
-        auto* nsm = new NewScheduledMeeting(b->userHandle, b->timestamp, id, sm, psm);
+        auto* nsm = new NewScheduledMeeting(b->userHandle, b->timestamp, id, sm);
         nsm->setSeen(b->seen);
         nsm->setRelevant(b->relevant);
         return nsm;
@@ -1353,7 +1352,7 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
 }
 
 UserAlert::DeletedScheduledMeeting::DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id)
-    : ScheduledMeetingBase(un, id, SCHEDULED_USER_ALERT_DELETED)
+    : Base(un, id)
 {
     mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
     if (mSchedMeetingHandle == UNDEF)
@@ -1380,9 +1379,11 @@ void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, Meg
 
 bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
 {
-    ScheduledMeetingBase::serialize(d);
+    Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
     w.serializeexpansionflags();
+
     return true;
 }
 
@@ -1392,12 +1393,10 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
     if (!b) return nullptr;
 
     handle sm = UNDEF;
-    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
     unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializeu32(schedMeetingsSubtype)
-        && r.unserializehandle(sm)
+    if (r.unserializehandle(sm)
         && r.unserializeexpansionflags(expF, 0))
     {
         auto* dsm = new DeletedScheduledMeeting(b->userHandle, b->timestamp, id, sm);
@@ -1410,7 +1409,7 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
 }
 
 UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id)
-    : ScheduledMeetingBase(un, id, UserAlert::ScheduledMeetingBase::SCHEDULED_USER_ALERT_UPDATE)
+    : Base(un, id)
 {
     mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
     if (mSchedMeetingHandle == UNDEF)
@@ -1445,7 +1444,6 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
     ostringstream oss;
     oss << "Updated Scheduled Meeting details:"
         << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
-        << "\n\tParent Sched Meeting Id: " << toHandle(mParentSMHandle)
         << "\n\tUpdated by: " << pst.userEmail;
 
     for (int changeType = 0; changeType < Changeset::CHANGE_TYPE_SIZE; ++changeType)
@@ -1469,8 +1467,9 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
 
 bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
 {
-    ScheduledMeetingBase::serialize(d);
+    Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
 
     w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
     if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
@@ -1482,6 +1481,7 @@ bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
     }
 
     w.serializeexpansionflags();
+
     return true;
 }
 
@@ -1493,11 +1493,10 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     handle sm = UNDEF;
     handle psm = UNDEF;
     uint64_t bits = 0;
-    unsigned int schedMeetingsSubtype = SCHEDULED_USER_ALERT_INVALID;
+
 
     CacheableReader r(*d);
-    if (r.unserializeu32(schedMeetingsSubtype)
-        && r.unserializehandle(sm)
+    if (r.unserializehandle(sm)
         && r.unserializehandle(psm)
         && r.unserializeu64(bits))
     {
@@ -1512,8 +1511,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
                 tcs.reset(new Changeset::TitleChangeset{oldTitle, newTitle});
             }
         }
-        auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, psm,
-                                                {bs, tcs});
+        auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
         usm->setRelevant(b->relevant);
         usm->setSeen(b->seen);
     }
