@@ -6936,6 +6936,9 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         chat->removeChildSchedMeetings(schedId);
+
+                        // remove scheduled meetings occurrences and children
+                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
@@ -6981,9 +6984,16 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
-        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+
+        // remove all child scheduled meeting occurrences
+        // API currently just supports 1 level in scheduled meetings hierarchy
+        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || deletedChildren)
+        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
         {
             if (!res)
             {
@@ -16938,7 +16948,12 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
     // if handles of all children are known, load missing child nodes one by one
     if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
     {
-        for (const auto &child : parent->mNodePosition->second.mChildren)
+        if (!parent->mNodePosition->second.mChildren)
+        {
+            return childrenList;
+        }
+
+        for (const auto &child : *parent->mNodePosition->second.mChildren)
         {
             if (cancelToken.isCancelled())
             {
@@ -16963,11 +16978,14 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
     }
     else // get all children from DB directly and load missing ones
     {
-        for (const auto &child : parent->mNodePosition->second.mChildren)
+        if (parent->mNodePosition->second.mChildren)
         {
-            if (child.second)
+            for (const auto& child : *parent->mNodePosition->second.mChildren)
             {
-                childrenList.push_back(child.second);
+                if (child.second)
+                {
+                    childrenList.push_back(child.second);
+                }
             }
         }
 
@@ -16979,6 +16997,11 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
             return  childrenList;
         }
 
+        if (!nodesFromTable.empty() && !parent->mNodePosition->second.mChildren)
+        {
+            parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
+        }
+
         for (auto nodeSerializedIt : nodesFromTable)
         {
             if (cancelToken.isCancelled())
@@ -16987,8 +17010,8 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
                 return  childrenList;
             }
 
-            auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
-            if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
+            auto childIt = parent->mNodePosition->second.mChildren->find(nodeSerializedIt.first);
+            if (childIt == parent->mNodePosition->second.mChildren->end() || !childIt->second) // handle or node not loaded
             {
                 auto itNode = mNodes.find(nodeSerializedIt.first);
                 if ( itNode == mNodes.end() || !itNode->second.mNode)    // not loaded
@@ -17125,7 +17148,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
     if (nodesFromTable.size())
     {
@@ -17186,7 +17209,7 @@ Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 
     NodeSerialized nodeSerialized;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
     if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
@@ -17207,17 +17230,26 @@ Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &na
     // mAllChildrenHandleLoaded = false -> if not found, need check DB
     // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
     bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
-    for (const auto& itNode : parent->mNodePosition->second.mChildren)
+
+    if (allChildrenLoaded && !parent->mNodePosition->second.mChildren)
     {
-        Node* node = itNode.second;
-        if (node && node->type == nodeType && name == node->displayname())
+        return nullptr; // valid case
+    }
+
+    if (parent->mNodePosition->second.mChildren)
+    {
+        for (const auto& itNode : *parent->mNodePosition->second.mChildren)
         {
-            return node;
-        }
-        else if (!node)
-        {
-            // If no all children nodes are loaded, it's necessary check DB
-            allChildrenLoaded = false;
+            Node* node = itNode.second;
+            if (node && node->type == nodeType && name == node->displayname())
+            {
+                return node;
+            }
+            else if (!node)
+            {
+                // If not all child nodes have been loaded, check the DB
+                allChildrenLoaded = false;
+            }
         }
     }
 
@@ -17424,16 +17456,19 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
     }
 
-    nodePtr_map children;
+    const nodePtr_map* children = nullptr;
     auto it = mNodes.find(nodehandle);
     if (it != mNodes.end())
     {
-        children = it->second.mChildren;
+        children = it->second.mChildren.get();
     }
 
-    for (const auto &itNode : children)
+    if (children)
     {
-        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        for (const auto& itNode : *children)
+        {
+            nc += calculateNodeCounter(itNode.first, nodeType, itNode.second, isInRubbish);
+        }
     }
 
     if (nodeType == FILENODE)
@@ -17489,9 +17524,8 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     auto parentIt = mNodes.find(parentHandle);
     if (parentIt != mNodes.end() && parentIt->second.mAllChildrenHandleLoaded)
     {
-        return parentIt->second.mChildren.size();
+        return parentIt->second.mChildren ? parentIt->second.mChildren->size() : 0;
     }
-
 
     return mTable->getNumberOfChildren(parentHandle);
 }
@@ -18309,13 +18343,21 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 {
     auto pair = mNodes.emplace(parent, NodeManagerNode());
     // The NodeManagerNode could have been added in add node, only update the child
-    assert(!pair.first->second.mChildren[child]);
-    pair.first->second.mChildren[child] = node;
+    assert(!pair.first->second.mChildren || !(*pair.first->second.mChildren)[child]);
+    if (!pair.first->second.mChildren)
+    {
+        pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
+    }
+    (*pair.first->second.mChildren)[child] = node;
 }
 
 void NodeManager::removeChild(Node* parent, NodeHandle child)
 {
-    parent->mNodePosition->second.mChildren.erase(child);
+    assert(parent->mNodePosition->second.mChildren);
+    if (parent->mNodePosition->second.mChildren)
+    {
+        parent->mNodePosition->second.mChildren->erase(child);
+    }
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
