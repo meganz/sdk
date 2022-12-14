@@ -539,6 +539,7 @@ public:
     KeyManager(MegaClient& client) : mClient(client) {}
 
     // it's called to initialize the ^!keys attribute, since it does not exist yet
+    // prRSA is expected in base64 and 4 Ints format: pqdu
     void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
 
     // it derives master key and sets mKey
