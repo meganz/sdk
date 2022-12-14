@@ -8750,29 +8750,8 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
 int MegaApiImpl::syncPathState(string* platformEncoded)
 {
     LocalPath localpath = LocalPath::fromPlatformEncodedAbsolute(*platformEncoded);
-    handle containingSyncId = UNDEF;
 
-    for (auto& config : client->syncs.getConfigs(true))
-    {
-        if (config.mLocalPath.isContainingPathOf(localpath))
-        {
-            if (!config.mEnabled || config.mRunState != SyncRunState::Run)
-            {
-                return MegaApi::STATE_IGNORED;
-            }
-
-            auto debrisPath = config.mLocalPath;
-            debrisPath.appendWithSeparator(LocalPath::fromRelativePath(DEBRISFOLDER), false);
-
-            if (debrisPath.isContainingPathOf(localpath))
-            {
-                return MegaApi::STATE_IGNORED;
-            }
-
-            containingSyncId = config.mBackupId;
-            break;
-        }
-    }
+    handle containingSyncId = client->syncs.getSyncIdContainingActivePath(localpath);
 
     if (containingSyncId == UNDEF) return MegaApi::STATE_IGNORED;
 
@@ -8782,14 +8761,26 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
     if ((!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10))) ||
         (syncPathStateLockTimeout && !g.try_lock()))
     {
+        // mLocalNodeChangeMutex is not locked
+
         if (!syncPathStateLockTimeout)
         {
             LOG_verbose << "Cannot get lock to report treestate for path " << localpath;
         }
 
         syncPathStateLockTimeout = true;
+
+        // store up to 1000 paths for lookup later when we can lock mLocalNodeChangeMutex
+        lock_guard<mutex> g(syncPathStateDeferredSetMutex);
+        if (syncPathStateDeferredSet.size() < 1024)
+        {
+            syncPathStateDeferredSet.insert(localpath);
+        }
+
         return MegaApi::STATE_IGNORED;
     }
+
+    // mLocalNodeChangeMutex is locked (and will be unlocked by unique_lock destructor)
 
     treestate_t ts = client->syncs.getSyncStateForLocalPath(containingSyncId, localpath);
 
@@ -8799,6 +8790,33 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
 
         // once we do manage to lock, return to normal operation.
         syncPathStateLockTimeout = false;
+
+        // issue notifications for the OS to ask about the paths we skipped while we couldn't lock the mutex
+        auto tmp = std::make_shared<set<LocalPath>>();
+        {
+            lock_guard<mutex> g(syncPathStateDeferredSetMutex);
+            tmp->swap(syncPathStateDeferredSet);
+        }
+        LOG_verbose << "Issuing updates for OS path icon ovelays for . " << tmp->size() << " paths";
+        auto mc = client;
+        client->syncs.queueSync([tmp, mc](){
+            LOG_verbose << "Processing updates for OS path icon ovelays for . " << tmp->size() << " paths";
+            for (auto& p : *tmp)
+            {
+                treestate_t ts;
+                nodetype_t nt;
+                SyncConfig sc;
+                if (mc->syncs.getSyncStateForLocalPath(p, ts, nt, sc))
+                {
+                    mc->app->syncupdate_treestate(sc, p, ts, nt);
+                }
+            }
+            LOG_verbose << "Completed updates for OS path icon ovelays for . " << tmp->size() << " paths";
+
+            // avoid calling recursiveSync() straight away on the sync thread, which would mean we
+            // have the mLocalNodeChangeMutex locked, and we can't service the requests we just triggered
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        });
     }
 
     return ts;
