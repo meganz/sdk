@@ -797,14 +797,6 @@ TEST(JSONWriter, escape)
     EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
 }
 
-TEST(JSON, NullValue)
-{
-    string s = "\"foo\":,\"bar\":null,\"restof\":\"json\"}remainder"; // no leading '{'
-    JSON j(s);
-    EXPECT_EQ(j.getnameid(), j.getnameid("restof\"")); // no leading '"'
-    EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
-}
-
 TEST(JSON, stripWhitespace)
 {
     auto input = string(" a\rb\n c\r{\"a\":\"q\\r \\\" s\"\n} x y\n z\n");
