@@ -241,6 +241,34 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
             n->sharekey = new SymmCipher(s->key);
             skreceived = true;
+
+            // Save the key if it doesn't exist in mKeyManager
+            // It will happen for shares created with old clients
+            // or while mKeyManager.isSecure() is false
+            if (mKeyManager.generation() && !mKeyManager.getShareKey(n->nodehandle).size())
+            {
+                // This shouldn't happen if isSecure() is true, because in that case
+                // the keys arriving here should only come from mKeyManager
+                assert(!mKeyManager.isSecure());
+
+                handle nodehandle = n->nodehandle;
+                std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+                bool outgoing = s->outgoing;
+                mKeyManager.commit(
+                [this, nodehandle, shareKey, outgoing]()
+                {
+                    // Changes to apply in the commit
+                    if (outgoing)
+                    {
+                        mKeyManager.addOutShareKey(nodehandle, shareKey);
+                    }
+                    else
+                    {
+                        mKeyManager.addInShareKey(nodehandle, shareKey);
+                        mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
+                    }
+                }); // No completion callback
+            }
         }
     }
 
@@ -4992,7 +5020,7 @@ bool MegaClient::procsc()
                         mNodeManager.removeChanges();
 
                         // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
-                        if (!mKeyManager.generation() && mKeyManager.isSecure())
+                        if (loggedin() == FULLACCOUNT && !mKeyManager.generation())
                         {
                             app->upgrading_security();
                         }
@@ -6190,7 +6218,46 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
-                // TODO: if `mKeyManager.secure`, do not use `k` at all
+                if (mKeyManager.isSecure()) // Same logic as below but without using the key
+                {
+                    if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
+                    {
+                        return false;
+                    }
+
+                    if (r == ACCESS_UNKNOWN)
+                    {
+                        handle peer = outbound ? uh : oh;
+                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
+                        {
+                            User* u = finduser(peer);
+                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
+                        }
+                    }
+                    else
+                    {
+                        if (!outbound && statecurrent)
+                        {
+                            User* u = finduser(oh);
+                            // only new shares should be notified (skip permissions changes)
+                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                            if (newShare)
+                            {
+                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
+                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            }
+                        }
+                    }
+
+                    newshares.push_back(new NewShare(h, outbound,
+                                                     outbound ? uh : oh,
+                                                     r, ts, NULL, NULL, p,
+                                                     upgrade_pending_to_full,
+                                                     okremoved));
+
+                    return r == ACCESS_UNKNOWN;
+                }
+
                 if (k)
                 {
                     if (!decryptkey(k, sharekey, sizeof sharekey, &key, 1, h))
@@ -7610,9 +7677,9 @@ void MegaClient::sc_sqac()
 
 void MegaClient::sc_pk()
 {
-    if (!mKeyManager.isSecure() || !mKeyManager.generation())
+    if (!mKeyManager.generation())
     {
-        // Security upgrade not active yet
+        LOG_err << "Account not upgraded yet";
         return;
     }
 
@@ -9187,21 +9254,22 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         warn("Missing access level");
                     }
 
-                    if (!sk)
-                    {
-                        LOG_warn << "Missing share key for inbound share";
-                    }
-
                     if (warnlevel())
                     {
                         su = UNDEF;
                     }
                     else
                     {
-                        if (sk)
+                        if (!mKeyManager.isSecure())
                         {
-                            // TODO: do not use this key if 'secure'
-                            decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                            if (sk)
+                            {
+                                decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                            }
+                        }
+                        else
+                        {
+                            sk = nullptr;
                         }
                     }
                 }
@@ -9428,27 +9496,30 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!k)
+                if (!mKeyManager.isSecure())
                 {
-                    LOG_warn << "Missing outgoing share key in ok element";
-                    return;
-                }
-
-                if (!have_ha)
-                {
-                    LOG_warn << "Missing outbound share signature";
-                    return;
-                }
-
-                if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
-                {
-                    newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
-                    if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
+                    if (!k)
                     {
-                        handleauth(h, auth);
-                        if (!memcmp(auth, ha, sizeof buf))
+                        LOG_warn << "Missing outgoing share key in ok element";
+                        return;
+                    }
+
+                    if (!have_ha)
+                    {
+                        LOG_warn << "Missing outbound share signature";
+                        return;
+                    }
+
+                    if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
+                    {
+                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                        if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
                         {
-                            mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                            handleauth(h, auth);
+                            if (!memcmp(auth, ha, sizeof buf))
+                            {
+                                mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                            }
                         }
                     }
                 }
@@ -10931,12 +11002,6 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // Migrate the account to start using the new ^!keys attr.
 void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
 {
-    if (!mKeyManager.isSecure())
-    {
-        completion(API_ENOENT);
-        return;
-    }
-
     if (mKeyManager.generation())
     {
         LOG_warn << "Already upgraded";
@@ -11087,30 +11152,57 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         return;
     }
 
-    if (n->sharekey || !mKeyManager.isSecure())
+    if (!mKeyManager.generation())
     {
+        LOG_err << "Account not upgraded yet";
+        completion(API_EINCOMPLETE);
+        return;
+    }
+
+    if (!mKeyManager.isSecure())
+    {
+        // The key will be created (if needed) along with the share as before.
         completion(API_OK);
         return;
     }
 
-    LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
-    byte key[SymmCipher::KEYLENGTH];
-    rng.genblock(key, sizeof key);
-    n->sharekey = new SymmCipher(key);
+    std::string previousKey;
+    if (!n->sharekey)
+    {
+        previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+        }
+        else
+        {
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
+    }
 
     handle nodehandle = n->nodehandle;
-    std::string shareKey((const char *)key, SymmCipher::KEYLENGTH);
+    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
-    mKeyManager.commit(
-    [this, nodehandle, shareKey]()
+    if (!previousKey.size())
     {
-        // Changes to apply in the commit
-        mKeyManager.addOutShareKey(nodehandle, shareKey);
-    },
-    [completion]()
+        mKeyManager.commit(
+        [this, nodehandle, shareKey]()
+        {
+            // Changes to apply in the commit
+            mKeyManager.addOutShareKey(nodehandle, shareKey);
+        },
+        [completion]()
+        {
+            completion(API_OK);
+        });
+    }
+    else
     {
         completion(API_OK);
-    });
+    }
 }
 
 // if user has a known public key, complete instantly
@@ -11118,6 +11210,13 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
     assert(completion);
+
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        completion(API_EINCOMPLETE, writable);
+        return;
+    }
 
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
@@ -11158,11 +11257,18 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     if ((newshare = !n->sharekey))
     {
         LOG_warn << "You should first create the key using MegaClient::openShareDialog";
-
-        // no: create
-        byte key[SymmCipher::KEYLENGTH];
-        rng.genblock(key, sizeof key);
-        n->sharekey = new SymmCipher(key);
+        std::string previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            // no: create
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+        }
+        else
+        {
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
     }
 
     handle nodehandle = n->nodehandle;
@@ -11180,9 +11286,14 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         }
 
         User *u = getUserForSharing(uid.c_str());
+        std::string nuid = uid;
+        if (u)
+        {
+            nuid = u->uid;
+        }
         handle userhandle = u ? u->userhandle : UNDEF;
         reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, uid, userhandle, nodehandle, a, shareKey, completion](Error e, bool writable)
+        [this, nuid, userhandle, nodehandle, shareKey, completion](Error e, bool writable)
         {
             if (e || ISUNDEF(userhandle))
             {
@@ -11199,7 +11310,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             }
 
             reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [this, uid, nodehandle, completion, e, writable](Error err)
+            [this, nuid, nodehandle, completion, e, writable](Error err)
             {
                 if (err)
                 {
@@ -11210,10 +11321,10 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                 {
                     LOG_debug << "Share key correctly sent";
                     mKeyManager.commit(
-                    [this, nodehandle, uid]()
+                    [this, nodehandle, nuid]()
                     {
                         // Changes to apply in the commit
-                        mKeyManager.removePendingOutShare(nodehandle, uid);
+                        mKeyManager.removePendingOutShare(nodehandle, nuid);
                     },
                     [completion, writable]()
                     {
@@ -13696,7 +13807,7 @@ void MegaClient::initializekeys()
 
     User *u = finduser(me);
 
-    if (mKeyManager.isSecure() && mKeyManager.generation())   // account is secured and has ^!keys already available
+    if (mKeyManager.generation())   // account has ^!keys already available
     {
         prEd255 = mKeyManager.privEd25519();
         prCu255 = mKeyManager.privCu25519();
@@ -13869,11 +13980,8 @@ void MegaClient::initializekeys()
             EdDSA *signkey = new EdDSA(rng);
             ECDH *chatkey = new ECDH();
 
-            if (mKeyManager.isSecure())   // account is secured
-            {
-                prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
-                prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
-            }
+            prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
+            prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
@@ -13891,31 +13999,28 @@ void MegaClient::initializekeys()
 
             // private keys
             string buf;
-            attr_t atPrivKeys;
-            if (mKeyManager.isSecure()) // save private keys into the ^!keys attribute
-            {
-                assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
-                mKeyManager.setKey(key);
-                mKeyManager.init(prEd255, prCu255, mPrivKey);
 
-                // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
-                // Since the account is being initialized, putua should not fail.
-                buf = mKeyManager.toKeysContainer();
-                atPrivKeys = ATTR_KEYS;
-            }
-            else // save private keys into the *!keyring attribute
+            // save private keys into the ^!keys attribute
+            assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
+            mKeyManager.setKey(key);
+            mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+            // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
+            // Since the account is being initialized, putua should not fail.
+            buf = mKeyManager.toKeysContainer();
+            attrs[ATTR_KEYS] = buf;
+
+            if (!mKeyManager.isSecure())
             {
-                // prepare the TLV for private keys
+                // save private keys into the *!keyring attribute
                 TLVstore tlvRecords;
                 tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
                 tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
                 unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
 
                 buf.assign(tlvContainer->data(), tlvContainer->size());
-
-                atPrivKeys = ATTR_KEYRING;
+                attrs[ATTR_KEYRING] = buf;
             }
-            attrs[atPrivKeys] = buf;
 
             // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -14158,8 +14263,10 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             putua(&attrs, 0,
             [this, authringType, serializedAuthring](Error e)
             {
-                if (e || !mKeyManager.isSecure())
+                if (e || !mKeyManager.generation())
                 {
+                    // We have failed (or the account has not been upgraded),
+                    // so we don't propagate the changes to mKeyManager
                     return;
                 }
 
@@ -14340,8 +14447,10 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             putua(&attrs, 0,
             [this, authringType, serializedAuthring](Error e)
             {
-                if (e || !mKeyManager.isSecure())
+                if (e || !mKeyManager.generation())
                 {
+                    // We have failed (or the account has not been upgraded),
+                    // so we don't propagate the changes to mKeyManager
                     return;
                 }
 
@@ -14425,9 +14534,10 @@ error MegaClient::verifyCredentials(handle uh)
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
     [this, tag, serializedAuthring](Error e)
     {
-        if (e || !mKeyManager.isSecure())
+        if (e || !mKeyManager.generation())
         {
-            // We have failed, so we don't propagate the changes to mKeyManager
+            // We have failed (or the account has not been upgraded),
+            // so we don't propagate the changes to mKeyManager
             restag = tag;
             app->putua_result(e);
             return;
@@ -14495,9 +14605,10 @@ error MegaClient::resetCredentials(handle uh)
         putua(&attrs, 0,
         [this, tag, serializedAuthring, serializedAuthCU255](Error e)
         {
-            if (e || !mKeyManager.isSecure())
+            if (e || !mKeyManager.generation())
             {
-                // We have failed, so we don't propagate the changes to mKeyManager
+                // We have failed (or the account has not been upgraded),
+                // so we don't propagate the changes to mKeyManager
                 restag = tag;
                 app->putua_result(e);
                 return;
@@ -21886,6 +21997,14 @@ void KeyManager::loadShareKeys()
 void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
 {
     LOG_debug << "[keymgr] New commit requested";
+    if (mVersion == 0)
+    {
+        LOG_err << "Not initialized yet. Cancelling the update.";
+        assert(false);
+        completion();
+        return;
+    }
+
     commitQueue.emplace(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
     if (activeCommit)
     {

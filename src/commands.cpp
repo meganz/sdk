@@ -2025,7 +2025,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
         }
         else
         {
-            // TODO: dummy key/handleauth - FIXME: remove
+            // TODO: dummy key/handleauth - FIXME: remove when the server allows it
             memset(key, 0, sizeof key);
             memset(auth, 0, sizeof auth);
             arg("ok", key, sizeof key);
@@ -3180,7 +3180,10 @@ bool CommandPutMultipleUAVer::procresult(Result r)
             }
             else if (type == ATTR_KEYS)
             {
-                client->mKeyManager.fromKeysContainer(attrs[type]);
+                if (!client->mKeyManager.fromKeysContainer(attrs[type]))
+                {
+                    LOG_err << "Error processing new received values for the Key Manager.";
+                }
             }
             else if (User::isAuthring(type))
             {
@@ -3307,7 +3310,10 @@ bool CommandPutUAVer::procresult(Result r)
             }
             else if (at == ATTR_KEYS)
             {
-                client->mKeyManager.fromKeysContainer(av);
+                if (!client->mKeyManager.fromKeysContainer(av))
+                {
+                    LOG_err << "Error processing new received values for the Key Manager.";
+                }
             }
 
             client->notifyuser(u);
@@ -3671,13 +3677,10 @@ bool CommandGetUA::procresult(Result r)
 
                             if (at == ATTR_KEYS)
                             {
-                                if (client->mKeyManager.isSecure())
+                                string d((const char*)value.data(), value.size());
+                                if (!client->mKeyManager.fromKeysContainer(d))
                                 {
-                                    string d((const char*)value.data(), value.size());
-                                    if (!client->mKeyManager.fromKeysContainer(d))
-                                    {
-                                        LOG_err << "Error processing new received values for the Key Manager.";
-                                    }
+                                    LOG_err << "Error processing new received values for the Key Manager.";
                                 }
                             }
 
@@ -4727,7 +4730,10 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                     client->mKeyManager.setKey(client->key);
-                    client->mKeyManager.fromKeysContainer(keys);
+                    if (!client->mKeyManager.fromKeysContainer(keys))
+                    {
+                        LOG_err << "Error processing new received values for the Key Manager.";
+                    }
                 }
 
                 if (changes > 0)
@@ -5979,10 +5985,7 @@ bool CommandFetchNodes::procresult(Result r)
         return true;
     }
 
-    if (client->mKeyManager.isSecure())
-    {
-        client->mKeyManager.cacheShareKeys();
-    }
+    client->mKeyManager.cacheShareKeys();
 
     for (;;)
     {

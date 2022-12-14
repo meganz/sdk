@@ -91,8 +91,14 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 
 void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 {
+    assert(!client->mKeyManager.isSecure());
+    // This class can be removed as soon as isSecure() is true
+    // It's the same as the isSecure() code path in MegaClient::setshare
+    // but having the public RSA key of the target to send the
+    // share key also using the old method
+
+    std::string msg = selfemail;
     Node* n;
-    int newshare;
 
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
@@ -101,20 +107,127 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         return;
     }
 
-    // do we already have a share key for this node?
-    if ((newshare = !n->sharekey))
+    if (a == ACCESS_UNKNOWN)
     {
-        // no: create
-        byte key[SymmCipher::KEYLENGTH];
-
-        client->rng.genblock(key, sizeof key);
-
-        n->sharekey = new SymmCipher(key);
+        client->reqs.add(new CommandSetShare(client, n, u, a, 0, NULL, mWritable, msg.c_str(), tag, move(completion)));
+        return;
     }
 
-    // we have all ingredients ready: the target user's public key, the share
-    // key and all nodes to share
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str(), tag, move(completion)));
+    std::string uid;
+    if (u)
+    {
+        uid = u->uid;
+    }
+
+    // do we already have a share key for this node?
+    int newshare;
+    if ((newshare = !n->sharekey))
+    {
+        LOG_warn << "You should first create the key using MegaClient::openShareDialog";
+        std::string previousKey = client->mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            // no: create
+            byte key[SymmCipher::KEYLENGTH];
+            client->rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+        }
+        else
+        {
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
+    }
+
+    // We need to copy all data because "this" (the object) will be deleted
+    // when this function finishes
+    handle nodehandle = n->nodehandle;
+    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+    bool writable = mWritable;
+    accesslevel_t accessLevel = a;
+    std::function<void(Error, bool writable)> completionCallback = std::move(completion);
+    int reqtag = tag;
+
+    std::function<void()> completeShare =
+    [client, uid, nodehandle, accessLevel, newshare, msg, reqtag, shareKey, writable, completionCallback]()
+    {
+        Node *n;
+        // node vanished: bail
+        if (!(n = client->nodebyhandle(nodehandle)))
+        {
+            completionCallback(API_ENOENT, writable);
+            return;
+        }
+
+        User *u = client->getUserForSharing(uid.c_str());
+        handle userhandle = u ? u->userhandle : UNDEF;
+        client->reqs.add(new CommandSetShare(client, n, u, accessLevel, newshare, NULL, writable, msg.c_str(), reqtag,
+        [client, uid, userhandle, nodehandle, shareKey, completionCallback](Error e, bool writable)
+        {
+            if (e || ISUNDEF(userhandle))
+            {
+                completionCallback(e, writable);
+                return;
+            }
+
+            std::string encryptedKey = client->mKeyManager.encryptShareKeyTo(userhandle, shareKey);
+            if (!encryptedKey.size())
+            {
+                LOG_debug << "Unable to send keys to the target. The outshare is pending.";
+                completionCallback(e, writable);
+                return;
+            }
+
+            client->reqs.add(new CommandPendingKeys(client, userhandle, nodehandle, (byte *)encryptedKey.data(),
+            [client, uid, nodehandle, e, writable, completionCallback](Error err)
+            {
+                if (err)
+                {
+                    LOG_err << "Error sending share key: " << err;
+                    completionCallback(e, writable);
+                }
+                else
+                {
+                    LOG_debug << "Share key correctly sent";
+                    client->mKeyManager.commit(
+                    [client, nodehandle, uid]()
+                    {
+                        // Changes to apply in the commit
+                        client->mKeyManager.removePendingOutShare(nodehandle, uid);
+                    },
+                    [completionCallback, writable]()
+                    {
+                        completionCallback(API_OK, writable);
+                    });
+                }
+            }));
+        }));
+    };
+
+    if (newshare || uid.size())
+    {
+        client->mKeyManager.commit(
+        [client, newshare, nodehandle, shareKey, uid]()
+        {
+            // Changes to apply in the commit
+            if (newshare)
+            {
+                // Add outshare key into ^!keys
+                client->mKeyManager.addOutShareKey(nodehandle, shareKey);
+            }
+
+            if (uid.size())
+            {
+                // Add pending outshare;
+                client->mKeyManager.addPendingOutShare(nodehandle, uid);
+            }
+        },
+        [completeShare]()
+        {
+            completeShare();
+        });
+        return;
+    }
+    completeShare();
 }
 
 // share node sh with access level sa

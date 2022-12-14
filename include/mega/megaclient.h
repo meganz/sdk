@@ -617,7 +617,7 @@ private:
     SymmCipher mKey;
 
     // client is consider to exchange keys in a secure way
-    bool mSecure = true;
+    bool mSecure = false;
 
     // true when the account is being created -> don't show warning to user "updading security",
     // false when the account is being upgraded to ^!keys -> show the warning

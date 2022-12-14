@@ -6814,20 +6814,8 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestL
 void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_UPGRADE_SECURITY, listener);
-    request->performRequest = [this, request]() {
-
-        if (!client->mKeyManager.isSecure())
-        {
-            return API_ENOENT;
-        }
-
-        // TODO: Ensure keymanager is not initialized at this point if migration is pending
-        // or add a new flag in key manager to wait before sending the attr to the API.
-        if (!client->mKeyManager.generation())
-        {
-            return API_EEXIST;
-        }
-
+    request->performRequest = [this, request]()
+    {
         client->upgradeSecurity([this, request](Error e) {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         });
