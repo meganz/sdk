@@ -17582,7 +17582,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
 
                     string freq;
-                    string until;
+                    m_time_t until = ScheduledRules::UNTIL_INVALID;
                     int interval = ScheduledRules::INTERVAL_INVALID;
                     ScheduledRules::rules_vector vWeek;
                     ScheduledRules::rules_vector vMonth;
@@ -17607,7 +17607,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                 }
                                 case MAKENAMEID1('u'):
                                 {
-                                    auxJson->storeobject(&until);
+                                    until = auxJson->getint();
                                     break;
                                 }
                                 case MAKENAMEID2('w', 'd'):

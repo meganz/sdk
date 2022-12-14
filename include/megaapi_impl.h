@@ -4155,7 +4155,7 @@ class MegaScheduledRulesPrivate : public MegaScheduledRules
 public:
     MegaScheduledRulesPrivate(int freq,
                                   int interval = INTERVAL_INVALID,
-                                  const char* until = nullptr,
+                                  MegaTimeStamp until = UNTIL_INVALID,
                                   const mega::MegaIntegerList* byWeekDay = nullptr,
                                   const mega::MegaIntegerList* byMonthDay = nullptr,
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -4167,12 +4167,13 @@ public:
     MegaScheduledRulesPrivate* copy() const override;
     int freq() const override;
     int interval() const override;
-    const char* until() const override;
+    MegaTimeStamp until() const override;
     const mega::MegaIntegerList* byWeekDay() const override;
     const mega::MegaIntegerList* byMonthDay() const override;
     const mega::MegaIntegerMap* byMonthWeekDay() const override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+    static bool isValidUntil(m_time_t until) { return until > UNTIL_INVALID; }
     ScheduledRules* getSdkScheduledRules() const;
 
 private:
@@ -4183,7 +4184,7 @@ private:
     int mInterval = INTERVAL_INVALID;
 
     // specifies when the repetitions should end
-    std::string mUntil;
+    m_time_t mUntil;
 
     // allows us to specify that an event will only occur on given week day/s
     std::unique_ptr<mega::MegaIntegerList> mByWeekDay;

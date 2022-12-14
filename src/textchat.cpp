@@ -80,13 +80,13 @@ ScheduledFlags* ScheduledFlags::unserialize(const std::string &in)
 /* class scheduledRules */
 ScheduledRules::ScheduledRules(int freq,
                               int interval,
-                              const string& until,
+                              m_time_t until,
                               const rules_vector* byWeekDay,
                               const rules_vector* byMonthDay,
                               const rules_map* byMonthWeekDay)
     : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-      mUntil(until),
+      mUntil(isValidUntil(until) ? until : UNTIL_INVALID),
       mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
       mByMonthDay(byMonthDay ? new rules_vector(*byMonthDay) : nullptr),
       mByMonthWeekDay(byMonthWeekDay ? new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
@@ -114,7 +114,7 @@ ScheduledRules::~ScheduledRules()
 
 ScheduledRules::freq_type_t ScheduledRules::freq() const                    { return mFreq; }
 int ScheduledRules::interval() const                                        { return mInterval; }
-const std::string& ScheduledRules::until() const                            { return mUntil;}
+m_time_t ScheduledRules::until() const                                      { return mUntil;}
 const ScheduledRules::rules_vector* ScheduledRules::byWeekDay() const       { return mByWeekDay.get(); }
 const ScheduledRules::rules_vector* ScheduledRules::byMonthDay() const      { return mByMonthDay.get(); }
 const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay() const     { return mByMonthWeekDay.get(); }
@@ -139,7 +139,7 @@ bool ScheduledRules::equalTo(const mega::ScheduledRules *r) const
     if (!r)                            { return false; }
     if (mFreq != r->freq())            { return false; }
     if (mInterval != r->interval())    { return false; }
-    if (mUntil.compare(r->until()))    { return false; }
+    if (mUntil != r->until())          { return false; }
 
     if (mByWeekDay || r->byWeekDay())
     {
@@ -174,7 +174,7 @@ bool ScheduledRules::serialize(string& out) const
 {
     assert(isValidFreq(mFreq));
     bool hasInterval = isValidInterval(mInterval);
-    bool hasUntil = !mUntil.empty();
+    bool hasUntil = isValidUntil(mUntil);
     bool hasByWeekDay = mByWeekDay.get() && !mByWeekDay->empty();
     bool hasByMonthDay = mByMonthDay.get() && !mByMonthDay->empty();
     bool hasByMonthWeekDay = mByMonthWeekDay.get() && !mByMonthWeekDay->empty();
@@ -184,7 +184,7 @@ bool ScheduledRules::serialize(string& out) const
     w.serializeexpansionflags(hasInterval, hasUntil, hasByWeekDay, hasByMonthDay, hasByMonthWeekDay);
 
     if (hasInterval) { w.serializei32(mInterval); }
-    if (hasUntil)    { w.serializestring(mUntil); }
+    if (hasUntil)    { w.serializei64(mUntil); }
     if (hasByWeekDay)
     {
         w.serializeu32(static_cast<uint32_t>(mByWeekDay->size()));
@@ -220,7 +220,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     if (in.empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
-    std::string until;
+    m_time_t until;
     rules_vector byWeekDay;
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
@@ -249,7 +249,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
         return nullptr;
     }
 
-    if (hasUntil && !r.unserializestring(until))
+    if (hasUntil && !r.unserializei64(until))
     {
         assert(false);
         LOG_err << "Failure at schedule meeting rules unserialization until";

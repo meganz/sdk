@@ -33510,13 +33510,13 @@ ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return
 /* Class MegaScheduledRulesPrivate */
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
                               int interval,
-                              const char* until,
+                              MegaTimeStamp until,
                               const ::mega::MegaIntegerList* byWeekDay,
                               const ::mega::MegaIntegerList* byMonthDay,
                               const ::mega::MegaIntegerMap* byMonthWeekDay):
     mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
     mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-    mUntil(until ? until : std::string()),
+    mUntil(isValidUntil(until) ? until : UNTIL_INVALID),
     mByWeekDay(byWeekDay ? byWeekDay->copy() : nullptr),
     mByMonthDay (byMonthDay ? byMonthDay->copy() : nullptr),
     mByMonthWeekDay(byMonthWeekDay ? byMonthWeekDay->copy() : nullptr)
@@ -33526,7 +33526,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
         mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
         mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
-        mUntil(rules->until() ? rules->until() : std::string()),
+        mUntil(isValidUntil(rules->until()) ? rules->until() : UNTIL_INVALID),
         mByWeekDay(rules->byWeekDay() ? rules->byWeekDay()->copy() : nullptr),
         mByMonthDay (rules->byMonthDay() ? rules->byMonthDay()->copy() : nullptr),
         mByMonthWeekDay(rules->byMonthWeekDay() ? rules->byMonthWeekDay()->copy() : nullptr)
@@ -33554,7 +33554,7 @@ MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy() const
 
 int MegaScheduledRulesPrivate::freq() const                                     { return mFreq; }
 int MegaScheduledRulesPrivate::interval() const                                 { return mInterval; }
-const char* MegaScheduledRulesPrivate::until() const                            { return !mUntil.empty() ? mUntil.c_str() : nullptr; }
+MegaTimeStamp MegaScheduledRulesPrivate::until() const                          { return mUntil; }
 const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const     { return mByWeekDay.get(); }
 const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const    { return mByMonthDay.get(); }
 const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const { return mByMonthWeekDay.get(); }

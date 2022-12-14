@@ -33,6 +33,7 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef int64_t MegaTimeStamp; // unix timestamp
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -2876,6 +2877,7 @@ public:
     };
 
     constexpr static int INTERVAL_INVALID = 0;
+    constexpr static int UNTIL_INVALID = 0;
     virtual ~MegaScheduledRules();
 
     /**
@@ -2892,7 +2894,7 @@ public:
      */
     static MegaScheduledRules* createInstance(int freq,
                                                   int interval = INTERVAL_INVALID,
-                                                  const char* until = nullptr,
+                                                  MegaTimeStamp until = UNTIL_INVALID,
                                                   const ::mega::MegaIntegerList* byWeekDay = nullptr,
                                                   const ::mega::MegaIntegerList* byMonthDay = nullptr,
                                                   const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -2924,11 +2926,11 @@ public:
     virtual int interval() const;
 
     /**
-     * @brief Returns when the repetitions should end
+     * @brief Returns when the repetitions should end (unix timestamp)
      *
      * @return When the repetitions should end
      */
-    virtual const char* until() const;
+    virtual MegaTimeStamp until() const;
 
     /**
      * @brief Returns a MegaIntegerList with the week days when the event will occur
