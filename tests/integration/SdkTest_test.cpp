@@ -743,13 +743,9 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-
-    mApi[apiIndex].megaApi->fetchNodes();
-
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
-            << "Fetchnodes failed after " << timeout  << " seconds";
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Fetchnodes failed (error: " << mApi[apiIndex].lastError << ")";
+    RequestTracker rt(megaApi[apiIndex].get());
+    mApi[apiIndex].megaApi->fetchNodes(&rt);
+    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)

@@ -330,7 +330,6 @@ struct StandardClient : public MegaApp
     void syncupdate_scanning(bool b) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
-    void syncupdate_local_lockretry(bool b) override;
 
 #ifdef DEBUG
     using SyncDebugNotificationHandler =
@@ -586,6 +585,16 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
+    // setupBackup is implicitly in Vault
+    handle setupBackup_mainthread(const string& rootPath);
+    handle setupBackup_mainthread(const string& rootPath,
+                                const SyncOptions& syncOptions);
+
+    void setupBackup_inThread(const string& rootPath,
+                            const SyncOptions& syncOptions,
+                            PromiseHandleSP result);
+
+    // isBackup here allows configuring backups that are not in vault
     handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
                                 const bool isBackup,
