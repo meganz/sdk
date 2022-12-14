@@ -176,6 +176,13 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     pst.timestamp = m_time() - timeDelta;
     pst.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+#ifdef ENABLE_CHAT
+    if (pst.userHandle == UNDEF)
+    {
+        // just for scheduled meetings user alerts (requested API to unify with above)
+        pst.userHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
+    }
+#endif
     pst.userEmail = un.getstring('m', "");
 
     tag = -1;
@@ -1287,6 +1294,280 @@ UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
     return nullptr;
 }
 
+#ifdef ENABLE_CHAT
+UserAlert::NewScheduledMeeting::NewScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "NewScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+}
+
+void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaClient* mc)
+{
+    Base::updateEmail(mc);
+    ostringstream oss;
+    oss << "New Scheduled Meeting details:"
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
+        << "\n\tCreated by: " << pst.userEmail;
+
+    header = "New Scheduled Meeting";
+    title = oss.str();
+
+    LOG_debug << title;
+}
+
+bool UserAlert::NewScheduledMeeting::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
+    w.serializeexpansionflags();
+
+    return true;
+}
+
+UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(string* d, unsigned id)
+{
+    auto b = Base::unserialize(d);
+    if (!b) return nullptr;
+
+    handle sm = UNDEF;
+    unsigned char expF[8];
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(sm)
+        && r.unserializeexpansionflags(expF, 0))
+    {
+        auto* nsm = new NewScheduledMeeting(b->userHandle, b->timestamp, id, sm);
+        nsm->setSeen(b->seen);
+        nsm->setRelevant(b->relevant);
+        return nsm;
+    }
+
+    return nullptr;
+}
+
+UserAlert::DeletedScheduledMeeting::DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "DeletedScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+}
+
+void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, MegaClient* mc)
+{
+    Base::updateEmail(mc);
+    ostringstream oss;
+    oss << "Deleted Scheduled Meeting details:"
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
+        << "\n\tDeleted by: " << pst.userEmail;
+
+    header = "Deleted Scheduled Meeting";
+    title = oss.str();
+
+    LOG_debug << title;
+}
+
+bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
+    w.serializeexpansionflags();
+
+    return true;
+}
+
+UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserialize(string* d, unsigned id)
+{
+    auto b = Base::unserialize(d);
+    if (!b) return nullptr;
+
+    handle sm = UNDEF;
+    unsigned char expF[8];
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(sm)
+        && r.unserializeexpansionflags(expF, 0))
+    {
+        auto* dsm = new DeletedScheduledMeeting(b->userHandle, b->timestamp, id, sm);
+        dsm->setSeen(b->seen);
+        dsm->setRelevant(b->relevant);
+        return dsm;
+    }
+
+    return nullptr;
+}
+
+UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
+{
+    mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mSchedMeetingHandle == UNDEF)
+    {
+        assert(false);
+        LOG_err << "UpdatedScheduledMeeting user alert ctor: invalid scheduled meeting id";
+        return;
+    }
+
+    JSON auxJson = un.field(MAKENAMEID2('c', 's'));
+    if (auxJson.pos)
+    {
+        if (auxJson.enterobject())
+        {
+            if (MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset) != API_OK)
+            {
+                LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+            }
+            auxJson.leaveobject();
+        }
+        else
+        {
+            assert(false);
+            LOG_err << "UpdatedScheduledMeeting user alert ctor: Ill-formed user alert";
+        }
+    }
+}
+
+void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, MegaClient* mc)
+{
+    Base::updateEmail(mc);
+    ostringstream oss;
+    oss << "Updated Scheduled Meeting details:"
+        << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
+        << "\n\tUpdated by: " << pst.userEmail;
+
+    for (int changeType = 0; changeType < Changeset::CHANGE_TYPE_SIZE; ++changeType)
+    {
+        if (!mUpdatedChangeset.hasChanged(changeType)) continue;
+
+        oss << "\n\t\t" << mUpdatedChangeset.changeToString(changeType) << " updated";
+        if (changeType == Changeset::CHANGE_TYPE_TITLE && mUpdatedChangeset.getUpdatedTitle())
+        {
+            const auto& titleCS = mUpdatedChangeset.getUpdatedTitle();
+            oss << ": previous title |" << Base64::atob(titleCS->oldValue)
+                << "| new title |" << Base64::atob(titleCS->newValue) << "|";
+        }
+    };
+
+    header = "Updated Scheduled Meeting";
+    title = oss.str();
+
+    LOG_debug << title;
+}
+
+bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(mSchedMeetingHandle);
+
+    w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
+        && mUpdatedChangeset.getUpdatedTitle())
+    {
+        const auto& titleCS = mUpdatedChangeset.getUpdatedTitle();
+        w.serializestring(titleCS->oldValue);
+        w.serializestring(titleCS->newValue);
+    }
+
+    w.serializeexpansionflags();
+
+    return true;
+}
+
+UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserialize(string* d, unsigned id)
+{
+    auto b = Base::unserialize(d);
+    if (!b) return nullptr;
+
+    handle sm = UNDEF;
+    uint64_t bits = 0;
+    unsigned char expF[8];
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(sm)
+        && r.unserializeu64(bits))
+    {
+        unique_ptr<Changeset::TitleChangeset> tcs;
+        std::bitset<Changeset::CHANGE_TYPE_SIZE> bs (static_cast<unsigned long>(bits));
+        if (bs[Changeset::CHANGE_TYPE_TITLE])
+        {
+            string oldTitle;
+            string newTitle;
+            if (r.unserializestring(oldTitle) && r.unserializestring(newTitle))
+            {
+                tcs.reset(new Changeset::TitleChangeset{oldTitle, newTitle});
+            }
+        }
+
+        if (r.unserializeexpansionflags(expF, 0))
+        {
+            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
+            usm->setRelevant(b->relevant);
+            usm->setSeen(b->seen);
+        }
+    }
+
+    return nullptr;
+}
+
+UserAlert::UpdatedScheduledMeeting::Changeset::Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
+                                                         unique_ptr<TitleChangeset>& _titleCS)
+    : mUpdatedFields(_bs), mUpdatedTitle(std::move(_titleCS))
+{
+    if (!invariant())
+    {
+        LOG_err << "ScheduledMeetings: Ill-formed Changeset construction";
+        assert(false);
+    }
+}
+
+string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeType) const
+{
+    switch (changeType)
+    {
+    case CHANGE_TYPE_TITLE:        return "Title";
+    case CHANGE_TYPE_DESCRIPTION:  return "Description";
+    case CHANGE_TYPE_CANCELLED:    return "Cancelled";
+    case CHANGE_TYPE_TIMEZONE:     return "TimeZone";
+    case CHANGE_TYPE_STARTDATE:    return "StartDate";
+    case CHANGE_TYPE_ENDDATE:      return "EndDate";
+    case CHANGE_TYPE_RULES:        return "Rules";
+    default:                       return "Unexpected Field";
+    }
+}
+
+void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
+                                                              const string& oldValue,
+                                                              const string& newValue)
+{
+    if (isValidChange(changeType))
+    {
+        mUpdatedFields[static_cast<size_t>(changeType)] = true;
+        if (changeType == CHANGE_TYPE_TITLE)
+        {
+            mUpdatedTitle.reset(new TitleChangeset{oldValue, newValue});
+        }
+    }
+    if (!invariant())
+    {
+        LOG_err << "ScheduledMeetings: Ill-formed update changeset received";
+        assert(false);
+    }
+}
+#endif
+
 UserAlerts::UserAlerts(MegaClient& cmc)
     : mc(cmc)
     , nextid(0)
@@ -1395,6 +1676,23 @@ void UserAlerts::add(UserAlertRaw& un)
     case type_ph:
         unb = new Takedown(un, nextId());
         break;
+#ifdef ENABLE_CHAT
+    case type_nusm:
+    {
+        if (!un.has(MAKENAMEID2('c', 's'))) // if cs is not present, is a new scheduled meeting
+        {
+            unb = new NewScheduledMeeting(un, nextId());
+        }
+        else
+        {
+            unb = new UpdatedScheduledMeeting(un, nextId());
+        }
+    }
+    break;
+    case type_dsm:
+        unb = new DeletedScheduledMeeting(un, nextId());
+        break;
+#endif
     default:
         unb = NULL;   // If it's a notification type we do not recognise yet
     }
