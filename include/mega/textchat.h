@@ -142,7 +142,7 @@ public:
     ScheduledMeeting(handle chatid, const string& timezone, m_time_t startDateTime, const string& endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
                      handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
-                     const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
+                     m_time_t overrides = mega_invalid_timestamp, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
     ScheduledMeeting* copy() const;
@@ -162,7 +162,7 @@ public:
     const std::string &title() const;
     const std::string &description() const;
     const std::string &attributes() const;
-    const std::string &overrides() const;
+    m_time_t overrides() const;
     int cancelled() const;
     const ScheduledFlags* flags() const;
     const ScheduledRules* rules() const;
@@ -206,8 +206,8 @@ private:
     // attributes to store any additional data
     std::string mAttributes;
 
-    // start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
-    std::string mOverrides;
+    // start dateTime of the original meeting series event to be replaced (unix timestamp)
+    m_time_t mOverrides;
 
     // cancelled flag
     int mCancelled;

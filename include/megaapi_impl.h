@@ -4210,7 +4210,7 @@ public:
                                     MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
-                                    const char* overrides = nullptr,
+                                    MegaTimeStamp overrides = MEGA_INVALID_TIMESTAMP,
                                     MegaScheduledFlags* flags = nullptr,
                                     MegaScheduledRules* rules = nullptr);
 
@@ -4230,7 +4230,7 @@ public:
     const char* title() const override;
     const char* description() const override;
     const char* attributes() const override;
-    const char* overrides() const override;
+    MegaTimeStamp overrides() const override;
     int cancelled() const override;
     MegaScheduledFlags* flags() const override;
     MegaScheduledRules* rules() const override;

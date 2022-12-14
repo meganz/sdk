@@ -592,7 +592,7 @@ public:
     string getWritableLinkAuthKey(handle node);
 
     // method to check if a timestamp (m_time_t) is valid or not
-    static bool isValidMegaTimeStamp(m_time_t val) { return val > 0; }
+    static bool isValidMegaTimeStamp(m_time_t val) { return val > mega_invalid_timestamp; }
 
 #ifdef ENABLE_CHAT
     // all chats

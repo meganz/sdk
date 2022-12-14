@@ -17488,7 +17488,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         std::string title;
         std::string description;
         std::string attributes;
-        std::string overrides;
+        m_time_t overrides;
         int cancelled = 0;
         std::unique_ptr<ScheduledFlags> flags;
         std::unique_ptr<ScheduledRules> rules;
@@ -17549,7 +17549,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID1('o'): // override
                 {
-                    auxJson->storeobject(&overrides);
+                    overrides = auxJson->getint();
                     break;
                 }
                 case MAKENAMEID1('c'): // cancelled

@@ -33570,7 +33570,7 @@ ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
 /* Class MegaScheduledMeetingPrivate */
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, MegaTimeStamp startDateTime, const char* endDateTime,
                                                                   const char* title, const char* description, MegaHandle schedId, MegaHandle parentSchedId,
-                                                                  MegaHandle organizerUserId, int cancelled, const char* attributes, const char* overrides,
+                                                                  MegaHandle organizerUserId, int cancelled, const char* attributes, MegaTimeStamp overrides,
                                                                   MegaScheduledFlags* flags, MegaScheduledRules* rules)
     : mScheduledMeeting(new ScheduledMeeting(chatid,
                                              timezone ? timezone : std::string(),
@@ -33583,7 +33583,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, cons
                                              parentSchedId,
                                              cancelled,
                                              attributes ? attributes : std::string(),
-                                             overrides ? overrides : std::string(),
+                                             overrides,
                                              flags ? static_cast<MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags() : nullptr,
                                              rules ? static_cast<MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules() : nullptr))
 {
@@ -33618,7 +33618,7 @@ const char* MegaScheduledMeetingPrivate::endDateTime() const                    
 const char* MegaScheduledMeetingPrivate::title() const                          { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
 const char* MegaScheduledMeetingPrivate::description() const                    { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
 const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->description().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
-const char* MegaScheduledMeetingPrivate::overrides() const                      { return mScheduledMeeting->overrides().size() ? mScheduledMeeting->overrides().c_str() : nullptr; }
+MegaTimeStamp MegaScheduledMeetingPrivate::overrides() const                    { return mScheduledMeeting->overrides(); }
 int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
 MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}
 MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return mScheduledMeeting->rules() ? new MegaScheduledRulesPrivate(mScheduledMeeting->rules()) : nullptr;}

@@ -348,7 +348,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, const std::string &endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
-                                const std::string &overrides, ScheduledFlags* flags, ScheduledRules* rules)
+                                m_time_t overrides, ScheduledFlags* flags, ScheduledRules* rules)
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
       mSchedId(schedId),
@@ -405,7 +405,7 @@ const string& ScheduledMeeting::endDateTime() const                     { return
 const string& ScheduledMeeting::title() const                           { return mTitle; }
 const string& ScheduledMeeting::description() const                     { return mDescription; }
 const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
-const string& ScheduledMeeting::overrides() const                       { return mOverrides; }
+m_time_t ScheduledMeeting::overrides() const                            { return mOverrides; }
 int ScheduledMeeting::cancelled() const                                 { return mCancelled; }
 const ScheduledFlags* ScheduledMeeting::flags() const                   { return mFlags.get(); }
 const mega::ScheduledRules *ScheduledMeeting::rules() const             { return mRules.get(); }
@@ -452,6 +452,12 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting rules. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
+    if (mOverrides != mega_invalid_timestamp && !MegaClient::isValidMegaTimeStamp(mOverrides))
+    {
+        // overrides is an optional field so if it's not present, we will store mega_invalid_timestamp
+        LOG_warn << "Invalid scheduled meeting overrides: " << mOverrides;
+        return false;
+    }
     return true;
 }
 
@@ -465,7 +471,7 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
     if (mTitle.compare(sm->title()))                    { return false; }
     if (mDescription.compare(sm->description()))		{ return false; }
     if (mAttributes.compare(sm->attributes()))          { return false; }
-    if (mOverrides.compare(sm->overrides()))            { return false; }
+    if (mOverrides != sm->overrides())                  { return false; }
     if (mCancelled != sm->cancelled())                  { return false; }
 
     if (mFlags || sm->flags())
@@ -494,7 +500,7 @@ bool ScheduledMeeting::serialize(string& out) const
 
     bool hasParentSchedId = parentSchedId() != UNDEF;
     bool hasAttributes = !attributes().empty();
-    bool hasOverrides = !overrides().empty();
+    bool hasOverrides = MegaClient::isValidMegaTimeStamp(overrides());
     bool hasCancelled = cancelled() >= 0;
     bool hasflags = flags();
     bool hasRules = rules();
@@ -511,7 +517,7 @@ bool ScheduledMeeting::serialize(string& out) const
 
     if (hasParentSchedId) { w.serializehandle(parentSchedId());}
     if (hasAttributes)    { w.serializestring(mAttributes); }
-    if (hasOverrides)     { w.serializestring(mOverrides); }
+    if (hasOverrides)     { w.serializei64(mOverrides); }
     if (hasCancelled)     { w.serializei32(cancelled()); }
     if (hasflags)
     {
@@ -544,7 +550,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     std::string title;
     std::string description;
     std::string attributes;
-    std::string overrides;
+    m_time_t overrides;
     std::string flagsStr;
     std::string rulesStr;
     int cancelled = -1;
@@ -589,7 +595,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
         return nullptr;
     }
 
-    if (hasOverrides && !r.unserializestring(overrides))
+    if (hasOverrides && !r.unserializei64(overrides))
     {
        assert(false);
        LOG_err << "Failure at schedule meeting unserialization override";
