@@ -21581,12 +21581,21 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
     mPrivEd25519 = prEd25519;
     mPrivCu25519 = prCu25519;
 
-    // To store it in the short format if it is not already: pqd.
+    string prRSABin = Base64::atob(prRSA);
     AsymmCipher ac;
-    ac.setkey(AsymmCipher::PRIVKEY_SHORT, (unsigned char*)prRSA.data(), (int)prRSA.size());
-    string d;
+
+    LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
+
+    if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
+    {
+        LOG_warn << "Priv RSA key problem during KeyManager initialization.";
+        assert(false);
+    }
+    // Store it in the short format (3 Ints): pqd.
     mPrivRSA.clear();
     ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
+
+    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
 
     if (mSecure && !mPostRegistration)
     {
@@ -21697,9 +21706,6 @@ string KeyManager::serialize() const
     result.append(tagHeader(TAG_PRIV_CU25519, ECDH::PRIVATE_KEY_LENGTH));
     result.append(mPrivCu25519);
 
-    // FIXME: webclient sets a shorter format of private RSA key (pqd format)
-    // SDK doesn't support that format yet, but it will need to (unless web
-    // starts using the existing format, as received in `us` and `ug` commands
     assert(mPrivRSA.size() > 512);
     result.append(tagHeader(TAG_PRIV_RSA, mPrivRSA.size()));
     result.append(mPrivRSA);
@@ -22182,10 +22188,9 @@ bool KeyManager::unserialize(const string &keysContainer)
                 if (len < 512) return false;
                 mPrivRSA.assign(blob + offset, len);
                 LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
-                if (!decodeRSAKey(mPrivRSA)) // TODO Shall we replace current RSA as wc?
+                if (!decodeRSAKey(mPrivRSA))
                 {
                     LOG_warn << "Private key malformed while unserializing ^!keys.";
-                    return false;
                 }
                 // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
             }
@@ -22648,25 +22653,24 @@ string KeyManager::computeSymmetricKey(handle user)
 bool KeyManager::decodeRSAKey(const string& pqdKey)
 {
     string currentPK;
-    string keysPK;
+    size_t pos;
     bool keyOk;
 
-    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
-    // TODO review pqdKey field sizes between web and SDK to remove the following AsymmCipher.
-    // TODO review if we shall set an AsymmCipher in KeyManger for the RSA key
-    AsymmCipher keysPKCipher = AsymmCipher();
-    keyOk = keysPKCipher.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)pqdKey.data(), (int)pqdKey.size());
+    LOG_verbose << Base64::btoa(pqdKey) << "\n\n" << Utils::stringToHex(pqdKey);
 
-    if (!keyOk)
+    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
+
+    // Compare serialized keys using find just in case pqdKey has extra bytes. It should be found at pos = 0.
+    pos = pqdKey.find(currentPK);
+    keyOk = !pos;
+
+    mClient.mPrivKey = Base64::btoa(pqdKey);
+    if (!mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)pqdKey.data(), (int)pqdKey.size()))
     {
-        return keyOk;
+        keyOk = false;
     }
 
-    keysPKCipher.serializekey(&keysPK, AsymmCipher::PRIVKEY_SHORT);
-
-    keyOk = currentPK == keysPK;
     assert(keyOk);
-
     return keyOk;
 }
 
