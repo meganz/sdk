@@ -6323,9 +6323,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 {
-    // Convenience.
-    using FileFingerprintPtr = unique_ptr<FileFingerprint>;
-
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = std::chrono::seconds(4);
 
