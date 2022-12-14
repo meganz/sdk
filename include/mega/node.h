@@ -210,8 +210,9 @@ typedef fingerprint_set::iterator FingerprintPosition;
 class NodeManagerNode
 {
 public:
+    // Instances of this class cannot be copied
     std::unique_ptr<Node> mNode;
-    std::map<NodeHandle, Node*> mChildren;
+    std::unique_ptr<std::map<NodeHandle, Node*>> mChildren;
     bool mAllChildrenHandleLoaded = false;
 };
 typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
