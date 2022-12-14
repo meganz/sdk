@@ -345,7 +345,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 }
 
 /* class scheduledMeeting */
-ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, const std::string &startDateTime, const std::string &endDateTime,
+ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, const std::string &endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
                                 const std::string &overrides, ScheduledFlags* flags, ScheduledRules* rules)
@@ -354,7 +354,7 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, c
       mSchedId(schedId),
       mParentSchedId(parentSchedId),
       mTimezone(timezone),
-      mStartDateTime(startDateTime ),
+      mStartDateTime(startDateTime),
       mEndDateTime(endDateTime),
       mTitle(title),
       mDescription(description),
@@ -400,7 +400,7 @@ handle ScheduledMeeting::organizerUserid() const                        { return
 handle ScheduledMeeting::schedId() const                                { return mSchedId; }
 handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedId; }
 const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
-const string& ScheduledMeeting::startDateTime() const                   { return mStartDateTime; }
+m_time_t ScheduledMeeting::startDateTime() const                        { return mStartDateTime; }
 const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }
 const string& ScheduledMeeting::title() const                           { return mTitle; }
 const string& ScheduledMeeting::description() const                     { return mDescription; }
@@ -432,7 +432,7 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting timezone. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
-    if (mStartDateTime.empty())
+    if (!MegaClient::isValidMegaTimeStamp(mStartDateTime))
     {
         LOG_warn << "Invalid scheduled meeting StartDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
@@ -460,7 +460,7 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
     if (!sm)                                            { return false; }
     if (parentSchedId() != sm->parentSchedId())         { return false; }
     if (mTimezone.compare(sm->timezone()))              { return false; }
-    if (mStartDateTime.compare(sm->startDateTime()))	{ return false; }
+    if (mStartDateTime != sm->startDateTime())          { return false; }
     if (mEndDateTime.compare(sm->endDateTime()))		{ return false; }
     if (mTitle.compare(sm->title()))                    { return false; }
     if (mDescription.compare(sm->description()))		{ return false; }
@@ -503,7 +503,7 @@ bool ScheduledMeeting::serialize(string& out) const
     w.serializehandle(schedId());
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
-    w.serializestring(mStartDateTime);
+    w.serializei64(mStartDateTime);
     w.serializestring(mEndDateTime);
     w.serializestring(mTitle);
     w.serializestring(mDescription);
@@ -539,7 +539,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     handle schedId = UNDEF;
     handle parentSchedId = UNDEF;
     std::string timezone;
-    std::string startDateTime;
+    m_time_t startDateTime;
     std::string endDateTime;
     std::string title;
     std::string description;
@@ -557,7 +557,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     if (!r.unserializehandle(schedId) ||
             !r.unserializehandle(organizerUserid) ||
             !r.unserializestring(timezone) ||
-            !r.unserializestring(startDateTime) ||
+            !r.unserializei64(startDateTime) ||
             !r.unserializestring(endDateTime) ||
             !r.unserializestring(title) ||
             !r.unserializestring(description) ||

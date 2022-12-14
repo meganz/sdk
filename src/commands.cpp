@@ -9512,7 +9512,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     // required params
     arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
     arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-    arg("s", schedMeeting->startDateTime().c_str());
+    arg("s", schedMeeting->startDateTime());
     arg("e", schedMeeting->endDateTime().c_str());
     arg("t", Base64::btoa(schedMeeting->title()).c_str());
     arg("d", Base64::btoa(schedMeeting->description()).c_str());

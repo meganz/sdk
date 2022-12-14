@@ -17483,7 +17483,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         handle schedId = UNDEF;
         handle parentSchedId = UNDEF;
         std::string timezone;
-        std::string startDateTime;
+        m_time_t startDateTime;
         std::string endDateTime;
         std::string title;
         std::string description;
@@ -17524,7 +17524,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID1('s'): // start date time
                 {
-                    auxJson->storeobject(&startDateTime);
+                    startDateTime = auxJson->getint();
                     break;
                 }
                 case MAKENAMEID1('e'): // end date time

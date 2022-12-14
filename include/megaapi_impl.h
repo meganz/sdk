@@ -4201,7 +4201,7 @@ class MegaScheduledMeetingPrivate: public MegaScheduledMeeting
 public:
     MegaScheduledMeetingPrivate(MegaHandle chatid,
                                     const char* timezone,
-                                    const char* startDateTime,
+                                    MegaTimeStamp startDateTime,
                                     const char* endDateTime,
                                     const char* title,
                                     const char* description,
@@ -4225,7 +4225,7 @@ public:
     MegaHandle parentSchedId() const override;
     MegaHandle organizerUserid() const override;
     const char* timezone() const override;
-    const char* startDateTime() const override;
+    MegaTimeStamp startDateTime() const override;
     const char* endDateTime() const override;
     const char* title() const override;
     const char* description() const override;

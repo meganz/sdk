@@ -139,7 +139,7 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
-    ScheduledMeeting(handle chatid, const string& timezone, const string& startDateTime, const string& endDateTime,
+    ScheduledMeeting(handle chatid, const string& timezone, m_time_t startDateTime, const string& endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
                      handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
                      const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
@@ -157,7 +157,7 @@ public:
     handle schedId() const;
     handle parentSchedId() const;
     const std::string &timezone() const;
-    const std::string &startDateTime() const;
+    m_time_t startDateTime() const;
     const std::string &endDateTime() const;
     const std::string &title() const;
     const std::string &description() const;
@@ -191,8 +191,8 @@ private:
     // timeZone
     std::string mTimezone;
 
-    // start dateTime (format: 20220726T133000)
-    std::string mStartDateTime;
+    // start dateTime (unix timestamp)
+    m_time_t mStartDateTime;
 
     // end dateTime (format: 20220726T133000)
     std::string mEndDateTime;

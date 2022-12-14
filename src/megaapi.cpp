@@ -2921,7 +2921,7 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 
 /* Class MegaScheduledMeeting */
 MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                                   int cancelled, const char* timezone, const char* startDateTime,
+                                                                   int cancelled, const char* timezone, MegaTimeStamp startDateTime,
                                                                    const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                                    const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
 {
@@ -2938,7 +2938,7 @@ MegaHandle MegaScheduledMeeting::organizerUserid() const                { return
 MegaHandle MegaScheduledMeeting::parentSchedId() const                  { return INVALID_HANDLE; }
 MegaScheduledMeeting* MegaScheduledMeeting::copy() const                { return NULL; }
 const char* MegaScheduledMeeting::timezone() const                      { return NULL; }
-const char* MegaScheduledMeeting::startDateTime() const                 { return NULL; }
+MegaTimeStamp MegaScheduledMeeting::startDateTime() const               { return MEGA_INVALID_TIMESTAMP; }
 const char* MegaScheduledMeeting::endDateTime() const                   { return NULL; }
 const char* MegaScheduledMeeting::title() const                         { return NULL; }
 const char* MegaScheduledMeeting::description() const                   { return NULL; }

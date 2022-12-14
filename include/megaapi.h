@@ -49,6 +49,7 @@ typedef int64_t MegaTimeStamp; // unix timestamp
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
+    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -2673,7 +2674,7 @@ public:
      * @param parentSchedId : parent scheduled meeting handle
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
-     * @param startDateTime : start dateTime (format: 20220726T133000)
+     * @param startDateTime : start dateTime (unix timestamp)
      * @param endDateTime   : end dateTime (format: 20220726T133000)
      * @param title         : meeting title
      * @param description   : meeting description
@@ -2685,7 +2686,7 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                     int cancelled, const char* timezone, const char* startDateTime,
+                                                     int cancelled, const char* timezone, MegaTimeStamp startDateTime,
                                                      const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                      const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
 
@@ -2745,11 +2746,11 @@ public:
     virtual const char* timezone() const;
 
     /**
-     * @brief Returns the start dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the start dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the start dateTime of the scheduled Meeting
      */
-    virtual const char* startDateTime() const;
+    virtual MegaTimeStamp startDateTime() const;
 
     /**
      * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
