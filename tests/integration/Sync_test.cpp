@@ -7480,7 +7480,6 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 
     model.addfile("d/f");
     model.addfile("f");
-    model.addfile("g", "g");
     model.generate(root);
 
     cx->triggerPeriodicScanEarly(id);
@@ -7494,17 +7493,6 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     // Rename d/f -> d/g.
     model.findnode("d/f")->name = "g";
     fs::rename(root / "d" / "f", root / "d" / "g");
-
-    // Rename g -> G.
-    model.findnode("g")->name = "G";
-//#if defined(_WIN32) || defined(__APPLE__)
-//    model.findnode("G")->mCloudName = "g";
-//#endif // _WIN32 || __APPLE__
-    fs::rename(root / "g", root / "G");
-
-    // Update G's content.
-    model.findnode("G")->content = "G";
-    ASSERT_TRUE(createDataFile(root / "G", "G"));
 
     cx->triggerPeriodicScanEarly(id);
 
