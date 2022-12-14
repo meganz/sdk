@@ -71,7 +71,7 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
+    bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
@@ -92,6 +92,7 @@ public:
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    void finalise();
     virtual ~SqliteAccountState();
 
     // Callback registered by some long-time running queries, so they can be canceled
@@ -103,6 +104,7 @@ private:
     // Allow at least the following containers:
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
+    // if add a new sqlite3_stmt update finalise()
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtUpdateNodeAndFlags = nullptr;

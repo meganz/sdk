@@ -1827,7 +1827,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);

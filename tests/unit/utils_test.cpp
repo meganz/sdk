@@ -585,7 +585,8 @@ public:
         {
             // Get the current path.
             bool result = fsAccess.cwd(rootPath);
-            assert(result);
+            if (!result)
+                assert(result);
 
             // Create temporary DB root path.
             rootPath.appendWithSeparator(
@@ -597,7 +598,8 @@ public:
 
             // Create root path.
             result = fsAccess.mkdirlocal(rootPath, false, true);
-            assert(result);
+            if (!result)
+                assert(result);
         }
 
         ~SqliteDBTest()
@@ -606,7 +608,8 @@ public:
             fsAccess.emptydirlocal(rootPath);
 
             bool result = fsAccess.rmdirlocal(rootPath);
-            assert(result);
+            if (!result)
+                assert(result);
         }
 
         FSACCESS_CLASS fsAccess;
