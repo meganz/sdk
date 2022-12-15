@@ -5310,7 +5310,7 @@ void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaR
     pImpl->fetchScheduledMeeting(chatid, schedId, listener);
 }
 
-void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
+void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
 {
     pImpl->fetchScheduledMeetingEvents(chatid, since, until, count, listener);
 }

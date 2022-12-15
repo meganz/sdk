@@ -9674,7 +9674,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, 0, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
         }
     }
 
@@ -9719,15 +9719,15 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     return true;
 }
 
-CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
+CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, m_time_t since, m_time_t until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
    mCompletion(completion ? completion : [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){})
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since)      { arg("cf", since); }
-    if (until)      { arg("ct", until); }
-    if (count)      { arg("cc", count); }
+    if (since != mega_invalid_timestamp)      { arg("cf", since); }
+    if (until != mega_invalid_timestamp)      { arg("ct", until); }
+    if (count)                                { arg("cc", count); }
     tag = client->reqtag;
 }
 

@@ -10802,12 +10802,12 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
     waiter->notify();
 }
 
-void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
     request->setNodeHandle(chatid);
-    request->setName(since);
-    request->setEmail(until);
+    request->setNumber(since);
+    request->setTotalBytes(until);
     request->setNumber(count);
     requestQueue.push(request);
     waiter->notify();
@@ -23452,7 +23452,7 @@ void MegaApiImpl::sendPendingRequests()
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, 0, nullptr));
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -23508,8 +23508,8 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES:
         {
             handle chatid = request->getNodeHandle();
-            const char* since = request->getName();
-            const char* until = request->getEmail();
+            m_time_t since = request->getNumber();
+            m_time_t until = request->getTotalBytes();
             unsigned int count = static_cast<unsigned int>(request->getNumber());
 
             textchat_map::iterator it = client->chats.find(chatid);

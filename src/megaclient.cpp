@@ -7429,7 +7429,7 @@ void MegaClient::sc_delscheduledmeeting()
                         chat->removeChildSchedMeetings(schedId);
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                         break;
                     }
                 }
@@ -7485,7 +7485,7 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
         }
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 
@@ -11843,7 +11843,7 @@ void MegaClient::procmcsm(JSON *j)
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 #endif

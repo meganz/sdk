@@ -18922,12 +18922,12 @@ class MegaApi
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies a chat room
-         * @param since DateTime from which we want to fetch occurrences
-         * @param until Datetime until we want to fetch occurrences
+         * @param since DateTime from which we want to fetch occurrences (unix timestamp)
+         * @param until Datetime until we want to fetch occurrences (unix timestamp)
          * @param count Number of occurrences we want to fetch
          * @param listener MegaChatRequestListener to track this request
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
