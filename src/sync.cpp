@@ -6678,11 +6678,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 earlyExit = true;
                             }
                         }
-                        if (childRow.syncNode &&
-                            childRow.syncNode->type > FILENODE)
-                        {
-                            childRow.syncNode->checkTreestate(true);
-                        }
                         break;
 
                     }
@@ -6749,6 +6744,9 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         child.second->parentSetScanAgain = false;  // we should only use this one once
     }
+
+    // keep sync overlay icons up to date as we recurse (including the sync root node)
+    row.syncNode->checkTreestate(true);
 
     SYNC_verbose << syncname << (belowRemovedCloudNode ? "belowRemovedCloudNode " : "")
                 << "Exiting folder with "
