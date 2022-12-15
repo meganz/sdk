@@ -190,7 +190,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         return;
     }
 
-    if (!s->have_key)
+    if (s->access != ACCESS_UNKNOWN && !s->have_key)
     {
         // Check if the key is already in the key manager
         std::string shareKey = mKeyManager.getShareKey(s->h);
