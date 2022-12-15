@@ -7680,7 +7680,7 @@ void MegaClient::sc_pk()
 {
     if (!mKeyManager.generation())
     {
-        LOG_err << "Account not upgraded yet";
+        LOG_debug << "Account not upgraded yet";
         return;
     }
 
@@ -7689,7 +7689,7 @@ void MegaClient::sc_pk()
     {
         if (e)
         {
-            LOG_err << "Error getting share keys";
+            LOG_debug << "No share keys: " << e;
             return;
         }
 
