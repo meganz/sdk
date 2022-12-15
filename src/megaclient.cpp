@@ -21732,8 +21732,8 @@ string KeyManager::serialize() const
     result.append(tagHeader(TAG_BACKUPS, backups.size()));
     result.append(backups);
 
-    result.append(tagHeader(TAG_WARNINGS, mAuthCu25519.size()));
-    result.append(mAuthCu25519);
+    result.append(tagHeader(TAG_WARNINGS, mWarnings.size()));
+    result.append(mWarnings);
 
     result.append(mOther);
 
