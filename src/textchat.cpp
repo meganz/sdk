@@ -345,7 +345,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 }
 
 /* class scheduledMeeting */
-ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, const std::string &endDateTime,
+ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, m_time_t endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
                                 m_time_t overrides, ScheduledFlags* flags, ScheduledRules* rules)
@@ -401,7 +401,7 @@ handle ScheduledMeeting::schedId() const                                { return
 handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedId; }
 const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
 m_time_t ScheduledMeeting::startDateTime() const                        { return mStartDateTime; }
-const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }
+m_time_t ScheduledMeeting::endDateTime() const                          { return mEndDateTime; }
 const string& ScheduledMeeting::title() const                           { return mTitle; }
 const string& ScheduledMeeting::description() const                     { return mDescription; }
 const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
@@ -437,7 +437,7 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting StartDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
-    if (mEndDateTime.empty())
+    if (!MegaClient::isValidMegaTimeStamp(mEndDateTime))
     {
         LOG_warn << "Invalid scheduled meeting EndDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
@@ -467,7 +467,7 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
     if (parentSchedId() != sm->parentSchedId())         { return false; }
     if (mTimezone.compare(sm->timezone()))              { return false; }
     if (mStartDateTime != sm->startDateTime())          { return false; }
-    if (mEndDateTime.compare(sm->endDateTime()))		{ return false; }
+    if (mEndDateTime != sm->endDateTime())              { return false; }
     if (mTitle.compare(sm->title()))                    { return false; }
     if (mDescription.compare(sm->description()))		{ return false; }
     if (mAttributes.compare(sm->attributes()))          { return false; }
@@ -510,7 +510,7 @@ bool ScheduledMeeting::serialize(string& out) const
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
     w.serializei64(mStartDateTime);
-    w.serializestring(mEndDateTime);
+    w.serializei64(mEndDateTime);
     w.serializestring(mTitle);
     w.serializestring(mDescription);
     w.serializeexpansionflags(hasParentSchedId, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
@@ -546,7 +546,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     handle parentSchedId = UNDEF;
     std::string timezone;
     m_time_t startDateTime;
-    std::string endDateTime;
+    m_time_t endDateTime;
     std::string title;
     std::string description;
     std::string attributes;
@@ -564,7 +564,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
             !r.unserializehandle(organizerUserid) ||
             !r.unserializestring(timezone) ||
             !r.unserializei64(startDateTime) ||
-            !r.unserializestring(endDateTime) ||
+            !r.unserializei64(endDateTime) ||
             !r.unserializestring(title) ||
             !r.unserializestring(description) ||
             !r.unserializeexpansionflags(expansions, flagsSize))

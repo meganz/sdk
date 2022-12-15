@@ -4202,7 +4202,7 @@ public:
     MegaScheduledMeetingPrivate(MegaHandle chatid,
                                     const char* timezone,
                                     MegaTimeStamp startDateTime,
-                                    const char* endDateTime,
+                                    MegaTimeStamp endDateTime,
                                     const char* title,
                                     const char* description,
                                     MegaHandle schedId = INVALID_HANDLE,
@@ -4226,7 +4226,7 @@ public:
     MegaHandle organizerUserid() const override;
     const char* timezone() const override;
     MegaTimeStamp startDateTime() const override;
-    const char* endDateTime() const override;
+    MegaTimeStamp endDateTime() const override;
     const char* title() const override;
     const char* description() const override;
     const char* attributes() const override;

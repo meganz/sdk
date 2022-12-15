@@ -2675,7 +2675,7 @@ public:
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
      * @param startDateTime : start dateTime (unix timestamp)
-     * @param endDateTime   : end dateTime (format: 20220726T133000)
+     * @param endDateTime   : end dateTime (unix timestamp)
      * @param title         : meeting title
      * @param description   : meeting description
      * @param attributes    : attributes to store any additional data
@@ -2687,7 +2687,7 @@ public:
      */
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
                                                      int cancelled, const char* timezone, MegaTimeStamp startDateTime,
-                                                     const char* endDateTime, const char* title, const char* description, const char* attributes,
+                                                     MegaTimeStamp endDateTime, const char* title, const char* description, const char* attributes,
                                                      MegaTimeStamp overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
 
     /**
@@ -2753,11 +2753,11 @@ public:
     virtual MegaTimeStamp startDateTime() const;
 
     /**
-     * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the end dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the end dateTime of the scheduled Meeting
      */
-    virtual const char* endDateTime() const;
+    virtual MegaTimeStamp endDateTime() const;
 
     /**
      * @brief Returns the scheduled meeting title
