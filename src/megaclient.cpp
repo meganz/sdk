@@ -22063,7 +22063,10 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
     if (!e)
     {
         LOG_debug << "[keymgr] Commit completed";
-        activeCommit->second(); // Run commit completion callback
+        if (activeCommit->second)
+        {
+            activeCommit->second(); // Run commit completion callback
+        }
         activeCommit = nullptr;
         commitQueue.pop();
 
@@ -22072,7 +22075,10 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
     }
 
     LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying") << " commit";
-    activeCommit->first(); // Apply commit changes
+    if (activeCommit->first)
+    {
+        activeCommit->first(); // Apply commit changes
+    }
     updateAttribute([this, completion](Error e)
     {
         tryCommit(e, completion);
