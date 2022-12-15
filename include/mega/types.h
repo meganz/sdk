@@ -1180,6 +1180,7 @@ public:
 };
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
+static constexpr int sfu_invalid_id = -1;
 
 } // namespace
 

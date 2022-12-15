@@ -1913,6 +1913,9 @@ public:
     handle nextsyncid();
     handle currsyncid;
 
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+
     // SyncDebris folder addition result
     void putnodes_syncdebris_result(error, vector<NewNode>&);
 

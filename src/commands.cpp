@@ -9439,7 +9439,11 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    //TODO: add support for sfuId
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
     if (schedId != UNDEF)
     {
         // sm param indicates that call is in the context of a scheduled meeting, so it won't ring

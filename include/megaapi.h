@@ -19601,6 +19601,15 @@ class MegaApi
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 
+        /**
+         * @brief Change the SFU id
+         *
+         * This function allows to set the SFU server where all chat calls will be started
+         * It's only useful for testing or debugging purposes.
+         *
+         * @param sfuid New SFU id
+         */
+        void setSFUid(int sfuid);
 #endif
 
         /**
