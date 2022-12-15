@@ -785,10 +785,6 @@ public:
 
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
-#ifdef ENABLE_SYNC
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
-#endif
-
     // delete all versions
     void unlinkversions();
 
@@ -799,7 +795,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
@@ -1181,7 +1177,10 @@ public:
     void setchatretentiontime(handle chatid, unsigned period);
 
     // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
+                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 handle* originatingUser = nullptr,
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
 #endif
 
     // get mega achievements
@@ -1367,6 +1366,9 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
 
+    int mPendingCatchUps = 0;
+    bool mReceivingCatchUp = false;
+
     // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
     bool mBlocked = false;
     bool mBlockedSet = false; //value set in current execution
@@ -1479,6 +1481,12 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
+
+    void createNewSMAlert(const handle&, handle schedId);
+    void createDeletedSMAlert(const handle&, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle schedId,
+                              UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
+    static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
     void sc_la();
@@ -1827,7 +1835,7 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
-    // minute of the last created folder in SyncDebris
+    // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
     // activity flag

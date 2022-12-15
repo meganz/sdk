@@ -847,6 +847,10 @@ public:
     int64_t getTimestamp(unsigned index) const override;
     const char* getString(unsigned index) const override;
     MegaHandle getHandle(unsigned index) const override;
+#ifdef ENABLE_CHAT
+    MegaHandle getSchedId() const override;
+    bool hasSchedMeetingChanged(int changeType) const override;
+#endif
     bool isOwnChange() const override;
     bool isRemoved() const override;
     MegaHandle getPcrHandle() const override;
@@ -870,6 +874,10 @@ protected:
     vector<string> extraStrings;
     vector<MegaHandle> handles;
     bool removed = false;
+    handle schedMeetingId = UNDEF;
+#ifdef ENABLE_CHAT
+    UserAlert::UpdatedScheduledMeeting::Changeset schedMeetingChangeset;
+#endif
 };
 
 class MegaHandleListPrivate : public MegaHandleList
@@ -3313,7 +3321,7 @@ protected:
         void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
+        void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

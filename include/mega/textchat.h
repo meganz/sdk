@@ -242,7 +242,7 @@ struct TextChat : public Cacheable
     map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
     // list of scheduled meetings changed
-    std::vector<handle> mSchedMeetingsChanged;
+    handle_set mSchedMeetingsChanged;
 
     // maps a scheduled meeting id to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
@@ -253,6 +253,18 @@ struct TextChat : public Cacheable
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
+    void deleteSchedMeeting(const handle sm)
+    {
+        mScheduledMeetings.erase(sm);
+        mSchedMeetingsChanged.insert(sm);
+    }
+
+    void deleteSchedMeetingOccurrBySchedId(const handle sm)
+    {
+        // multiple entries can be deleted (multimap)
+        mScheduledMeetingsOcurrences.erase(sm);
+        mSchedMeetingsChanged.insert(sm);
+    }
 
 public:
     int tag;    // source tag, to identify own changes
@@ -300,7 +312,16 @@ public:
     bool removeSchedMeeting(handle schedId);
 
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
-    unsigned int removeChildSchedMeetings(handle parentSchedId);
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetings(handle parentSchedId);
+
+    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeSchedMeetingsOccurrencesAndChildren(handle schedId);
+
+    // removes all scheduled meeting occurrences whose parent scheduled meeting id, is equal to parentSchedId provided
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetingsOccurrences(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
