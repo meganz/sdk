@@ -4731,6 +4731,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     fetchingkeys = false;
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
+    mKeyManager.reset();
 }
 
 void MegaClient::removeCaches()
@@ -22019,6 +22020,27 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
     }
 
     nextCommit();
+}
+
+void KeyManager::reset()
+{
+    mVersion = 0;
+    mCreationTime = 0;
+    mIdentity = UNDEF;
+    mGeneration = 0;
+    mAttr.clear();
+    mPrivEd25519.clear();
+    mPrivCu25519.clear();
+    mPrivRSA.clear();
+    mAuthEd25519.clear();
+    mAuthCu25519.clear();
+    mBackups.clear();
+    mWarnings.clear();
+    mOther.clear();
+    mPendingInShares.clear();
+    mPendingOutShares.clear();
+    mShareKeys.clear();
+    mTrustedShareKeys.clear();
 }
 
 void KeyManager::nextCommit()

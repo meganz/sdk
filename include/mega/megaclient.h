@@ -578,6 +578,7 @@ public:
     void loadShareKeys();
 
     void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void reset();
 
 protected:
 
@@ -630,7 +631,7 @@ private:
     uint32_t mGeneration = 0;
     string mAttr;
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
-    string mAuthEd25519, mAuthCu25519;  // TODO: no need to maintain them here
+    string mAuthEd25519, mAuthCu25519;
     string mBackups;
     string mWarnings;
     string mOther;
