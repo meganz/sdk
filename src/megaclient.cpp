@@ -13802,6 +13802,17 @@ void MegaClient::fetchkeys()
 
 void MegaClient::initializekeys()
 {
+    // TODO: Review this because previously chat keys were being initialized even for ephemeral accounts
+    // The webclient seems to NOT do it, and initializing the keys without having a RSA key yet
+    // is causing problems at the moment (the RSA field of the new ^!keys attribute can't be empty).
+    // If we change that, we should ensure that the RSA key is added to the ^!keys attribute as soon
+    // as it's added to the account, and that the webclient supports it (otherwise the confirmation of
+    // accounts in the webclient could make it crash).
+    if (loggedin() != FULLACCOUNT)
+    {
+        return;
+    }
+
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
