@@ -24056,6 +24056,13 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
+unsigned MegaApiImpl::getSetElementCount(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return client->getSetElementCount(sid);
+}
+
 MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);

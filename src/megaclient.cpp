@@ -18720,6 +18720,12 @@ bool MegaClient::deleteSet(handle sid)
     return false;
 }
 
+unsigned MegaClient::getSetElementCount(handle sid) const
+{
+    auto* elements = getSetElements(sid);
+    return elements ? static_cast<unsigned>(elements->size()) : 0u;
+}
+
 const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
 {
     auto* elements = getSetElements(sid);

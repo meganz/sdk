@@ -9559,6 +9559,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
+    unsigned elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
@@ -9575,6 +9577,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp2->name(), elattrs);
     ASSERT_EQ(elp2->ts(), elp->ts());
     ASSERT_EQ(elp2->order(), elp->order());
+    elCount = differentApi.getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
 
     // Clear Element name
     differentApiDtls.setElementUpdated = false;
@@ -9689,6 +9693,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 0u);
 
     elp.reset(megaApi[0]->getSetElement(sh, eh));
     ASSERT_EQ(elp, nullptr);
