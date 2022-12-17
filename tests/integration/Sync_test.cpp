@@ -2340,8 +2340,8 @@ SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
 {
     SyncConfig c;
     bool found = client.syncs.syncConfigByBackupId(backupID, c);
-
-    assert(found);
+    if (!found)
+        assert(found);
 
     return c;
 }
@@ -2374,7 +2374,8 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId)
     out() << "looking up BackupId " << toHandle(backupId);
 
     bool found = syncSet(backupId, result);
-    assert(found);
+    if (!found)
+        assert(found);
 
     return result;
 }

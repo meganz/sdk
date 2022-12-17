@@ -1976,7 +1976,55 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
     }
     break;
+#ifdef ENABLE_CHAT
+    case UserAlert::type_nusm:
+    {         
+         if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
+         {
+             type = TYPE_SCHEDULEDMEETING_NEW;
+             userHandle = p->user();
+             email = p->email();
+             schedMeetingId = p->mSchedMeetingHandle;             
+         }
+         else
+         {
+             if (auto* p = dynamic_cast<UserAlert::UpdatedScheduledMeeting*>(b))
+             {
+                 type = TYPE_SCHEDULEDMEETING_UPDATED;
+                 userHandle = p->user();
+                 email = p->email();
+                 schedMeetingId = p->mSchedMeetingHandle;
+                 schedMeetingChangeset = p->mUpdatedChangeset;
+             }
+             else
+             {
+                 assert(false);
+                 LOG_err << "Scheduled meeting user alert invalid sub-type (mangled): "
+                         << typeid(*b).name()
+                         << ", expected: NewSchedulingMeeting or UpdatedSchedulingMeeting";
+             }
+         }         
     }
+    break;
+    case UserAlert::type_dsm:
+    {
+        if (auto* p = dynamic_cast<UserAlert::DeletedScheduledMeeting*>(b))
+        {
+            type = TYPE_SCHEDULEDMEETING_DELETED;
+            userHandle = p->user();
+            email = p->email();
+            schedMeetingId = p->mSchedMeetingHandle;
+        }
+        else
+        {
+            LOG_err << "Scheduled meeting user alert invalid sub-type (mangled): "
+                    << typeid(*b).name()
+                    << ", expected: DeletedScheduledMeeting";
+        }
+    }
+    break;
+#endif
+    } // end switch
 }
 
 MegaUserAlert *MegaUserAlertPrivate::copy() const
@@ -2030,6 +2078,9 @@ const char *MegaUserAlertPrivate::getTypeString() const
     case TYPE_PAYMENTREMINDER:                          return "PAYMENT_REMINDER";
     case TYPE_TAKEDOWN:                                 return "TAKEDOWN";
     case TYPE_TAKEDOWN_REINSTATED:                      return "TAKEDOWN_REINSTATED";
+    case TYPE_SCHEDULEDMEETING_NEW:                     return "SCHEDULEDMEETING_NEW";
+    case TYPE_SCHEDULEDMEETING_UPDATED:                 return "SCHEDULEDMEETING_UPDATED";
+    case TYPE_SCHEDULEDMEETING_DELETED:                 return "SCHEDULEDMEETING_DELETED";
     }
     return "<new type>";
 }
@@ -2093,6 +2144,18 @@ MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
 {
     return index < handles.size() ? handles[index] : INVALID_HANDLE;
 }
+
+#ifdef ENABLE_CHAT
+MegaHandle MegaUserAlertPrivate::getSchedId() const
+{
+    return schedMeetingId;
+}
+
+bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
+{
+    return schedMeetingChangeset.hasChanged(changeType);
+}
+#endif
 
 bool MegaUserAlertPrivate::isOwnChange() const
 {
