@@ -1261,7 +1261,7 @@ void WinDirNotify::process(DWORD dwBytes)
     }
     else
     {
-        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName) + sizeof(wchar_t));
+        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName)); // 3 uint32_t.  The filename can be entirely absent, with the filename length field 0  (via samba share from qnap device)
 
         string processbuf;
         if (dwBytes <= 4096)

@@ -3060,6 +3060,14 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
 {
     assert(!onSyncThread());
 
+#ifdef __APPLE__
+    if (!resetFingerprint)
+    {
+        LOG_debug << "turning on reset of filesystem fingerprint on Mac, as they are not consisten there";  // eg. from networked filesystem, qnap shared drive
+        resetFingerprint = true;
+    }
+#endif
+
     auto clientCompletion = [=](error e, SyncError se, handle)
         {
             queueClient([completion, e, se, backupId](MegaClient&, TransferDbCommitter&)
