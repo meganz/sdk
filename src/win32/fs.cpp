@@ -258,6 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        LOG_err << "Unable to stat: GetFileAttributesExW('"<< nonblocking_localname << "'): error code: " << e << " : " << WinErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -301,7 +302,7 @@ bool WinFileAccess::sysopen(bool async)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        LOG_err << "Unable to open file (CreateFileW). Error code: " << e << ": " << WinErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -2042,6 +2043,39 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         return maximumBytes;
 
     return (m_off_t)numBytes.QuadPart;
+}
+
+
+// get the Windows error message in UTF-8
+std::string WinErrorMessage(DWORD error)
+{
+    if (error == 0xFFFFFFFF)
+        error = GetLastError();
+
+    LPVOID lpMsgBuf;
+    if (!FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+        (LPTSTR)&lpMsgBuf,
+        0,
+        NULL))
+    {
+        // Handle the error.
+        return "[Unknown error " + std::to_string(error) + "]";
+    }
+
+    std::wstring wstr((LPCWSTR)lpMsgBuf);
+    // Free the buffer.
+    LocalFree(lpMsgBuf);
+
+    std::string r;
+    LocalPath::local2path(&wstr, &r, false);
+
+    return r;
 }
 
 } // namespace
