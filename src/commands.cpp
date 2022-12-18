@@ -8375,6 +8375,11 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 bool CommandSetLastAcknowledged::procresult(Result r)
 {
+    if (r.succeeded())
+    {
+        client->useralerts.acknowledgeAllSucceeded();
+    }
+
     client->app->acknowledgeuseralerts_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
