@@ -1205,6 +1205,11 @@ AsyncIOContext::~AsyncIOContext()
     }
 }
 
+std::string FileAccess::getErrorMessage(int error) const
+{
+    return std::to_string(error);
+}
+
 void AsyncIOContext::finish()
 {
     if (!finished)
