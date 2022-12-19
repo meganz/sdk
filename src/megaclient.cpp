@@ -13802,17 +13802,6 @@ void MegaClient::fetchkeys()
 
 void MegaClient::initializekeys()
 {
-    // TODO: Review this because previously chat keys were being initialized even for ephemeral accounts
-    // The webclient seems to NOT do it, and initializing the keys without having a RSA key yet
-    // is causing problems at the moment (the RSA field of the new ^!keys attribute can't be empty).
-    // If we change that, we should ensure that the RSA key is added to the ^!keys attribute as soon
-    // as it's added to the account, and that the webclient supports it (otherwise the confirmation of
-    // accounts in the webclient could make it crash).
-    if (loggedin() != FULLACCOUNT)
-    {
-        return;
-    }
-
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
     string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
@@ -13966,6 +13955,19 @@ void MegaClient::initializekeys()
                 resetKeyring();
                 return;
             }
+        }
+
+        if (mKeyManager.generation() && asymkey.isvalid() && !mKeyManager.getPrivRSA().size())
+        {
+            // Ephemeral++ accounts create ^!keys before having RSA keys
+            LOG_debug << "Attaching private RSA key into ^!keys";
+            std::string privRSA;
+            asymkey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
+            mKeyManager.commit(
+            [this, privRSA]()
+            {
+                mKeyManager.setPrivRSA(privRSA);
+            });
         }
 
         // if we reached this point, everything is OK
@@ -21593,21 +21595,29 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
     mPrivEd25519 = prEd25519;
     mPrivCu25519 = prCu25519;
 
-    string prRSABin = Base64::atob(prRSA);
-    AsymmCipher ac;
-
-    LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
-
-    if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
-    {
-        LOG_warn << "Priv RSA key problem during KeyManager initialization.";
-        assert(false);
-    }
-    // Store it in the short format (3 Ints): pqd.
     mPrivRSA.clear();
-    ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
+    if (prRSA.size())
+    {
+        string prRSABin = Base64::atob(prRSA);
+        AsymmCipher ac;
 
-    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
+        LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
+        if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
+        {
+            LOG_err << "Priv RSA key problem during KeyManager initialization.";
+            assert(false);
+        }
+        else
+        {
+            // Store it in the short format (3 Ints): pqd.
+            ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
+        }
+        LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
+    }
+    else
+    {
+        assert(mClient.loggedin() == EPHEMERALACCOUNTPLUSPLUS);
+    }
 
     if (mSecure && !mPostRegistration)
     {
@@ -21718,7 +21728,7 @@ string KeyManager::serialize() const
     result.append(tagHeader(TAG_PRIV_CU25519, ECDH::PRIVATE_KEY_LENGTH));
     result.append(mPrivCu25519);
 
-    assert(mPrivRSA.size() > 512);
+    assert(!mPrivRSA.size() || mPrivRSA.size() > 512);
     result.append(tagHeader(TAG_PRIV_RSA, mPrivRSA.size()));
     result.append(mPrivRSA);
 
@@ -21873,6 +21883,16 @@ void KeyManager::setAuthRing(std::string authring)
 void KeyManager::setAuthCU255(std::string authring)
 {
     mAuthCu25519 = authring;
+}
+
+void KeyManager::setPrivRSA(std::string privRSA)
+{
+    mPrivRSA = privRSA;
+}
+
+string KeyManager::getPrivRSA()
+{
+    return mPrivRSA;
 }
 
 bool KeyManager::promotePendingShares()
@@ -22219,7 +22239,19 @@ bool KeyManager::unserialize(const string &keysContainer)
         {
             if (!mPrivRSA.size())
             {
-                if (len < 512) return false;
+                if (!len)
+                {
+                    LOG_debug << "Empty RSA key";
+                    break;
+                }
+
+                if (len < 512)
+                {
+                    LOG_err << "Invalid RSA key";
+                    assert(false);
+                    break;
+                }
+
                 mPrivRSA.assign(blob + offset, len);
                 LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
                 if (!decodeRSAKey(mPrivRSA))

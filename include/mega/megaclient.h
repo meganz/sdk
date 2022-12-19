@@ -571,6 +571,8 @@ public:
     std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
     void setAuthRing(std::string authring);
     void setAuthCU255(std::string authring);
+    void setPrivRSA(std::string privRSA);
+    std::string getPrivRSA();
     bool promotePendingShares();
     bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
 
