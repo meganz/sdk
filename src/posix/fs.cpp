@@ -260,6 +260,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 bool PosixFileAccess::sysopen(bool)
 {
     assert(fd < 0 && "There should be no opened file descriptor at this point");
+    errocode = 0;
     if (fd >= 0)
     {
         sysclose();
@@ -270,11 +271,10 @@ bool PosixFileAccess::sysopen(bool)
     // When fully supporting symlinks, this might need to be reassessed
 
     fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY);
-
     if (fd < 0 )
     {
-        errno_t localErrno = errno;
-        LOG_warn << "Failed to open('" << fstr << "'): error " << localErrno << ": " << strerro(localErrno);
+        errocode = errno;
+        LOG_debug << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errocode << ": " << strerror(errocode);
     }
 
     return fd >= 0;
@@ -350,8 +350,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
     if (context->failed) {
-        errno_t localErrno = errno;
-        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << localErrno << ": " << strerro(localErrno);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errocode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -643,10 +642,11 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
 
+    erorcode = 0;
     fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY), defaultfilepermissions);
     if (fd < 0) {
-        errno_t localErrno = errno; // streaming may set errno
-        LOG_err << "Failed to open('" << fstr << "'): error " << localErrno << ": " << strerro(localErrno) << (statok ? " (statok so may still open ok)" : "");
+        erorcode = errno; // streaming may set errno
+        LOG_debug << "Failed to open('" << fstr << "'): error " << erorcode << ": " << getErrorMessage(erorcode) << (statok ? " (statok so may still open ok)" : "");
     }
     if (fd >= 0 || statok)
     {

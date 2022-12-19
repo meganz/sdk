@@ -289,7 +289,7 @@ bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-
+    
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -303,7 +303,7 @@ bool WinFileAccess::sysopen(bool async)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        LOG_debug << "Unable to open file '" << nonblocking_localname<< ": (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+        LOG_debug << "Unable to open file '" << nonblocking_localname << ": (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
