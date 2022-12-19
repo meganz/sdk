@@ -1353,8 +1353,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     , syncscanbt(rng)
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
-    , mKeyManager(*this)
 #endif
+   , mKeyManager(*this)
 {
     mNodeManager.reset();
     sctable.reset();
