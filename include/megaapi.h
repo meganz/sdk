@@ -6657,6 +6657,7 @@ class MegaSyncStall
             WaitingForScanningToComplete,
             WaitingForAnotherMoveToComplete,
             SourceWasMovedElsewhere,
+            FilesystemCannotStoreThisName,
 
             SyncPathProblem_LastPlusOne
         };

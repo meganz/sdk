@@ -2289,14 +2289,21 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     return result;
 }
 
-unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path)
+unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck)
 {
     auto fileAccess = fsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    LocalPath actualLeafNameIfDifferent;
+
+    if (!fileAccess->fopen(path, true, false, nullptr, false, skipCaseCheck, &actualLeafNameIfDifferent))
         return nullptr;
 
     auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
+
+    if (!actualLeafNameIfDifferent.empty())
+    {
+        fsNode->localname = actualLeafNameIfDifferent;
+    }
 
     if (fsNode->type != FILENODE)
         return fsNode;

@@ -7032,21 +7032,33 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
             // Check for anomalous file names.
             checkForFilenameAnomaly(fullPath, row.cloudNode->name);
 
-            // Let the engine know the file exists, even if it hasn't detected it yet.
-            //
-            // This is necessary as filesystem events may be delayed.
-            if (auto fsNode = FSNode::fromPath(fsAccess, targetPath))
-            {
-                parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
-                row.fsNode = &parentRow.fsAddedSiblings.back();
-                row.syncNode->slocalname = row.fsNode->cloneShortname();
-            }
-
             // Download was moved into place.
             downloadPtr->wasDistributed = true;
 
             // No longer necessary as the transfer's complete.
             row.syncNode->resetTransfer(nullptr);
+
+            // Let the engine know the file exists, even if it hasn't detected it yet.
+            //
+            // This is necessary as filesystem events may be delayed.
+            if (auto fsNode = FSNode::fromPath(fsAccess, targetPath, true))  // skip case check. We will check for exact match ourselves
+            {
+                if (fsNode->localname != targetPath.leafName())
+                {
+                    row.syncNode->localFSCannotStoreThisName = true;
+                    row.syncNode->rare().localFSRenamedToThisName = fsNode->localname;
+                    return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
+                }
+
+                parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
+                row.fsNode = &parentRow.fsAddedSiblings.back();
+                row.syncNode->slocalname = row.fsNode->cloneShortname();
+            }
+            else
+            {
+                row.syncNode->localFSCannotStoreThisName = true;
+                return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
+            }
         }
         else if (nameTooLong)
         {
@@ -7090,32 +7102,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
 
     assert(syncs.onSyncThread());
-
-    ////auto isIgnoreFile = row.isIgnoreFile();
-
-    //if (row.fsNode && row.fsNode->type == FILENODE)
-    //{
-    //    if (!row.fsNode->fingerprint.isvalid)
-    //    {
-
-    //        // We were not able to get details of the filesystem item when scanning the directory.
-    //        // Consider it a blocked file, and we'll rescan the folder from time to time.
-    //        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath();
-
-    //        // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
-    //        rare().scanBlocked.reset(new RareFields::ScanBlocked(sync->syncs.rng, getLocalPath(), this));
-    //        sync->syncs.scanBlockedPaths.push_back(rare().scanBlocked);
-
-    //    }
-    //    else
-    //    {
-    //    }
-    //}
-
-    //{
-
-    //    return true;
-    //}
 
     if (row.syncNode && row.fsNode &&
        (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->fsid == UNDEF ||
@@ -7289,6 +7275,27 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     }
 
     auto rowType = row.type();
+
+    if (row.syncNode && rowType != SRT_XSX &&
+        row.syncNode->localFSCannotStoreThisName)
+    {
+        LocalPath fsReportPath;
+        if (!row.syncNode->rareRO().localFSRenamedToThisName.empty())
+        {
+            fsReportPath = fullPath.localPath.parentPath();
+            fsReportPath.appendWithSeparator(row.syncNode->rareRO().localFSRenamedToThisName, true);
+        }
+
+        ProgressingMonitor monitor(syncs);
+        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            SyncWaitReason::FileIssue, true, false,
+            {fsReportPath.toPath(false), PathProblem::FilesystemCannotStoreThisName},
+            {},
+            {fullPath.localPath, PathProblem::FilesystemCannotStoreThisName},
+            {}));
+
+        return false;
+    }
 
     switch (rowType)
     {

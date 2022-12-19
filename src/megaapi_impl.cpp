@@ -1350,6 +1350,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::WaitingForScanningToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForScanningToComplete, "");
     static_assert((int)PathProblem::WaitingForAnotherMoveToComplete == (int)MegaSyncStall::SyncPathProblem::WaitingForAnotherMoveToComplete, "");
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
+    static_assert((int)PathProblem::FilesystemCannotStoreThisName == (int)MegaSyncStall::SyncPathProblem::FilesystemCannotStoreThisName, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
