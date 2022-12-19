@@ -6788,8 +6788,8 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
 
         // required params
         arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-        arg("s", schedMeeting->startDateTime().c_str());
-        arg("e", schedMeeting->endDateTime().c_str());
+        arg("s", schedMeeting->startDateTime());
+        arg("e", schedMeeting->endDateTime());
         arg("t", Base64::btoa(schedMeeting->title()).c_str());
         arg("d", Base64::btoa(schedMeeting->description()).c_str());
 
@@ -6797,7 +6797,6 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
         if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
         if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
         if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-        if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
         if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
 
         if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
@@ -6821,9 +6820,9 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
                 arg("i", rules->interval());
             }
 
-            if (!rules->until().empty())
+            if (MegaClient::isValidMegaTimeStamp(rules->until()))
             {
-                arg("u", rules->until().c_str());
+                arg("u", rules->until());
             }
 
             if (rules->byWeekDay() && !rules->byWeekDay()->empty())
