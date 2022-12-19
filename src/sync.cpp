@@ -7288,10 +7288,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         ProgressingMonitor monitor(syncs);
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::FileIssue, true, false,
-            {fsReportPath.toPath(false), PathProblem::FilesystemCannotStoreThisName},
+            SyncWaitReason::FileIssue, false, false,
+            {fullPath.cloudPath, PathProblem::FilesystemCannotStoreThisName},
             {},
-            {fullPath.localPath, PathProblem::FilesystemCannotStoreThisName},
+            {fsReportPath, PathProblem::FilesystemCannotStoreThisName},
             {}));
 
         return false;
