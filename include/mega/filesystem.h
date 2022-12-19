@@ -437,7 +437,7 @@ struct MEGA_API FileAccess
     // if the open failed, retry indicates a potentially transient reason
     bool retry = false;
 
-    //error code related to the last call to fopen() without parameters
+    // OS error code related to the last call to fopen() without parameters
     int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
@@ -499,6 +499,8 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    // return a description oh operating system error,
+    // errno on unix. Defaults to the number itself.
     virtual std::string getErrorMessage(int error) const;
 
 protected:
