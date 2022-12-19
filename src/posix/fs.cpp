@@ -269,7 +269,15 @@ bool PosixFileAccess::sysopen(bool)
     // this is ok: this is not called with mFollowSymLinks = false, but from transfers doio.
     // When fully supporting symlinks, this might need to be reassessed
 
-    return (fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY)) >= 0;
+    fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY);
+
+    if (fd < 0 )
+    {
+        errno_t localErrno = errno;
+        LOG_warn << "Failed to open('" << fstr << "'): error " << localErrno << ": " << strerro(localErrno);
+    }
+
+    return fd >= 0;
 }
 
 void PosixFileAccess::sysclose()
@@ -341,6 +349,10 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
+    if (context->failed) {
+        errno_t localErrno = errno;
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << localErrno << ": " << strerro(localErrno);
+    }
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -630,7 +642,13 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     sysclose();
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
-    if ((fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
+
+    fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY), defaultfilepermissions);
+    if (fd < 0) {
+        errno_t localErrno = errno; // streaming may set errno
+        LOG_err << "Failed to open('" << fstr << "'): error " << localErrno << ": " << strerro(localErrno) << (statok ? " (statok so may still open ok)" : "");
+    }
+    if (fd >= 0 || statok)
     {
         if (write)
         {
