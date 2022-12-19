@@ -258,7 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        LOG_err << "Unable to stat: GetFileAttributesExW('"<< nonblocking_localname << "'): error code: " << e << " : " << WinErrorMessage(e);
+        LOG_debug << "Unable to stat: GetFileAttributesExW('"<< nonblocking_localname << "'): error code: " << e << ": " << WinErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -302,7 +302,8 @@ bool WinFileAccess::sysopen(bool async)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_err << "Unable to open file (CreateFileW). Error code: " << e << ": " << WinErrorMessage(e);
+        errorcode = e;
+        LOG_debug << "Unable to open file '" << nonblocking_localname<< ": (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }

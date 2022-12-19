@@ -941,7 +941,7 @@ bool FileAccess::openf()
     if (!sysstat(&curr_mtime, &curr_size))
     {
         LOG_err << "Error opening file handle (sysstat) '"
-            << nonblocking_localname << '\'';
+                << nonblocking_localname << ": errorcode " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -953,7 +953,12 @@ bool FileAccess::openf()
         return false;
     }
 
-    return sysopen();
+    bool r = sysopen();
+    if (!r) {
+        LOG_err << "Error opening file handle (sysopen) '"
+                << nonblocking_localname << ": errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+    }
+    return r;
 }
 
 void FileAccess::closef()
@@ -1012,9 +1017,7 @@ bool FileAccess::asyncopenf()
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening async file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -1034,7 +1037,7 @@ bool FileAccess::asyncopenf()
     }
     else
     {
-        LOG_warn << "Error opening async file handle (sysopen)";
+        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return result;
 }
