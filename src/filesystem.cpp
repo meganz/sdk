@@ -940,9 +940,8 @@ bool FileAccess::openf()
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening sync file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err << "Error opening file handle (sysstat) '"
+            << nonblocking_localname << '\'';
         return false;
     }
 
