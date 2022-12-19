@@ -21697,14 +21697,14 @@ string KeyManager::serialize() const
     result.append((const char*)&mVersion, sizeof(mVersion));
 
     result.append(tagHeader(TAG_CREATION_TIME, sizeof(mCreationTime)));
-    uint32_t creationTimeBE = htobe32(mCreationTime);
+    uint32_t creationTimeBE = htonl(mCreationTime); // Webclient sets this value as BigEndian
     result.append((const char*)&creationTimeBE, sizeof(creationTimeBE));
 
     result.append(tagHeader(TAG_IDENTITY, sizeof(mIdentity)));
     result.append((const char*)&mIdentity, sizeof(mIdentity));
 
     result.append(tagHeader(TAG_GENERATION, sizeof(mGeneration)));
-    uint32_t generationBE = htobe32(mGeneration);
+    uint32_t generationBE = htonl(mGeneration); // Webclient sets this value as BigEndian
     result.append((const char*)&generationBE, sizeof(generationBE));
 
     result.append(tagHeader(TAG_ATTR, mAttr.size()));
@@ -21748,11 +21748,6 @@ string KeyManager::serialize() const
     result.append(mWarnings);
 
     result.append(mOther);
-
-
-
-    // reminder: htobe16 for lenBlob16
-    // reminder: htobe32 for lenBlob (32bits version)
 
     return result;
 }
@@ -22171,7 +22166,7 @@ bool KeyManager::unserialize(const string &keysContainer)
         case TAG_CREATION_TIME:
             if (len != sizeof(mCreationTime)) return false;
             mCreationTime = MemAccess::get<uint32_t>(blob + offset);
-            mCreationTime = be32toh(mCreationTime);
+            mCreationTime = ntohl(mCreationTime); // Webclient sets this value as BigEndian
             LOG_verbose << "Creation time: " << mCreationTime;
             break;
 
@@ -22185,7 +22180,7 @@ bool KeyManager::unserialize(const string &keysContainer)
         {
             if (len != sizeof(mGeneration)) return false;
             mGeneration = MemAccess::get<uint32_t>(blob + offset);
-            mGeneration = be32toh(mGeneration); // Webclient sets this value as BigEndian
+            mGeneration = ntohl(mGeneration); // Webclient sets this value as BigEndian
             LOG_verbose << "Generation: " << mGeneration;
             break;
         }
@@ -22573,11 +22568,11 @@ bool KeyManager::deserializePendingInshares(const string &blob)
         uint32_t lenBlob = 0;
         uint16_t lenBlob16 = 0;
         bool success = r.unserializeu16(lenBlob16);
-        lenBlob16 = be16toh(lenBlob16);
+        lenBlob16 = ntohs(lenBlob16); // Webclient sets length as BigEndian
         if (lenBlob16 == 0xFFFF)
         {
             success = r.unserializeu32(lenBlob);
-            lenBlob = be32toh(lenBlob);
+            lenBlob = ntohl(lenBlob);
         }
         else
         {
@@ -22626,13 +22621,13 @@ string KeyManager::serializePendingInshares() const
         if (lenBlob < 0xFFFF)
         {
             uint16_t lenBlob16 = static_cast<uint16_t>(lenBlob);
-            uint16_t lenBlob16BE = htobe16(lenBlob16);
+            uint16_t lenBlob16BE = htons(lenBlob16); // Webclient sets length as BigEndian
             w.serializeu16(lenBlob16BE);
         }
         else    // excess, 4 extra bytes
         {
             w.serializeu16(0xFFFF);
-            uint32_t lenBlobBE = htobe32(lenBlob);
+            uint32_t lenBlobBE = htonl(lenBlob);
             w.serializeu32(lenBlobBE);
         }
 
