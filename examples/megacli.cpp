@@ -1261,9 +1261,6 @@ void DemoApp::getua_result(error e)
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-#include <cryptopp/hkdf.h>
-using namespace std;
-
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
     if (client->fetchingkeys)
