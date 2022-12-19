@@ -43,6 +43,9 @@ struct MEGA_API NodeCore
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
 
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle parentHandle() const { return NodeHandle().set6byte(parenthandle); }
+
     // node type
     nodetype_t type = TYPE_UNKNOWN;
 
@@ -90,27 +93,33 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
-// Container storing FileFingerprint* (Node* in practice) ordered by fingerprint.
-struct Fingerprints
+struct NodeCounter
 {
-    // maps FileFingerprints to node
-    using fingerprint_set = std::multiset<FileFingerprint*, FileFingerprintCmp>;
-    using iterator = fingerprint_set::iterator;
-
-    void newnode(Node* n);
-    void add(Node* n);
-    void remove(Node* n);
-    void clear();
-    m_off_t getSumSizes();
-
-    Node* nodebyfingerprint(FileFingerprint* fingerprint);
-    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
-
-private:
-    fingerprint_set mFingerprints;
-    m_off_t mSumSizes = 0;
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+    std::string serialize() const;
+    NodeCounter(const std::string& blob);
+    NodeCounter() = default;
 };
 
+typedef std::multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
+typedef fingerprint_set::iterator FingerprintPosition;
+
+
+class NodeManagerNode
+{
+public:
+    // Instances of this class cannot be copied
+    std::unique_ptr<Node> mNode;
+    std::unique_ptr<std::map<NodeHandle, Node*>> mChildren;
+    bool mAllChildrenHandleLoaded = false;
+};
+typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
 
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
@@ -126,8 +135,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the key is present and is the correct size for this node
     bool keyApplied() const;
 
-    // change parent node association
-    bool setparent(Node*);
+    // change parent node association. updateNodeCounters is false when called from NodeManager::unserializeNode
+    bool setparent(Node*, bool updateNodeCounters = true);
 
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
@@ -144,7 +153,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
 
-    // decrypt attribute string and set fileattrs
+    // decrypt attribute string, set fileattrs and save fingerprint
     void setattr();
 
     // display name (UTF-8)
@@ -226,6 +235,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        bool counter : 1;
+
+        // this field also only used internally, for reporting new NO_KEY occurrences
+        bool modifiedByThisClient : 1;
 
     } changed;
 
@@ -233,23 +246,25 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setkeyfromjson(const char*);
 
+    void setUndecryptedKey(const std::string &undecryptedKey);
+
     void setfingerprint();
 
     void faspec(string*);
 
-    NodeCounter subnodeCounts() const;
+    NodeCounter getCounter() const;
+    void setCounter(const NodeCounter &counter, bool notify);
 
     // parent
     Node* parent = nullptr;
 
-    // children
-    node_list children;
-
-    // own position in parent's children
-    node_list::iterator child_it;
-
-    // own position in fingerprint set (only valid for file nodes)
-    Fingerprints::iterator fingerprint_it;
+    // own position in NodeManager::mFingerPrints (only valid for file nodes)
+    // It's used for speeding up node removing at NodeManager::removeFingerprint
+    FingerprintPosition mFingerPrintPosition;
+    // own position in NodeManager::mNodes. The map can have an element of type NodeManagerNode
+    // previously Node exists
+    // It's used for speeding up get children when Node parent is known
+    NodePosition mNodePosition;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
@@ -269,9 +284,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     unlink_or_debris_set::iterator tounlink_it;
 #endif
 
-    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
-    int tag = 0;
-
     // check if node is below this node
     bool isbelow(Node*) const;
     bool isbelow(NodeHandle) const;
@@ -282,25 +294,33 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
-    static Node* unserialize(MegaClient*, const string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+    int getShareType() const;
+
+    bool isAncestor(NodeHandle ancestorHandle) const;
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
 
-    Node* childbyname(const string& name);
-
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
+
+    uint64_t getDBFlag() const;
+
+    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    // keeps track of counts of files, folder, versions, storage and version's storage
+    NodeCounter mCounter;
 
     bool getExtension(std::string& ext) const;
     bool isPhoto(const std::string& ext, bool checkPreview) const;
@@ -309,6 +329,14 @@ private:
     bool isDocument(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
+
+ public:
+    enum
+    {
+        FLAGS_IS_VERSION = 0,  // This bit is active if node is a version
+        FLAGS_IS_IN_RUBBISH = 1, // This bit is active if node is in rubbish bin
+        FLAGS_SIZE = 2,
+    } Flags;
 };
 
 inline const string& Node::nodekey() const

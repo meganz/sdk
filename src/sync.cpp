@@ -409,7 +409,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 
     size_t index = 0;
     size_t separatorBias = 0;
-    LocalPath accumulated;
+    LocalPath::string_type accumulated;
     while (index <= path1End && index <= path2End)
     {
         const auto value1 = path1.localpath[path1End - index];
@@ -418,17 +418,14 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
         {
             break;
         }
-        accumulated.localpath.push_back(value1);
+        accumulated.push_back(value1); // accumulated will clearly have content after this
 
         ++index;
 
-        if (!accumulated.localpath.empty())
+        if (accumulated.back() == LocalPath::localPathSeparator)
         {
-            if (accumulated.localpath.back() == LocalPath::localPathSeparator)
-            {
-                ++separatorBias;
-                accumulated.clear();
-            }
+            ++separatorBias;
+            accumulated.clear();
         }
     }
 
@@ -438,7 +435,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
     }
     else // the paths only partly match
     {
-        return static_cast<int>(index - separatorBias - accumulated.localpath.size());
+        return static_cast<int>(index - separatorBias - accumulated.size());
     }
 }
 
@@ -742,6 +739,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to open state cache database.";
     case INSUFFICIENT_DISK_SPACE:
         return "Insufficient disk space.";
+    case FAILURE_ACCESSING_PERSISTENT_STORAGE:
+        return "Failure accessing to persistent storage";
     default:
         return "Undefined error";
     }
@@ -825,7 +824,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 : syncs(us.syncs)
 , localroot(nullptr)
 , mUnifiedSync(us)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
 {
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
@@ -914,7 +913,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
 
             // Did the call above create the database?
             us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -2665,7 +2664,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
             syncs.saveSyncConfig(mConfig);
         }
 
-        if (notifyApp)
+        if (notifyApp && !mConfig.mRemovingSyncBySds)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
@@ -2706,9 +2705,9 @@ void Syncs::queueSync(std::function<void()>&& f)
     f();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
 {
-    assert(onSyncThread());
+    assert(onSyncThread() || fromAnyThread);
 
     // when sync rework gets merged, this function will be run (asynchronously) off a queue in MegaClient::exec()
     TransferDbCommitter committer(mClient.tctable);
@@ -4113,11 +4112,48 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
 {
     //assert(!onSyncThread());
 
-    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    {
+        // since we are only setting flags, we can actually do this off-thread
+        // (but using mSyncVecMutex and hidden inside Syncs class)
+        lock_guard<mutex> g(mSyncVecMutex);
+        for (size_t i = 0; i < mSyncVec.size(); ++i)
+        {
+            auto& config = mSyncVec[i]->mConfig;
+            if (config.mBackupId == backupId)
+            {
+                // prevent any sp or sphb messages being queued after
+                config.mSyncDeregisterSent = true;
+
+                // Prevent notifying the client app for this sync's state changes
+                config.mRemovingSyncBySds = removingSyncBySds;
+            }
+        }
+    }
+
+    // use queueClient since we are not certain to be locked on client thread
+    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+
+        mc.reqs.add(new CommandBackupRemove(&mc, backupId,
+                [backupId, completion, this](Error e){
+                    if (e)
+                    {
+                        // de-registering is not critical - we continue anyway
+                        LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
+                    }
+
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                }));
+    }, true);
+
 }
 
 void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
@@ -4213,6 +4249,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
                 clientCompletion = nullptr;
             }
 
+            us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
             queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
@@ -4400,7 +4437,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");

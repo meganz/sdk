@@ -33,6 +33,7 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef int64_t MegaTimeStamp; // unix timestamp
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -48,6 +49,7 @@ typedef uint64_t MegaHandle;
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
+    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -526,6 +528,7 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
+            CHANGE_TYPE_COUNTER            = 0x2000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -979,8 +982,11 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NAME            = 0x800
          * Check if the node name has changed
          *
-         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * - MegaNode::CHANGE_TYPE_FAVOURITE       = 0x1000
          * Check if the node was added to or removed from favorites
+         *
+         * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
+         * Check if counter for this node (its subtree) has changed
          *
          */
         virtual int getChanges();
@@ -1181,6 +1187,17 @@ class MegaNode
          */
         virtual const char* getDeviceId() const;
 
+
+        /**
+         * @brief Returns the S4 metadata stored as a Node attribute.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The s4 attribute associated with the Node.
+         */
+        virtual const char* getS4() const;
+
         /**
          * @brief Provides a serialization of the MegaNode object
          *
@@ -1367,6 +1384,13 @@ public:
      * @return file-node handle.
      */
     virtual MegaHandle node() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns id of MegaSet current MegaSetElement belongs to.
+     *
+     * @return MegaSet id.
+     */
+    virtual MegaHandle setId() const { return INVALID_HANDLE; }
 
     /**
      * @brief Returns order of current Element.
@@ -1819,10 +1843,24 @@ public:
         TYPE_PAYMENTREMINDER,
         TYPE_TAKEDOWN,
         TYPE_TAKEDOWN_REINSTATED,
+        TYPE_SCHEDULEDMEETING_NEW,
+        TYPE_SCHEDULEDMEETING_DELETED,
+        TYPE_SCHEDULEDMEETING_UPDATED,
 
         TOTAL_OF_ALERT_TYPES
     };
-
+#ifdef ENABLE_CHAT
+    enum
+    {
+        SM_CHANGE_TYPE_TITLE            = 0,
+        SM_CHANGE_TYPE_DESCRIPTION      = 1,
+        SM_CHANGE_TYPE_CANCELLED        = 2,
+        SM_CHANGE_TYPE_TIMEZONE         = 3,
+        SM_CHANGE_TYPE_STARTDATE        = 4,
+        SM_CHANGE_TYPE_ENDDATE          = 5,
+        SM_CHANGE_TYPE_RULES            = 6,
+    };
+#endif
     virtual ~MegaUserAlert();
 
     /**
@@ -1890,7 +1928,8 @@ public:
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
-    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES,
+    *  TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @warning This value is still valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
@@ -1941,6 +1980,7 @@ public:
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *   TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @return email string of the relevant user, or NULL if not available
     */
@@ -2048,7 +2088,38 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
+#ifdef ENABLE_CHAT
+    /**
+    * @brief Returns the MegaHandle that identifies the scheduled meeting id related to this alert
+    *
+    * This value is currently only valid for:
+    *   TYPE_SCHEDULEDMEETING_NEW
+    *   TYPE_SCHEDULEDMEETING_DELETED
+    *   TYPE_SCHEDULEDMEETING_UPDATED
+    *
+    * @return MegaHandle that identifies the scheduled meeting id related to this alert
+    */
+    virtual MegaHandle getSchedId() const;
 
+    /**
+     * @brief Returns true if the scheduled meeting associated to this alert has an specific change
+     *
+     * This value is currently only valid for:
+     *   TYPE_SCHEDULEDMEETING_UPDATED
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     * - MegaUserAlerts::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
+     * - MegaUserAlerts::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     *
+     * @return true if this scheduled meeting associated to this alert has an specific change
+     */
+    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+#endif
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.
      *
@@ -2059,6 +2130,22 @@ public:
      * request sent by this instance of the SDK.
      */
     virtual bool isOwnChange() const;
+
+    /**
+     * @brief Indicates that the alert is about to be removed
+     *
+     * This value is useful to clean existing alerts that are not valid anymore.
+     * In example, a TYPE_REMOVEDSHAREDNODES may become TYPE_UPDATEDSHAREDNODES. In
+     * that case, the former will be notified as removed, and a new alert is added for
+     * the latter.
+     *
+     * The SDK purge old alerts in order to keep the list limited to maximum amount
+     * (currently up to 200). In result, the SDK may notify alerts as removed.
+     *
+     * @return True if the alert is about to be removed
+     */
+    virtual bool isRemoved() const;
+
 };
 
 /**
@@ -2634,21 +2721,21 @@ public:
      * @param parentSchedId : parent scheduled meeting handle
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
-     * @param startDateTime : start dateTime (format: 20220726T133000)
-     * @param endDateTime   : end dateTime (format: 20220726T133000)
+     * @param startDateTime : start dateTime (unix timestamp)
+     * @param endDateTime   : end dateTime (unix timestamp)
      * @param title         : meeting title
      * @param description   : meeting description
      * @param attributes    : attributes to store any additional data
-     * @param overrides     : start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @param overrides     : start dateTime of the original meeting series event to be replaced (unix timestamp)
      * @param flags         : flags bitmask (used to store additional boolean settings as a bitmask)
      * @param rules         : scheduled meetings rules
      *
      * @return A pointer to the superclass of the private object
      */
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                     int cancelled, const char* timezone, const char* startDateTime,
-                                                     const char* endDateTime, const char* title, const char* description, const char* attributes,
-                                                     const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
+                                                     int cancelled, const char* timezone, MegaTimeStamp startDateTime,
+                                                     MegaTimeStamp endDateTime, const char* title, const char* description, const char* attributes,
+                                                     MegaTimeStamp overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
 
     /**
      * @brief Creates a copy of this MegaScheduledMeeting object
@@ -2706,18 +2793,18 @@ public:
     virtual const char* timezone() const;
 
     /**
-     * @brief Returns the start dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the start dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the start dateTime of the scheduled Meeting
      */
-    virtual const char* startDateTime() const;
+    virtual MegaTimeStamp startDateTime() const;
 
     /**
-     * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the end dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the end dateTime of the scheduled Meeting
      */
-    virtual const char* endDateTime() const;
+    virtual MegaTimeStamp endDateTime() const;
 
     /**
      * @brief Returns the scheduled meeting title
@@ -2741,11 +2828,11 @@ public:
     virtual const char* attributes() const;
 
     /**
-     * @brief Returns the start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @brief Returns the start dateTime of the original meeting series event to be replaced (unix timestamp)
      *
      * @return the start dateTime of the original meeting series event to be replaced
      */
-    virtual const char* overrides() const;
+    virtual MegaTimeStamp overrides() const;
 
     /**
      * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
@@ -2838,6 +2925,7 @@ public:
     };
 
     constexpr static int INTERVAL_INVALID = 0;
+    constexpr static int UNTIL_INVALID = 0;
     virtual ~MegaScheduledRules();
 
     /**
@@ -2854,7 +2942,7 @@ public:
      */
     static MegaScheduledRules* createInstance(int freq,
                                                   int interval = INTERVAL_INVALID,
-                                                  const char* until = nullptr,
+                                                  MegaTimeStamp until = UNTIL_INVALID,
                                                   const ::mega::MegaIntegerList* byWeekDay = nullptr,
                                                   const ::mega::MegaIntegerList* byMonthDay = nullptr,
                                                   const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -2886,11 +2974,11 @@ public:
     virtual int interval() const;
 
     /**
-     * @brief Returns when the repetitions should end
+     * @brief Returns when the repetitions should end (unix timestamp)
      *
      * @return When the repetitions should end
      */
-    virtual const char* until() const;
+    virtual MegaTimeStamp until() const;
 
     /**
      * @brief Returns a MegaIntegerList with the week days when the event will occur
@@ -3353,6 +3441,8 @@ class MegaNodeList
 
 /**
  * @brief Lists of file and folder children MegaNode objects
+ *
+ * @obsolete This method is unused by app
  *
  * A MegaChildrenLists object has the ownership of the MegaNodeList objects that it contains,
  * so they will be only valid until the MegaChildrenLists is deleted. If you want to retain
@@ -4906,6 +4996,16 @@ public:
 #endif
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
+        EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
+        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+    };
+
+    enum
+    {
+        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
+        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
+        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
+        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
     };
 
     virtual ~MegaEvent();
@@ -4946,6 +5046,12 @@ public:
      *
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
+     *
+     * For event EVENT_RELOAD, these values can be taken:
+     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
+     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
+     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
      *
      * @return Number relative to this event
      */
@@ -6209,6 +6315,7 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
+        FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
     };
 
     enum Warning
@@ -7613,6 +7720,8 @@ class MegaGlobalListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         *
          * You should call MegaApi::fetchNodes when this callback is received
          *
          * @param api MegaApi object connected to the account
@@ -7769,6 +7878,12 @@ class MegaGlobalListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -8050,6 +8165,8 @@ class MegaListener
 
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
+         *
+         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
@@ -8350,6 +8467,12 @@ class MegaListener
          *  - Signature of RSA key          = 4
          *
          * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
+         *
+         * - MegaEvent::EVENT_REQSTAT_PROGRESS: Provides the per mil progress of a long-running API operation
+         *  in MegaEvent::getNumber, or -1 if there isn't any operation in progress.
+         *
+         * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
+         * similar UI to the one displayed during the initial load (fetchnodes).
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -8671,6 +8794,7 @@ class MegaApi
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4,
+            NODE_ATTR_S4 = 5,
         };
 
         enum {
@@ -12112,6 +12236,28 @@ class MegaApi
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set s4 attribute for the node
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getText - Returns the text for the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         *
+         * The attribute name must be an UTF8 string with between 1 and 7 bytes
+         * If the attribute already has a value, it will be replaced
+         * If value is NULL, the attribute will be removed from the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the attribute
+         * @param value Value for the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener);
+
+        /**
          * @brief Set the duration of audio/video files as a node attribute.
          *
          * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
@@ -12416,8 +12562,6 @@ class MegaApi
          * - MegaRequest::getNumber - returns the cloud storage bytes used (calculated locally from the node data structures)
          *
          * @param listener MegaRequestListener to track this request
-         *
-         * @obsolete The cloud storage used should not include the storage used by incoming shares, but this method does it.
          */
         void getCloudStorageUsed(MegaRequestListener *listener = NULL);
 
@@ -15338,6 +15482,9 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
          * @param parent Parent node
          * @param order Order for the returned list
          * Valid values for this parameter are:
@@ -15402,9 +15549,10 @@ class MegaApi
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
-        MegaNodeList* getChildren(MegaNode *parent, int order = 1);
+        MegaNodeList* getChildren(MegaNode *parent, int order = 1, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes
@@ -15507,15 +15655,21 @@ class MegaApi
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get file and folder children of a MegaNode separatedly
+         * @brief Get all children from type of a MegaNode
          *
-         * If the parent node doesn't exist or it isn't a folder, this function
-         * returns NULL
+         * If any parent node doesn't exist or it isn't a folder, that parent
+         * will be skipped.
          *
          * You take the ownership of the returned value
          *
-         * @param p Parent node
-         * @param order Order for the returned lists
+         * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
+         * @param parent Parent node
+         * @param type Type of the node.
+         * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -15544,16 +15698,6 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
@@ -15578,9 +15722,10 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
-         * @return Lists with files and folders child MegaNode objects
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @return List with all child MegaNode objects
          */
-        MegaChildrenLists* getFileFolderChildren(MegaNode *p, int order = 1);
+        MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = ORDER_DEFAULT_ASC, MegaCancelToken *cancelToken = nullptr);
 
         /**
          * @brief Returns true if the node has children
@@ -15594,6 +15739,8 @@ class MegaApi
          * If the node doesn't exist, this function returns NULL
          * It's possible to have multiple nodes with the same name.
          * This function will return one of them.
+         * Folder nodes take precedence over file nodes.
+         * If you want a node of specific type, @see getChildNodeOfType
          *
          * You take the ownership of the returned value
          *
@@ -17101,7 +17248,7 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
          * This function uses the default parameters for the MEGA apps, which consider (currently)
-         * interactions during the last 30 days and max 10.000 nodes.
+         * interactions during the last 30 days and max 500 nodes.
          *
          * You take the ownership of the returned value.
          *
@@ -18828,12 +18975,12 @@ class MegaApi
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies a chat room
-         * @param since DateTime from which we want to fetch occurrences
-         * @param until Datetime until we want to fetch occurrences
+         * @param since DateTime from which we want to fetch occurrences (unix timestamp)
+         * @param until Datetime until we want to fetch occurrences (unix timestamp)
          * @param count Number of occurrences we want to fetch
          * @param listener MegaChatRequestListener to track this request
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -19396,10 +19543,15 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
+         * - Note: Scheduled meeting id: When a scheduled meeting exists for a chatroom, and a call is started in that scheduled meeting context, it won't
+         * ring the participants.
+         *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle() - Returns the scheduled meeting id;
+         * - MegaChatRequest::getAccess() - Returns the SFU id
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -19411,9 +19563,10 @@ class MegaApi
          * - MegaError::API_EEXIST - If there is a call in the chatroom
          *
          * @param chatid MegaHandle that identifies the chat room
+         * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call
@@ -21371,6 +21524,9 @@ public:
     /**
      * @brief Creates an object which can be passed as parameter for some MegaApi methods in order to
      * request the cancellation of the processing associated to the function. @see MegaApi::search
+     *
+     * The instance of MegaCancelToken can be reset (@see cancel) for reuse for future calls, but
+     * it should not be used for more than one operation at the same time.
      *
      * You take ownership of the returned value.
      *

@@ -647,6 +647,11 @@ const char* MegaNode::getDeviceId() const
     return nullptr;
 }
 
+const char* MegaNode::getS4() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -794,13 +799,28 @@ const char* MegaUserAlert::getString(unsigned) const
 {
     return NULL;
 }
+#ifdef ENABLE_CHAT
+MegaHandle MegaUserAlert::getSchedId() const
+{
+    return INVALID_HANDLE;
+}
 
+bool MegaUserAlert::hasSchedMeetingChanged(int) const
+{
+    return false;
+}
+#endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
     return INVALID_HANDLE;
 }
 
 bool MegaUserAlert::isOwnChange() const
+{
+    return false;
+}
+
+bool MegaUserAlert::isRemoved() const
 {
     return false;
 }
@@ -2658,6 +2678,11 @@ void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const
     pImpl->setCustomNodeAttribute(node, attrName, value, listener);
 }
 
+void MegaApi::setNodeS4(MegaNode *node, const char *value, MegaRequestListener *listener)
+{
+    pImpl->setNodeS4(node, value, listener);
+}
+
 void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
 {
     pImpl->setNodeDuration(node, secs, listener);
@@ -2906,9 +2931,9 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 
 /* Class MegaScheduledMeeting */
 MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                                   int cancelled, const char* timezone, const char* startDateTime,
-                                                                   const char* endDateTime, const char* title, const char* description, const char* attributes,
-                                                                   const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
+                                                                   int cancelled, const char* timezone, MegaTimeStamp startDateTime,
+                                                                   MegaTimeStamp endDateTime, const char* title, const char* description, const char* attributes,
+                                                                   MegaTimeStamp overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
 {
     return new MegaScheduledMeetingPrivate(chatid, timezone, startDateTime, endDateTime, title,
                                                description, schedId, parentSchedId, organizerUserId, cancelled,
@@ -2923,12 +2948,12 @@ MegaHandle MegaScheduledMeeting::organizerUserid() const                { return
 MegaHandle MegaScheduledMeeting::parentSchedId() const                  { return INVALID_HANDLE; }
 MegaScheduledMeeting* MegaScheduledMeeting::copy() const                { return NULL; }
 const char* MegaScheduledMeeting::timezone() const                      { return NULL; }
-const char* MegaScheduledMeeting::startDateTime() const                 { return NULL; }
-const char* MegaScheduledMeeting::endDateTime() const                   { return NULL; }
+MegaTimeStamp MegaScheduledMeeting::startDateTime() const               { return MEGA_INVALID_TIMESTAMP; }
+MegaTimeStamp MegaScheduledMeeting::endDateTime() const                 { return MEGA_INVALID_TIMESTAMP; }
 const char* MegaScheduledMeeting::title() const                         { return NULL; }
 const char* MegaScheduledMeeting::description() const                   { return NULL; }
 const char* MegaScheduledMeeting::attributes() const                    { return NULL; }
-const char* MegaScheduledMeeting::overrides() const                     { return NULL; }
+MegaTimeStamp MegaScheduledMeeting::overrides() const                   { return MEGA_INVALID_TIMESTAMP; }
 MegaScheduledRules* MegaScheduledMeeting::rules() const                 { return NULL; }
 MegaScheduledFlags* MegaScheduledMeeting::flags() const                 { return NULL; }
 
@@ -2958,7 +2983,7 @@ unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
 /* Class MegaScheduledRules */
 MegaScheduledRules* MegaScheduledRules::createInstance(int freq,
                                int interval,
-                               const char* until,
+                               MegaTimeStamp until,
                                const ::mega::MegaIntegerList* byWeekDay,
                                const ::mega::MegaIntegerList* byMonthDay,
                                const ::mega::MegaIntegerMap* byMonthWeekDay)
@@ -2970,7 +2995,7 @@ MegaScheduledRules::~MegaScheduledRules()                               {}
 MegaScheduledRules* MegaScheduledRules::copy() const                    { return NULL; }
 int MegaScheduledRules::freq() const                                    { return 0; }
 int MegaScheduledRules::interval() const                                { return 0; }
-const char* MegaScheduledRules::until() const                           { return nullptr; }
+MegaTimeStamp MegaScheduledRules::until() const                         { return UNTIL_INVALID; }
 const mega::MegaIntegerList* MegaScheduledRules::byWeekDay() const      { return nullptr; }
 const mega::MegaIntegerList* MegaScheduledRules::byMonthDay() const     { return nullptr; }
 const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay() const  { return nullptr; }
@@ -4058,12 +4083,12 @@ MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelT
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, CancelToken(), order);
+    return pImpl->search(nullptr, searchString, CancelToken(), order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(searchString, convertToCancelToken(cancelToken), order);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
@@ -4271,9 +4296,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(MegaNode* p, int order)
+MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
 {
-    return pImpl->getChildren(p, order);
+    return pImpl->getChildren(p, order, convertToCancelToken(cancelToken));
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
@@ -4301,9 +4326,9 @@ void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     pImpl->getFolderInfo(node, listener);
 }
 
-MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
+MegaNodeList* MegaApi::getChildrenFromType(MegaNode* p, int type, int order, MegaCancelToken* cancelToken)
 {
-    return pImpl->getFileFolderChildren(p, order);
+    return pImpl->getChildrenFromType(p, type, order, convertToCancelToken(cancelToken));
 }
 
 bool MegaApi::hasChildren(MegaNode *parent)
@@ -5295,7 +5320,7 @@ void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaR
     pImpl->fetchScheduledMeeting(chatid, schedId, listener);
 }
 
-void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener)
+void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
 {
     pImpl->fetchScheduledMeetingEvents(chatid, since, until, count, listener);
 }
@@ -5435,9 +5460,9 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
-void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApi::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
 {
-    pImpl->startChatCall(chatid, listener);
+    pImpl->startChatCall(chatid, schedId, listener);
 }
 
 void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)

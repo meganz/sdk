@@ -59,10 +59,10 @@ void Request::get(string* req, bool& suppressSID) const
     req->append("]");
 }
 
-bool Request::processCmdJSON(Command* cmd)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError)
 {
     Error e;
-    if (cmd->checkError(e, cmd->client->json))
+    if (couldBeError && cmd->checkError(e, cmd->client->json))
     {
         return cmd->procresult(Command::Result(Command::CmdError, e));
     }
@@ -106,8 +106,8 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            // straightforward case - plain JSON response, no seqtag, no error
-            parsedOk = processCmdJSON(cmd);
+            // straightforward case - plain JSON response, no seqtag
+            parsedOk = processCmdJSON(cmd, true);
         }
 
         if (!parsedOk)
@@ -115,6 +115,9 @@ void Request::process(MegaClient* client)
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
             client->json = cmdJSON;
             client->json.storeobject();
+
+            // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
+            assert(false);
         }
         else
         {

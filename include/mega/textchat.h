@@ -84,10 +84,11 @@ class ScheduledRules
         typedef multimap<int8_t, int8_t> rules_map;
 
         constexpr static int INTERVAL_INVALID = 0;
+        constexpr static int UNTIL_INVALID = 0;
 
         ScheduledRules(int freq,
                        int interval = INTERVAL_INVALID,
-                       const string& until = std::string(),
+                       m_time_t until = UNTIL_INVALID,
                        const rules_vector* byWeekDay = nullptr,
                        const rules_vector* byMonthDay = nullptr,
                        const rules_map* byMonthWeekDay = nullptr);
@@ -99,7 +100,7 @@ class ScheduledRules
         // getters
         ScheduledRules::freq_type_t freq() const;
         int interval() const;
-        const std::string &until() const;
+        m_time_t until() const;
         const rules_vector* byWeekDay() const;
         const rules_vector* byMonthDay() const;
         const rules_map* byMonthWeekDay() const;
@@ -109,6 +110,7 @@ class ScheduledRules
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+        static bool isValidUntil(m_time_t interval) { return interval > UNTIL_INVALID; }
 
         // serialization
         bool serialize(string& out) const;
@@ -121,8 +123,8 @@ class ScheduledRules
         // repetition interval in relation to the frequency
         int mInterval = 0;
 
-        // specifies when the repetitions should end
-        std::string mUntil;
+        // specifies when the repetitions should end (unix timestamp)
+        m_time_t mUntil = UNTIL_INVALID;
 
         // allows us to specify that an event will only occur on given week day/s
         std::unique_ptr<rules_vector> mByWeekDay;
@@ -137,10 +139,10 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
-    ScheduledMeeting(handle chatid, const string& timezone, const string& startDateTime, const string& endDateTime,
+    ScheduledMeeting(handle chatid, const string& timezone, m_time_t startDateTime, m_time_t endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
                      handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
-                     const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
+                     m_time_t overrides = mega_invalid_timestamp, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
     ScheduledMeeting* copy() const;
@@ -155,12 +157,12 @@ public:
     handle schedId() const;
     handle parentSchedId() const;
     const std::string &timezone() const;
-    const std::string &startDateTime() const;
-    const std::string &endDateTime() const;
+    m_time_t startDateTime() const;
+    m_time_t endDateTime() const;
     const std::string &title() const;
     const std::string &description() const;
     const std::string &attributes() const;
-    const std::string &overrides() const;
+    m_time_t overrides() const;
     int cancelled() const;
     const ScheduledFlags* flags() const;
     const ScheduledRules* rules() const;
@@ -189,11 +191,11 @@ private:
     // timeZone
     std::string mTimezone;
 
-    // start dateTime (format: 20220726T133000)
-    std::string mStartDateTime;
+    // start dateTime (unix timestamp)
+    m_time_t mStartDateTime;
 
-    // end dateTime (format: 20220726T133000)
-    std::string mEndDateTime;
+    // end dateTime (unix timestamp)
+    m_time_t mEndDateTime;
 
     // meeting title
     std::string mTitle;
@@ -204,8 +206,8 @@ private:
     // attributes to store any additional data
     std::string mAttributes;
 
-    // start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
-    std::string mOverrides;
+    // start dateTime of the original meeting series event to be replaced (unix timestamp)
+    m_time_t mOverrides;
 
     // cancelled flag
     int mCancelled;
@@ -242,7 +244,7 @@ struct TextChat : public Cacheable
     map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
     // list of scheduled meetings changed
-    std::vector<handle> mSchedMeetingsChanged;
+    handle_set mSchedMeetingsChanged;
 
     // maps a scheduled meeting id to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
@@ -253,6 +255,18 @@ struct TextChat : public Cacheable
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
+    void deleteSchedMeeting(const handle sm)
+    {
+        mScheduledMeetings.erase(sm);
+        mSchedMeetingsChanged.insert(sm);
+    }
+
+    void deleteSchedMeetingOccurrBySchedId(const handle sm)
+    {
+        // multiple entries can be deleted (multimap)
+        mScheduledMeetingsOcurrences.erase(sm);
+        mSchedMeetingsChanged.insert(sm);
+    }
 
 public:
     int tag;    // source tag, to identify own changes
@@ -285,25 +299,34 @@ public:
     bool setMode(bool publicchat);
 
     // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
-    void addSchedMeetingOccurrence(ScheduledMeeting *sm);
+    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
 
     // clear scheduled meetings ocurrences for a chatroom
     void clearSchedMeetingOccurrences();
 
     // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool addOrUpdateSchedMeeting(ScheduledMeeting* sm, bool notify = true);
+    bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
 
     // add a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool addSchedMeeting(ScheduledMeeting* sm, bool notify = true);
+    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
 
     // removes a scheduled meeting given a scheduled meeting id
     bool removeSchedMeeting(handle schedId);
 
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
-    unsigned int removeChildSchedMeetings(handle parentSchedId);
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetings(handle parentSchedId);
+
+    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeSchedMeetingsOccurrencesAndChildren(handle schedId);
+
+    // removes all scheduled meeting occurrences whose parent scheduled meeting id, is equal to parentSchedId provided
+    // returns handle_set with the meeting id of the removed children
+    handle_set removeChildSchedMeetingsOccurrences(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
-    bool updateSchedMeeting(ScheduledMeeting* sm);
+    bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
 
     // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
     ScheduledMeeting* getSchedMeetingById(handle id);
