@@ -1011,6 +1011,7 @@ class MEGA_API CommandChatCreate : public Command
     string mUnifiedKey;
     bool mMeeting;
     ChatOptions mChatOptions;
+    std::unique_ptr<ScheduledMeeting> mSchedMeeting;
 public:
     bool procresult(Result) override;
 

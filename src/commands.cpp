@@ -6781,6 +6781,7 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     // create a scheduled meeting along with chatroom
     if (schedMeeting)
     {
+        mSchedMeeting.reset(schedMeeting->copy()); // can avoid copy by mooving check from where we are calling
         handle schedId = schedMeeting->schedId();
         handle parentSchedId = schedMeeting->parentSchedId();
         beginobject("sm");
@@ -6879,9 +6880,13 @@ bool CommandChatCreate::procresult(Result r)
     else
     {
         handle chatid = UNDEF;
+        handle schedId = UNDEF;
         int shard = -1;
         bool group = false;
         m_time_t ts = -1;
+        handle ou = UNDEF;
+        std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+        UserAlert::UpdatedScheduledMeeting::Changeset cs;
 
         for (;;)
         {
@@ -6903,6 +6908,22 @@ bool CommandChatCreate::procresult(Result r)
                     ts = client->json.getint();
                     break;
 
+                case MAKENAMEID2('s', 'm'):
+                {
+                    if (!client->json.isnumeric())
+                    {
+                        schedId = client->json.gethandle(MegaClient::CHATHANDLE);
+                    }
+                    else
+                    {
+                        assert(false); // we don't won't to add an ill-formed chatroom
+                        LOG_err << "Error creating a scheduled meeting along with chat. chatId [" <<  Base64Str<MegaClient::CHATHANDLE>(chatid) << "]";
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers; // unused, but might be set at creation
+                        return false;
+                    }
+                    break;
+                }
                 case EOO:
                     if (chatid != UNDEF && shard != -1)
                     {
@@ -6936,6 +6957,17 @@ bool CommandChatCreate::procresult(Result r)
                         if (mPublicChat)
                         {
                             chat->unifiedKey = mUnifiedKey;
+                        }
+
+                        if (schedId != UNDEF)
+                        {
+                            assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
+                            mSchedMeeting->setSchedId(schedId);
+                            if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
+                            {
+                                LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+                            }
+                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                         }
 
                         client->notifychat(chat);
