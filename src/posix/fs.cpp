@@ -694,7 +694,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     return false;
 }
 
-std::string PosixFileSystemAccess::getErrorMessage(int error) const
+std::string PosixFileAccess::getErrorMessage(int error) const
 {
     return strerror(error);
 }
