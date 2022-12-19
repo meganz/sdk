@@ -26,9 +26,6 @@
 
 namespace mega {
 
-// get the Windows error message in UTF-8
-std::string WinErrorMessage(DWORD error = 0xFFFFFFFF);
-
 class MEGA_API WinFileAccess;
 
 struct MEGA_API WinDirAccess : public DirAccess
