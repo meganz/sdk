@@ -499,6 +499,7 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    virtual std::string getErrorMessage(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();

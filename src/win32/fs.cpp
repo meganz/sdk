@@ -2078,4 +2078,9 @@ std::string WinErrorMessage(DWORD error)
     return r;
 }
 
+std::string WinFileAccess::getErrorMessage(int error) const
+{
+    return WinErrorMessage(error);
+}
+
 } // namespace
