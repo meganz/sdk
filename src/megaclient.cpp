@@ -22730,7 +22730,9 @@ bool KeyManager::decodeRSAKey(const string& pqdKey)
     pos = pqdKey.find(currentPK);
     keyOk = !pos;
 
-    mClient.mPrivKey = Base64::btoa(pqdKey);
+    // Keep client RSA key serialized as received by login/"ug"
+    // It is used by intermediate layer and login/ug are 4 Ints long, not 3, which could cause problems when comparing them.
+    // mClient.mPrivKey = Base64::btoa(pqdKey);
     if (!mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)pqdKey.data(), (int)pqdKey.size()))
     {
         keyOk = false;
