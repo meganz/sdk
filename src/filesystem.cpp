@@ -509,10 +509,14 @@ void LocalPath::normalizeAbsolute()
         // The caller already passed in a path that should be precise either with \\?\ or \\.\ or \\<server> etc.
         // Let's trust they know what they are doing and leave the path alone
 
-        // However, it turns out, \\?\UNC\<server>\etc  can allow us to operate on paths with trailing spaces and other things Explorer doesn't like, which just \\server\ does not
-        if (localpath.substr(0,8) != L"\\\\?\\UNC\\")
+        if (localpath.substr(0,4) != L"\\\\?\\" &&
+            localpath.substr(0,4) != L"\\\\.\\")
         {
-            localpath.insert(2, L"?\\UNC\\");
+            // However, it turns out, \\?\UNC\<server>\etc  can allow us to operate on paths with trailing spaces and other things Explorer doesn't like, which just \\server\ does not
+            if (localpath.substr(0,8) != L"\\\\?\\UNC\\")
+            {
+                localpath.insert(2, L"?\\UNC\\");
+            }
         }
     }
     else
