@@ -17654,7 +17654,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
 
                     string freq;
-                    m_time_t until = ScheduledRules::UNTIL_INVALID;
+                    m_time_t until = mega_invalid_timestamp;
                     int interval = ScheduledRules::INTERVAL_INVALID;
                     ScheduledRules::rules_vector vWeek;
                     ScheduledRules::rules_vector vMonth;

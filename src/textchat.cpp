@@ -86,7 +86,7 @@ ScheduledRules::ScheduledRules(int freq,
                               const rules_map* byMonthWeekDay)
     : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-      mUntil(isValidUntil(until) ? until : UNTIL_INVALID),
+      mUntil(isValidUntil(until) ? until : mega_invalid_timestamp),
       mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
       mByMonthDay(byMonthDay ? new rules_vector(*byMonthDay) : nullptr),
       mByMonthWeekDay(byMonthWeekDay ? new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)

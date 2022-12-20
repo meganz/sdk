@@ -33579,7 +33579,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
                               const ::mega::MegaIntegerMap* byMonthWeekDay):
     mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
     mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-    mUntil(isValidUntil(until) ? until : UNTIL_INVALID),
+    mUntil(isValidUntil(until) ? until : MEGA_INVALID_TIMESTAMP),
     mByWeekDay(byWeekDay ? byWeekDay->copy() : nullptr),
     mByMonthDay (byMonthDay ? byMonthDay->copy() : nullptr),
     mByMonthWeekDay(byMonthWeekDay ? byMonthWeekDay->copy() : nullptr)
@@ -33589,7 +33589,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
         mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
         mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
-        mUntil(isValidUntil(rules->until()) ? rules->until() : UNTIL_INVALID),
+        mUntil(isValidUntil(rules->until()) ? rules->until() : MEGA_INVALID_TIMESTAMP),
         mByWeekDay(rules->byWeekDay() ? rules->byWeekDay()->copy() : nullptr),
         mByMonthDay (rules->byMonthDay() ? rules->byMonthDay()->copy() : nullptr),
         mByMonthWeekDay(rules->byMonthWeekDay() ? rules->byMonthWeekDay()->copy() : nullptr)

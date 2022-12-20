@@ -4163,7 +4163,7 @@ class MegaScheduledRulesPrivate : public MegaScheduledRules
 public:
     MegaScheduledRulesPrivate(int freq,
                                   int interval = INTERVAL_INVALID,
-                                  MegaTimeStamp until = UNTIL_INVALID,
+                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                   const mega::MegaIntegerList* byWeekDay = nullptr,
                                   const mega::MegaIntegerList* byMonthDay = nullptr,
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -4181,7 +4181,7 @@ public:
     const mega::MegaIntegerMap* byMonthWeekDay() const override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
-    static bool isValidUntil(m_time_t until) { return until > UNTIL_INVALID; }
+    static bool isValidUntil(m_time_t until) { return until > MEGA_INVALID_TIMESTAMP; }
     ScheduledRules* getSdkScheduledRules() const;
 
 private:

@@ -84,11 +84,10 @@ class ScheduledRules
         typedef multimap<int8_t, int8_t> rules_map;
 
         constexpr static int INTERVAL_INVALID = 0;
-        constexpr static int UNTIL_INVALID = 0;
 
         ScheduledRules(int freq,
                        int interval = INTERVAL_INVALID,
-                       m_time_t until = UNTIL_INVALID,
+                       m_time_t until = mega_invalid_timestamp,
                        const rules_vector* byWeekDay = nullptr,
                        const rules_vector* byMonthDay = nullptr,
                        const rules_map* byMonthWeekDay = nullptr);
@@ -110,7 +109,7 @@ class ScheduledRules
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
-        static bool isValidUntil(m_time_t interval) { return interval > UNTIL_INVALID; }
+        static bool isValidUntil(m_time_t interval) { return interval > mega_invalid_timestamp; }
 
         // serialization
         bool serialize(string& out) const;
@@ -124,7 +123,7 @@ class ScheduledRules
         int mInterval = 0;
 
         // specifies when the repetitions should end (unix timestamp)
-        m_time_t mUntil = UNTIL_INVALID;
+        m_time_t mUntil = mega_invalid_timestamp;
 
         // allows us to specify that an event will only occur on given week day/s
         std::unique_ptr<rules_vector> mByWeekDay;

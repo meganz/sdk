@@ -2925,7 +2925,6 @@ public:
     };
 
     constexpr static int INTERVAL_INVALID = 0;
-    constexpr static int UNTIL_INVALID = 0;
     virtual ~MegaScheduledRules();
 
     /**
@@ -2942,7 +2941,7 @@ public:
      */
     static MegaScheduledRules* createInstance(int freq,
                                                   int interval = INTERVAL_INVALID,
-                                                  MegaTimeStamp until = UNTIL_INVALID,
+                                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                                   const ::mega::MegaIntegerList* byWeekDay = nullptr,
                                                   const ::mega::MegaIntegerList* byMonthDay = nullptr,
                                                   const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);

@@ -2995,7 +2995,7 @@ MegaScheduledRules::~MegaScheduledRules()                               {}
 MegaScheduledRules* MegaScheduledRules::copy() const                    { return NULL; }
 int MegaScheduledRules::freq() const                                    { return 0; }
 int MegaScheduledRules::interval() const                                { return 0; }
-MegaTimeStamp MegaScheduledRules::until() const                         { return UNTIL_INVALID; }
+MegaTimeStamp MegaScheduledRules::until() const                         { return MEGA_INVALID_TIMESTAMP; }
 const mega::MegaIntegerList* MegaScheduledRules::byWeekDay() const      { return nullptr; }
 const mega::MegaIntegerList* MegaScheduledRules::byMonthDay() const     { return nullptr; }
 const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay() const  { return nullptr; }
