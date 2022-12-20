@@ -10479,27 +10479,3 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
 }
 */
 
-// TEMP test tpo exercsie logging
-TEST_F(SdkTest, FileAccess)
-{
-    LOG_info << "SdkTest FileAccess";
-
-    unique_ptr<FileSystemAccess> fsaccess(new FSACCESS_CLASS());
-    unique_ptr<FileAccess> fa = fsaccess->newfileaccess();
-    //filesystem::create_directory("not-there.txt");
-
-    {ofstream ofs("temp.txt"); }
-    
-    fa->fopen(LocalPath::fromAbsolutePath("C:\\Temp\\unopenable.txt"));
-    fa->openf();
-    fa->asyncfopen(LocalPath::fromAbsolutePath("C:\\Temp\\unopenable.txt"));
-    fa->asyncopenf();
-    fa->asyncclosef();
-
-    fa->fopen(LocalPath::fromRelativePath("temp-no.txt"));
-    fa->openf();
-
-    fa->asyncfopen(LocalPath::fromRelativePath("temp-no-async.txt"));
-    fa->asyncopenf();
-    fa->asyncclosef();
-}
