@@ -24,6 +24,8 @@
 #import "MEGANodeList+init.h"
 #import "MEGAContactRequestList+init.h"
 #import "MEGAEvent+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 
 using namespace mega;
 

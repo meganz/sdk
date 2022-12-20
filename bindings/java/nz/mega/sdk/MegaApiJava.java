@@ -7967,90 +7967,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get file and folder children of a MegaNode separately
-     * <p>
-     * If the parent node doesn't exist or it isn't a folder, this function
-     * returns NULL
-     * <p>
-     * You take the ownership of the returned value
-     *
-     * @param parent Parent node
-     * @param order  Order for the returned lists
-     *               Valid values for this parameter are:
-     *               - MegaApi::ORDER_NONE = 0
-     *               Undefined order
-     *               <p>
-     *               - MegaApi::ORDER_DEFAULT_ASC = 1
-     *               Folders first in alphabetical order, then files in the same order
-     *               <p>
-     *               - MegaApi::ORDER_DEFAULT_DESC = 2
-     *               Files first in reverse alphabetical order, then folders in the same order
-     *               <p>
-     *               - MegaApi::ORDER_SIZE_ASC = 3
-     *               Sort by size, ascending
-     *               <p>
-     *               - MegaApi::ORDER_SIZE_DESC = 4
-     *               Sort by size, descending
-     *               <p>
-     *               - MegaApi::ORDER_CREATION_ASC = 5
-     *               Sort by creation time in MEGA, ascending
-     *               <p>
-     *               - MegaApi::ORDER_CREATION_DESC = 6
-     *               Sort by creation time in MEGA, descending
-     *               <p>
-     *               - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *               Sort by modification time of the original file, ascending
-     *               <p>
-     *               - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *               Sort by modification time of the original file, descending
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *               <p>
-     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *               They will be eventually removed.
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     * @return Lists with files and folders child MegaNode objects
-     */
-    public MegaChildren getFileFolderChildren(MegaNode parent, int order) {
-        MegaChildren children = new MegaChildren();
-
-        MegaChildrenLists childrenList = megaApi.getFileFolderChildren(parent, order);
-
-        children.setFileList(nodeListToArray(childrenList.getFileList()));
-        children.setFolderList(nodeListToArray(childrenList.getFolderList()));
-
-        return children;
-    }
-
-    /**
      * Returns true if the node has children
      *
      * @return true if the node has children
@@ -9670,35 +9586,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     *
-     * @param days     Age of actions since added/modified nodes will be considered (in days)
-     * @param maxnodes Maximum amount of nodes to be considered
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions(long days, long maxnodes) {
-        return recentActionsToArray(megaApi.getRecentActions(days, maxnodes));
-    }
-
-    /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     * <p>
-     * This function uses the default parameters for the MEGA apps, which consider (currently)
-     * interactions during the last 30 days and max 10.000 nodes.
-     * <p>
-     * You take the ownership of the returned value.
-     *
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions() {
-        return recentActionsToArray(megaApi.getRecentActions());
-    }
-
-    /**
      * Get a list of buckets, each bucket containing a list of recently added/modified nodes
      *
      * Each bucket contains files that were added/modified in a set, by a single user.
@@ -11071,17 +10958,40 @@ public class MegaApiJava {
         return result;
     }
 
-    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
-        if (recentActionList == null) {
+    static ArrayList<MegaSet> megaSetListToArray(MegaSetList megaSetList) {
+        if (megaSetList == null) {
             return null;
         }
 
-        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
-        for (int i = 0; i < recentActionList.size(); i++) {
-            result.add(recentActionList.get(i).copy());
+        ArrayList<MegaSet> result = new ArrayList<>((int) megaSetList.size());
+        for (int i = 0; i < megaSetList.size(); i++) {
+            result.add(megaSetList.get(i).copy());
         }
 
         return result;
+    }
+
+    static ArrayList<MegaSetElement> megaSetElementListToArray(MegaSetElementList megaSetElementList) {
+        if (megaSetElementList == null) {
+            return null;
+        }
+
+        ArrayList<MegaSetElement> result = new ArrayList<>((int) megaSetElementList.size());
+        for (int i = 0; i < megaSetElementList.size(); i++) {
+            result.add(megaSetElementList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    /**
+     * Creates a copy of MegaRecentActionBucket required for its usage in the app.
+     *
+     * @param bucket The MegaRecentActionBucket received.
+     * @return A copy of MegaRecentActionBucket.
+     */
+    public MegaRecentActionBucket copyBucket(MegaRecentActionBucket bucket) {
+        return bucket.copy();
     }
 
     /**
@@ -11514,8 +11424,8 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Set
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(String name, MegaRequestListener listener) {
-        megaApi.createSet(name, listener);
+    public void createSet(String name, MegaRequestListenerInterface listener) {
+        megaApi.createSet(name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11560,8 +11470,8 @@ public class MegaApiJava {
      * @param name     the new name that should be given to the Set
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetName(long sid, String name, MegaRequestListener listener) {
-        megaApi.updateSetName(sid, name, listener);
+    public void updateSetName(long sid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetName(sid, name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11605,8 +11515,8 @@ public class MegaApiJava {
      * @param eid      the id of the Element to be set as cover
      * @param listener MegaRequestListener to track this request
      */
-    public void putSetCover(long sid, long eid, MegaRequestListener listener) {
-        megaApi.putSetCover(sid, eid, listener);
+    public void putSetCover(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.putSetCover(sid, eid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11647,8 +11557,8 @@ public class MegaApiJava {
      * @param sid      the id of the Set to be removed
      * @param listener MegaRequestListener to track this request
      */
-    public void removeSet(long sid, MegaRequestListener listener) {
-        megaApi.removeSet(sid, listener);
+    public void removeSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.removeSet(sid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11691,8 +11601,8 @@ public class MegaApiJava {
      * @param sid      the id of the Set to be fetched
      * @param listener MegaRequestListener to track this request
      */
-    public void fetchSet(long sid, MegaRequestListener listener) {
-        megaApi.fetchSet(sid, listener);
+    public void fetchSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.fetchSet(sid, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11745,8 +11655,8 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Element
      * @param listener MegaRequestListener to track this request
      */
-    public void createSetElement(long sid, long node, String name, MegaRequestListener listener) {
-        megaApi.createSetElement(sid, node,name, listener);
+    public void createSetElement(long sid, long node, String name, MegaRequestListenerInterface listener) {
+        megaApi.createSetElement(sid, node,name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11827,8 +11737,8 @@ public class MegaApiJava {
      * @param name     the new name that should be given to the Element
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetElementName(long sid, long eid, String name, MegaRequestListener listener) {
-        megaApi.updateSetElementName(sid, eid, name, listener);
+    public void updateSetElementName(long sid, long eid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementName(sid, eid, name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11876,8 +11786,8 @@ public class MegaApiJava {
      * @param order    the new order of the Element
      * @param listener MegaRequestListener to track this request
      */
-    public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListener listener) {
-        megaApi.updateSetElementOrder(sid, eid, order, listener);
+    public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementOrder(sid, eid, order, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11922,8 +11832,8 @@ public class MegaApiJava {
      * @param eid      the id of the Element to be removed
      * @param listener MegaRequestListener to track this request
      */
-    public void removeSetElement(long sid, long eid, MegaRequestListener listener) {
-        megaApi.removeSetElement(sid, eid, listener);
+    public void removeSetElement(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.removeSetElement(sid, eid, createDelegateRequestListener(listener));
     }
 
     /**

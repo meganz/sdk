@@ -7,7 +7,7 @@ Version: 1.0
 DEBTRANSFORM-RELEASE: 1
 Maintainer: MEGA Linux Team <linux@mega.co.nz>
 Homepage: https://mega.nz/#sync
-Build-Depends: libtool, debhelper, dh-autoreconf, cdbs, python
+Build-Depends: libtool, debhelper, dh-autoreconf, cdbs, python3
 Package-List:
  pdfium-mega
 Files:
