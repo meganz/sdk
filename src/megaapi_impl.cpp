@@ -15393,7 +15393,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string prefix = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true);
                     prefixedValueMap = mega::make_unique<string_map>();
                     for_each(newValuesMap->begin(), newValuesMap->end(),
-                        [&prefixedValueMap, &prefix](const string_map::value_type& a) {prefixedValueMap->emplace(prefix + a.first, a.second); });
+                        [&prefixedValueMap, &prefix](const string_map::value_type& a) { prefixedValueMap->emplace(prefix + a.first, a.second); });
                     newValuesMap = prefixedValueMap.get();
                 }
             }
