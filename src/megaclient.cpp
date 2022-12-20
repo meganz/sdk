@@ -17549,12 +17549,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         handle parentSchedId = UNDEF;
         handle originatingUser = UNDEF;
         std::string timezone;
-        m_time_t startDateTime;
-        m_time_t endDateTime;
+        m_time_t startDateTime = mega_invalid_timestamp;
+        m_time_t endDateTime = mega_invalid_timestamp;
         std::string title;
         std::string description;
         std::string attributes;
-        m_time_t overrides;
+        m_time_t overrides = mega_invalid_timestamp;
         int cancelled = 0;
         std::unique_ptr<ScheduledFlags> flags;
         std::unique_ptr<ScheduledRules> rules;

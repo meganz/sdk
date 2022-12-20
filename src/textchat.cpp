@@ -220,7 +220,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     if (in.empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
-    m_time_t until;
+    m_time_t until = mega_invalid_timestamp;
     rules_vector byWeekDay;
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
@@ -545,12 +545,12 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     handle schedId = UNDEF;
     handle parentSchedId = UNDEF;
     std::string timezone;
-    m_time_t startDateTime;
-    m_time_t endDateTime;
+    m_time_t startDateTime = mega_invalid_timestamp;
+    m_time_t endDateTime = mega_invalid_timestamp;
     std::string title;
     std::string description;
     std::string attributes;
-    m_time_t overrides;
+    m_time_t overrides = mega_invalid_timestamp;
     std::string flagsStr;
     std::string rulesStr;
     int cancelled = -1;
