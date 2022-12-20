@@ -2223,12 +2223,6 @@ CommandPendingKeys::CommandPendingKeys(MegaClient *client, handle user, handle s
 
 bool CommandPendingKeys::procresult(Result r)
 {
-    Error e;
-    handle sharehandle;
-    std::string sharekey;
-    std::string lastcompleted;
-    std::shared_ptr<map<handle, map<handle, string>>> keys = std::make_shared<map<handle, map<handle, string>>>();
-
     if (r.wasErrorOrOK())
     {
         if (mReadCompletion)
@@ -2252,33 +2246,39 @@ bool CommandPendingKeys::procresult(Result r)
     //  "peeruserhandle2":{"sharehandle3":"key3"},...
     //  "d":"lastcompleted"} (lastcompleted is a base64 string like oMl7nfj67Jw)
 
-    std::string key;
-    key = client->json.getname();
-    while (key.size())
+    // maps user's handles to a map of share's handles : share's keys
+    std::shared_ptr<map<handle, map<handle, string>>> keys = std::make_shared<map<handle, map<handle, string>>>();
+    std::string lastcompleted;
+
+    std::string name;
+    name = client->json.getname();
+    while (name.size())
     {
-        if (key == "d")
+        if (name == "d")
         {
             client->json.storeobject(&lastcompleted);
-            key = client->json.getname();
+            name = client->json.getname();
             continue;
         }
 
         handle userhandle = 0;
-        Base64::atob(key.c_str(), (byte*)&userhandle, MegaClient::USERHANDLE);
+        Base64::atob(name.c_str(), (byte*)&userhandle, MegaClient::USERHANDLE);
         if (!client->json.enterobject())
         {
             mReadCompletion(API_EINTERNAL, std::string(), nullptr);
             return false;
         }
 
+        handle sharehandle;
         while (!ISUNDEF(sharehandle = client->json.gethandle()))
         {
+            string sharekey;
             JSON::copystring(&sharekey, client->json.getvalue());
             (*keys)[userhandle][sharehandle] = sharekey;
         }
 
         client->json.leaveobject();
-        key = client->json.getname();
+        name = client->json.getname();
     }
 
     mReadCompletion(API_OK, lastcompleted, keys);
