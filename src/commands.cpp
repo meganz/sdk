@@ -2986,7 +2986,90 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
 bool CommandPutMultipleUAVer::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.hasJsonObject())
+    {
+        User *u = client->ownuser();
+        for(;;)   // while there are more attrs to read...
+        {
+
+            if (*client->json.pos == '}')
+            {
+                client->notifyuser(u);
+                client->app->putua_result(API_OK);
+                return true;
+            }
+
+            string key, value;
+            if (!client->json.storeKeyValueFromObject(key, value))
+            {
+                break;
+            }
+
+            attr_t type = User::string2attr(key.c_str());
+            userattr_map::iterator it = this->attrs.find(type);
+            if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
+            {
+                LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << key;
+                for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
+                break;
+            }
+            else
+            {
+                u->setattr(type, &it->second, &value);
+                u->setTag(tag ? tag : -1);
+
+                if (type == ATTR_KEYRING)
+                {
+                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
+                    if (tlvRecords)
+                    {
+                        string prEd255;
+                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        {
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+                        }
+
+                        string prCu255;
+                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        {
+                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                        }
+
+                        if (!client->chatkey || !client->chatkey->initializationOK ||
+                                !client->signkey || !client->signkey->initializationOK)
+                        {
+                            client->resetKeyring();
+                            client->sendevent(99418, "Failed to load attached keys", 0);
+                        }
+                        else
+                        {
+                            client->sendevent(99420, "Signing and chat keys attached OK", 0);
+                        }
+
+                        delete tlvRecords;
+                    }
+                    else
+                    {
+                        LOG_warn << "Failed to decrypt keyring after putua";
+                    }
+                }
+                else if (User::isAuthring(type))
+                {
+                    client->mAuthRings.erase(type);
+                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                    if (tlvRecords)
+                    {
+                        client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to decrypt keyring after putua";
+                    }
+                }
+            }
+        }
+    }
+    else if (r.wasErrorOrOK())
     {
         client->sendevent(99419, "Error attaching keys", 0);
 
@@ -2994,91 +3077,8 @@ bool CommandPutMultipleUAVer::procresult(Result r)
         return true;
     }
 
-    User *u = client->ownuser();
-    for(;;)   // while there are more attrs to read...
-    {
-        const char* ptr;
-        const char* end;
-
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-        {
-            break;
-        }
-        attr_t type = User::string2attr(string(ptr, (end-ptr)).c_str());
-
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-        {
-            client->app->putua_result(API_EINTERNAL);
-            return false;
-        }
-        string version = string(ptr, (end-ptr));
-
-        userattr_map::iterator it = this->attrs.find(type);
-        if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
-        {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            client->app->putua_result(API_EINTERNAL);
-            return false;
-        }
-        else
-        {
-            u->setattr(type, &it->second, &version);
-            u->setTag(tag ? tag : -1);
-
-            if (type == ATTR_KEYRING)
-            {
-                TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                if (tlvRecords)
-                {
-                    string prEd255;
-                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
-                    {
-                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                    }
-
-                    string prCu255;
-                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                    {
-                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
-                    }
-
-                    if (!client->chatkey || !client->chatkey->initializationOK ||
-                            !client->signkey || !client->signkey->initializationOK)
-                    {
-                        client->resetKeyring();
-                        client->sendevent(99418, "Failed to load attached keys", 0);
-                    }
-                    else
-                    {
-                        client->sendevent(99420, "Signing and chat keys attached OK", 0);
-                    }
-
-                    delete tlvRecords;
-                }
-                else
-                {
-                    LOG_warn << "Failed to decrypt keyring after putua";
-                }
-            }
-            else if (User::isAuthring(type))
-            {
-                client->mAuthRings.erase(type);
-                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
-                if (tlvRecords)
-                {
-                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
-                }
-                else
-                {
-                    LOG_err << "Failed to decrypt keyring after putua";
-                }
-            }
-        }
-    }
-
-    client->notifyuser(u);
-    client->app->putua_result(API_OK);
-    return true;
+    client->app->putua_result(API_EINTERNAL);
+    return false;
 }
 
 
@@ -5188,7 +5188,11 @@ bool CommandGetUserTransactions::procresult(Result r)
             details->transactions[t].currency[3] = 0;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, true, false);
@@ -5230,7 +5234,11 @@ bool CommandGetUserPurchases::procresult(Result r)
             details->purchases[t].method = method;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, true, false, false);
@@ -5269,7 +5277,11 @@ bool CommandGetUserSessions::procresult(Result r)
         details->sessions[t].id = client->json.gethandle(8);
         details->sessions[t].alive = (int)client->json.getint();
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, false, true);
@@ -8347,6 +8359,11 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 bool CommandSetLastAcknowledged::procresult(Result r)
 {
+    if (r.succeeded())
+    {
+        client->useralerts.acknowledgeAllSucceeded();
+    }
+
     client->app->acknowledgeuseralerts_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -9611,7 +9628,14 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     TextChat* chat = it->second;
 
     // remove children scheduled meetings (API requirement)
-    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
+    handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+
+    // remove all child scheduled meeting occurrences
+    // API currently just supports 1 level in scheduled meetings hierarchy
+    // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+    // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+    handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
     mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
@@ -9622,7 +9646,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (deletedChildren)
+    else if (!deletedChildren.empty() || !deletedChildrenOccurr.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
@@ -9666,6 +9690,9 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
+
+            // remove scheduled meetings occurrences and children
+            chat->removeSchedMeetingsOccurrencesAndChildren(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
 

@@ -743,13 +743,9 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-
-    mApi[apiIndex].megaApi->fetchNodes();
-
-    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
-            << "Fetchnodes failed after " << timeout  << " seconds";
-    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Fetchnodes failed (error: " << mApi[apiIndex].lastError << ")";
+    RequestTracker rt(megaApi[apiIndex].get());
+    mApi[apiIndex].megaApi->fetchNodes(&rt);
+    ASSERT_TRUE(API_OK == rt.waitForResult(300)) << "Fetchnodes failed or took more than 5 minutes";
 }
 
 void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
@@ -9563,6 +9559,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
+    unsigned elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
@@ -9579,6 +9577,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp2->name(), elattrs);
     ASSERT_EQ(elp2->ts(), elp->ts());
     ASSERT_EQ(elp2->order(), elp->order());
+    elCount = differentApi.getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
 
     // Clear Element name
     differentApiDtls.setElementUpdated = false;
@@ -9693,6 +9693,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 0u);
 
     elp.reset(megaApi[0]->getSetElement(sh, eh));
     ASSERT_EQ(elp, nullptr);

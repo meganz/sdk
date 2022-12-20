@@ -330,6 +330,7 @@ private:
 
     static nameid getExtensionNameId(const std::string& ext);
 
+ public:
     enum
     {
         FLAGS_IS_VERSION = 0,  // This bit is active if node is a version
