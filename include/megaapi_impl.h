@@ -2651,6 +2651,7 @@ class MegaApiImpl : public MegaApp
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid);
         MegaSetElementList* getSetElements(MegaHandle sid);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 

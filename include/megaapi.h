@@ -20327,6 +20327,15 @@ class MegaApi
         MegaHandle getSetCover(MegaHandle sid);
 
         /**
+         * @brief Get Element count of the Set with the given id, for current user.
+         *
+         * @param sid the id of the Set to get Element count for
+         *
+         * @return Element count of requested Set, or 0 if not found
+         */
+        unsigned getSetElementCount(MegaHandle sid);
+
+        /**
          * @brief Get all Elements in the Set with given id, for current user.
          *
          * The response value is stored as a MegaSetElementList.

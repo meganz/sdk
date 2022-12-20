@@ -5756,6 +5756,11 @@ MegaHandle MegaApi::getSetCover(MegaHandle sid)
     return pImpl->getSetCover(sid);
 }
 
+unsigned MegaApi::getSetElementCount(MegaHandle sid)
+{
+    return pImpl->getSetElementCount(sid);
+}
+
 MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
 {
     return pImpl->getSetElements(sid);

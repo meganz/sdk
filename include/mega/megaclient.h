@@ -2377,6 +2377,9 @@ public:
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
 
+    // return Element count for Set sid, or 0 if not found
+    unsigned getSetElementCount(handle sid) const;
+
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;
 
