@@ -1437,6 +1437,16 @@ void User::set(visibility_t v, m_time_t ct)
     ctime = ct;
 }
 
+string User::attributePrefixInTLV(attr_t type, bool modifier)
+{
+    if (type == ATTR_DEVICE_NAMES && modifier)
+    {
+        return "ext:";
+    }
+
+    return string();
+}
+
 AuthRing::AuthRing(attr_t type, const TLVstore &authring)
     : mType(type)
 {

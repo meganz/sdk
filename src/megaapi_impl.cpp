@@ -15128,7 +15128,7 @@ void MegaApiImpl::getua_result(error e)
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
             attr_t type = static_cast<attr_t>(request->getParamType());
             bool keyPrefixModifier = request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES && request->getFlag();
-            string keyPrefix = client->attrPrefixInTLV(type, keyPrefixModifier);
+            string keyPrefix = User::attributePrefixInTLV(type, keyPrefixModifier);
             for (int i = 0; i < keys->size(); i++)
             {
                 const char *key = keys->get(i);
@@ -15390,7 +15390,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 
                 if (request->getFlag()) // external drive
                 {
-                    string prefix = client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true);
+                    string prefix = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true);
                     prefixedValueMap = mega::make_unique<string_map>();
                     for_each(newValuesMap->begin(), newValuesMap->end(),
                         [&prefixedValueMap, &prefix](const string_map::value_type& a) {prefixedValueMap->emplace(prefix + a.first, a.second); });
@@ -15506,7 +15506,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 if (request->getFlag()) // external drive
                 {
                     handle driveId = request->getNodeHandle();
-                    string key = client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
+                    string key = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
                     buf = stringMap->get(key.c_str());
                 }
                 else
@@ -20297,7 +20297,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     if (request->getFlag()) // external drive
                     {
-                        string prefix = client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true);
+                        string prefix = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true);
                         prefixedValueMap = mega::make_unique<string_map>();
                         for_each(newValuesMap->begin(), newValuesMap->end(),
                             [&prefixedValueMap, &prefix](const string_map::value_type& a) {prefixedValueMap->emplace(prefix + a.first, a.second); });

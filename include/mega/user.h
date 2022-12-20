@@ -159,6 +159,7 @@ public:
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
     static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
+    static string attributePrefixInTLV(attr_t type, bool modifier);
 };
 
 class AuthRing

@@ -14835,7 +14835,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
         string deviceName;
         std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
-        const string& deviceNameKey = isInternalDrive ? deviceId : attrPrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
+        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
         if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
@@ -16605,16 +16605,6 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
         tlv->get(name, value);
 
     return value;
-}
-
-std::string MegaClient::attrPrefixInTLV(attr_t attrType, bool modifier) const
-{
-    if (attrType == ATTR_DEVICE_NAMES && modifier)
-    {
-        return "ext:";
-    }
-
-    return string();
 }
 
 #ifdef ENABLE_SYNC

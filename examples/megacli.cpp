@@ -1317,7 +1317,7 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             // external drive names can be filtered
             if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
+                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
                 if (!printDriveId)
                 {
                     continue;
@@ -1338,7 +1338,7 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
 
-                    if (key.rfind(client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
+                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
                     {
                         cout << " (external drive)";
                     }
@@ -3565,7 +3565,7 @@ void exec_setextdrivename(autocomplete::ACState& s)
         return;
     }
 
-    putua_map(client->attrPrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)),
+    putua_map(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)),
               Base64::btoa(drivename), ATTR_DEVICE_NAMES);
 }
 
