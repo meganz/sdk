@@ -4481,7 +4481,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches();
     }
 
-    mNodeManager.reset();
     sctable.reset();
     pendingsccommit = false;
 
@@ -4534,6 +4533,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    mNodeManager.reset();
 
     reqs.clear();
 
@@ -4644,7 +4644,7 @@ void MegaClient::removeCaches()
 {
     if (sctable)
     {
-        mNodeManager.reset();
+        mNodeManager.setTable(nullptr);
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
