@@ -1479,11 +1479,11 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 {
     string authType = "";
     string authValue;
-    if (authring.get(authType, authValue))  // key is an empty string, but may not be there if authring was reset
+    if (authring.get(authType, authValue))
     {
         if (!deserialize(authValue))
         {
-            LOG_warn << "Excess data while deserializing Authring of type: " << type;
+            LOG_warn << "Excess data while deserializing Authring (TLV) of type: " << type;
         }
     }
 }
@@ -1493,7 +1493,7 @@ AuthRing::AuthRing(attr_t type, const std::string &authValue)
 {
     if (!deserialize(authValue))
     {
-        LOG_warn << "Excess data while deserializing Authring of type: " << type;
+        LOG_warn << "Excess data while deserializing Authring (string) of type: " << type;
     }
 }
 

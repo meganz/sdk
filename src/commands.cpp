@@ -2013,7 +2013,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
             client->key.ecb_encrypt(key);
             arg("ok", key, sizeof key);
 
-
             if (u && u->pubk.isvalid())
             {
                 t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);

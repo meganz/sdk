@@ -4702,7 +4702,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     asymkey.resetkey();
     mPrivKey.clear();
     pubk.resetkey();
-    resetKeyring();
     sessionkey.clear();
     accountversion = 0;
     accountsalt.clear();
@@ -7715,7 +7714,7 @@ void MegaClient::sc_pk()
         [this, lastcompleted]()
         {
             LOG_debug << "All pending keys were processed";
-            reqs.add(new CommandPendingKeys(this, lastcompleted, [this] (Error e)
+            reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
             {
                 if (e)
                 {

@@ -181,10 +181,10 @@ public:
     // return false if uh was not tracked
     bool remove(handle uh);
 
-    // return the authring as tlv container, ready to set as user's attribute
+    // return the authring as tlv container, ready to set as user's attribute [*!authring | *!authCu255 | *!authRSA]
     std::string *serialize(PrnGen &rng, SymmCipher &key) const;
 
-    // return a binary buffer compatible with Webclient
+    // return a binary buffer compatible with Webclient, to store authrings in user's attribute ^!keys
     std::string serializeForJS() const;
 
     // false if uh is not tracked in the authring
