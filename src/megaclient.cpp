@@ -4482,6 +4482,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     }
 
     sctable.reset();
+    mNodeManager.setTable(nullptr);
     pendingsccommit = false;
 
     statusTable.reset();
