@@ -3102,108 +3102,100 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
 bool CommandPutMultipleUAVer::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.hasJsonObject())
     {
-        client->sendevent(99419, "Error attaching keys", 0);
-
-        mCompletion(r.errorOrOK());
-        return true;
-    }
-
-    User *u = client->ownuser();
-    for(;;)   // while there are more attrs to read...
-    {
-        const char* ptr;
-        const char* end;
-
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        User *u = client->ownuser();
+        for(;;)   // while there are more attrs to read...
         {
-            break;
-        }
-        attr_t type = User::string2attr(string(ptr, (end-ptr)).c_str());
 
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-        {
-            mCompletion(API_EINTERNAL);
-            return false;
-        }
-        string version = string(ptr, (end-ptr));
-
-        userattr_map::iterator it = this->attrs.find(type);
-        if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
-        {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            mCompletion(API_EINTERNAL);
-            return false;
-        }
-        else
-        {
-            u->setattr(type, &it->second, &version);
-            u->setTag(tag ? tag : -1);
-
-            if (type == ATTR_KEYRING)
+            if (*client->json.pos == '}')
             {
-                assert(client->mKeyManager.isSecure() == false);
+                client->notifyuser(u);
+                client->app->putua_result(API_OK);
+                return true;
+            }
 
-                TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                if (tlvRecords)
+            string key, value;
+            if (!client->json.storeKeyValueFromObject(key, value))
+            {
+                break;
+            }
+
+            attr_t type = User::string2attr(key.c_str());
+            userattr_map::iterator it = this->attrs.find(type);
+            if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
+            {
+                LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << key;
+                for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
+                break;
+            }
+            else
+            {
+                u->setattr(type, &it->second, &value);
+                u->setTag(tag ? tag : -1);
+
+                if (type == ATTR_KEYRING)
                 {
-                    string prEd255;
-                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
+                    if (tlvRecords)
                     {
-                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                    }
+                        string prEd255;
+                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        {
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+                        }
 
-                    string prCu255;
-                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                    {
-                        client->chatkey = new ECDH(prCu255);
-                    }
+                        string prCu255;
+                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        {
+                            client->chatkey = new ECDH(prCu255);
+                        }
 
-                    if (!client->chatkey || !client->chatkey->initializationOK ||
-                            !client->signkey || !client->signkey->initializationOK)
-                    {
-                        client->resetKeyring();
-                        client->sendevent(99418, "Failed to load attached keys", 0);
+                        if (!client->chatkey || !client->chatkey->initializationOK ||
+                                !client->signkey || !client->signkey->initializationOK)
+                        {
+                            client->resetKeyring();
+                            client->sendevent(99418, "Failed to load attached keys", 0);
+                        }
+                        else
+                        {
+                            client->sendevent(99420, "Signing and chat keys attached OK", 0);
+                        }
+
+                        delete tlvRecords;
                     }
                     else
                     {
-                        client->sendevent(99420, "Signing and chat keys attached OK", 0);
+                        LOG_warn << "Failed to decrypt keyring after putua";
                     }
-
-                    delete tlvRecords;
                 }
-                else
+                else if (User::isAuthring(type))
                 {
-                    LOG_warn << "Failed to decrypt keyring after putua";
-                }
-            }
-            else if (type == ATTR_KEYS)
-            {
-                if (!client->mKeyManager.fromKeysContainer(attrs[type]))
-                {
-                    LOG_err << "Error processing new received values for the Key Manager.";
-                }
-            }
-            else if (User::isAuthring(type))
-            {
-                client->mAuthRings.erase(type);
-                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
-                if (tlvRecords)
-                {
-                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
-                }
-                else
-                {
-                    LOG_err << "Failed to decrypt keyring after putua";
+                    client->mAuthRings.erase(type);
+                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                    if (tlvRecords)
+                    {
+                        client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to decrypt keyring after putua";
+                    }
                 }
             }
         }
     }
+    else if (r.wasErrorOrOK())
+    {
+        client->sendevent(99419, "Error attaching keys", 0);
 
-    client->notifyuser(u);
-    mCompletion(API_OK);
-    return true;
+        client->app->putua_result(r.errorOrOK());
+        return true;
+    }
+
+    client->app->putua_result(API_EINTERNAL);
+    return false;
+
 }
 
 
