@@ -1115,6 +1115,7 @@ enum class PathProblem : unsigned short {
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
     SourceWasMovedElsewhere,
+    FilesystemCannotStoreThisName,
 
     PathProblem_LastPlusOne
 };

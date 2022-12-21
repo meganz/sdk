@@ -650,6 +650,11 @@ struct MEGA_API LocalNode
         // track whether we have ever scanned this folder
         // folders never scanned can issue a second scan request for this sync
         unsigned neverScanned : 1;
+
+        // if we write a file with this name, and then checking the filename given back, it's different
+        // that makes it impossible to sync properly.  The user must be informed.
+        // eg. Synology SMB network drive from windows, and filenames with trailing spaces
+        unsigned localFSCannotStoreThisName : 1;
     };
 
     // Fields which are hardly ever used.
@@ -746,6 +751,9 @@ struct MEGA_API LocalNode
 
         // Filter rules applicable below this node.
         unique_ptr<FilterChain> filterChain;
+
+        // If we can tell what the filesystem renamed a downloaded file to
+        LocalPath localFSRenamedToThisName;
     };
 
     bool hasRare() { return !!rareFields; }

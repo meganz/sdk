@@ -1366,6 +1366,7 @@ LocalNode::LocalNode(Sync* csync)
 , confirmDeleteCount(0)
 , certainlyOrphaned(0)
 , neverScanned(0)
+, localFSCannotStoreThisName(0)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -1504,7 +1505,8 @@ void LocalNode::trimRareFields()
             !rareFields->badlyFormedIgnoreFilePath &&
             rareFields->createFolderHere.expired() &&
             rareFields->removeNodeHere.expired() &&
-            rareFields->unlinkHere.expired())
+            rareFields->unlinkHere.expired() &&
+            rareFields->localFSRenamedToThisName.empty())
         {
             rareFields.reset();
         }
