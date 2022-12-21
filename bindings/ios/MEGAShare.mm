@@ -79,4 +79,8 @@ using namespace mega;
     return self.megaShare ? self.megaShare->isPending() : NO;
 }
 
+- (BOOL)isVerified {
+    return self.megaShare ? self.megaShare->isVerified() : NO;
+}
+
 @end
