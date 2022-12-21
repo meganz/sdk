@@ -1314,10 +1314,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         {
             const string& key = it->empty() ? "(no key)" : *it;
 
-            // drive names can be filtered
-            if (type == ATTR_DRIVE_NAMES)
+            // external drive names can be filtered
+            if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == b64driveid;
+                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
                 if (!printDriveId)
                 {
                     continue;
@@ -1333,10 +1333,15 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             else
             {
                 cout << "\t" << key << "\t";
-                if (type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES || type == ATTR_ALIAS)
+                if (type == ATTR_DEVICE_NAMES || type == ATTR_ALIAS)
                 {
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
+
+                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
+                    {
+                        cout << " (external drive)";
+                    }
                 }
                 else
                 {
@@ -3560,7 +3565,8 @@ void exec_setextdrivename(autocomplete::ACState& s)
         return;
     }
 
-    putua_map(string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)), Base64::btoa(drivename), ATTR_DRIVE_NAMES);
+    putua_map(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)),
+              Base64::btoa(drivename), ATTR_DEVICE_NAMES);
 }
 
 void exec_getextdrivename(autocomplete::ACState& s)
@@ -3600,7 +3606,7 @@ void exec_getextdrivename(autocomplete::ACState& s)
         }
     }
 
-    client->getua(u, ATTR_DRIVE_NAMES);
+    client->getua(u, ATTR_DEVICE_NAMES);
 }
 
 void exec_setmybackups(autocomplete::ACState& s)
@@ -6232,8 +6238,7 @@ void exec_putua(autocomplete::ACState& s)
         {
             // received <attrKey> will be B64 encoded
             // received <attrValue> will have the real text value
-            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name }
-                    || attrtype == ATTR_DRIVE_NAMES // TLV: { B64enc DriveId, drive name}
+            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name } or { ext:B64enc DriveId, drive name }
                     || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
             {
                 putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);

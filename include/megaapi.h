@@ -8781,7 +8781,7 @@ class MegaApi
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            USER_ATTR_DRIVE_NAMES = 35,          // private - byte array
+            // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
         };
 
@@ -11713,6 +11713,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
          *
          * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
          * is obtained for the active account
@@ -11761,15 +11762,13 @@ class MegaApi
          * MegaApi::USER_ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
          * MegaApi::USER_ATTR_DEVICE_NAMES = 30
-         * Get the list of device names (private)
+         * Get the list of device or external drive names (private)
          * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
          * Get the target folder for My Backups (private)
          * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
          * Get whether user has Cookie Settings enabled
          * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
          * Get name and key to cypher sync-configs file
-         * MegaApi::USER_ATTR_DRIVE_NAMES = 35
-         * Get external drive names by id
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
@@ -13429,8 +13428,9 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
          * - MegaRequest::getFile - Returns the path to the drive
+         * - MegaRequest::getFlag - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -13446,9 +13446,10 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
          * - MegaRequest::getName - Returns drive name.
          * - MegaRequest::getFile - Returns the path to the drive
+         * - MegaRequest::getFlag - Returns true
          *
          * @param pathToDrive Path to the root of the external drive
          * @param driveName String with drive name

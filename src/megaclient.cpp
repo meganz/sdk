@@ -6486,7 +6486,6 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
-                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -14863,7 +14862,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        attr_t attrType = ATTR_DEVICE_NAMES;
         if (!u->isattrvalid(attrType))
         {
             LOG_err << "Add backup: device/drive name not set";
@@ -14878,7 +14877,8 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
         string deviceName;
         std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
-        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
+        if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
             return completion(API_EINCOMPLETE, sc, nullptr);

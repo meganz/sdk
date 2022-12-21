@@ -6150,7 +6150,6 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_DRIVE_NAMES:
             scope = '*';
             break;
 
@@ -7140,7 +7139,8 @@ void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *lis
 void MegaApiImpl::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_DRIVE_NAMES);
+    request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    request->setFlag(true); // external drive
     request->setFile(pathToDrive);
     requestQueue.push(request);
     waiter->notify();
@@ -7151,7 +7151,8 @@ void MegaApiImpl::setDriveName(const char *pathToDrive, const char *driveName, M
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     request->setFile(pathToDrive);
     request->setName(driveName);
-    request->setParamType(MegaApi::USER_ATTR_DRIVE_NAMES);
+    request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    request->setFlag(true); // external drive
     requestQueue.push(request);
     waiter->notify();
 }
@@ -15181,23 +15182,23 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
-                  || request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
             TLVstore tlv;
             MegaStringMap *stringMap = request->getMegaStringMap();
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
-            const char *key;
+            attr_t type = static_cast<attr_t>(request->getParamType());
+            bool keyPrefixModifier = request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES && request->getFlag();
+            string keyPrefix = User::attributePrefixInTLV(type, keyPrefixModifier);
             for (int i = 0; i < keys->size(); i++)
             {
-                key = keys->get(i);
-                tlv.set(key, Base64::atob(stringMap->get(key)));
+                const char *key = keys->get(i);
+                tlv.set(keyPrefix + key, Base64::atob(stringMap->get(key)));
             }
 
             // serialize and encrypt the TLV container
-            attr_t type = static_cast<attr_t>(request->getParamType());
             std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
             client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
             return;
@@ -15436,17 +15437,31 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
+            unique_ptr<string_map> prefixedValueMap;
 
-            // allow only unique names for Devices and Drives
-            if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
-                haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+            if (type == ATTR_DEVICE_NAMES)
             {
-                e = API_EEXIST;
-                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
-                    << Base64::atob(newValuesMap->begin()->second); // will only have a single value
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                // allow only unique names for Devices and Drives
+                if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap)) // ignores keys
+                {
+                    e = API_EEXIST;
+                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
+                        << Base64::atob(newValuesMap->begin()->second); // will only have a single value
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return;
+                }
+
+                if (request->getFlag()) // external drive
+                {
+                    string prefix = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true);
+                    prefixedValueMap = mega::make_unique<string_map>();
+                    for_each(newValuesMap->begin(), newValuesMap->end(),
+                        [&prefixedValueMap, &prefix](const string_map::value_type& a) { prefixedValueMap->emplace(prefix + a.first, a.second); });
+                    newValuesMap = prefixedValueMap.get();
+                }
             }
-            else if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
+
+            if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -15549,19 +15564,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
-                const char *buf = stringMap->get(client->getDeviceidHash().c_str());
-                if (!buf)
+                const char* buf = nullptr;
+
+                if (request->getFlag()) // external drive
                 {
-                    e = API_ENOENT;
-                    break;
+                    handle driveId = request->getNodeHandle();
+                    string key = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
+                    buf = stringMap->get(key.c_str());
                 }
-                request->setName(Base64::atob(buf).c_str());
-                break;
-            }
-            case MegaApi::USER_ATTR_DRIVE_NAMES:
-            {
-                handle driveId = request->getNodeHandle();
-                const char *buf = stringMap->get(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
+                else
+                {
+                    buf = stringMap->get(client->getDeviceidHash().c_str());
+                }
+
                 if (!buf)
                 {
                     e = API_ENOENT;
@@ -20166,9 +20181,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            bool externalDriveRequest = type == ATTR_DEVICE_NAMES && request->getFlag();
             if (attrname.empty()    // unknown attribute type
                     || (type == ATTR_AVATAR && !value)  // no destination file for avatar
-                    || (type == ATTR_DRIVE_NAMES && !value)) // no drive path to look for drive-id
+                    || (externalDriveRequest && !value)) // no drive path to look for drive-id
             {
                 e = API_EARGS;
                 break;
@@ -20181,7 +20197,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (type == ATTR_DRIVE_NAMES)
+            if (externalDriveRequest)
             {
                 // check if drive-id already exists
                 handle driveId;
@@ -20268,7 +20284,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (scope == '*')   // private attribute
             {
-                if (type == ATTR_DRIVE_NAMES)
+                if (type == ATTR_DEVICE_NAMES && request->getFlag()) // external drive
                 {
                     const char *pathToDrive = request->getFile();
                     if (!pathToDrive)
@@ -20310,8 +20326,7 @@ void MegaApiImpl::sendPendingRequests()
                 std::unique_ptr<TLVstore> tlv;
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES
-                        || type == ATTR_DRIVE_NAMES)
+                        || type == ATTR_DEVICE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -20330,16 +20345,30 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(stringMap)->getMap();
+                unique_ptr<string_map> prefixedValueMap;
 
-                // allow only unique names for Devices and Drives
-                if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
-                    haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+                if (type == ATTR_DEVICE_NAMES)
                 {
-                    e = API_EEXIST;
-                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
-                        << Base64::atob(newValuesMap->begin()->second); // will only have a single value
+                    // allow only unique names for Devices and Drives
+                    if (haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+                    {
+                        e = API_EEXIST;
+                        LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
+                            << Base64::atob(newValuesMap->begin()->second); // will only have a single value
+                        break;
+                    }
+
+                    if (request->getFlag()) // external drive
+                    {
+                        string prefix = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true);
+                        prefixedValueMap = mega::make_unique<string_map>();
+                        for_each(newValuesMap->begin(), newValuesMap->end(),
+                            [&prefixedValueMap, &prefix](const string_map::value_type& a) {prefixedValueMap->emplace(prefix + a.first, a.second); });
+                        newValuesMap = prefixedValueMap.get();
+                    }
                 }
-                else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
+
+                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
                     // serialize and encrypt the TLV container
                     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));

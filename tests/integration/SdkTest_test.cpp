@@ -405,7 +405,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         if (mApi[apiIndex].lastError == API_OK)
         {
             if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
-                request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES ||
                 request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
                 attributeValue = request->getName() ? request->getName() : "";
@@ -6521,12 +6520,21 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::path basePath = makeNewTestRoot();
     fs::path pathToDrive = basePath / "ExtDrive";
     fs::create_directory(pathToDrive);
+    const string& pathToDriveStr = pathToDrive.u8string();
+
+    // attempt to set the name of an external drive to the name of current device (if the latter was already set)
+    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    {
+        bool oldTestLogVal = gTestingInvalidArgs;
+        gTestingInvalidArgs = true;
+        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), attributeValue.c_str())) << "Ext-drive name was set to current device name";
+        gTestingInvalidArgs = oldTestLogVal;
+    }
 
     // drive name
     string driveName = "SdkExternalDriveTest_" + getCurrentTimestamp(true);
 
     // set drive name
-    const string& pathToDriveStr = pathToDrive.u8string();
     auto err = synchronousSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
     ASSERT_EQ(API_OK, err) << "setDriveName failed (error: " << err << ")";
 
