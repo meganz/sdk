@@ -12513,22 +12513,19 @@ error MegaClient::changepw(const char* password, const char *pin)
 
             switch (accountversion)
             {
-            case 2:
-                changePasswordV2(spwd.c_str(), spin.c_str());
+            case 1:
+                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
                 break;
 
-            case 1:
-            {
-                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
-                if (e != API_OK)
-                {
-                    app->changepw_result(e);
-                }
+            case 2:
+            default:
+                e = changePasswordV2(spwd.c_str(), spin.c_str());
                 break;
             }
 
-            default:
-                app->changepw_result(API_EINTERNAL);
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
             }
         }
     ));
@@ -12557,7 +12554,7 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
     return API_OK;
 }
 
-void MegaClient::changePasswordV2(const char* password, const char* pin)
+error MegaClient::changePasswordV2(const char* password, const char* pin)
 {
     byte clientRandomValue[SymmCipher::KEYLENGTH];
     rng.genblock(clientRandomValue, sizeof(clientRandomValue));
@@ -12588,6 +12585,7 @@ void MegaClient::changePasswordV2(const char* password, const char* pin)
 
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
     reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
+    return API_OK;
 }
 
 // create ephemeral session
