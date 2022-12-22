@@ -3303,7 +3303,7 @@ bool CommandPutUAVer::procresult(Result r)
             {
                 if (!client->mKeyManager.fromKeysContainer(av))
                 {
-                    LOG_err << "Error processing new received values for the Key Manager.";
+                    LOG_err << "Error processing new established value for the Key Manager";
                 }
             }
 
@@ -3671,7 +3671,7 @@ bool CommandGetUA::procresult(Result r)
                                 string d((const char*)value.data(), value.size());
                                 if (!client->mKeyManager.fromKeysContainer(d))
                                 {
-                                    LOG_err << "Error processing new received values for the Key Manager.";
+                                    LOG_err << "Error processing new established values for the Key Manager upon init";
                                 }
                             }
 
@@ -4723,7 +4723,7 @@ bool CommandGetUserData::procresult(Result r)
                     client->mKeyManager.setKey(client->key);
                     if (!client->mKeyManager.fromKeysContainer(keys))
                     {
-                        LOG_err << "Error processing new received values for the Key Manager.";
+                        LOG_err << "Error processing new received values for the Key Manager (ug command)";
                     }
                 }
 

@@ -21643,6 +21643,8 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
 
 bool KeyManager::fromKeysContainer(const string &data)
 {
+    bool success = false;
+
     if (data.size() > 2 && data[0] == 20)
     {
         // data[1] is reserved, always 0
@@ -21656,11 +21658,12 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
-            return unserialize(keysPlain);
+            success = unserialize(keysPlain);
         }
     }
 
-    return false;
+    assert(success);
+    return success;
 }
 
 string KeyManager::toKeysContainer()
