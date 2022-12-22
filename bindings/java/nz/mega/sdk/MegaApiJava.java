@@ -11922,4 +11922,43 @@ public class MegaApiJava {
     public MegaSetElement getSetElement(long sid, long eid) {
         return megaApi.getSetElement(sid, eid);
     }
+
+    /**
+     * Get a list of unverified incoming shares
+     *
+     * @param sortOrder - Order for sorting purpose
+     * @return [MegaShareList] - List of all unverified incoming shares
+     */
+    public MegaShareList getUnverifiedIncomingShares(int sortOrder) {
+        return megaApi.getUnverifiedInShares(sortOrder);
+    }
+
+    /**
+     * Get a list of unverified outgoing shares
+     *
+     * @param sortOrder - Order for sorting purpose
+     * @return [MegaShareList] - List of all unverified outgoing shares
+     */
+    public MegaShareList getUnverifiedOutgoingShares(int sortOrder) {
+        return megaApi.getUnverifiedOutShares(sortOrder);
+    }
+
+    /**
+     * Call to upgrade cryptographic security
+     *
+     * @param megaRequestListenerInterface - Listener to track the request
+     */
+    public void upgradeSecurity(MegaRequestListenerInterface megaRequestListenerInterface) {
+        megaApi.upgradeSecurity(createDelegateRequestListener(megaRequestListenerInterface));
+    }
+
+    /**
+     * Creates a new share key for the supplied node if a key doesn't exist already
+     *
+     * @param megaNode - [MegaNode] to share
+     * @param megaRequestListenerInterface - Listener to track this request
+     */
+    public void openShareDialog(MegaNode megaNode, MegaRequestListenerInterface megaRequestListenerInterface) {
+        megaApi.openShareDialog(megaNode, createDelegateRequestListener(megaRequestListenerInterface));
+    }
 }
