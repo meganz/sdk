@@ -3108,6 +3108,31 @@ public class MegaApiJava {
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
     }
+    
+    /**
+     * Upgrade cryptographic security
+     *
+     * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+     * proceed with the cryptographic upgrade process.
+     * This should happen only once per account.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void upgradeSecurity(MegaRequestListenerInterface listener) {
+        megaApi.upgradeSecurity(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Creates a new share key for the node if there is no share key already created.
+     *
+     * Call it before starting any new share.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void openShareDialog(MegaNode node, MegaRequestListenerInterface listener) {
+        megaApi.openShareDialog(node, createDelegateRequestListener(listener));
+    }
 
     /**
      * Share or stop sharing a folder in MEGA with another user using a MegaUser
@@ -8227,6 +8252,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a list with all unverified inbound sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public MegaShareList getUnverifiedIncomingShares(int order) {
+        return megaApi.getUnverifiedInShares(order);
+    }
+
+    /**
      * Get the user relative to an incoming share
      * <p>
      * This function will return NULL if the node is not found
@@ -8317,6 +8354,18 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
+    }
+
+    /**
+     * Get a list with all unverified sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects
+     */
+    public MegaShareList getUnverifiedOutgoingShares(int order) {
+        return megaApi.getUnverifiedOutShares(order);
     }
 
     /**
@@ -11921,44 +11970,5 @@ public class MegaApiJava {
      */
     public MegaSetElement getSetElement(long sid, long eid) {
         return megaApi.getSetElement(sid, eid);
-    }
-
-    /**
-     * Get a list of unverified incoming shares
-     *
-     * @param sortOrder - Order for sorting purpose
-     * @return [MegaShareList] - List of all unverified incoming shares
-     */
-    public MegaShareList getUnverifiedIncomingShares(int sortOrder) {
-        return megaApi.getUnverifiedInShares(sortOrder);
-    }
-
-    /**
-     * Get a list of unverified outgoing shares
-     *
-     * @param sortOrder - Order for sorting purpose
-     * @return [MegaShareList] - List of all unverified outgoing shares
-     */
-    public MegaShareList getUnverifiedOutgoingShares(int sortOrder) {
-        return megaApi.getUnverifiedOutShares(sortOrder);
-    }
-
-    /**
-     * Call to upgrade cryptographic security
-     *
-     * @param megaRequestListenerInterface - Listener to track the request
-     */
-    public void upgradeSecurity(MegaRequestListenerInterface megaRequestListenerInterface) {
-        megaApi.upgradeSecurity(createDelegateRequestListener(megaRequestListenerInterface));
-    }
-
-    /**
-     * Creates a new share key for the supplied node if a key doesn't exist already
-     *
-     * @param megaNode - [MegaNode] to share
-     * @param megaRequestListenerInterface - Listener to track this request
-     */
-    public void openShareDialog(MegaNode megaNode, MegaRequestListenerInterface megaRequestListenerInterface) {
-        megaApi.openShareDialog(megaNode, createDelegateRequestListener(megaRequestListenerInterface));
     }
 }
