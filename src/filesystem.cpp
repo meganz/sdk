@@ -1565,7 +1565,7 @@ string LocalPath::toPath(bool normalize) const
         if (0 == localpath.compare(4, 4, L"UNC\\", 4))
         {
             // when a path leaves LocalPath, we can remove prefix which is only needed internally
-            path.erase(2, 8);
+            path.erase(2, 6);
         }
         else
         {
@@ -2071,6 +2071,21 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
                 actualPathUsed = true;
                 removeTarget();
                 return true;
+            }
+            else
+            {
+                // maybe multiple Files were part of a single Transfer, and this last one is on a different disk
+                LOG_debug << "Moving instead of renaming temporary file to target path";
+                if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris))
+                {
+                    if (!fsaccess.unlinklocal(theFile))
+                    {
+                        LOG_debug << "Could not remove temp file after final destination copy: " << theFile;
+                    }
+                    removeTarget();
+                    return true;
+                }
+
             }
         }
         else
