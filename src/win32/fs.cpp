@@ -1506,7 +1506,10 @@ WinDirNotify::~WinDirNotify()
             smNotifierThread->join();
             smNotifierThread.reset();
             CloseHandle(smEventHandle);
-            smQueue.clear();
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.clear();
+            }
         }
     }
 

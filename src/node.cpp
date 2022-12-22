@@ -2523,7 +2523,10 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 
                 // Capture the handle if the putnodes was successful.
                 if (!s->putnodesFailed)
+                {
+                    assert(!nn.empty());
                     s->putnodesResultHandle = nn.front().mAddedHandle;
+                }
 
                 // Let the engine know the putnodes has completed.
                 s->wasPutnodesCompleted.store(true);
