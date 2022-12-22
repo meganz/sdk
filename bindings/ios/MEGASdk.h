@@ -24,7 +24,6 @@
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
-#import "MEGAChildrenLists.h"
 #import "MEGAContactRequest.h"
 #import "MEGAContactRequestList.h"
 #import "MEGADelegate.h"
@@ -254,6 +253,51 @@ typedef NS_ENUM(NSUInteger, BackUpState) {
     BackUpStatePauseUp = 5,
     BackUpStatePauseDown = 6,
     BackUpStatePauseFull = 7
+};
+
+typedef NS_ENUM(NSUInteger, BackUpSubState) {
+    BackUpSubStateNoSyncError = 0,
+    BackUpSubStateUnknownError = 1,
+    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
+    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
+    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
+    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
+    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
+    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
+    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
+    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
+    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
+    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
+    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
+    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
+    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
+    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
+    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
+    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
+    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
+    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
+    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
+    BackUpSubStateAccountBlocked = 23, // Account blocked
+    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
+    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
+    BackUpSubStateLoggedOut = 26, // Logged out
+    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
+    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
+    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
+    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
+    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
+    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
+    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
+    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
+    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
+    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
+    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
+    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
+    BackUpSubStateInsufficientDiskSpace = 42,
 };
 
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
@@ -4127,6 +4171,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * will be used as the file name inside that folder. If the path doesn't finish with
  * one of these characters, the file will be downloaded to a file in that path.
  *
+ * @param delegate MEGARequestDelegate to track this request.
+ * @param queueType ListenerQueueType to receive the global events on..
+ */
+- (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
+ * @brief Get the avatar of any user in MEGA
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest file] - Returns the destination path
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account
+ * @param destinationFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
+ * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
+ * will be used as the file name inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ *
  */
 - (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
 
@@ -7152,80 +7216,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)getFolderInfoForNode:(MEGANode *)node;
 
 /**
- * @brief Get file and folder children of a MEGANode separatedly
- *
- * @param parent Parent node.
- * @param order Order for the returned list.
- * Valid values for this parameter are:
- * - MEGASortOrderTypeNone = 0
- * Undefined order
- *
- * - MEGASortOrderTypeDefaultAsc = 1
- * Folders first in alphabetical order, then files in the same order
- *
- * - MEGASortOrderTypeDefaultDesc = 2
- * Files first in reverse alphabetical order, then folders in the same order
- *
- * - MEGASortOrderTypeSizeAsc = 3
- * Sort by size, ascending
- *
- * - MEGASortOrderTypeSizeDesc = 4
- * Sort by size, descending
- *
- * - MEGASortOrderTypeCreationAsc = 5
- * Sort by creation time in MEGA, ascending
- *
- * - MEGASortOrderTypeCreationDesc = 6
- * Sort by creation time in MEGA, descending
- *
- * - MEGASortOrderTypeModificationAsc = 7
- * Sort by modification time of the original file, ascending
- *
- * - MEGASortOrderTypeModificationDesc = 8
- * Sort by modification time of the original file, descending
- *
- * - MEGASortOrderTypePhotoAsc = 11
- * Sort with photos first, then by date ascending
- *
- * - MEGASortOrderTypePhotoDesc = 12
- * Sort with photos first, then by date descending
- *
- * - MEGASortOrderTypeVideoAsc = 13
- * Sort with videos first, then by date ascending
- *
- * - MEGASortOrderTypeVideoDesc = 14
- * Sort with videos first, then by date descending
- *
- * - MEGASortOrderTypeLinkCreationAsc = 15
- *
- * - MEGASortOrderTypeLinkCreationDesc = 16
- *
- * - MEGASortOrderTypeLabelAsc = 17
- * Sort by color label, ascending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeLabelDesc = 18
- * Sort by color label, descending. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteAsc = 19
- * Sort nodes with favourite attr first. With this order, folders are returned first, then files
- *
- * - MEGASortOrderTypeFavouriteDesc = 20
- * Sort nodes with favourite attr last. With this order, folders are returned first, then files
- *
- * @return Lists with files and folders child MegaNode objects
- */
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
-
-/**
- * @brief Get file and folder children of a MEGANode separatedly
- *
- * @param parent Parent node.
- *
- * @return Lists with files and folders child MegaNode objects
- */
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
-
-/**
  * @brief Get the parent node of a MEGANode.
  *
  * If the node doesn't exist in the account or
@@ -9255,9 +9245,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param node MEGA target node folder to hold the backups
  * @param path Local path of the folder
  * @param state BackUpState type backup state
+ * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre
