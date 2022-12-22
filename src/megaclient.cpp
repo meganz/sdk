@@ -11212,6 +11212,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
+// `user` is null for creating folder links
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
     assert(completion);
@@ -11261,7 +11262,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     int newshare;
     if ((newshare = !n->sharekey))
     {
-        LOG_warn << "You should first create the key using MegaClient::openShareDialog";
+        LOG_warn << "You should first create the key using MegaClient::openShareDialog (setshare)";
         std::string previousKey = mKeyManager.getShareKey(n->nodehandle);
         if (!previousKey.size())
         {
@@ -11352,7 +11353,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                 mKeyManager.addOutShareKey(nodehandle, shareKey);
             }
 
-            if (uid.size())
+            if (uid.size()) // not a folder link, but a share with a user
             {
                 // Add pending outshare;
                 mKeyManager.addPendingOutShare(nodehandle, uid);
@@ -11364,7 +11365,10 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         });
         return;
     }
-    completeShare();
+    else // folder link on an already shared folder -> no need to update ^!keys
+    {
+        completeShare();
+    }
 }
 
 // Add/delete/remind outgoing pending contact request

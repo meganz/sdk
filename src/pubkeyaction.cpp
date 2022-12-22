@@ -123,7 +123,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     int newshare;
     if ((newshare = !n->sharekey))
     {
-        LOG_warn << "You should first create the key using MegaClient::openShareDialog";
+        LOG_warn << "You should first create the key using MegaClient::openShareDialog (PubKeyActionCreateShare)";
         std::string previousKey = client->mKeyManager.getShareKey(n->nodehandle);
         if (!previousKey.size())
         {
@@ -192,7 +192,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     if (newshare)
     {
         client->mKeyManager.commit(
-        [client, newshare, nodehandle, shareKey]()
+        [client, nodehandle, shareKey]()
         {
             // Changes to apply in the commit
             client->mKeyManager.addOutShareKey(nodehandle, shareKey);
