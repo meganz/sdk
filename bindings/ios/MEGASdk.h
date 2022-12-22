@@ -3899,6 +3899,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (void)disableExportNode:(MEGANode *)node;
 
+/**
+ * @brief Creates a new share key for the node if there is no share key already created.
+ *
+ * Call it before starting any new share.
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param delegate Delegate to track this request.
+ */
+- (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Attributes Requests
 
 /**
@@ -6268,6 +6278,17 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (BOOL)setRLimitFileCount:(NSInteger)fileCount;
 
+/**
+ * @brief Upgrade cryptographic security
+ *
+ * This should be called only after MEGAEvents EventUpgradeSecurity is received to effectively
+ * proceed with the cryptographic upgrade process.
+ * This should happen only once per account.
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Transfers
 
 /**
@@ -7340,6 +7361,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (MEGAShareList *)inSharesList:(MEGASortOrderType)order;
 
 /**
+ * @brief Get a list with all unverified inbound sharings
+ *
+ * You take the ownership of the returned value
+ *
+ * @param order Sorting order to use
+ * @return List of MegaShare objects that other users are sharing with this account
+ */
+- (MEGAShareList *)getUnverifiedInShares:(MEGASortOrderType)order;
+
+/**
  * @brief Get the user relative to an incoming share
  *
  * This function will return nil if the node is not found or doesn't represent
@@ -7387,6 +7418,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return List of MegaShare objects
  */
 - (MEGAShareList *)outShares:(MEGASortOrderType)order;
+
+/**
+ * @brief Get a list with all unverified sharings
+ *
+ * You take the ownership of the returned value
+ *
+ * @param order Sorting order to use
+ * @return List of MegaShare objects
+ */
+- (MEGAShareList *)getUnverifiedOutShares:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with the active outbound sharings for a MEGANode.
