@@ -9496,7 +9496,8 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!mKeyManager.isSecure())
+                if (!mKeyManager.isSecure()
+                        || (mKeyManager.isSecure() && !mKeyManager.generation()))   // secure client, but not migrated yet
                 {
                     if (!k)
                     {
@@ -9522,6 +9523,10 @@ void MegaClient::readokelement(JSON* j)
                             }
                         }
                     }
+                }
+                else
+                {
+                    LOG_debug << "Ignoring outgoing share keys from `ok0` (secured client with ^!keys already)";
                 }
                 return;
 
