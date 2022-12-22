@@ -2335,6 +2335,9 @@ private:
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
 
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
+
 
 //
 // Sets and Elements

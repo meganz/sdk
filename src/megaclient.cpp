@@ -12500,27 +12500,66 @@ error MegaClient::changepw(const char* password, const char *pin)
         return API_EACCESS;
     }
 
-    if (accountversion == 1)
-    {
-        error e;
-        byte newpwkey[SymmCipher::KEYLENGTH];
-        if ((e = pw_key(password, newpwkey)))
+    // Confirm account version, not rely on cached values
+    string spwd = password ? password : string();
+    string spin = pin ? pin : string();
+    reqs.add(new CommandGetUserData(this, reqtag,
+        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
-            return e;
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+                return;
+            }
+
+            switch (accountversion)
+            {
+            case 1:
+                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                break;
+
+            default:
+                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
+                // fallthrough
+
+            case 2:
+                e = changePasswordV2(spwd.c_str(), spin.c_str());
+                break;
+            }
+
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+            }
         }
+    ));
 
-        byte newkey[SymmCipher::KEYLENGTH];
-        SymmCipher pwcipher;
-        memcpy(newkey, key.key,  sizeof newkey);
-        pwcipher.setkey(newpwkey);
-        pwcipher.ecb_encrypt(newkey);
+    return API_OK;
+}
 
-        string email = u->email;
-        uint64_t stringhash = stringhash64(&email, &pwcipher);
-        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
-        return API_OK;
+error MegaClient::changePasswordV1(User* u, const char* password, const char* pin)
+{
+    error e;
+    byte newpwkey[SymmCipher::KEYLENGTH];
+    if ((e = pw_key(password, newpwkey)))
+    {
+        return e;
     }
 
+    byte newkey[SymmCipher::KEYLENGTH];
+    SymmCipher pwcipher;
+    memcpy(newkey, key.key, sizeof newkey);
+    pwcipher.setkey(newpwkey);
+    pwcipher.ecb_encrypt(newkey);
+
+    string email = u->email;
+    uint64_t stringhash = stringhash64(&email, &pwcipher);
+    reqs.add(new CommandSetMasterKey(this, newkey, (const byte*)&stringhash, sizeof(stringhash), NULL, pin));
+    return API_OK;
+}
+
+error MegaClient::changePasswordV2(const char* password, const char* pin)
+{
     byte clientRandomValue[SymmCipher::KEYLENGTH];
     rng.genblock(clientRandomValue, sizeof(clientRandomValue));
 
