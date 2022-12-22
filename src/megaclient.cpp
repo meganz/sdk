@@ -11184,7 +11184,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
         else
         {
-            LOG_warn << "Setting node's sharekey from KeyManager";
+            LOG_warn << "Setting node's sharekey from KeyManager (openShareDialog)";
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }
@@ -22161,12 +22161,12 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
         }
 
         mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
-        [this, e, completion](error err)
+        [e, completion](error err)
         {
             LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
             completion(e);
         },
-        [this, e, completion](byte*, unsigned, attr_t)
+        [e, completion](byte*, unsigned, attr_t)
         {
             LOG_debug << "[keymgr] Success getting the value of ^!keys";
             completion(e);

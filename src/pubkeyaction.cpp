@@ -120,20 +120,26 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     }
 
     // do we already have a share key for this node?
-    int newshare;
-    if ((newshare = !n->sharekey))
+    bool newshare = !n->plink
+            && (!n->outshares || n->outshares->empty())
+            && (!n->pendingshares || n->pendingshares->empty());;
+
+    if (!n->sharekey)
     {
-        LOG_warn << "You should first create the key using MegaClient::openShareDialog (PubKeyActionCreateShare)";
         std::string previousKey = client->mKeyManager.getShareKey(n->nodehandle);
         if (!previousKey.size())
         {
-            // no: create
+            assert(newshare);
+
             byte key[SymmCipher::KEYLENGTH];
             client->rng.genblock(key, sizeof key);
             n->sharekey = new SymmCipher(key);
         }
         else
         {
+            LOG_warn << "Setting node's sharekey from KeyManager (PubKeyActionCreateShare)";
+
+            // just in case, use the sharekey from ^!keys
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }
