@@ -177,7 +177,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
             }
 
             client->reqs.add(new CommandPendingKeys(client, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [client, uid, nodehandle, writable, completionCallback](Error err)
+            [uid, writable, completionCallback](Error err)
             {
                 if (err)
                 {

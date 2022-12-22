@@ -11186,7 +11186,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
     handle nodehandle = n->nodehandle;
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
-    if (!previousKey.size())
+    if (!previousKey.size())    // new share: add key to ^!keys and
     {
         mKeyManager.commit(
         [this, nodehandle, shareKey]()
@@ -21915,7 +21915,7 @@ bool KeyManager::promotePendingShares()
                     if (encryptedKey.size())
                     {
                         mClient.reqs.add(new CommandPendingKeys(&mClient, u->userhandle, nodehandle, (byte *)encryptedKey.data(),
-                        [this, uid, nodehandle](Error err)
+                        [uid](Error err)
                         {
                             if (err)
                             {
@@ -21957,6 +21957,7 @@ bool KeyManager::promotePendingShares()
         }
         else if (mClient.areCredentialsVerified(userHandle))
         {
+            LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())
             {
@@ -21973,7 +21974,7 @@ bool KeyManager::promotePendingShares()
         removePendingInShare(shareHandle);
     }
     keysToDelete.clear();
-    mClient.mergenewshares(1);
+    mClient.mergenewshares(true);
 
     return attributeUpdated;
 }

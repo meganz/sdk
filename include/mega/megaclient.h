@@ -567,8 +567,13 @@ public:
     bool addOutShareKey(handle sharehandle, std::string shareKey);
     bool addInShareKey(handle sharehandle, std::string shareKey);
     std::string getShareKey(handle sharehandle);
+
+    // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
+
+    // return empty string if the user's credentials are not verified (or if fail to decrypt)
     std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
+
     void setAuthRing(std::string authring);
     void setAuthCU255(std::string authring);
     void setPrivRSA(std::string privRSA);
