@@ -492,7 +492,11 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) = 0;
+    virtual bool fopen(const LocalPath&, bool read, bool write,
+                DirAccess* iteratingDir = nullptr,
+                bool ignoreAttributes = false,
+                bool skipcasecheck = false,
+                LocalPath* actualLeafNameIfDifferent = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -928,7 +932,7 @@ struct MEGA_API FSNode
     static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
 
     // Same as the above but useful in situations where we don't have an FA handy.
-    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck);
 
     const string& toName_of_localname(const FileSystemAccess& fsaccess)
     {
