@@ -12517,8 +12517,11 @@ error MegaClient::changepw(const char* password, const char *pin)
                 e = changePasswordV1(u, spwd.c_str(), spin.c_str());
                 break;
 
-            case 2:
             default:
+                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
+                // fallthrough
+
+            case 2:
                 e = changePasswordV2(spwd.c_str(), spin.c_str());
                 break;
             }
