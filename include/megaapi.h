@@ -11344,7 +11344,10 @@ class MegaApi
         /**
          * @brief Creates a new share key for the node if there is no share key already created.
          *
-         * Call it before starting any new share.
+         * Apps should call it before starting any new share (MegaApi::share). Otherwise, the
+         * share request may fail.
+         *
+         * Note that it's safe to call this method for the same node multiple times.
          *
          * @param node The folder to share. It must be a non-root folder
          * @param listener MegaRequestListener to track this request
@@ -11356,6 +11359,11 @@ class MegaApi
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
@@ -11387,6 +11395,11 @@ class MegaApi
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:

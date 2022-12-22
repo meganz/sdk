@@ -11184,6 +11184,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
         else
         {
+            LOG_warn << "Setting node's sharekey from KeyManager";
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }
@@ -11258,23 +11259,25 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         uid = user;
     }
 
-    // do we already have a share key for this node?
-    int newshare;
-    if ((newshare = !n->sharekey))
+    bool newshare = !n->plink
+            && (!n->outshares || n->outshares->empty())
+            && (!n->pendingshares || n->pendingshares->empty());
+
+    // if creating a folder link and there's no sharekey already
+    if (!n->sharekey && !uid.size())
     {
-        LOG_warn << "You should first create the key using MegaClient::openShareDialog (setshare)";
-        std::string previousKey = mKeyManager.getShareKey(n->nodehandle);
-        if (!previousKey.size())
-        {
-            // no: create
-            byte key[SymmCipher::KEYLENGTH];
-            rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
-        }
-        else
-        {
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
-        }
+        assert(newshare);
+
+        byte key[SymmCipher::KEYLENGTH];
+        rng.genblock(key, sizeof key);
+        n->sharekey = new SymmCipher(key);
+    }
+
+    if (!n->sharekey)
+    {
+        LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
+        completion(API_EKEY, writable);
+        return;
     }
 
     handle nodehandle = n->nodehandle;
