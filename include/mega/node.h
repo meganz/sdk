@@ -303,7 +303,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool isAncestor(NodeHandle ancestorHandle) const;
 
     // true for outshares, pending outshares and folder links (which are shared folders internally)
-    bool isShared() const { return  (!outshares || outshares->empty()) && (!pendingshares || pendingshares->empty()); }
+    bool isShared() const { return  (outshares && !outshares->empty()) || (pendingshares && !pendingshares->empty()); }
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
