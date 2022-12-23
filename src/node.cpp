@@ -486,7 +486,15 @@ bool Node::serialize(string* d)
 
     if (numshares)
     {
-        d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+
+        if (sharekey)
+        {
+            d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+        }
+        else
+        {
+            d->append(SymmCipher::KEYLENGTH, '\0');
+        }
 
         if (inshare)
         {
@@ -1358,6 +1366,7 @@ LocalNode::LocalNode(Sync* csync)
 , confirmDeleteCount(0)
 , certainlyOrphaned(0)
 , neverScanned(0)
+, localFSCannotStoreThisName(0)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -1496,7 +1505,8 @@ void LocalNode::trimRareFields()
             !rareFields->badlyFormedIgnoreFilePath &&
             rareFields->createFolderHere.expired() &&
             rareFields->removeNodeHere.expired() &&
-            rareFields->unlinkHere.expired())
+            rareFields->unlinkHere.expired() &&
+            rareFields->localFSRenamedToThisName.empty())
         {
             rareFields.reset();
         }
@@ -2513,7 +2523,10 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 
                 // Capture the handle if the putnodes was successful.
                 if (!s->putnodesFailed)
+                {
+                    assert(!nn.empty());
                     s->putnodesResultHandle = nn.front().mAddedHandle;
+                }
 
                 // Let the engine know the putnodes has completed.
                 s->wasPutnodesCompleted.store(true);

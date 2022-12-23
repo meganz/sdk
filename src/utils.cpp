@@ -1827,7 +1827,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);
@@ -2479,6 +2479,7 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         {
             std::unique_lock<std::mutex> g(mMutex);
             mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            assert(!mQueue.empty());
             f = std::move(mQueue.front().f);
             if (!f) return;   // nullptr is not popped, and causes all the threads to exit
             mQueue.pop_front();
@@ -2687,6 +2688,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
+    case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }

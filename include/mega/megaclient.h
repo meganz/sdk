@@ -1183,7 +1183,10 @@ public:
     void setchatretentiontime(handle chatid, unsigned period);
 
     // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings, bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false);
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
+                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 handle* originatingUser = nullptr,
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
 #endif
 
     // get mega achievements
@@ -1481,6 +1484,12 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
+
+    void createNewSMAlert(const handle&, handle schedId);
+    void createDeletedSMAlert(const handle&, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle schedId,
+                              UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
+    static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
     void sc_la();
@@ -2266,6 +2275,9 @@ private:
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
 
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
+
 
 //
 // Sets and Elements
@@ -2307,6 +2319,9 @@ public:
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
+
+    // return Element count for Set sid, or 0 if not found
+    unsigned getSetElementCount(handle sid) const;
 
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;
