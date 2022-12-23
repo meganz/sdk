@@ -14661,16 +14661,19 @@ bool MegaClient::areCredentialsVerified(handle uh)
     bool cuAuthringFound = itCu != mAuthRings.end();
     if (!cuAuthringFound || !itCu->second.areCredentialsVerified(uh))
     {
-        LOG_err << "Failed to verify Cu25519: " << (cuAuthringFound ? "authring missing" : "signature not verified");
+        LOG_debug << "Failed to verify Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
         return false;
     }
 
     AuthRingsMap::const_iterator it = mAuthRings.find(ATTR_AUTHRING);
-    if (it != mAuthRings.end())
+    bool edAuthringFound = it != mAuthRings.end();
+    if (!edAuthringFound || !it->second.areCredentialsVerified(uh))
     {
-        return it->second.areCredentialsVerified(uh);
+        LOG_debug << "Failed to verify Ed25519 for " << toHandle(uh) << ": " << (!edAuthringFound ? "authring missing" : "fingerprint not verified");
+        return false;
     }
-    return false;
+
+    return true;
 }
 
 void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
