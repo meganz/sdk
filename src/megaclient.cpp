@@ -14241,7 +14241,8 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             getua(user, ATTR_ED25519_PUBK, 0);
 
             attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
-            getua(user, attrType, 0); // in getua_result(), we check signature actually matches
+            user->invalidateattr(attrType);
+            getua(user, attrType, 0); // in CommandGetUA::procresult(), we check signature actually matches
         }
     }
     else if (!keyTracked) // then it's the authring for public Ed25519 key
@@ -14578,8 +14579,7 @@ error MegaClient::verifyCredentials(handle uh)
                 // Ensure that cu25519 is tracked and verified for the user
                 // because its verification is required to promote pending shares
                 user->invalidateattr(ATTR_CU25519_PUBK);
-                user->invalidateattr(ATTR_SIG_CU255_PUBK);
-                fetchContactKeys(user);
+                getua(user, ATTR_CU25519_PUBK, 0);
             }
 
             restag = tag;
