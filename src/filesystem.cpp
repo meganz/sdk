@@ -2242,7 +2242,7 @@ void ScanService::Worker::queue(ScanRequestPtr request)
 void ScanService::Worker::loop()
 {
     // We're ready when we have some work to do.
-    auto ready = [this]() { return mPending.size(); };
+    auto ready = [this]() { return !mPending.empty(); };
 
     for ( ; ; )
     {
@@ -2252,6 +2252,8 @@ void ScanService::Worker::loop()
             // Wait for something to do.
             std::unique_lock<std::mutex> lock(mPendingLock);
             mPendingNotifier.wait(lock, ready);
+
+            assert(ready()); // condition variable should have taken care of this
 
             // Are we being told to terminate?
             if (!mPending.front())

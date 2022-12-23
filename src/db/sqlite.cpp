@@ -1296,10 +1296,10 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
         uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION);
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND n1.name LIKE ?";
-        // %% is added to the argument ? so we are lokoing for a substring of name
-        // like is case insenstive
-        // 
+                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND LOWER(n1.name) GLOB LOWER(?)";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // GLOB is case sensitive
+        //
         // If we want to add support to names in UTF-8, a new
         // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
 
@@ -1309,7 +1309,7 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        string wildCardName = "%" + name + "%";
+        string wildCardName = "*" + name + "*";
         if ((sqlResult = sqlite3_bind_text(mStmtNodeByName, 1, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtNodeByName, nodes);

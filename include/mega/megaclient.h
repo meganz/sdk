@@ -2275,6 +2275,9 @@ private:
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
 
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
+
 
 //
 // Sets and Elements
@@ -2316,6 +2319,9 @@ public:
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
+
+    // return Element count for Set sid, or 0 if not found
+    unsigned getSetElementCount(handle sid) const;
 
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;

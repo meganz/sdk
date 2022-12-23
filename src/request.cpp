@@ -330,6 +330,7 @@ void RequestDispatcher::add(Command *c)
 
 bool RequestDispatcher::cmdspending() const
 {
+    assert(!nextreqs.empty());
     return !nextreqs.front().empty();
 }
 
@@ -367,6 +368,7 @@ void RequestDispatcher::requeuerequest()
     csBatchesReceived += 1;
 #endif
     assert(!inflightreq.empty());
+    assert(!nextreqs.empty());
     if (!nextreqs.front().empty())
     {
         nextreqs.push_front(Request());
