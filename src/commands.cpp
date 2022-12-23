@@ -3111,7 +3111,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
             if (*client->json.pos == '}')
             {
                 client->notifyuser(u);
-                client->app->putua_result(API_OK);
+                mCompletion(API_OK);
                 return true;
             }
 
@@ -3189,11 +3189,11 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     {
         client->sendevent(99419, "Error attaching keys", 0);
 
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
         return true;
     }
 
-    client->app->putua_result(API_EINTERNAL);
+    mCompletion(API_EINTERNAL);
     return false;
 
 }
