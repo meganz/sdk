@@ -119,11 +119,9 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         uid = u->uid;
     }
 
-    // do we already have a share key for this node?
-    bool newshare = !n->plink
-            && (!n->outshares || n->outshares->empty())
-            && (!n->pendingshares || n->pendingshares->empty());;
+    bool newshare = !n->isShared();
 
+    // do we already have a share key for this node?
     if (!n->sharekey)
     {
         std::string previousKey = client->mKeyManager.getShareKey(n->nodehandle);

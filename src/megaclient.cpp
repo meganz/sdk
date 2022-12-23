@@ -11259,9 +11259,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         uid = user;
     }
 
-    bool newshare = !n->plink
-            && (!n->outshares || n->outshares->empty())
-            && (!n->pendingshares || n->pendingshares->empty());
+    bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
     if (!n->sharekey && !uid.size())
