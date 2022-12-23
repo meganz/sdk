@@ -14295,12 +14295,12 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                         if (authringType == ATTR_AUTHRING)
                         {
                             mKeyManager.setAuthRing(serializedAuthring);
-                            mKeyManager.promotePendingShares();
                         }
                         else if (authringType == ATTR_AUTHCU255)
                         {
                             mKeyManager.setAuthCU255(serializedAuthring);
                         }
+                        mKeyManager.promotePendingShares();
                     }); // No completion callback in this case
                 }
             });
@@ -14477,6 +14477,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                     {
                         // Changes to apply in the commit
                         mKeyManager.setAuthCU255(serializedAuthring);
+                        mKeyManager.promotePendingShares();
                     }); // No completion callback in this case
                 }
             });
