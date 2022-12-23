@@ -330,8 +330,8 @@ void RequestDispatcher::add(Command *c)
 
 bool RequestDispatcher::cmdspending() const
 {
-    assert(!nextreqs.empty());
-    return !nextreqs.front().empty();
+    return nextreqs.empty() ? false :
+          !nextreqs.front().empty();
 }
 
 bool RequestDispatcher::cmdsInflight() const

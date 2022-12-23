@@ -8611,6 +8611,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 }
 
 
+
 bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
@@ -8620,12 +8621,20 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
     {
         bool immediateStall = true;
 
-        if (row.syncNode->transferSP) immediateStall = false;
-
         if (row.syncNode->hasRare())
         {
             if (row.syncNode->rare().moveFromHere) immediateStall = false;
             if (row.syncNode->rare().moveToHere) immediateStall = false;
+        }
+
+        if (row.syncNode->transferSP)
+        {
+            if (immediateStall)
+            {
+                // eg if it's a simple upload (no moves involved), and the cloud side changes to something different during upload
+                // since it doesn't seem right if we detect the stall and yet we can see the upload keeps progressing
+                row.syncNode->resetTransfer(nullptr);
+            }
         }
 
         SYNC_verbose << "both sides mismatch. mtimes: "
