@@ -11349,6 +11349,10 @@ class MegaApi
          *
          * Note that it's safe to call this method for the same node multiple times.
          *
+        * The associated request type with this request is MegaRequest::TYPE_OPEN_SHARE_DIALOG
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MegaRequest::getNodeHandle - Returns the handle of the node to share
+        *
          * @param node The folder to share. It must be a non-root folder
          * @param listener MegaRequestListener to track this request
          */
