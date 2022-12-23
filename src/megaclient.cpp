@@ -21809,7 +21809,18 @@ bool KeyManager::addPendingInShare(std::string sharehandle, handle userHandle, s
 
 bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
 {
-    return mPendingOutShares[sharehandle].erase(uid);
+    bool removed = false;
+    User *user = mClient.finduser(uid.c_str(), 0);
+    if (user)
+    {
+        removed = mPendingOutShares[sharehandle].erase(user->email);
+        removed |= mPendingOutShares[sharehandle].erase(user->uid);
+    }
+    else
+    {
+        removed = mPendingOutShares[sharehandle].erase(uid);
+    }
+    return removed;
 }
 
 bool KeyManager::removePendingInShare(std::string shareHandle)
