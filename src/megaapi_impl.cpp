@@ -6838,15 +6838,6 @@ void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
     request->performRequest = [this, request]()
     {
         Node *node = client->nodebyhandle(request->getNodeHandle());
-        if (!node)
-        {
-            return API_EARGS;
-        }
-
-        if (node->sharekey)
-        {
-            return API_OK;
-        }
 
         client->openShareDialog(node, [this, request](Error e) {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

@@ -11189,11 +11189,11 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
     }
 
-    handle nodehandle = n->nodehandle;
-    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
-
     if (!previousKey.size())    // new share: add key to ^!keys and
     {
+        handle nodehandle = n->nodehandle;
+        std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+
         mKeyManager.commit(
         [this, nodehandle, shareKey]()
         {
