@@ -3921,6 +3921,8 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         LOG_debug << clientname << "transfers cleaned successfully";
     }
 
+    // todo: make these calls to reqs thread safe. Low priority
+
     // wait for cmds in flight and queued, up to 120s
     if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
     {
