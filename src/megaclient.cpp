@@ -14549,7 +14549,7 @@ error MegaClient::verifyCredentials(handle uh)
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     std::string serializedAuthring = authring.serializeForJS();
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
-    [this, tag, serializedAuthring](Error e)
+    [this, uh, tag, serializedAuthring](Error e)
     {
         if (e || !mKeyManager.generation())
         {
@@ -14564,14 +14564,24 @@ error MegaClient::verifyCredentials(handle uh)
         // so promotePendingShares should succeed for any pending
         // share with the verified user.
         mKeyManager.commit(
-        [this, serializedAuthring]()
+        [this, uh, serializedAuthring]()
         {
             // Changes to apply in the commit
             mKeyManager.setAuthRing(serializedAuthring);
             mKeyManager.promotePendingShares();
         },
-        [this, tag]()
+        [this, uh, tag]()
         {
+            User *user = finduser(uh);
+            if (user)
+            {
+                // Ensure that cu25519 is tracked and verified for the user
+                // because its verification is required to promote pending shares
+                user->invalidateattr(ATTR_CU25519_PUBK);
+                user->invalidateattr(ATTR_SIG_CU255_PUBK);
+                fetchContactKeys(user);
+            }
+
             restag = tag;
             app->putua_result(API_OK);
             return;
