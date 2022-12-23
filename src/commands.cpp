@@ -6096,7 +6096,6 @@ bool CommandFetchNodes::procresult(Result r)
                     return false;
                 }
 
-                client->mKeyManager.loadShareKeys();
                 client->mergenewshares(0);
 
                 client->mNodeManager.initCompleted();  // (nodes already written into DB)
