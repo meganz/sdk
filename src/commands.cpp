@@ -2180,6 +2180,7 @@ bool CommandSetShare::procresult(Result r)
             default:
                 if (!client->json.storeobject())
                 {
+                    completion(API_EINTERNAL, mWritable);
                     return false;
                 }
         }
