@@ -22044,10 +22044,13 @@ void KeyManager::loadShareKeys()
         Node *n = mClient.nodebyhandle(sharehandle);
         if (n && !n->sharekey)
         {
-            mClient.newshares.push_back(new NewShare(sharehandle, n->inshare ? 0 : -1, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
+            std::unique_ptr<NewShare> newShare(new NewShare(sharehandle, n->inshare ? 0 : -1,
+                                                     UNDEF, ACCESS_UNKNOWN,
+                                                     0, (byte *)shareKey.data()));
+
+            mClient.mergenewshare(newShare.get(), true, false);
         }
     }
-    mClient.mergenewshares(1);
 }
 
 void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
