@@ -121,25 +121,21 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 
     bool newshare = !n->isShared();
 
-    // do we already have a share key for this node?
+    // if creating a folder link and there's no sharekey already
+    if (!n->sharekey && !uid.size())
+    {
+        assert(newshare);
+
+        byte key[SymmCipher::KEYLENGTH];
+        client->rng.genblock(key, sizeof key);
+        n->sharekey = new SymmCipher(key);
+    }
+
     if (!n->sharekey)
     {
-        std::string previousKey = client->mKeyManager.getShareKey(n->nodehandle);
-        if (!previousKey.size())
-        {
-            assert(newshare);
-
-            byte key[SymmCipher::KEYLENGTH];
-            client->rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
-        }
-        else
-        {
-            LOG_warn << "Setting node's sharekey from KeyManager (PubKeyActionCreateShare)";
-
-            // just in case, use the sharekey from ^!keys
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
-        }
+        LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
+        completion(API_EKEY, mWritable);
+        return;
     }
 
     // We need to copy all data because "this" (the object) will be deleted
@@ -176,6 +172,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
             std::string encryptedKey = client->mKeyManager.encryptShareKeyTo(userhandle, shareKey);
             if (!encryptedKey.size())
             {
+                LOG_debug << "Unable to encrypt share key (contact not verified?)";
                 completionCallback(e, writable);
                 return;
             }
@@ -188,6 +185,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
                     LOG_err << "Error sending share key: " << err;
                 }
 
+                LOG_debug << "Share key correctly sent";
                 completionCallback(API_OK, writable);
             }));
         }));
@@ -207,7 +205,10 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         });
         return;
     }
-    completeShare();
+    else // folder link on an already shared folder -> no need to update ^!keys
+    {
+        completeShare();
+    }
 }
 
 // share node sh with access level sa

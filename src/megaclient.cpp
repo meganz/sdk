@@ -11164,13 +11164,6 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         return;
     }
 
-    if (!mKeyManager.isSecure())
-    {
-        // The key will be created (if needed) along with the share as before.
-        completion(API_OK);
-        return;
-    }
-
     std::string previousKey;
     if (!n->sharekey)
     {
@@ -11311,7 +11304,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
             if (!encryptedKey.size())
             {
-                LOG_debug << "Unable to send keys to the target. The outshare is pending.";
+                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
                 completion(e, writable);
                 return;
             }
