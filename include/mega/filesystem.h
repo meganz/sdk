@@ -596,14 +596,13 @@ struct Notification
 
     enum ScanRequirement
     {
-        NEEDS_SCAN_RECURSIVE,
-        NEEDS_SCAN_UNKNOWN,
-        NEEDS_PARENT_SCAN,
-        FOLDER_NEEDS_SELF_SCAN
+        NEEDS_PARENT_SCAN, // normal case.  For a plain path (eg. file), we would scan the parent to see if the item at this path chagned
+        FOLDER_NEEDS_SELF_SCAN,  // But, if the notification means that we should scan the contents of the actual path rather than the parent, set this flag.
+        FOLDER_NEEDS_SCAN_RECURSIVE  // And sometimes we need to scan recursively from that point (eg. glitch in stream of incoming notifications)
     };
 
     dstime timestamp;
-    ScanRequirement scanRequirement = NEEDS_SCAN_UNKNOWN;
+    ScanRequirement scanRequirement = NEEDS_PARENT_SCAN;
     LocalPath path;
     LocalNode* localnode = nullptr;
 
