@@ -6218,7 +6218,7 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
-                if (mKeyManager.isSecure()) // Same logic as below but without using the key
+                if (mKeyManager.isSecure() && mKeyManager.generation()) // Same logic as below but without using the key
                 {
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
@@ -9260,7 +9260,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     }
                     else
                     {
-                        if (!mKeyManager.isSecure())
+                        if (!mKeyManager.isSecure() || !mKeyManager.generation())
                         {
                             if (sk)
                             {
@@ -9496,8 +9496,7 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!mKeyManager.isSecure()
-                        || (mKeyManager.isSecure() && !mKeyManager.generation()))   // secure client, but not migrated yet
+                if (!mKeyManager.isSecure() || !mKeyManager.generation())   // insecure or secure client but not migrated yet
                 {
                     if (!k)
                     {
