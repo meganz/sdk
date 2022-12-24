@@ -564,8 +564,8 @@ public:
     bool addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey);
     bool removePendingOutShare(handle sharehandle, std::string uid);
     bool removePendingInShare(std::string shareHandle);
-    bool addOutShareKey(handle sharehandle, std::string shareKey);
-    bool addInShareKey(handle sharehandle, std::string shareKey);
+    bool addOutShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
+    bool addInShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     std::string getShareKey(handle sharehandle);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)

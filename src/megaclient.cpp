@@ -11191,7 +11191,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         [this, nodehandle, shareKey]()
         {
             // Changes to apply in the commit
-            mKeyManager.addOutShareKey(nodehandle, shareKey);
+            mKeyManager.addOutShareKey(nodehandle, shareKey, true);
         },
         [completion]()
         {
@@ -11344,7 +11344,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             if (newshare)
             {
                 // Add outshare key into ^!keys
-                mKeyManager.addOutShareKey(nodehandle, shareKey);
+                mKeyManager.addOutShareKey(nodehandle, shareKey, true);
             }
 
             if (uid.size()) // not a folder link, but a share with a user
@@ -21842,18 +21842,18 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
     return mPendingInShares.erase(shareHandle);
 }
 
-bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey)
+bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
     mShareKeys[sharehandle] = shareKey;
-    mTrustedShareKeys[sharehandle] = true;
+    mTrustedShareKeys[sharehandle] = sharedSecurely && isSecure();
 
     return true;
 }
 
-bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey)
+bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
     mShareKeys[sharehandle] = shareKey;
-    mTrustedShareKeys[sharehandle] = true;
+    mTrustedShareKeys[sharehandle] = sharedSecurely && isSecure();
 
     return true;
 }
@@ -22000,7 +22000,7 @@ bool KeyManager::promotePendingShares()
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())
             {
-                addInShareKey(nodeHandle, shareKey);
+                addInShareKey(nodeHandle, shareKey, true);
                 mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
                 attributeUpdated = true;
