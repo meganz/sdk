@@ -11665,7 +11665,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
  */
-void MegaClient::getua(User* u, const attr_t at, int ctag)
+bool MegaClient::getua(User* u, const attr_t at, int ctag)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -11681,20 +11681,22 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
                 restag = tag;
                 app->getua_result(tlv, at);
                 delete tlv;
-                return;
+                return true;
             }
             else
             {
                 restag = tag;
                 app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
-                return;
+                return true;
             }
         }
         else
         {
             reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
+            return false;
         }
     }
+    return true;
 }
 
 void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag)
@@ -14143,13 +14145,40 @@ void MegaClient::fetchContactsKeys()
     assert(mAuthRings.size() == 3);
     mAuthRingsTemp = mAuthRings;
 
+    bool edFinished = true;
+    bool cuFinished = true;
+    bool rsaFinished = true;
+
     for (auto &it : users)
     {
         User *user = &it.second;
         if (user->userhandle != me)
         {
-            fetchContactKeys(user);
+            edFinished &= getua(user, ATTR_ED25519_PUBK, 0);
+            cuFinished &= getua(user, ATTR_CU25519_PUBK, 0);
+            rsaFinished &= user->pubk.isvalid();
+
+            int creqtag = reqtag;
+            reqtag = 0;
+            getpubkey(user->uid.c_str());
+            reqtag = creqtag;
         }
+    }
+
+    // Keys could be already cached
+    if (edFinished)
+    {
+        mAuthRingsTemp.erase(ATTR_AUTHRING);
+    }
+
+    if (cuFinished)
+    {
+        mAuthRingsTemp.erase(ATTR_AUTHCU255);
+    }
+
+    if (rsaFinished)
+    {
+        mAuthRingsTemp.erase(ATTR_AUTHRSA);
     }
 }
 
@@ -14235,7 +14264,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     if (authring->isSignedKey())
     {
-        if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
+        if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch || temporalAuthring)
         {
             // load public signing key and key signature
             getua(user, ATTR_ED25519_PUBK, 0);
@@ -14251,7 +14280,10 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
         // tracking has changed --> persist authring
         authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
+    }
 
+    if (!authring->isSignedKey() && (!keyTracked || temporalAuthring))
+    {
         // if checking authrings for all contacts, accumulate updates for all contacts first
         bool finished = true;
         if (temporalAuthring)
@@ -14423,8 +14455,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             }
             else
             {
-                assert(authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE);
-                LOG_warn << "Updating authentication method for user " << uid << " to signature verified, currently authenticated as seen";
+                LOG_debug << "Updating authentication method for user " << uid << " to signature verified";
 
                 authring->update(uh, AUTH_METHOD_SIGNATURE);
             }
