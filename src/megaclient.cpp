@@ -2689,7 +2689,7 @@ void MegaClient::exec()
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    static unsigned reportFreqDs = 200;
+    static unsigned reportFreqDs = 6000;
     if (Waiter::ds > lasttime + reportFreqDs)
     {
         lasttime = Waiter::ds;
