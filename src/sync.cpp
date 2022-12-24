@@ -2206,8 +2206,6 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
             SYNC_verbose << syncname << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
             syncs.setSyncedFsidReused(moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
-            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-            row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
 
             LOG_debug << syncname << "Looking up move source by fsid " << toHandle(moveHerePtr->sourceFsid);
 
@@ -2222,6 +2220,9 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             {
                 LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
                 assert(sourceSyncNode == moveHerePtr->sourcePtr);
+
+                row.syncNode->setSyncedNodeHandle(sourceSyncNode->syncedCloudNodeHandle); //  we could set row.cloudNode->handle, but then we would not download after move if the file was both moved and updated;
+                row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
 
                 // Assign the same syncedFingerprint as the move-from node
                 // That way, if that row had some other sync aspect needed

@@ -17355,72 +17355,53 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     // we expect the updated f's download to end up at d/f locally
 
     auto TIMEOUT = std::chrono::seconds(16);
+    promise<void> waiter;
 
-    // Get ourselves a shiny new client.
+    // New client with folder s that will be the sync
     auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
-
-    // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
-
-    // Make sure a sync root exists in the cloud.
     ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
 
-    // Prepare the local filesystem.
+    // Prepare the sync contents: s/d (directory) and s/f (file)
     Model model;
-
     model.addfolder("d");
     model.addfile("f", randomData(16384));
     model.generate(client->fsBasePath / "s");
 
     // Keep a log of expected file fingerprints.
     vector<FileFingerprint> fingerprints;
-
     fingerprints.emplace_back(client->fingerprint(client->fsBasePath / "s" / "f"));
     ASSERT_TRUE(fingerprints.back().isvalid);
 
-    // Add a sync...
+    // Make the sync, and upsync
     auto id = client->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
-
-    // Wait for the engine to upload the local files.
     waitonsyncs(TIMEOUT, client);
-
-    // Make sure everything arrived safetly.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
     // Throttle download speed so that we can move the local file before the
     // engine finishes downloading the latest changes from the cloud.
     client->client.setmaxdownloadspeed(4);
 
-    // So we can wait for downloads and moves to start.
-    promise<void> waiter;
-
+    // functor to detect the sync starting moves
     auto onMoveBeginHandler = [&client, &waiter](const LocalPath&, const LocalPath&) {
-        // Signal the waiter.
         waiter.set_value();
-
-        // Callback's done its job.
         client->mOnMoveBegin = nullptr;
     };
 
-    auto onTransferAddedHandler = [&client, &waiter](Transfer& transfer) {
-        // Only signal the waiter if we're dealing with a download.
-        if (transfer.type != GET)
-            return;
-
-        // Signal the waiter.
+    // functor to detct the sync adding downloads
+    auto detectDownloadStart = [&client, &waiter](Transfer& transfer) {
+        if (transfer.type != GET) return;
         waiter.set_value();
-
-        // Detach the callback as our work is done.
         client->mOnTransferAdded = nullptr;
     };
 
-    client->mOnTransferAdded = onTransferAddedHandler;
+    client->mOnTransferAdded = detectDownloadStart;
 
     // Update f in the cloud (manual upload, making a version chain, and causing the sync to download it)
     {
         auto data = randomData(16384);
-        auto path = client->fsBasePath / "f";
+        auto path = client->fsBasePath / "f";  // (this is outside s) (outside the sync)
 
         // Create a temporary file to upload.
         ASSERT_TRUE(createDataFile(path, data));
@@ -17436,18 +17417,16 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(fingerprints.back().isvalid);
     }
 
+    // s/f is updated in cloud, is a new file with 1 version
     // Wait for the engine to add the download.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
               future_status::timeout);
 
-    // So we can wait for the move to begin.
+    // the download of f just started, super slow.  Prep to detect move
     waiter = promise<void>();
-
     client->mOnMoveBegin = onMoveBeginHandler;
 
-    // Move the local f to d/f.
-    model.movenode("f", "d");
-
+    // Move the local s/f to s/d/f and wait (download is already started)
     fs::rename(client->fsBasePath / "s" / "f",
                client->fsBasePath / "s" / "d" / "f");
 
@@ -17455,27 +17434,30 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
               future_status::timeout);
 
-    // Remove the throttle so the download can complete.
+    // Remove the throttle, let download and move race each other
     client->client.setmaxdownloadspeed(0);
-
-    // Give the engine some time to react to our changes.
     waitonsyncs(TIMEOUT, client);
 
-    // Make sure everything downloaded okay.
+    // We expect to find the downloaded file at s/d/f even though
+    // initially it was downloading to s/f (this checks file content too)
+    model.movenode("f", "d");
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
 
-    // Re-establish the transfer waiter.
+
+    // --------- new sub-test.
+    // upload a new version of file f and overwrite at s/d/f.  Race the download against a move back to s/f
+
+
+    // Prep to detect download starting
     waiter = promise<void>();
-
-    client->mOnTransferAdded = onTransferAddedHandler;
-
-    // Re-establish the download throttle.
+    client->mOnTransferAdded = detectDownloadStart;
     client->client.setmaxdownloadspeed(4);
 
-    // Create a new version of d/f in the cloud.
+    // Overwrite s/d/f in the cloud with new file data.
+    // (this will trigger the sync to start a download of it)
     {
         auto data = randomData(16384);
-        auto path = client->fsBasePath / "f";
+        auto path = client->fsBasePath / "f";  // (this is outside s) (outside the sync)
 
         // Create a temporary file to upload.
         ASSERT_TRUE(createDataFile(path, data));
@@ -17491,43 +17473,42 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(fingerprints.back().isvalid);
     }
 
-    // Wait for the transfer to begin.
+    // Wait for the sync download of s/d/f to begin.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Re-establish move waiter.
+    // Prep to detect the sync cloud move back to s/f
     waiter = promise<void>();
-
     client->mOnMoveBegin = onMoveBeginHandler;
 
-    // Move d/f back to f.
-    model.movenode("d/f", "");
-
+    // Move s/d/f back to s/f.
     fs::rename(client->fsBasePath / "s" / "d" / "f",
                client->fsBasePath / "s" / "f");
 
-    // Wait for the move to begin.
+    // Wait for the sync move to begin.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Remove the throttle so the download can complete.
+    // let the download and the move race each other
     client->client.setmaxdownloadspeed(0);
-
-    // Give the engine some time to react to our changes.
     waitonsyncs(TIMEOUT, client);
 
-    // Make sure everything downloaded okay.
+    // check the results: new file only at s/f  (checks file content)
+    model.movenode("d/f", "");
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
 
+
+    // --------- new sub-test.
     // Repeat the test one more time so we can check stall state.
+    // upload a new version of file f and overwrite at s/f.
+    // Race the sync download against a move back to s/d/f
+    // this time we Also overwrite different local file at s/d/f after the move
+    // and that's where the stall comes from
 
-    // Re-establish the transfer waiter.
+    // Prep to detect download starting
     waiter = promise<void>();
-
-    client->mOnTransferAdded = onTransferAddedHandler;
-
-    // Re-establish the download throttle.
+    client->mOnTransferAdded = detectDownloadStart;
     client->client.setmaxdownloadspeed(4);
 
-    // Create a new version of f in the cloud.
+    // Overwrite a new version of s/f in the cloud.
     {
         auto data = randomData(16384);
         auto path = client->fsBasePath / "f";
@@ -17546,41 +17527,40 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(fingerprints.back().isvalid);
     }
 
-    // Wait for the transfer to start.
+    // Wait for the download to start.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
 
-    // Re-establish move waiter.
+    // New move waiter that uploads
     waiter = promise<void>();
-
     client->mOnMoveBegin = [&client, &waiter](const LocalPath&, const LocalPath&) {
-        // Alter the file on disk.
-        auto data = randomData(16384);
 
+        // Now we cause the stall
+        // The sync just detected the local file moved to s/d/f and started a cloud move for it
+        // We overwrite this local s/d/f file with new data.
+        // The sync would want to upload it to s/d/f.
+        // But that would clash with the move of the old file from s/f to s/d/f
+
+        auto data = randomData(16384);
         ASSERT_TRUE(createDataFile(client->fsBasePath / "s" / "d" / "f", data));
 
-        // Signal the waiter.
         waiter.set_value();
-
-        // Detach the callback.
         client->mOnMoveBegin = nullptr;
     };
 
-    // Move f back into d/f.
-    model.movenode("f", "d");
-
+    // Move local s/f back into s/d/f.
     fs::rename(client->fsBasePath / "s" / "f",
                client->fsBasePath / "s" / "d" / "f");
 
-    // Wait for the engine to kick off the move.
+    // Wait for the engine to detect and kick off the mOnMoveBegin.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
-
-    // Remove the throttle.
     client->client.setmaxdownloadspeed(0);
-
-    // Wait for the engine to react to our changes.
     waitonsyncs(TIMEOUT, client);
 
-    // Wait for the engine to stall.
+    // We should detect a stall:
+    // download started from s/f
+    // upload started from s/d/f
+    // cloud moving s/f to s/d/f
+    // so we should have an upload and download occurring at s/d/f, different new file content at both
     ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
 
     // Resolve the stall by removing the local file.
@@ -17593,6 +17573,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     waitonsyncs(TIMEOUT, client);
 
     // Make sure everything downloaded okay.
+    model.movenode("f", "d");
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
 
     // Check that the version chain is as we expect.
