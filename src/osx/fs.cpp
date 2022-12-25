@@ -223,27 +223,15 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
     {
         auto flag = *flags++;
 
-        //// Are we dealing with a symlink?
-        //if ((flag & kFSEventStreamEventFlagItemIsSymlink))
-        //{
-        //    LOG_debug << "Link skipped: "
-        //              << *paths;
+        auto path = *paths++;
 
-        //    continue;
-        //}
+        LOG_debug << "FSNotification: " << flag << " " << path;
 
-        auto path = *paths++ + mRootPathLength;
+        path += mRootPathLength;
 
         // Skip leading seperator.
         if (*path == '/')
             ++path;
-
-        //// Translate path into something useful.
-        //auto localPath = LocalPath::fromPlatformEncodedRelative(path);
-
-        //// Is this notification coming from the debris directory?
-        //if (!localPath.empty() && ignore.isContainingPathOf(localPath))
-        //    continue;
 
         // Has the root path been invalidated?
         if ((flag & kFSEventStreamEventFlagRootChanged))
@@ -253,12 +241,42 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
         if ((flag & kFSEventStreamEventFlagUnmount))
             setFailed(EINVAL, "A device has been unmounted below the root path.");
 
-        auto scanFlags = Notification::NEEDS_SCAN_UNKNOWN;
+        // even a folder renamed, comes in as that folder's path and we need to rescan the parent to see the changed name
+        auto scanFlags = Notification::NEEDS_PARENT_SCAN;
 
         // Have some events been coalesced?
         if ((flag & kFSEventStreamEventFlagMustScanSubDirs))
-            scanFlags = Notification::NEEDS_SCAN_RECURSIVE;
-
+        {
+            scanFlags = Notification::FOLDER_NEEDS_SCAN_RECURSIVE;
+            assert(flag & kFSEventStreamEventFlagItemIsDir);
+        }
+        
+        // log the unusual possiblities
+        if (flag == kFSEventStreamEventFlagNone) LOG_debug << "FSEv flag none";
+        if (flag & kFSEventStreamEventFlagMustScanSubDirs) LOG_debug << "FSEv scan subdirs";
+        if (flag & kFSEventStreamEventFlagUserDropped) LOG_debug << "FSEv user dropped";
+        if (flag & kFSEventStreamEventFlagKernelDropped) LOG_debug << "FSEv kernel dropped";
+        if (flag & kFSEventStreamEventFlagEventIdsWrapped) LOG_debug << "FSEv ids wrapped";
+        if (flag & kFSEventStreamEventFlagHistoryDone) LOG_debug << "FSEv history done";
+        if (flag & kFSEventStreamEventFlagRootChanged) LOG_debug << "FSEv root changed";
+        if (flag & kFSEventStreamEventFlagMount) LOG_debug << "FSEv mount";
+        if (flag & kFSEventStreamEventFlagUnmount) LOG_debug << "FSEv unmount";
+        if (flag & kFSEventStreamEventFlagItemCreated) LOG_debug << "FSEv item created";
+        if (flag & kFSEventStreamEventFlagItemRemoved) LOG_debug << "FSEv item removed";
+        //if (flag & kFSEventStreamEventFlagItemInodeMetaMod) LOG_debug << "FSEv inode meta mod";
+        //if (flag & kFSEventStreamEventFlagItemRenamed) LOG_debug << "FSEv item renamed";
+        //if (flag & kFSEventStreamEventFlagItemModified) LOG_debug << "FSEv item modified";
+        if (flag & kFSEventStreamEventFlagItemFinderInfoMod) LOG_debug << "FSEv finder info mod";
+        if (flag & kFSEventStreamEventFlagItemChangeOwner) LOG_debug << "FSEv change owner";
+        if (flag & kFSEventStreamEventFlagItemXattrMod) LOG_debug << "FSEv xattr mod";
+        //if (flag & kFSEventStreamEventFlagItemIsFile) LOG_debug << "FSEv is file";
+        //if (flag & kFSEventStreamEventFlagItemIsDir) LOG_debug << "FSEv is dir";
+        if (flag & kFSEventStreamEventFlagItemIsSymlink) LOG_debug << "FSEv is symlink";
+        if (flag & kFSEventStreamEventFlagOwnEvent) LOG_debug << "FSEv own event";
+        if (flag & kFSEventStreamEventFlagItemIsHardlink) LOG_debug << "FSEv is hard link";
+        if (flag & kFSEventStreamEventFlagItemIsLastHardlink) LOG_debug << "FSEv is last hard link";
+        //if (flag & kFSEventStreamEventFlagItemCloned) LOG_debug << "FSEv item cloned";
+        
         // Pass the notification to the engine.
         notify(fsEventq,
                &mRoot,
@@ -266,7 +284,7 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
                LocalPath::fromPlatformEncodedRelative(path));
 
         // No need for the below if we're performing a recursive scan.
-        if (scanFlags == Notification::NEEDS_SCAN_RECURSIVE)
+        if (scanFlags == Notification::FOLDER_NEEDS_SCAN_RECURSIVE)
             continue;
 
         // Are we dealing with a directory?
@@ -276,6 +294,8 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
         // Has its permissions changed?
         if (!(flag & kFSEventStreamEventFlagItemChangeOwner))
             continue;
+
+        LOG_debug << "FSNotification folder self-rescan: " << path;
 
         // If so, rescan the directory's contents.
         //

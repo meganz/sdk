@@ -2206,8 +2206,6 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
             SYNC_verbose << syncname << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
             syncs.setSyncedFsidReused(moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
-            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-            row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
 
             LOG_debug << syncname << "Looking up move source by fsid " << toHandle(moveHerePtr->sourceFsid);
 
@@ -2222,6 +2220,9 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             {
                 LOG_debug << syncname << "Resolving sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << ", here! " << logTriplet(row, fullPath);
                 assert(sourceSyncNode == moveHerePtr->sourcePtr);
+
+                row.syncNode->setSyncedNodeHandle(sourceSyncNode->syncedCloudNodeHandle); //  we could set row.cloudNode->handle, but then we would not download after move if the file was both moved and updated;
+                row.syncNode->setSyncedFsid(moveHerePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
 
                 // Assign the same syncedFingerprint as the move-from node
                 // That way, if that row had some other sync aspect needed
@@ -2860,34 +2861,47 @@ dstime Sync::procscanq()
 
         bool scanDescendants = false;
 
+        // figure out which node we are going to scan.  'nearest' will be assigned the one (or it is already)
         if (match)
         {
-            if ((notification.scanRequirement != Notification::FOLDER_NEEDS_SELF_SCAN
-                || match->type == FILENODE)
-                && match->parent)
+            if (match->type == FILENODE)
             {
-                if (match->type == FILENODE)
-                    match->recomputeFingerprint = true;
-
+                // the node was a file, so it's always the parent that needs scanning so we see the
+                // updated file metadata in the directory entry.  Additionally, re-fingerprint to detect data change
+                match->recomputeFingerprint = true;
                 nearest = match->parent;
+                if (!nearest) continue;
             }
             else
             {
-                nearest = match;
+                // we found the exact node specified, recursion on request makes sense
+                scanDescendants = notification.scanRequirement == Notification::FOLDER_NEEDS_SCAN_RECURSIVE;
+
+                // for a folder path, we support either path specified (entries added/removed)
+                // or the parent (eg access changed), depending on flags passed from platform layer
+                nearest = match->parent && notification.scanRequirement == Notification::NEEDS_PARENT_SCAN
+                        ? match->parent
+                        : match;
+
             }
         }
         else
         {
-            size_t pos = 0;
-            bool multipartRemainder = remainder.findNextSeparator(pos);
-            scanDescendants = notification.scanRequirement == Notification::FOLDER_NEEDS_SELF_SCAN ?
-                              !remainder.empty() :
-                              multipartRemainder;
+            // we didn't find the exact path specified. But, if we are only one layer up
+            // and we would have scanned parent anyway (ie, file or NEEDS_PARENT_SCAN), then it's equivalent
+            // if we are higher up the tree than that, it's again the same
+            // basically, scan the folder we can determine this notification is below: nearest.
+
+            while (nearest && nearest->type == FILENODE)
+            {
+                nearest->recomputeFingerprint = true;
+                nearest = nearest->parent;
+            }
         }
 
         if (!nearest)
         {
-            // we didn't find any ancestor within the sync
+            // we didn't find any suitable ancestor within the sync
             continue;
         }
 
@@ -2917,7 +2931,9 @@ dstime Sync::procscanq()
 #ifdef DEBUG
         //if (nearest->scanAgain < TREE_ACTION_HERE)
         {
-            SYNC_verbose << "Trigger scan flag by fs notification on " << nearest->getLocalPath();
+            SYNC_verbose << "Trigger scan flag by fs notification on "
+                         << nearest->getLocalPath()
+                         << (scanDescendants ? " (recursive)" : "");
         }
 #endif
 
