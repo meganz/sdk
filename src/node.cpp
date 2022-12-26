@@ -1371,6 +1371,8 @@ LocalNode::LocalNode(Sync* csync)
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
     syncedCloudNodeHandle_it = sync->syncs.localnodeByNodeHandle.end();
+
+    sync->syncs.totalLocalNodes++;
 }
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1444,8 +1446,6 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 //                (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
 //    }
 //#endif
-
-    sync->syncs.totalLocalNodes++;
 
     if (type >= 0 && type < int(sync->localnodes.size()))
     {
