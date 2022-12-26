@@ -1127,7 +1127,7 @@ public:
     bool mDetailedSyncLogging = true;
 
     // total number of LocalNode objects (only updated by syncs thread)
-    std::atomic<int32_t> totalLocalNodes = 0;
+    std::atomic<int32_t> totalLocalNodes{0};
 
     // backup rework implies certain restrictions that can be skipped
     // by setting this flag
