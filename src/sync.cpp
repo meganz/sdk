@@ -6997,6 +6997,7 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
         if (downloadPtr->mError == API_EKEY)
         {
             // Then report it as a stall.
+
             SYNC_verbose << syncname
                             << "Download was terminated due to MAC verification failure: "
                             << logTriplet(row, fullPath);
@@ -7008,7 +7009,9 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
                 {downloadPtr->getLocalname(), PathProblem::MACVerificationFailure},
                 {fullPath.localPath}));
 
-            return false;
+            bool keepStalling = row.cloudNode && row.cloudNode->handle == downloadPtr->h;
+
+            return !keepStalling;
         }
         else
         {

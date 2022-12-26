@@ -106,34 +106,30 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
-        (*it)->terminated(API_OK);
 
-        // Are we dealing with a download?
-        if (type != GET)
-            continue;
-
-        // Are we dealing with a non-sync download?
-        if (!(*it)->syncxfer)
+        if (type == GET)
         {
-            // Let the distributor know we no longer need to be copied.
-            if (downloadDistributor)
-                downloadDistributor->removeTarget();
+            if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
+            {
+                assert((*it)->syncxfer);
 
-            // No further processing necessary.
-            continue;
+                // Keep sync downloads whose Mac failed, so the user can decide to keep them or not
+                if (dl->mError == API_EKEY)
+                {
+                    keepDownloadTarget = true;
+                    dl->setLocalname(localfilename);
+                }
+            }
+            else
+            {
+                assert(!(*it)->syncxfer);
+                if (downloadDistributor)
+                    downloadDistributor->removeTarget();
+            }
         }
 
-        auto dl = static_cast<SyncDownload_inClient*>(*it);
-
-        // Did the download fail due to a MAC mismatch?
-        if (dl->mError != API_EKEY)
-            continue;
-
-        // Keep the intermediate download target.
-        keepDownloadTarget = true;
-
-        // And latch its path.
-        dl->setLocalname(localfilename);
+        // this File may be deleted by this call.  So call after the tests above
+        (*it)->terminated(API_OK);
     }
 
     if (!mOptimizedDelete)
