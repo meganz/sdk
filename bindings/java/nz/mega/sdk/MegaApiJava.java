@@ -8259,8 +8259,8 @@ public class MegaApiJava {
      * @param order Sorting order to use
      * @return List of MegaShare objects that other users are sharing with this account
      */
-    public MegaShareList getUnverifiedIncomingShares(int order) {
-        return megaApi.getUnverifiedInShares(order);
+    public ArrayList<MegaShare> getUnverifiedIncomingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedInShares(order));
     }
 
     /**
@@ -8364,8 +8364,8 @@ public class MegaApiJava {
      * @param order Sorting order to use
      * @return List of MegaShare objects
      */
-    public MegaShareList getUnverifiedOutgoingShares(int order) {
-        return megaApi.getUnverifiedOutShares(order);
+    public ArrayList<MegaShare> getUnverifiedOutgoingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedOutShares(order));
     }
 
     /**
