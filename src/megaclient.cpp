@@ -11183,6 +11183,125 @@ void MegaClient::getUserEmail(const char *uid)
     reqs.add(new CommandGetUserEmail(this, uid));
 }
 
+void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
+{
+    if (e != API_OK)
+    {
+        mV1PswdVault.reset(); // clear this before the app knows that login is done, might improve security
+        app->login_result(e);
+        return;
+    }
+
+    if (accountversion == 1 && mV1PswdVault)
+    {
+        auto v1PswdVault(move(mV1PswdVault));
+
+        if (loggedin() == FULLACCOUNT)
+        {
+            // initiate automatic upgrade to V2
+            unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&v1PswdVault->first, &v1PswdVault->second));
+            string pwd;
+            if (tlv && tlv->get("p", pwd))
+            {
+                upgradeAccountToV2(pwd, [this, onLoginOk](error e)
+                    {
+                        // handle upgrade result
+                        if (e == API_EEXIST)
+                        {
+                            LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
+
+                            // upgrade done in the meantime by different client; get account details again
+                            getuserdata(reqtag, [this, onLoginOk](string*, string*, string*, error e)
+                                {
+                                    error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
+                                    app->login_result(loginErr); // if error, report for login too because user data is inconsistent now
+
+                                    if (e != API_OK)
+                                    {
+                                        LOG_err << "Failed to get user data after acccount upgrade to V2 ended with EEXIST, error: " << e;
+                                    }
+                                    else if (onLoginOk)
+                                    {
+                                        onLoginOk();
+                                    }
+                                }
+                            );
+                        }
+
+                        else
+                        {
+                            if (e == API_OK)
+                            {
+                                LOG_info << "Account successfully upgraded to V2.";
+                            }
+                            else
+                            {
+                                LOG_warn << "Failed to upgrade account to V2, error: " << e;
+                            }
+
+                            // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                            app->login_result(API_OK);
+                            if (onLoginOk)
+                            {
+                                onLoginOk();
+                            }
+                        }
+                    }
+                );
+
+                return; // stop here when account upgrade was initiated
+            }
+        }
+    }
+
+    // V2, or V1 without mandatory requirements for upgrade
+    app->login_result(API_OK);
+    if (onLoginOk)
+    {
+        onLoginOk();
+    }
+}
+
+//
+// Account upgrade to V2
+//
+void MegaClient::saveV1Pwd(const char* pwd)
+{
+    assert(pwd);
+    if (pwd && accountversion == 1)
+    {
+        vector<byte> pwkey(SymmCipher::KEYLENGTH);
+        rng.genblock(pwkey.data(), pwkey.size());
+        SymmCipher pwcipher(pwkey.data());
+
+        TLVstore tlv;
+        tlv.set("p", pwd);
+        unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &pwcipher));
+
+        if (tlvStr)
+        {
+            mV1PswdVault.reset(new pair<string, SymmCipher>(move(*tlvStr), move(pwcipher)));
+        }
+    }
+}
+
+void MegaClient::upgradeAccountToV2(const string& pwd, std::function<void(error e)> completion)
+{
+    assert(loggedin() == FULLACCOUNT);
+    assert(accountversion == 1);
+    assert(!pwd.empty());
+
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
+    string salt;
+
+    fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    reqs.add(new CommandAccountVersionUpgrade(move(clientRandomValue), move(encmasterkey), move(hashedauthkey), move(salt), completion));
+}
+// -------- end of Account upgrade to V2
+
 #ifdef DEBUG
 void MegaClient::delua(const char *an)
 {
@@ -12503,7 +12622,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
-    reqs.add(new CommandGetUserData(this, reqtag,
+    getuserdata(reqtag,
         [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
             if (e != API_OK)
@@ -12532,7 +12651,7 @@ error MegaClient::changepw(const char* password, const char *pin)
                 app->changepw_result(e);
             }
         }
-    ));
+    );
 
     return API_OK;
 }
@@ -12560,14 +12679,28 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
 
 error MegaClient::changePasswordV2(const char* password, const char* pin)
 {
-    byte clientRandomValue[SymmCipher::KEYLENGTH];
-    rng.genblock(clientRandomValue, sizeof(clientRandomValue));
-
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
     string salt;
-    HashSHA256 hasher;
+
+    fillCypheredAccountDataV2(password, clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue.data(), pin, &salt));
+    return API_OK;
+}
+
+void MegaClient::fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                           string& hashedauthkey, string& salt)
+{
+    clientRandomValue.resize(SymmCipher::KEYLENGTH, 0);
+    rng.genblock(clientRandomValue.data(), clientRandomValue.size());
+
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
-    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
+    buffer.append((char *)clientRandomValue.data(), clientRandomValue.size());
+    HashSHA256 hasher;
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
@@ -12576,20 +12709,15 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)salt.data(), salt.size(), 100000);
 
-    byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
     cipher.setkey(derivedKey);
-    cipher.ecb_encrypt(key.key, encmasterkey);
+    encmasterkey.resize(SymmCipher::KEYLENGTH, 0);
+    cipher.ecb_encrypt(key.key, encmasterkey.data());
 
-    string hashedauthkey;
     byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
-
-    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
-    return API_OK;
 }
 
 // create ephemeral session

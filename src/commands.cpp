@@ -1723,7 +1723,7 @@ bool CommandLogin::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->login_result(r.errorOrOK());
+        client->loginResult(r.errorOrOK());
         return true;
     }
 
@@ -1787,7 +1787,7 @@ bool CommandLogin::procresult(Result r)
                 {
                     if (ISUNDEF(me) || len_k != sizeof hash)
                     {
-                        client->app->login_result(API_EINTERNAL);
+                        client->loginResult(API_EINTERNAL);
                         return true;
                     }
 
@@ -1814,7 +1814,7 @@ bool CommandLogin::procresult(Result r)
                 {
                     if (len_sek != SymmCipher::KEYLENGTH)
                     {
-                        client->app->login_result(API_EINTERNAL);
+                        client->loginResult(API_EINTERNAL);
                         return true;
                     }
 
@@ -1838,7 +1838,7 @@ bool CommandLogin::procresult(Result r)
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
                         LOG_warn << "Error checking tsid";
-                        client->app->login_result(API_ENOENT);
+                        client->loginResult(API_ENOENT);
                         return true;
                     }
 
@@ -1853,7 +1853,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         if (!checksession)
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
                         else if (!client->ephemeralSessionPlusPlus)
@@ -1873,7 +1873,7 @@ bool CommandLogin::procresult(Result r)
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
                             LOG_warn << "Error checking private key";
-                            client->app->login_result(API_ENOENT);
+                            client->loginResult(API_ENOENT);
                             return true;
                         }
                     }
@@ -1882,7 +1882,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         if (len_csid < 32)
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
 
@@ -1894,7 +1894,7 @@ bool CommandLogin::procresult(Result r)
                                 || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
                                 || (me != MemAccess::get<handle>((const char*)buf)))
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
 
@@ -1914,14 +1914,22 @@ bool CommandLogin::procresult(Result r)
                 }
 
                 client->openStatusTable(true);
-                client->app->login_result(API_OK);
-                client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
+
+                { // scope for local variable
+                    MegaClient* cl = client; // make a copy, because 'this' will be gone by the time lambda will execute
+                    client->loginResult(API_OK, [cl]()
+                        {
+                            cl->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
+                        }
+                    );
+                }
+
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->login_result(API_EINTERNAL);
+                    client->loginResult(API_EINTERNAL);
                     return false;
                 }
         }
@@ -5523,6 +5531,40 @@ bool CommandSetMasterKey::procresult(Result r)
 
     client->app->changepw_result(API_EINTERNAL);
     return false;
+}
+
+CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&& encMKey, string&& hashedAuthKey, string&& salt,
+    std::function<void(error e)> completion)
+    : mEncryptedMasterKey(move(encMKey)), mSalt(move(salt)), mCompletion(completion)
+{
+    cmd("avu");
+
+    arg("emk", mEncryptedMasterKey.data(), (int)mEncryptedMasterKey.size());
+    arg("hak", (byte*)hashedAuthKey.c_str(), (int)hashedAuthKey.size());
+    arg("crv", clRandValue.data(), (int)clRandValue.size());
+}
+
+bool CommandAccountVersionUpgrade::procresult(Result r)
+{
+    bool goodJson = r.wasErrorOrOK();
+    error e = goodJson ? error(r.errorOrOK()) : API_EINTERNAL;
+
+    if (goodJson)
+    {
+        if (r.errorOrOK() == API_OK)
+        {
+            client->accountversion = 2;
+            client->k.assign((const char*)mEncryptedMasterKey.data(), mEncryptedMasterKey.size());
+            client->accountsalt = move(mSalt);
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return goodJson;
 }
 
 CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,

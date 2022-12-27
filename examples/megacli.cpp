@@ -4423,6 +4423,7 @@ struct Login
             }
             else
             {
+                mc->saveV1Pwd(password.c_str()); // for automatic upgrade to V2
                 mc->login(email.c_str(), keybuf, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }

@@ -223,6 +223,19 @@ public:
     CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
 };
 
+class MEGA_API CommandAccountVersionUpgrade : public Command
+{
+    vector<byte> mEncryptedMasterKey;
+    string mSalt;
+    std::function<void(error e)> mCompletion;
+
+public:
+    bool procresult(Result) override;
+
+    CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&&encMKey, string&& hashedAuthKey, string&& salt,
+        std::function<void(error e)> completion);
+};
+
 class MEGA_API CommandCreateEphemeralSession : public Command
 {
     byte pw[SymmCipher::KEYLENGTH];

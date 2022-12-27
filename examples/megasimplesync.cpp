@@ -58,6 +58,7 @@ struct Login
             }
             else
             {
+                client->saveV1Pwd(password.c_str()); // for automatic upgrade to V2
                 client->login(email.c_str(), pwkey, pin.c_str());
             }
         }
