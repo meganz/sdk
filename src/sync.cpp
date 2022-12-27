@@ -6759,7 +6759,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     {
         assert(child.first == child.second->localname);
 
-        if (row.syncNode->exclusionState() == ES_EXCLUDED)
+        if (child.second->exclusionState() == ES_EXCLUDED)
         {
             continue;
         }

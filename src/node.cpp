@@ -3186,6 +3186,14 @@ bool LocalNode::recomputeExclusionState()
         void setSyncedNodeHandle(NodeHandle());
         sync->statecachedel(this);
     }
+    else if (mExclusionState == ES_INCLUDED)
+    {
+        if (!dbid)
+        {
+            // This node should be part of the database again
+            sync->statecacheadd(this);
+        }
+    }
 
     return mExclusionState != ES_UNKNOWN;
 }
