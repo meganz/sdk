@@ -109,6 +109,7 @@ Transfer::~Transfer()
 
         if (type == GET)
         {
+#ifdef ENABLE_SYNC
             if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
             {
                 assert((*it)->syncxfer);
@@ -121,6 +122,7 @@ Transfer::~Transfer()
                 }
             }
             else
+#endif
             {
                 assert(!(*it)->syncxfer);
                 if (downloadDistributor)

@@ -313,6 +313,7 @@ protected:
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
+    void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
@@ -332,7 +333,6 @@ public:
     void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
-    void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
