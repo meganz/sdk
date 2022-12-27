@@ -5022,6 +5022,7 @@ bool MegaClient::procsc()
                         // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
                         if (loggedin() == FULLACCOUNT && !mKeyManager.generation())
                         {
+                            assert(!mKeyManager.getPostRegistration());
                             app->upgrading_security();
                         }
                     }
@@ -22221,6 +22222,11 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
             completion(e);
         }, nullptr));
     });
+}
+
+bool KeyManager::getPostRegistration() const
+{
+    return mPostRegistration;
 }
 
 bool KeyManager::unserialize(const string &keysContainer)

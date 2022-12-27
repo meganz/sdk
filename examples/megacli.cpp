@@ -4568,7 +4568,10 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                string buf = client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                cout << endl <<  "Updating derived key of ephemeral session, session ID: ";
+                cout << Base64Str<MegaClient::USERHANDLE>(client->me) << "#";
+                cout << Base64Str<SymmCipher::KEYLENGTH>((const byte*)buf.data()) << endl;
             }
             else if (recoveryemail.size() && recoverycode.size())
             {

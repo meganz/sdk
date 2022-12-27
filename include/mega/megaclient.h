@@ -559,6 +559,7 @@ public:
     string privCu25519() const;
 
     void setPostRegistration(bool postRegistration);
+    bool getPostRegistration() const;
 
     bool addPendingOutShare(handle sharehandle, std::string uid);
     bool addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey);

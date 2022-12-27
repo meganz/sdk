@@ -1857,7 +1857,7 @@ bool CommandLogin::procresult(Result r)
                             client->app->login_result(API_EINTERNAL);
                             return true;
                         }
-                        else if (!client->ephemeralSessionPlusPlus)
+                        else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
                         {
                             // logging in with tsid to an account without a RSA keypair
                             LOG_info << "Generating and adding missing RSA keypair";
@@ -5936,6 +5936,7 @@ bool CommandSetKeyPair::procresult(Result r)
     }
     else if (r.wasErrorOrOK())
     {
+        client->asymkey.resetkey(); // clear local value, since it failed to set
         client->app->setkeypair_result(r.errorOrOK());
         return true;
     }
