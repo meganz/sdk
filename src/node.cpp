@@ -3178,6 +3178,15 @@ bool LocalNode::recomputeExclusionState()
 
     mExclusionState = parent->exclusionState(localname, type);
 
+    if (mExclusionState == ES_EXCLUDED)
+    {
+        // excluded nodes are as if they didn't exist.  So remove from db
+        // also don't remember anything that might result in a move/delete etc if they get un-ignored
+        setSyncedFsid(UNDEF, sync->syncs.localnodeBySyncedFsid, localname, cloneShortname());
+        void setSyncedNodeHandle(NodeHandle());
+        sync->statecachedel(this);
+    }
+
     return mExclusionState != ES_UNKNOWN;
 }
 

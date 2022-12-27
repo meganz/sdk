@@ -6573,6 +6573,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             childRow.recurseBelowRemovedCloudNode |= belowRemovedCloudNode;
                             childRow.recurseBelowRemovedFsNode |= belowRemovedFsNode;
                         }
+
+                        if (s->exclusionState() == ES_EXCLUDED)
+                        {
+                            continue;
+                        }
                     }
 
                     ScopedSyncPathRestore syncPathRestore(fullPath);
@@ -6753,6 +6758,12 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     for (auto& child : row.syncNode->children)
     {
         assert(child.first == child.second->localname);
+
+        if (row.syncNode->exclusionState() == ES_EXCLUDED)
+        {
+            continue;
+        }
+
         if (row.ignoreFileStable() && child.second->type > FILENODE)
         {
             row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
