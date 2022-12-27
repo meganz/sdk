@@ -337,7 +337,9 @@ void SdkTest::Cleanup()
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
+#ifdef ENABLE_SYNC
             purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
+#endif
 
             // Remove pending contact requests
             std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
@@ -807,7 +809,7 @@ void SdkTest::purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst)
     }
 }
 
-
+#ifdef ENABLE_SYNC
 void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
 {
     std::unique_ptr<MegaNodeList> vc{megaApi[apiIndex]->getChildren(vault)};
@@ -829,6 +831,7 @@ void SdkTest::purgeVaultTree(unsigned int apiIndex, MegaNode *vault)
         }
     }
 }
+#endif
 
 bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
 {
