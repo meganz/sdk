@@ -12968,7 +12968,7 @@ sessiontype_t MegaClient::loggedin()
         return EPHEMERALACCOUNT;
     }
 
-    if (!asymkey.isvalid())
+    if (!asymkey.isvalid(AsymmCipher::PRIVKEY))
     {
         return CONFIRMEDACCOUNT;
     }
@@ -13961,7 +13961,7 @@ void MegaClient::initializekeys()
             }
         }
 
-        if (mKeyManager.generation() && asymkey.isvalid() && !mKeyManager.getPrivRSA().size())
+        if (mKeyManager.generation() && asymkey.isvalid(AsymmCipher::PRIVKEY) && !mKeyManager.getPrivRSA().size())
         {
             // Ephemeral++ accounts create ^!keys before having RSA keys
             LOG_debug << "Attaching private RSA key into ^!keys";
