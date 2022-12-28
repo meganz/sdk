@@ -3054,7 +3054,12 @@ void LocalNode::setRecomputeExclusionState(bool includingThisOne)
             child.mExclusionState = ES_UNKNOWN;
 
             if (child.type == FOLDERNODE)
+            {
                 pending.emplace_back(&child);
+
+                // make sure we visit this node later and recalculate exclusions
+                child.setSyncAgain(false, true, true);
+            }
         }
 
         pending.pop_front();

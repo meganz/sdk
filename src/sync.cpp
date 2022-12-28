@@ -6576,6 +6576,22 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                         if (s->exclusionState() == ES_EXCLUDED)
                         {
+                            if (!s->children.empty())
+                            {
+                                LOG_debug << syncname << "Removing " << s->children.size() << " child LocalNodes from excluded " << s->getLocalPath();
+                                vector<LocalNode*> cs;
+                                cs.resize(s->children.size());
+                                for (auto& i : s->children)
+                                {
+                                    cs.push_back(i.second);
+                                }
+                                for (auto p : cs)
+                                {
+                                    // deletion this way includes statecachedel
+                                    delete p;
+                                }
+                            }
+
                             continue;
                         }
                     }
@@ -7261,7 +7277,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 if (!s->children.empty())
                 {
-                    LOG_debug << syncname << "removing child LocalNodes from excluded " << s->getLocalPath();
+                    LOG_debug << syncname << "syncItem removing child LocalNodes from excluded " << s->getLocalPath();
                     vector<LocalNode*> cs;
                     cs.resize(s->children.size());
                     for (auto& i : s->children)
