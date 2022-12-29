@@ -11664,6 +11664,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  * @param u User.
  * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
+ *
+ * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
  */
 bool MegaClient::getua(User* u, const attr_t at, int ctag)
 {
@@ -14596,7 +14598,7 @@ error MegaClient::verifyCredentials(handle uh)
         // so promotePendingShares should succeed for any pending
         // share with the verified user.
         mKeyManager.commit(
-        [this, uh, serializedAuthring]()
+        [this, serializedAuthring]()
         {
             // Changes to apply in the commit
             mKeyManager.setAuthRing(serializedAuthring);
@@ -14673,7 +14675,7 @@ error MegaClient::resetCredentials(handle uh)
             }
 
             mKeyManager.commit(
-            [this, tag, serializedAuthring, serializedAuthCU255]()
+            [this, serializedAuthring, serializedAuthCU255]()
             {
                 // Changes to apply in the commit
                 mKeyManager.setAuthRing(serializedAuthring);
@@ -21889,7 +21891,7 @@ bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey, bool sh
     return true;
 }
 
-string KeyManager::getShareKey(handle sharehandle)
+string KeyManager::getShareKey(handle sharehandle) const
 {
     auto it = mShareKeys.find(sharehandle);
     if (it != mShareKeys.end())
@@ -22336,7 +22338,7 @@ bool KeyManager::unserialize(const string &keysContainer)
                 {
                     LOG_warn << "Private key malformed while unserializing ^!keys.";
                 }
-                // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supproted by SDK)
+                // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
             }
             else
             {
