@@ -5027,7 +5027,14 @@ bool MegaClient::procsc()
                         if (loggedin() == FULLACCOUNT && !mKeyManager.generation())
                         {
                             assert(!mKeyManager.getPostRegistration());
-                            app->upgrading_security();
+                            if (mKeyManager.isSecure())
+                            {
+                                app->upgrading_security();
+                            }
+                            else // -> upgrade automatically and silently
+                            {
+                                upgradeSecurity(nullptr);
+                            }
                         }
                     }
 

@@ -11337,6 +11337,8 @@ class MegaApi
          * proceed with the cryptographic upgrade process.
          * This should happen only once per account.
          *
+         * The associated request type with this request is MegaRequest::TYPE_UPGRADE_SECURITY
+         *
          * @param listener MegaRequestListener to track this request
          */
         void upgradeSecurity(MegaRequestListener* listener = NULL);
