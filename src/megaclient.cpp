@@ -22144,6 +22144,87 @@ void KeyManager::reset()
     mTrustedShareKeys.clear();
 }
 
+string KeyManager::toString() const
+{
+    ostringstream buf;
+
+    buf << "Version: " << (int)mVersion << "\n";
+    buf << "Creation time: " << mCreationTime<< "\n";
+    buf << "Identity: " << toHandle(mIdentity)<< "\n";
+    buf << "Generation: " << mGeneration<< "\n";
+    buf << "Attr: " << Base64::btoa(mAttr)<< "\n";
+    buf << "PrivEd25519: " << Base64::btoa(mPrivEd25519)<< "\n";
+    buf << "PrivCu25519: " << Base64::btoa(mPrivCu25519)<< "\n";
+    buf << "PrivRSA: " << Base64::btoa(mPrivRSA)<< "\n";
+    buf << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHRING))<< "\n";
+    buf << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHCU255))<< "\n";
+    buf << shareKeysToString();
+    buf << pendingOutsharesToString();
+    buf << "Pending Inshares: \n" << pendingInsharesToString();
+    buf << "Backups: " << Base64::btoa(mBackups) << "\n";
+    buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
+
+    return buf.str();
+}
+
+string KeyManager::shareKeysToString() const
+{
+    ostringstream buf;
+    buf << "Share Keys:\n";
+
+    unsigned count = 0;
+    for (const auto &it : mShareKeys)
+    {
+        ++count;
+        handle h = it.first;
+        const string shareKeyStr = it.second;
+        const auto& itTrust = mTrustedShareKeys.find(h);
+        int trust = (itTrust != mTrustedShareKeys.end()) ? itTrust->second : -1;
+        buf << "\t#" << count << "\t h: " << toNodeHandle(h) <<
+                       " sk: " << Base64::btoa(shareKeyStr) << " t (int): " << (int)trust << "\n";
+    }
+
+    return buf.str();
+}
+
+string KeyManager::pendingOutsharesToString() const
+{
+    ostringstream buf;
+    buf << "Pending Outshares:\n";
+
+    unsigned count = 0;
+    for (const auto &it : mPendingOutShares)
+    {
+        ++count;
+        handle h = it.first;
+        for (const auto& uid : it.second)
+        {
+            buf << "\t#" << count << "\th: " << toNodeHandle(h) << " user: " << uid << "\n";
+        }
+    }
+
+    return buf.str();
+}
+
+string KeyManager::pendingInsharesToString() const
+{
+    ostringstream buf;
+    buf << "Pending Inshares:\n";
+
+    unsigned count = 0;
+    for (const auto &it : mPendingInShares)
+    {
+        ++count;
+        const string& nh = it.first;
+        const handle& uh = it.second.first;
+        const string& shareKey = it.second.second;
+
+        buf << "\t#" << count << "\tn: " << nh << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
+    }
+
+    return buf.str();
+}
+
 void KeyManager::nextCommit()
 {
     assert(!activeCommit);
@@ -22353,24 +22434,6 @@ bool KeyManager::unserialize(const string &keysContainer)
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
             LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
-
-//            LOG_verbose << "-keys-Authring Ed25519: " << Base64::btoa(mAuthEd25519);
-
-//            AuthRing auth(at, mAuthEd25519);
-//            auto uhVector = auth.getTrackedUsers();
-//            LOG_verbose << "KEYS: \n" << AuthRing::toString(auth);
-
-//            const string *authring_expt = mClient.ownuser()->getattr(at);
-
-//            TLVstore *tlv = TLVstore::containerToTLVrecords(authring_expt, &mClient.key);
-//            string aux; tlv->get("", aux);
-//            LOG_verbose << "-expt-Authring Ed25519: " << Base64::btoa(aux);
-
-//            auto it = mClient.mAuthRings.find(at);
-//            if (it != mClient.mAuthRings.end())
-//            {
-//                LOG_verbose << "EXPT: \n" << AuthRing::toString(it->second);
-//            }
             break;
         }
         case TAG_AUTHRING_CU25519:
@@ -22380,52 +22443,34 @@ bool KeyManager::unserialize(const string &keysContainer)
             mClient.mAuthRings.erase(at);
             mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
             LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
-
-//            LOG_verbose << "-keys-Authring Cu25519: " << Base64::btoa(mAuthCu25519);
-
-//            AuthRing auth(at, mAuthCu25519);
-//            auto uhVector = auth.getTrackedUsers();
-//            LOG_verbose << "KEYS: \n" << AuthRing::toString(auth);
-
-//            const string *authring_expt = mClient.ownuser()->getattr(at);
-
-//            TLVstore *tlv = TLVstore::containerToTLVrecords(authring_expt, &mClient.key);
-//            string aux; tlv->get("", aux);
-//            LOG_verbose << "-expt-Authring Cu25519: " << Base64::btoa(aux);
-
-//            auto it = mClient.mAuthRings.find(at);
-//            if (it != mClient.mAuthRings.end())
-//            {
-//                LOG_verbose << "EXPT: \n" << AuthRing::toString(it->second);
-//            }
             break;
         }
         case TAG_SHAREKEYS:
         {
             string buf(blob + offset, len);
-            LOG_verbose << "Share keys: " << Base64::btoa(buf);
             if (!deserializeShareKeys(buf)) return false;
+            LOG_verbose << shareKeysToString();
             break;
         }
         case TAG_PENDING_OUTSHARES:
         {
             string buf(blob + offset, len);
-            LOG_verbose << "Pending outshares: " << Base64::btoa(buf);
             if (!deserializePendingOutshares(buf)) return false;
+            LOG_verbose << pendingOutsharesToString();
             break;
         }
         case TAG_PENDING_INSHARES:
         {
             string buf(blob + offset, len);
-            LOG_verbose << "Pending inshares: " << Base64::btoa(buf);
             if (!deserializePendingInshares(buf)) return false;
+            LOG_verbose << pendingInsharesToString();
             break;
         }
         case TAG_BACKUPS:
         {
             string buf(blob + offset, len);
-            LOG_verbose << "Backups: " << Base64::btoa(buf);
             if (!deserializeBackups(buf)) return false;
+            LOG_verbose << "Backups: " << Base64::btoa(mBackups);
             break;
         }
         case TAG_WARNINGS:
@@ -22478,12 +22523,6 @@ bool KeyManager::deserializeShareKeys(const string &blob)
         }
 
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
-
-        LOG_verbose << "ShareKey #" << count << "\n\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t (int): " << (int)trust << "\n";
-
-        LOG_verbose << "BLOB: " << Utils::stringToHex(blob);
-
         mTrustedShareKeys[h] = trust ? true : false;
         mShareKeys[h] = shareKeyStr;
 
@@ -22559,19 +22598,13 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
         {
             handle uh = UNDEF;
             success = r.unserializehandle(uh);
-
             uid = toHandle(uh);
-
-            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid << "\n";
         }
         else
         {
             byte buf[256];
             success = r.unserializebinary(buf, len);
-
             uid.append((const char*)buf, len);
-
-            LOG_verbose << "Pending outshare #" << count << "\n\th: " << toNodeHandle(h) << " user: " << uid << "\n";
         }
         if (!success)
         {
@@ -22709,8 +22742,6 @@ bool KeyManager::deserializePendingInshares(const string &blob)
         }
 
         mPendingInShares[name] = pair<handle, string>(uh, shareKey);
-
-        LOG_verbose << "Pending inshare #" << count << "\n\tn: " << name << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
     }
 
     return true;

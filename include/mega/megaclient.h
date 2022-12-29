@@ -588,6 +588,9 @@ public:
     void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
     void reset();
 
+    // returns a formatted string, for logging purposes
+    string toString() const;
+
 protected:
 
     std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
@@ -646,12 +649,15 @@ private:
 
     map<handle, bool> mTrustedShareKeys;
     map<handle, string> mShareKeys;
+    string shareKeysToString() const;
 
     // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
+    string pendingOutsharesToString() const;
 
     // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
+    string pendingInsharesToString() const;
 
     // decode data from the decrypted ^!keys attribute
     bool unserialize(const string& keysContainer);
