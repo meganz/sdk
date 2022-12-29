@@ -4060,6 +4060,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -10851,4 +10852,39 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
+}
+
+void exec_searchbyname(autocomplete::ACState &s)
+{
+    if (s.words.size() >= 2)
+    {
+        bool recursive = true;
+        if (s.extractflag("-norecursive"))
+        {
+            recursive = false;
+        }
+
+        NodeHandle nodeHandle;
+        if (s.words.size() == 3)
+        {
+            handle h;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+            nodeHandle.set6byte(h);
+        }
+
+        if (!recursive && nodeHandle.isUndef())
+        {
+            cout << "Search no recursive need node handle" << endl;
+            return;
+        }
+
+
+        std::string searchString = s.words[1].s;
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+
+        for (const auto& node : nodes)
+        {
+            cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
+        }
+    }
 }
