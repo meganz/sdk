@@ -3652,8 +3652,8 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     // --- User1 shares Folder1 with UserB, and Folder1_1 with UserC ---
 
-    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
-    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1_1.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1_1.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
 
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
                                        && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
@@ -3795,10 +3795,10 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 0u);
 
-    ASSERT_EQ(API_OK, synchronousShare(0, shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
 
-    ASSERT_EQ(API_OK, synchronousShare(0, subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
@@ -8322,7 +8322,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     }, 60*1000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    ASSERT_EQ(API_OK, synchronousShare(0, remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL)) << "Folder sharing failed";
+    ASSERT_NO_FATAL_FAILURE(shareFolder(remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(WaitFor([this]()
     {
         return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1;
