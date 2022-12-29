@@ -3311,6 +3311,7 @@ protected:
         void catchup_result() override;
         void key_modified(handle, attr_t) override;
         void upgrading_security() override;
+        void downgrade_attack() override;
 
         void fetchnodes_result(const Error&) override;
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;

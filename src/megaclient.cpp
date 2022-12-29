@@ -22362,10 +22362,29 @@ bool KeyManager::unserialize(const string &keysContainer)
 
         case TAG_GENERATION:
         {
-            if (len != sizeof(mGeneration)) return false;
-            mGeneration = MemAccess::get<uint32_t>(blob + offset);
-            mGeneration = ntohl(mGeneration); // Webclient sets this value as BigEndian
-            LOG_verbose << "Generation: " << mGeneration;
+            uint32_t generation = 0;
+
+            if (len != sizeof(generation)) return false;
+            generation = MemAccess::get<uint32_t>(blob + offset);
+            generation = ntohl(generation); // Webclient sets this value as BigEndian
+
+            if (generation < mGeneration)
+            {
+                ostringstream msg;
+                msg << "Downgrade attack for ^!keys: " << mGeneration << " < " << generation;
+                LOG_err << msg.str();
+                mClient.sendevent(99461, msg.str().c_str());
+
+                // TODO: uncomment next 2 lines (callback and return) so the app
+                // can warn about the potential attack and bails out
+//                mClient.app->downgrade_attack();
+//                return false;
+            }
+            else
+            {
+                mGeneration = generation;
+                LOG_verbose << "Generation: " << mGeneration;
+            }
             break;
         }
         case TAG_ATTR:

@@ -8641,6 +8641,11 @@ void DemoApp::upgrading_security()
     });
 }
 
+void DemoApp::downgrade_attack()
+{
+    cout << "A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.";
+}
+
 // password change result
 void DemoApp::changepw_result(error e)
 {

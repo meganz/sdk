@@ -231,6 +231,7 @@ struct DemoApp : public MegaApp
 #endif
 
     void upgrading_security() override;
+    void downgrade_attack() override;
 
     void changepw_result(error) override;
 

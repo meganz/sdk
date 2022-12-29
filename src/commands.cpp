@@ -3274,6 +3274,14 @@ bool CommandPutUAVer::procresult(Result r)
         }
         else
         {
+            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
+            {
+                LOG_err << "Error processing new established value for the Key Manager";
+                // bail out -> better to keep old value than a corrupt one
+                mCompletion(API_EKEY);
+                return true;
+            }
+
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
@@ -3299,13 +3307,6 @@ bool CommandPutUAVer::procresult(Result r)
             else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
             {
                 LOG_info << "JSON config data successfully created.";
-            }
-            else if (at == ATTR_KEYS)
-            {
-                if (!client->mKeyManager.fromKeysContainer(av))
-                {
-                    LOG_err << "Error processing new established value for the Key Manager";
-                }
             }
 
             client->notifyuser(u);
@@ -3672,7 +3673,10 @@ bool CommandGetUA::procresult(Result r)
                                 string d((const char*)value.data(), value.size());
                                 if (!client->mKeyManager.fromKeysContainer(d))
                                 {
-                                    LOG_err << "Error processing new established values for the Key Manager upon init";
+                                    LOG_err << "Error processing new established value for the Key Manager upon init";
+                                    // bail out -> better to keep old value than a corrupt one
+                                    mCompletionErr(API_EKEY);
+                                    return true;
                                 }
                             }
 
