@@ -22004,6 +22004,10 @@ bool KeyManager::promotePendingShares()
                         keysToDelete.push_back(uid);
                         attributeUpdated = true;
                     }
+                    else
+                    {
+                        LOG_warn << "Unable to encrypt share key to promote pending outshare " << toNodeHandle(nodehandle) << " uh: " << toHandle(u->userhandle);
+                    }
                 }
             }
         }
@@ -22039,6 +22043,10 @@ bool KeyManager::promotePendingShares()
                 mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
                 attributeUpdated = true;
+            }
+            else
+            {
+                LOG_warn << "Unable to decrypt share key to promote pending inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
             }
         }
     }
@@ -22373,34 +22381,34 @@ bool KeyManager::unserialize(const string &keysContainer)
             break;
 
         case TAG_PRIV_ED25519:
-            if (!mPrivEd25519.size())
+            if (mPrivEd25519.empty())
             {
                 if (len != EdDSA::SEED_KEY_LENGTH) return false;
                 mPrivEd25519.assign(blob + offset, len);
-                LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
             }
             else
             {
                 // TODO: should check if private key has not changed
             }
+            LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
             break;
 
         case TAG_PRIV_CU25519:
-            if (!mPrivCu25519.size())
+            if (mPrivCu25519.empty())
             {
                 if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
                 mPrivCu25519.assign(blob + offset, len);
-                LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
             }
             else
             {
                 // TODO: should check if private key has not changed
             }
+            LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
             break;
 
         case TAG_PRIV_RSA:
         {
-            if (!mPrivRSA.size())
+            if (mPrivRSA.empty())
             {
                 if (!len)
                 {
@@ -22416,7 +22424,6 @@ bool KeyManager::unserialize(const string &keysContainer)
                 }
 
                 mPrivRSA.assign(blob + offset, len);
-                LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
                 if (!decodeRSAKey(mPrivRSA))
                 {
                     LOG_warn << "Private key malformed while unserializing ^!keys.";
@@ -22427,6 +22434,7 @@ bool KeyManager::unserialize(const string &keysContainer)
             {
                 // TODO: should check if private key has not changed
             }
+            LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
             break;
         }
         case TAG_AUTHRING_ED25519:
