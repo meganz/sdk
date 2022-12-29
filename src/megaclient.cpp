@@ -332,6 +332,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
                 delete n->sharekey;
                 n->sharekey = NULL;
+
+                // TODO: update ^!keys, so the sharekey is gone
             }
         }
         else
@@ -352,6 +354,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     n->inshare = NULL;
                 }
             }
+
+            // TODO: delete sharekey from `^!keys` for the deleted share
         }
     }
     else
@@ -6166,7 +6170,6 @@ bool MegaClient::sc_shares()
                 ou = jsonsc.gethandle(USERHANDLE);
                 break;
 
-                // TODO: replace 'ok' by action packets 'pk'
             case MAKENAMEID2('o', 'k'):  // owner key
                 ok = jsonsc.getvalue();
                 break;
@@ -6212,7 +6215,6 @@ bool MegaClient::sc_shares()
                     return false;
                 }
 
-                // TODO: the key received here is replaced by the shared-key
                 // am I the owner of the share? use ok, otherwise k.
                 if (ok && oh == me)
                 {
@@ -9918,8 +9920,7 @@ void MegaClient::applykeys()
 
 void MegaClient::sendkeyrewrites()
 {
-    // TODO: if 'secure', return
-    // if (mKeyManager.secure) return;
+    if (mKeyManager.isSecure()) return;
 
     if (sharekeyrewrite.size())
     {
@@ -10991,8 +10992,7 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
-    // TODO:
-    // if (mKeyManager.secure) return;
+    if (mKeyManager.isSecure()) return;
 
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
@@ -11225,6 +11225,8 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
         // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
         rewriteforeignkeys(n);
+
+        // TODO: update ^!keys, so the sharekey is gone
     }
 
     if (!mKeyManager.isSecure())
@@ -22487,12 +22489,6 @@ bool KeyManager::unserialize(const string &keysContainer)
         offset += headerSize + len;
     }
 
-    // TODO: iterate over outshares/inshares to detect nodes with sharekeys that are missing
-    // in ^!keys. Then, check if they should be added to the pendinginshares, pendingoutshares
-    // or directly to the sharekeys. If the share key for the share is already there, then the
-    // other client won and our client needs to update the local share key for the corresponding
-    // share (both, inshares and outshares of Node).
-
     return true;
 }
 
@@ -22525,20 +22521,10 @@ bool KeyManager::deserializeShareKeys(const string &blob)
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
         mTrustedShareKeys[h] = trust ? true : false;
         mShareKeys[h] = shareKeyStr;
-
-        // TODO: Check for a proper way to apply the keys
-        // In this moment, at least during a login+fetchnodes the nodes are not loaded yet
-
-        // Set the sharekey to the node, if missing (since it might not have been received along with
-        // the share itself (ok / k is discontinued since ^!keys)
-        //Node* n = mClient.nodebyhandle(h);
-        //if (n && !n->sharekey)
-        //{
-        //    n->sharekey = new SymmCipher(shareKey);
-        //    mClient.notifynode(n);
-        //}
     }
 
+    // Set the sharekey to the node, if missing (since it might not have been received along with
+    // the share itself (ok / k is discontinued since ^!keys)
     loadShareKeys();
 
     return true;
