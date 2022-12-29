@@ -14156,7 +14156,7 @@ void MegaClient::fetchContactsKeys()
         {
             edFinished &= getua(user, ATTR_ED25519_PUBK, 0);
             cuFinished &= getua(user, ATTR_CU25519_PUBK, 0);
-            rsaFinished &= user->pubk.isvalid();
+            rsaFinished &= user->pubk.isvalid() != 0;
 
             int creqtag = reqtag;
             reqtag = 0;
@@ -21859,7 +21859,7 @@ bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
     if (user)
     {
         removed = mPendingOutShares[sharehandle].erase(user->email);
-        removed |= mPendingOutShares[sharehandle].erase(user->uid);
+        removed |= mPendingOutShares[sharehandle].erase(user->uid) > 0;
     }
     else
     {
