@@ -19585,6 +19585,8 @@ node_vector NodeManager::getInSharesWithName(const char* searchString, CancelTok
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::IN_SHARES, cancelFlag);
     nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
 }
 
 node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
@@ -19599,6 +19601,8 @@ node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelTo
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::OUT_SHARES, cancelFlag);
     nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
 }
 
 node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
