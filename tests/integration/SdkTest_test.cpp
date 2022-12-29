@@ -10489,7 +10489,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     // Check if exists nodes with that name in the cloud
     std::string stringSearch = "*test";
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
-    uint32_t nodesWithTest = nodeList->size();
+    int nodesWithTest = nodeList->size();
 
     bool check = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
