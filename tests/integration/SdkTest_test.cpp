@@ -10684,9 +10684,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
-    stringSearch = file2;
-    std::transform(stringSearch.begin(), stringSearch.end(),stringSearch.begin(), [](char c) { return std::toupper(c); });
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2TEST", nullptr));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 
