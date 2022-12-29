@@ -1180,8 +1180,10 @@ public:
 };
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
-static constexpr int sfu_invalid_id = -1;
 
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

@@ -4540,7 +4540,10 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mSets.clear();
     mSetElements.clear();
 
+#ifdef ENABLE_CHAT
     mSfuid = sfu_invalid_id;
+#endif
+
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
 
