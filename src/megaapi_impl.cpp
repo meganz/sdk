@@ -21061,6 +21061,7 @@ void MegaApiImpl::sendPendingRequests()
                             if (session == FULLACCOUNT)
                             {
                                 e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                                break;
                             }
                             else    // not-logged-in / ephemeral account / partially confirmed
                             {
