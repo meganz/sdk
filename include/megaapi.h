@@ -4901,16 +4901,6 @@ class MegaRequest
          * @return scheduled meeting list
          */
         virtual MegaScheduledMeetingList* getMegaScheduledMeetingList() const;
-
-        /**
-         * @brief Returns the scheduled meeting associated to the chatroom if any
-         *
-         * The SDK retains the ownership of the returned value. It will be valid until
-         * the MegaRequest object is deleted.
-         *
-         * @return MegaScheduledMeeting
-         */
-        virtual MegaScheduledMeeting* getScheduledMeeting() const;
 #endif
 
         /**
@@ -18804,7 +18794,7 @@ class MegaApi
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
-         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -18853,7 +18843,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
-         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -18904,11 +18894,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
-         * - MegaRequest::getScheduledMeeting - returns a MegaScheduledMeeting (with definitive ScheduledMeeting updated from API)
+         * MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - if no scheduled meeting is provided

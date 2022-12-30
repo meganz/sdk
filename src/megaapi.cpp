@@ -1049,11 +1049,6 @@ MegaScheduledMeetingList* MegaRequest::getMegaScheduledMeetingList() const
 {
     return nullptr;
 }
-
-MegaScheduledMeeting* MegaRequest::getScheduledMeeting() const
-{
-    return nullptr;
-}
 #endif
 
 MegaHandleList* MegaRequest::getMegaHandleList() const

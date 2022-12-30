@@ -3456,16 +3456,6 @@ void MegaRequestPrivate::setMegaScheduledMeetingList(const MegaScheduledMeetingL
        mScheduledMeetingList = unique_ptr<MegaScheduledMeetingList>(schedMeetingList->copy());
     }
 }
-
-MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeeting() const
-{
-    return mScheduledMeeting.get();
-}
-
-void MegaRequestPrivate::setScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting)
-{
-    mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
-}
 #endif
 
 MegaStringMap *MegaRequestPrivate::getMegaStringMap() const
@@ -10446,7 +10436,9 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
     request->setParamType(chatOptions);
-    request->setScheduledMeeting(scheduledMeeting);
+    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+    l->insert(scheduledMeeting->copy());
+    request->setMegaScheduledMeetingList(l.get());
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10843,7 +10835,9 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
 void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
-    request->setScheduledMeeting(scheduledMeeting);
+    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+    l->insert(scheduledMeeting->copy());
+    request->setMegaScheduledMeetingList(l.get());
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13281,7 +13275,7 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
         auto megaChatList = mega::make_unique<MegaTextChatListPrivate>(&chatList);
         request->setMegaTextChatList(megaChatList.get());
 
-        if (request->getScheduledMeeting())
+        if (request->getMegaScheduledMeetingList() && request->getMegaScheduledMeetingList()->size())
         {
            const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& schedmap = chat->getSchedMeetings();
            if (!schedmap.empty())
@@ -22454,9 +22448,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeeting());
-            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
+            MegaScheduledMeetingPrivate* schedMeeting = nullptr;
+            if (request->getMegaScheduledMeetingList() && request->getMegaScheduledMeetingList()->size() == 1)
+            {
+                schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getMegaScheduledMeetingList()->at(0));
+            }
 
+            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
             // if 1:1 chat, peer is enforced to be moderator too
             if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
@@ -23510,13 +23508,13 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_CHAT
         case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
         {
-            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeeting());
-            if (!schedMeeting)
+            if (!request->getMegaScheduledMeetingList() || request->getMegaScheduledMeetingList()->size() != 1)
             {
                 e = API_EARGS;
                 break;
             }
 
+            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getMegaScheduledMeetingList()->at(0));
             handle chatid = schedMeeting->chatid();
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -23530,7 +23528,9 @@ void MegaApiImpl::sendPendingRequests()
                 if (sm)
                 {
                     std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
-                    request->setScheduledMeeting(auxsm.get());
+                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                    l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
+                    request->setMegaScheduledMeetingList(l.get());
                 }
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
