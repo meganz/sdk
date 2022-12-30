@@ -10858,11 +10858,7 @@ void exec_searchbyname(autocomplete::ACState &s)
 {
     if (s.words.size() >= 2)
     {
-        bool recursive = true;
-        if (s.extractflag("-norecursive"))
-        {
-            recursive = false;
-        }
+        bool recursive = !s.extractflag("-norecursive");
 
         NodeHandle nodeHandle;
         if (s.words.size() == 3)

@@ -1343,7 +1343,7 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
         return false;
     }
 
-    assert(name != "");
+    assert(!name.empty());
 
     if (cancelFlag.exists())
     {
@@ -1400,7 +1400,7 @@ bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, 
         return false;
     }
 
-    assert(name != "");
+    assert(!name.empty());
 
     if (cancelFlag.exists())
     {

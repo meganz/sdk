@@ -12220,8 +12220,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             }
             else
             {
-                // We keep this case by compatibility with no NOD version but it doesn't sense
-                // search file root node and vault root node by name
+                // We kept this case for compatibility with no-NOD version but it doesn't make
+                // sense to search under file root node and vault root node by name
                 assert(false);
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)

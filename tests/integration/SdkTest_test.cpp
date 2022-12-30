@@ -10487,7 +10487,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_TRUE(rootnode);
 
     // Check if exists nodes with that name in the cloud
-    std::string stringSearch = "*test";
+    std::string stringSearch = "test";
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     int nodesWithTest = nodeList->size();
 
@@ -10509,8 +10509,6 @@ TEST_F(SdkTest, SdkGetNodesByName)
     unique_ptr<MegaNode> folder1_1Test(megaApi[0]->getNodeByHandle(folder1_1Handle));
     ASSERT_TRUE(folder1_1Test);
     resetOnNodeUpdateCompletionCBs();
-
-
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
     std::string file1 = "file1Test";
     createFile(file1, false);
@@ -10529,8 +10527,6 @@ TEST_F(SdkTest, SdkGetNodesByName)
     resetOnNodeUpdateCompletionCBs();
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(file1Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 1 node for scenario (error: " << mApi[0].lastError << ")";
-
-
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
     std::string file2 = "file2Test";
     createFile(file2, false);
