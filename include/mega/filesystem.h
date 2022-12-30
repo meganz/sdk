@@ -385,9 +385,10 @@ class FileDistributor
     size_t  numTargets;
     bool actualPathUsed = false;
     m_time_t mMtime;
+    FileFingerprint confirmFingerprint;
 
 public:
-    FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime);
+    FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime, const FileFingerprint& confirm);
     ~FileDistributor();
 
     enum TargetNameExistsResolution {
@@ -406,10 +407,14 @@ public:
     // these will be useful for other cases also
 
     static bool moveTo(const LocalPath& source, LocalPath& target,
-                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
 
     static bool copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime,
-                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error,
+                        bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
 
     LocalPath distributeFromPath()
     {
@@ -932,6 +937,9 @@ struct MEGA_API FSNode
 
     // Same as the above but useful in situations where we don't have an FA handy.
     static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck);
+
+    // Use this in asserts() to check if race conditions may be occurring
+    static bool debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff);
 
     const string& toName_of_localname(const FileSystemAccess& fsaccess)
     {

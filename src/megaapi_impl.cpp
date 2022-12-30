@@ -1979,13 +1979,13 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     break;
 #ifdef ENABLE_CHAT
     case UserAlert::type_nusm:
-    {         
+    {
          if (auto* p = dynamic_cast<UserAlert::NewScheduledMeeting*>(b))
          {
              type = TYPE_SCHEDULEDMEETING_NEW;
              userHandle = p->user();
              email = p->email();
-             schedMeetingId = p->mSchedMeetingHandle;             
+             schedMeetingId = p->mSchedMeetingHandle;
          }
          else
          {
@@ -2004,7 +2004,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
                          << typeid(*b).name()
                          << ", expected: NewSchedulingMeeting or UpdatedSchedulingMeeting";
              }
-         }         
+         }
     }
     break;
     case UserAlert::type_dsm:
@@ -13399,6 +13399,12 @@ void MegaApiImpl::syncupdate_stateconfig(const SyncConfig& config)
     }
 }
 
+void MegaApiImpl::syncupdate_stats(handle backupId, const PerSyncStats& stats)
+{
+    MegaSyncStatsPrivate msp(backupId, stats);
+    fireOnSyncStatsUpdated(&msp);
+}
+
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
     fireOnGlobalSyncStateChanged();
@@ -16570,6 +16576,16 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
+    }
+}
+
+void MegaApiImpl::fireOnSyncStatsUpdated(MegaSyncStatsPrivate *stats)
+{
+    assert(stats->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncStatsUpdated(api, stats);
     }
 }
 

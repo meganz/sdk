@@ -46,6 +46,22 @@ const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
+bool PerSyncStats::operator==(const PerSyncStats& other)
+{
+    return  scanning == other.scanning &&
+            syncing == other.syncing &&
+            numFiles == other.numFiles &&
+            numFolders == other.numFolders &&
+            numUploads == other.numUploads &&
+            numDownloads == other.numDownloads;
+}
+
+bool PerSyncStats::operator!=(const PerSyncStats& other)
+{
+    return !(*this == other);
+}
+
+
 ChangeDetectionMethod changeDetectionMethodFromString(const string& method)
 {
     static const auto notifications =
@@ -263,12 +279,12 @@ void SyncThreadsafeState::transferBegin(direction_t direction, m_off_t numBytes)
 
 void SyncThreadsafeState::transferComplete(direction_t direction, m_off_t numBytes)
 {
-    adjustTransferCounts(direction == PUT, -1, 1, 0, numBytes);
+    adjustTransferCounts(direction == PUT, -1, 1, -numBytes, numBytes);
 }
 
 void SyncThreadsafeState::transferFailed(direction_t direction, m_off_t numBytes)
 {
-    adjustTransferCounts(direction == PUT, -1, 1, -numBytes, 0);
+    adjustTransferCounts(direction == PUT, -1, 0, -numBytes, 0);
 }
 
 SyncTransferCounts SyncThreadsafeState::transferCounts() const
@@ -276,6 +292,21 @@ SyncTransferCounts SyncThreadsafeState::transferCounts() const
     lock_guard<mutex> guard(mMutex);
 
     return mTransferCounts;
+}
+
+
+void SyncThreadsafeState::incrementSyncNodeCount(nodetype_t type, int32_t count)
+{
+    lock_guard<mutex> guard(mMutex);
+    if (type == FILENODE) mFileCount += count;
+    if (type == FOLDERNODE) mFolderCount += count;
+}
+
+void SyncThreadsafeState::getSyncNodeCounts(int32_t& files, int32_t& folders)
+{
+    lock_guard<mutex> guard(mMutex);
+    files = mFileCount;
+    folders = mFolderCount;
 }
 
 SyncConfig::SyncConfig(LocalPath localPath,
@@ -586,9 +617,6 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     inshare = cinshare;
     tmpfa = NULL;
     syncname = logname; // can be updated to be more specific in logs
-
-    localnodes[FILENODE] = 0;
-    localnodes[FOLDERNODE] = 0;
 
     assert(mUnifiedSync.mConfig.mRunState == SyncRunState::Loading);
 
@@ -7072,8 +7100,10 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
 
         if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
         {
+            assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, targetPath, *downloadPtr));
+
             // Move was successful.
-            SYNC_verbose << syncname << "Download complete, moved file to final destination" << logTriplet(row, fullPath);
+            SYNC_verbose << syncname << "Download complete, moved file to final destination." << logTriplet(row, fullPath);
 
             // Check for anomalous file names.
             checkForFilenameAnomaly(fullPath, row.cloudNode->name);
@@ -9029,16 +9059,6 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
     return nullptr;
 }
 
-//LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
-//{
-//    // First try and match based on synced details.
-//    if (auto* node = findLocalNodeBySyncedFsid(fsid, originalpath, type, fingerprint, filesystemSync, extraCheck))
-//        return node;
-//
-//    // Otherwise, try and match on scanned details.
-//    return findLocalNodeByScannedFsid(fsid, originalpath, type, &fingerprint, filesystemSync, extraCheck);
-//}
-
 void Syncs::setSyncedFsidReused(mega::handle fsid)
 {
     assert(onSyncThread());
@@ -10838,6 +10858,21 @@ void Syncs::syncLoop()
                 {
                     LOG_debug << "Finished initial sync scan at " << sync->localroot->getLocalPath();
                     us->mConfig.mFinishedInitialScanning = true;
+                }
+
+                // send stats to the app, per sync
+                PerSyncStats counts;
+                counts.scanning = sync->localroot->scanRequired();
+                counts.syncing = sync->localroot->mightHaveMoves() ||
+                                 sync->localroot->syncRequired();
+                sync->threadSafeState->getSyncNodeCounts(counts.numFiles, counts.numFolders);
+                SyncTransferCounts stc = sync->threadSafeState->transferCounts();
+                counts.numUploads = stc.mUploads.mPending;
+                counts.numDownloads = stc.mDownloads.mPending;
+                if (us->lastReportedDisplayStats != counts)
+                {
+                    mClient.app->syncupdate_stats(us->mConfig.mBackupId, counts);
+                    us->lastReportedDisplayStats = counts;
                 }
             }
         }

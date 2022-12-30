@@ -28,6 +28,7 @@ struct Notification;
 struct UnifiedSync;
 class Set;
 class SetElement;
+struct PerSyncStats;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -288,6 +289,7 @@ struct MEGA_API MegaApp
 
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
+    virtual void syncupdate_stats(handle backupId, const PerSyncStats&) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_stalled(bool) { }

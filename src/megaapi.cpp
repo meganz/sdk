@@ -1810,6 +1810,8 @@ void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{ }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
