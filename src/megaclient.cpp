@@ -22296,6 +22296,11 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
             return;
         }
 
+        if (e == API_EEXPIRED)
+        {
+            mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
+        }
+
         mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
         [e, completion](error err)
         {
