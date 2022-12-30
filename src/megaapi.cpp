@@ -2478,6 +2478,13 @@ void MegaApi::upgradeSecurity(MegaRequestListener* listener)
     pImpl->upgradeSecurity(listener);
 }
 
+#ifdef DEBUG
+void MegaApi::setSecureFlag(bool enable)
+{
+    pImpl->setSecureFlag(enable);
+}
+#endif
+
 void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->openShareDialog(node, listener);

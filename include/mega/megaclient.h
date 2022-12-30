@@ -591,6 +591,11 @@ public:
     // returns a formatted string, for logging purposes
     string toString() const;
 
+#ifdef DEBUG
+    // this method allows to change the feature-flag for testing purposes
+    void setSecureFlag(bool enabled) { mSecure = enabled; }
+#endif
+
 protected:
 
     std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
@@ -629,7 +634,7 @@ private:
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
 
-    // client is consider to exchange keys in a secure way
+    // client is considered to exchange keys in a secure way (requires credential's verification)
     bool mSecure = false;
 
     // true when the account is being created -> don't show warning to user "updading security",
