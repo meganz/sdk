@@ -6551,6 +6551,56 @@ public:
 
 };
 
+/**
+ * @brief Counts of files/folders/uploads/downloads per Sync
+ *
+ * The sync is the one identified by the backupId.
+ * The other fields are self-explanatory
+ *
+ * Objects of this class are immutable.
+ */
+class MegaSyncStats
+{
+public:
+
+  /** @brief Get the backupId that identifies the Sync
+    * @return The sync's BackupID
+    */
+    virtual MegaHandle getBackupId() const = 0;
+
+  /** @brief Indicates whether the sync is scanning currently
+    * Scanning means reading the folder entries on local disks
+    */
+    virtual bool isScanning() const = 0;
+
+  /** @brief Indicates whether the sync is syncing currently
+    * Syncing means comparing the two sides and bringing them in line
+    */
+    virtual bool isSyncing() const = 0;
+
+  /** @brief Indicates how many folders the sync contains
+    */
+    virtual int getFolderCount() const = 0;
+
+  /** @brief Indicates how many files the sync contains
+    */
+    virtual int getFileCount() const = 0;
+
+  /** @brief Indicates how many files are being uploaded
+    */
+    virtual int getUploadCount() const = 0;
+
+  /** @brief Indicates how many files are being downloaded
+    */
+    virtual int getDownloadCount() const = 0;
+
+  /** @brief Make a copy of this object
+    * You take ownership of the result.
+    */
+    virtual MegaSyncStats *copy() const = 0;
+
+    virtual ~MegaSyncStats() = default;
+};
 
 /**
  * @brief List of MegaSync objects
@@ -8417,6 +8467,18 @@ class MegaListener
      * @param sync MegaSync object that has changed its state
      */
     virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
+
+    /**
+     * @brief This function is called when there is an update on
+     * the number of nodes or transfers in the sync
+     *
+     * The SDK retains the ownership of the MegaSyncStats.
+     * Don't use it after this functions returns. But you can copy it
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param syncStats Identifies the sync and provides the counts
+     */
+    virtual void onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats);
 
     /**
      * @brief This function is called with the state of the synchronization engine has changed

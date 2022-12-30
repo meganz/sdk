@@ -26,6 +26,7 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 #include "mega/sync.h"
+#include "mega/base64.h"
 
 #include "megafs.h"
 
@@ -1892,10 +1893,11 @@ bool Notification::invalidated() const
 }
 #endif
 
-FileDistributor::FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime)
+FileDistributor::FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime, const FileFingerprint& confirm)
     : theFile(lp)
     , numTargets(ntargets)
     , mMtime(mtime)
+    , confirmFingerprint(confirm)
 {
 
 }
@@ -1908,14 +1910,16 @@ FileDistributor::~FileDistributor()
     assert(numTargets == 0);
 }
 
-bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris)
+bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris, const FileFingerprint& confirmFingerprint)
 {
     assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
     bool overwrite = method == OverwriteTarget;
 
     // Try and move the source to the target.
+    assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, source, confirmFingerprint));
     if (fsAccess.renamelocal(source, target, overwrite))
     {
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, target, confirmFingerprint));
         return true;
     }
 
@@ -1937,6 +1941,10 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
             LOG_debug << "File move failed even after moving the obstruction to local debris. Target name: " << target;
+        }
+        else
+        {
+            assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, target, confirmFingerprint));
         }
         return result;
     }
@@ -1978,14 +1986,16 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
     }
 }
 
-bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris)
+bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime, TargetNameExistsResolution method, FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris, const FileFingerprint& confirmFingerprint)
 {
     assert (!!syncForDebris == (method == MoveReplacedFileToSyncDebris));
     assert(method != OverwriteTarget);  // no overwrite option for fsaccess copy (yet)
 
-                                        // Try and move the source to the target.
+    // Try and move the source to the target.
+    assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, source, confirmFingerprint));
     if (fsAccess.copylocal(source, target, mtime))
     {
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, target, confirmFingerprint));
         return true;
     }
 
@@ -2007,6 +2017,10 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
             LOG_debug << "File copy failed even after moving the obstruction to local debris. Target name: " << target;
+        }
+        else
+        {
+            assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, target, confirmFingerprint));
         }
         return result;
     }
@@ -2066,7 +2080,7 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
         {
             // the last one can be a rename (if we haven't already renamed to a final location)
             LOG_debug << "Renaming temporary file to target path";
-            if (moveTo(theFile, lp, method, fsaccess, transient_error, name_too_long, syncForDebris))
+            if (moveTo(theFile, lp, method, fsaccess, transient_error, name_too_long, syncForDebris, confirmFingerprint))
             {
                 actualPathUsed = true;
                 removeTarget();
@@ -2076,7 +2090,7 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
             {
                 // maybe multiple Files were part of a single Transfer, and this last one is on a different disk
                 LOG_debug << "Moving instead of renaming temporary file to target path";
-                if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris))
+                if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris, confirmFingerprint))
                 {
                     if (!fsaccess.unlinklocal(theFile))
                     {
@@ -2091,7 +2105,7 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
         else
         {
             // otherwise copy
-            if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris))
+            if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris, confirmFingerprint))
             {
                 removeTarget();
                 return true;
@@ -2358,6 +2372,26 @@ unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath&
 
     return fsNode;
 }
+
+bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff)
+{
+    if (unique_ptr<FSNode> od = fromPath(fsAccess, path, false))
+    {
+        if (od->fingerprint == ff) return true;
+
+        LOG_debug << "fingerprint mismatch at path: " << path;
+        LOG_debug << "size: " << od->fingerprint.size << " should have been " << ff.size;
+        LOG_debug << "mtime: " << od->fingerprint.mtime << " should have been " << ff.mtime;
+        LOG_debug << "crc: " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&od->fingerprint.crc)
+                  << " should have been " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&ff.crc);
+    }
+    else
+    {
+        LOG_debug << "failed to get fingerprint for path " << path;
+    }
+    return false;
+}
+
 
 
 } // namespace

@@ -687,6 +687,9 @@ void Transfer::complete(TransferDbCommitter& committer)
             LOG_debug << "setmtimelocal failed " << transient_error;
         }
 
+        // try to catch failing cases in the debugger (seen on synology SMB drive after the file was moved to final destination)
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*client->fsaccess, localfilename, *this));
+
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
@@ -800,7 +803,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             if (!downloadDistributor)
             {
                 // we keep the old one in case there was a temporary_error previously
-                downloadDistributor.reset(new FileDistributor(localfilename, files.size(), mtime));
+                downloadDistributor.reset(new FileDistributor(localfilename, files.size(), mtime, *this));
             }
 
             set<string> keys;
@@ -943,7 +946,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                     client->filecachedel(f, &committer);
                     client->app->file_complete(f);
                     f->transfer = NULL;
-                    f->completed(this, PUTNODES_SYNC);
+                    f->completed(this, PUTNODES_SYNC);  // sets wasCompleted == true, and the sync thread can then call the distributor
                     it = files.erase(it);
 #endif // ENABLE_SYNC
                 }

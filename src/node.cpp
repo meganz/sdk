@@ -1447,10 +1447,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 //    }
 //#endif
 
-    if (type >= 0 && type < int(sync->localnodes.size()))
-    {
-        sync->localnodes[type]++;
-    }
+    sync->threadSafeState->incrementSyncNodeCount(type, 1);
 }
 
 LocalNode::RareFields::ScanBlocked::ScanBlocked(PrnGen &rng, const LocalPath& lp, LocalNode* ln)
@@ -2172,11 +2169,7 @@ LocalNode::~LocalNode()
     }
 
     sync->syncs.totalLocalNodes--;
-
-    if (type >= 0 && type < int(sync->localnodes.size()))
-    {
-        sync->localnodes[type]--;
-    }
+    sync->threadSafeState->incrementSyncNodeCount(type, -1);
 
     // remove parent association
     if (parent)
@@ -2721,6 +2714,7 @@ bool LocalNode::serialize(string* d)
         assert(node->localname == localname);
         assert(!node->slocalname == !slocalname);
         assert(!node->slocalname || *node->slocalname == *slocalname);
+        node->type = TYPE_UNKNOWN; // prevent mis-counting in destructor
     }
 #endif
 

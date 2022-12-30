@@ -1358,6 +1358,22 @@ protected:
     handle mBackupId = UNDEF;
 };
 
+class MegaSyncStatsPrivate : public MegaSyncStats
+{
+    handle backupId;
+    PerSyncStats stats;
+public:
+    MegaSyncStatsPrivate(handle bid, const PerSyncStats& s) : backupId(bid), stats(s) {}
+    MegaHandle getBackupId() const override { return backupId; }
+    bool isScanning() const override { return stats.scanning; }
+    bool isSyncing() const override { return stats.syncing; }
+    int getFolderCount() const override { return stats.numFolders; }
+    int getFileCount() const override { return stats.numFiles; }
+    int getUploadCount() const override { return stats.numUploads; }
+    int getDownloadCount() const override { return stats.numDownloads; }
+    MegaSyncStatsPrivate *copy() const override { return new MegaSyncStatsPrivate(*this); }
+};
+
 
 class MegaSyncListPrivate : public MegaSyncList
 {
@@ -3352,6 +3368,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
+        void fireOnSyncStatsUpdated(MegaSyncStatsPrivate*);
         void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
@@ -3684,6 +3701,8 @@ protected:
 
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
+
+        void syncupdate_stats(handle backupId, const PerSyncStats& stats) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
         void sync_added(const SyncConfig& config) override;

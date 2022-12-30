@@ -205,6 +205,20 @@ private:
 using SyncConfigVector = vector<SyncConfig>;
 struct Syncs;
 
+struct PerSyncStats
+{
+    // Data that we report per running sync for display alongside the sync
+    bool scanning = false;
+    bool syncing = false;
+    int32_t numFiles = 0;
+    int32_t numFolders = 0;
+    int32_t numUploads = 0;
+    int32_t numDownloads = 0;
+
+    bool operator==(const PerSyncStats&);
+    bool operator!=(const PerSyncStats&);
+};
+
 struct UnifiedSync
 {
     // Reference to containing Syncs object
@@ -229,6 +243,8 @@ struct UnifiedSync
     void changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
     shared_ptr<bool> sdsUpdateInProgress;
+
+    PerSyncStats lastReportedDisplayStats;
 
 private:
     friend class Sync;
@@ -372,6 +388,9 @@ class SyncThreadsafeState
     // track uploads/downloads
     SyncTransferCounts mTransferCounts;
 
+    int32_t mFolderCount = 0;
+    int32_t mFileCount = 0;
+
     // know where the sync's tmp folder is
     LocalPath mSyncTmpFolder;
 
@@ -394,6 +413,9 @@ public:
 
     // Return a snapshot of this sync's current transfer counts.
     SyncTransferCounts transferCounts() const;
+
+    void incrementSyncNodeCount(nodetype_t type, int32_t count);
+    void getSyncNodeCounts(int32_t& files, int32_t& folders);
 
     std::atomic<unsigned> neverScannedFolderCount{};
 
@@ -463,8 +485,6 @@ public:
 
     // helper for checking moves etc
     bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
-
-    std::array<unsigned, 2> localnodes{};
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);
@@ -1055,7 +1075,6 @@ public:
     fsid_localnode_map localnodeByScannedFsid;
     LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
     LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
-    //LocalNode* findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck);
 
     void setSyncedFsidReused(mega::handle fsid);
     void setScannedFsidReused(mega::handle fsid);
