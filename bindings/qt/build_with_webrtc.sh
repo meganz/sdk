@@ -47,13 +47,13 @@ mkdir -p ${CURRENTPATH}
 
 echo "* Setting up WebRTC"
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "42be4ae879ed6870dfc5ca554d11062b536da717" != "`git rev-parse HEAD`" ]; then
+if [ "93081d594f7efff72958a79251f53731b99e902b" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: 42be4ae879ed6870dfc5ca554d11062b536da717 (branch-heads/5195)"
+  echo "* You are not using our recommended commit of WebRTC: 93081d594f7efff72958a79251f53731b99e902b (branch-heads/5359 release 108)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
-  echo "  git checkout 42be4ae879ed6870dfc5ca554d11062b536da717"
+  echo "  git checkout 93081d594f7efff72958a79251f53731b99e902b"
   echo "  gclient sync"
   echo ""
   read -p "* Do you want to continue anyway? (y|N) " -n 1 c
