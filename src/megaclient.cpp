@@ -22245,9 +22245,11 @@ void KeyManager::nextCommit()
 
 void KeyManager::tryCommit(Error e, std::function<void ()> completion)
 {
-    if (!e)
+    if (!e || mDowngradeAttack)
     {
-        LOG_debug << "[keymgr] Commit completed";
+        LOG_debug << (!e
+                     ? "[keymgr] Commit completed"
+                     : "[keymgr] Commit aborted (downgrade attack)");
         if (activeCommit->second)
         {
             activeCommit->second(); // Run commit completion callback
@@ -22370,6 +22372,8 @@ bool KeyManager::unserialize(const string &keysContainer)
 
             if (generation < mGeneration)
             {
+                mDowngradeAttack = true;
+
                 ostringstream msg;
                 msg << "Downgrade attack for ^!keys: " << mGeneration << " < " << generation;
                 LOG_err << msg.str();

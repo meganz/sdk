@@ -636,6 +636,10 @@ private:
     // false when the account is being upgraded to ^!keys -> show the warning
     bool mPostRegistration = false;
 
+    // if the last known value of generation is greater than a value received in a ^!keys,
+    // then a rogue API could be tampering with the attribute
+    bool mDowngradeAttack = false;
+
     uint8_t mVersion = 0;
     uint32_t mCreationTime = 0;
     handle mIdentity = UNDEF;
