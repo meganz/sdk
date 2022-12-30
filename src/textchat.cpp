@@ -1142,6 +1142,11 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
+const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSchedMeetings()
+{
+    return mScheduledMeetings;
+}
+
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
     if (!sm || id != sm->chatid())

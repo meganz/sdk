@@ -13280,6 +13280,24 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
 
         auto megaChatList = mega::make_unique<MegaTextChatListPrivate>(&chatList);
         request->setMegaTextChatList(megaChatList.get());
+
+        if (request->getScheduledMeeting())
+        {
+           const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& schedmap = chat->getSchedMeetings();
+           if (!schedmap.empty())
+           {
+               if (schedmap.size() > 1)
+               {
+                    LOG_warn << "Scheduled meeting list contains more than 1 element for a new chatroom";
+               }
+               std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+               for (auto const& sm: schedmap)
+               {
+                   l->insert(new MegaScheduledMeetingPrivate(sm.second.get()));
+               }
+               request->setMegaScheduledMeetingList(l.get());
+           }
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
