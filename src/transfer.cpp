@@ -1547,11 +1547,11 @@ bool DirectReadSlot::detectSlowestStartConnection(size_t connectionNum)
             mUnusedRaidConnection = static_cast<size_t>(slowestStartConnection);
             if (mReqs[slowestStartConnection])
             {
+                reqstatus_t reqStatus = mReqs[slowestStartConnection]->status.load();
                 LOG_debug << "DirectReadSlot [conn " << connectionNum << "] -> "
                             << "New unused raid connection: " << mUnusedRaidConnection
                             << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s"
-                            << " [request status of new unused raid connection = " << mReqs[slowestStartConnection]->status << "]";
-                reqstatus_t reqStatus = mReqs[slowestStartConnection]->status.load();
+                            << " [request status of new unused raid connection = " << reqStatus << "]";
                 switch(reqStatus)
                 {
                     case REQ_INFLIGHT:
@@ -1708,7 +1708,7 @@ bool DirectReadSlot::doio()
                     LOG_err << "DirectReadSlot [conn " << connectionNum << "] ERROR: (isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)"
                             << " n = " << n
                             << ", req->in.size = " << req->in.size()
-                            << ", req->status = " << req->status
+                            << ", req->status = " << req->status.load()
                             << ", adapted maxChunkSize = " << maxChunkSize
                             << ", mMaxChunkSize = " << mMaxChunkSize
                             << ", submitted = " << mThroughput[connectionNum].first;
@@ -1857,14 +1857,14 @@ bool DirectReadSlot::doio()
                         req->pos = posrange.first;
                         req->posturl = adjustURLPort(mDr->drbuf.tempURL(connectionNum));
                         req->posturl.append(buf);
-                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status << ")";
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status.load() << ")";
                         LOG_debug << "POST URL: " << req->posturl;
 
                         mThroughput[connectionNum].first = 0;
                         mThroughput[connectionNum].second = 0;
                         req->in.reserve(mMaxChunkSize + (mMaxChunkSize/2));
                         req->post(mDr->drn->client); // status will go to inflight or fail
-                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] POST done (new request status = " << req->status << ")";
+                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] POST done (new request status = " << req->status.load() << ")";
 
                         mDr->drbuf.transferPos(connectionNum) = posrange.second;
                         increaseReqsInflight();
@@ -1875,7 +1875,7 @@ bool DirectReadSlot::doio()
 
         if (req && req->status == REQ_FAILURE)
         {
-            LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Request status is FAILURE [Request status = " << req->status << ", HTTP status = " << req->httpstatus << "]";
+            LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Request status is FAILURE [Request status = " << req->status.load() << ", HTTP status = " << req->httpstatus << "]";
             decreaseReqsInflight();
             if (req->httpstatus == 509)
             {
