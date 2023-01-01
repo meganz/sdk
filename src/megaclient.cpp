@@ -20026,6 +20026,28 @@ Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
 // mismatch vector
 Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 {
+    if (Node* n = Node::unserialize(mClient, d, fromOldCache))
+    {
+
+        auto pair = mNodes.emplace(n->nodeHandle(), NodeManagerNode());
+        // The NodeManagerNode could have been added in the initial fetch nodes (without session)
+        // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
+        mNodesInRam++;
+        auto& nodePosition = pair.first;
+        assert(!nodePosition->second.mNode);
+        nodePosition->second.mNode.reset(n);
+        n->mNodePosition = nodePosition;
+
+        // setparent() skiping update of node counters, since they are already calculated in DB
+        // In DB migration we have to calculate them as they aren't calculated previously
+        n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
+        return n;
+    }
+    return nullptr;
+}
+
+Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache)
+{
     handle h, ph;
     nodetype_t t;
     m_off_t s;
@@ -20174,19 +20196,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         skey = NULL;
     }
 
-    n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-    auto pair = mNodes.emplace(NodeHandle().set6byte(h), NodeManagerNode());
-    // The NodeManagerNode could have been added in the initial fetch nodes (without session)
-    // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
-    mNodesInRam++;
-    auto& nodePosition = pair.first;
-    assert(!nodePosition->second.mNode);
-    nodePosition->second.mNode.reset(n);
-    n->mNodePosition = nodePosition;
-
-    // setparent() skiping update of node counters, since they are already calculated in DB
-    // In DB migration we have to calculate them as they aren't calculated previously
-    n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
+    n = new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     if (!encrypted && k)
     {
@@ -20211,7 +20221,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
             // mergenewshare should be called when users and pcr are loaded
             // It's used only when we are migrating the cache
             // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
-            mClient.newshares.push_back(newShare.release());
+            client.newshares.push_back(newShare.release());
         }
         else
         {
@@ -20231,7 +20241,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     ptr = n->attrs.unserialize(ptr, end);
     if (!ptr)
     {
-        mNodes.erase(nodePosition);
         LOG_err << "Failed to unserialize attrs";
         assert(false);
         return NULL;
@@ -20263,7 +20272,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
         {
-            mNodes.erase(nodePosition);
             return NULL;
         }
 
@@ -20291,7 +20299,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the node key data's length?
         if (ptr + sizeof(uint32_t) > end)
         {
-            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -20301,7 +20308,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the node key data?
         if (ptr + length > end)
         {
-            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -20311,7 +20317,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the length of the attribute string?
         if (ptr + sizeof(uint32_t) > end)
         {
-            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -20321,7 +20326,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the attribute string?
         if (ptr + length > end)
         {
-            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -20335,14 +20339,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // since we just loaded the node from DB and has no changes)
         for (auto& share : ownNewshares)
         {
-            mClient.mergenewshare(share.get(), false, true);
+            client.mergenewshare(share.get(), false, true);
         }
 
         return n;
     }
     else
     {
-        mNodes.erase(nodePosition);
         return NULL;
     }
 }
