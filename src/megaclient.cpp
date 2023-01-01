@@ -20026,7 +20026,9 @@ Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
 // mismatch vector
 Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 {
-    if (Node* n = Node::unserialize(mClient, d, fromOldCache))
+    std::list<std::unique_ptr<NewShare>> ownNewshares;
+
+    if (Node* n = Node::unserialize(mClient, d, fromOldCache, ownNewshares))
     {
 
         auto pair = mNodes.emplace(n->nodeHandle(), NodeManagerNode());
@@ -20041,12 +20043,20 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // setparent() skiping update of node counters, since they are already calculated in DB
         // In DB migration we have to calculate them as they aren't calculated previously
         n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
+
+        // recreate node members related to shares (no need to write to DB,
+        // since we just loaded the node from DB and has no changes)
+        for (auto& share : ownNewshares)
+        {
+            mClient.mergenewshare(share.get(), false, true);
+        }
+
         return n;
     }
     return nullptr;
 }
 
-Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache)
+Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
     handle h, ph;
     nodetype_t t;
@@ -20204,7 +20214,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
 
     // read inshare, outshares, or pending shares
-    std::list<std::unique_ptr<NewShare>> ownNewshares;
     while (numshares)   // inshares: -1, outshare/s: num_shares
     {
         int direction = (numshares > 0) ? -1 : 0;
@@ -20335,13 +20344,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 
     if (ptr == end)
     {
-        // recreate node members related to shares (no need to write to DB,
-        // since we just loaded the node from DB and has no changes)
-        for (auto& share : ownNewshares)
-        {
-            client.mergenewshare(share.get(), false, true);
-        }
-
         return n;
     }
     else
