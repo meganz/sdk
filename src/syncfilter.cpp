@@ -1081,6 +1081,8 @@ bool add(const string& text, StringFilterPtrVector& filters)
                                     inclusion,
                                     inheritable));
         break;
+    case FT_DEFAULT_BY_CONTENT:
+        assert(false);
     }
 
     // Add the filter to the chain.
