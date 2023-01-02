@@ -1887,6 +1887,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 {
                     // These are special shell-generated files for win & mac, only relevant in the filesystem they were created
                     i.type = TYPE_DONOTSYNC;
+                    LOG_debug << "do-not-sync path identified by name: " << i.localname;
                 }
             }
 
@@ -1910,8 +1911,24 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             {
                 if (n.type == FILENODE && !n.fingerprint.isvalid)
                 {
-                    LOG_debug << "Directory scan contains a file that could not be fingerprinted: " << n.localname;
-                    ++numFingerprintBlocked;
+                    if (ES_EXCLUDED == exclusionState(n.localname, FILENODE, n.fingerprint.size))
+                    {
+                        // no need to complain about this one anymore, the user excluded it
+                        n.type = TYPE_DONOTSYNC;
+                    }
+                    else
+                    {
+                        LOG_debug << "Directory scan contains a file that could not be fingerprinted: " << n.localname;
+                        ++numFingerprintBlocked;
+                    }
+                }
+                else if (n.type == TYPE_SPECIAL)
+                {
+                    if (ES_EXCLUDED == exclusionState(n.localname, TYPE_SPECIAL, n.fingerprint.size))
+                    {
+                        // no need to complain about this one anymore, the user excluded it
+                        n.type = TYPE_DONOTSYNC;
+                    }
                 }
             }
 
