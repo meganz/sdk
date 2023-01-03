@@ -4727,6 +4727,12 @@ bool CommandGetUserData::procresult(Result r)
                         LOG_err << "Error processing new received values for the Key Manager (ug command)";
                     }
                 }
+                else if (client->mKeyManager.generation())
+                {
+                    // once the KeyManager is initialized, a future `ug` should always
+                    // include the user's attribute
+                    client->sendevent(99465, "KeyMgr / Setup failure");
+                }
 
                 if (changes > 0)
                 {
