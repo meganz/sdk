@@ -11157,16 +11157,17 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         return;
     }
 
-    std::string previousKey;
+    bool updateKeys = false;
     if (!n->sharekey)
     {
-        previousKey = mKeyManager.getShareKey(n->nodehandle);
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
         if (!previousKey.size())
         {
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
             n->sharekey = new SymmCipher(key);
+            updateKeys = true;
         }
         else
         {
@@ -11175,7 +11176,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
     }
 
-    if (!previousKey.size())    // new share: add key to ^!keys and
+    if (updateKeys)    // new share: add key to ^!keys
     {
         handle nodehandle = n->nodehandle;
         std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
