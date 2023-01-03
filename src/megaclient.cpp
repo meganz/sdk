@@ -21697,6 +21697,7 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
 bool KeyManager::fromKeysContainer(const string &data)
 {
     bool success = false;
+    KeyManager km(mClient);  // keymanager to store values temporary
 
     if (data.size() > 2 && data[0] == 20)
     {
@@ -21711,12 +21712,99 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
-            success = unserialize(keysPlain);
+            success = unserialize(km, keysPlain);
         }
+    }
+
+    // validate received data and update local values
+    if (success && isValidKeysContainer(km))
+    {
+        updateValues(km);
     }
 
     assert(success);
     return success;
+}
+
+bool KeyManager::isValidKeysContainer(const KeyManager& km)
+{
+    // downgrade attack detection
+    if (km.mGeneration < mGeneration)
+    {
+        mDowngradeAttack = true;
+
+        ostringstream msg;
+        msg << "KeyMgr / Downgrade attack for ^!keys: " << mGeneration << " < " << km.mGeneration;
+        LOG_err << msg.str();
+        mClient.sendevent(99461, msg.str().c_str());
+
+        // TODO: uncomment next line / callback, so the app
+        // can warn about the potential attack and block user's interface
+//            mClient.app->downgrade_attack();
+        return false;
+    }
+
+    // validate private Ed25519 key
+    if (mPrivEd25519.empty())
+    {
+        mPrivEd25519 = km.mPrivEd25519;
+    }
+    assert(mPrivEd25519 == km.mPrivEd25519);
+
+    // validate private Cu25519 key
+    if (mPrivCu25519.empty())
+    {
+        mPrivCu25519 = km.mPrivCu25519;
+    }
+    assert(mPrivCu25519 == km.mPrivCu25519);
+
+    // validate private RSA key
+    if (mPrivRSA.empty())
+    {
+        assert(km.mPrivRSA.size() >= 512);
+        if (km.mPrivRSA.empty())
+        {
+            LOG_debug << "Empty RSA key";
+            return false;
+        }
+
+        if (km.mPrivRSA.size() < 512)
+        {
+            LOG_err << "Invalid RSA key";
+            return false;
+        }
+
+        mPrivRSA = km.mPrivRSA;
+        if (!decodeRSAKey())
+        {
+            LOG_warn << "Private key malformed while unserializing ^!keys.";
+        }
+        // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
+    }
+    assert(mPrivRSA == km.mPrivRSA);
+
+    return true;
+}
+
+void KeyManager::updateValues(KeyManager &km)
+{
+    mVersion            = km.mVersion;
+    mCreationTime       = km.mCreationTime;
+    mIdentity           = km.mIdentity;
+    mGeneration         = km.mGeneration;
+    mAttr               = move(km.mAttr);
+    // private keys do not change -> no need to update
+//        mPrivEd25519        = km.mPrivEd25519;
+//        mPrivCu25519        = km.mPrivCu25519;
+//        mPrivRSA            = km.mPrivRSA;
+    updateAuthring(ATTR_AUTHRING, km.mAuthEd25519);
+    updateAuthring(ATTR_AUTHCU255, km.mAuthCu25519);
+    updateShareKeys(km.mShareKeys);
+    mPendingOutShares   = move(km.mPendingOutShares);
+    mPendingInShares    = move(km.mPendingInShares);
+    mBackups            = move(km.mBackups);
+    mWarnings           = move(km.mWarnings);
+    mOther              = move(km.mOther);
 }
 
 string KeyManager::toKeysContainer()
@@ -21872,17 +21960,13 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
 
 bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
-    mShareKeys[sharehandle] = shareKey;
-    mTrustedShareKeys[sharehandle] = sharedSecurely && isSecure();
-
+    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
     return true;
 }
 
 bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
-    mShareKeys[sharehandle] = shareKey;
-    mTrustedShareKeys[sharehandle] = sharedSecurely && isSecure();
-
+    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
     return true;
 }
 
@@ -21891,7 +21975,7 @@ string KeyManager::getShareKey(handle sharehandle) const
     auto it = mShareKeys.find(sharehandle);
     if (it != mShareKeys.end())
     {
-        return it->second;
+        return it->second.first;
     }
     return std::string();
 }
@@ -21978,7 +22062,7 @@ bool KeyManager::promotePendingShares()
                 auto shareit = mShareKeys.find(nodehandle);
                 if (shareit != mShareKeys.end())
                 {
-                    std::string encryptedKey = encryptShareKeyTo(u->userhandle, shareit->second);
+                    std::string encryptedKey = encryptShareKeyTo(u->userhandle, shareit->second.first);
                     if (encryptedKey.size())
                     {
                         mClient.reqs.add(new CommandPendingKeys(&mClient, u->userhandle, nodehandle, (byte *)encryptedKey.data(),
@@ -22082,7 +22166,7 @@ void KeyManager::cacheShareKeys()
 {
     for (const auto& it : mShareKeys)
     {
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.data());
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.first.data());
     }
 }
 
@@ -22091,7 +22175,7 @@ void KeyManager::loadShareKeys()
     for (const auto& it : mShareKeys)
     {
         handle sharehandle = it.first;
-        std::string shareKey = it.second;
+        std::string shareKey = it.second.first;
 
         Node *n = mClient.nodebyhandle(sharehandle);
         if (n && !n->sharekey)
@@ -22144,7 +22228,6 @@ void KeyManager::reset()
     mPendingInShares.clear();
     mPendingOutShares.clear();
     mShareKeys.clear();
-    mTrustedShareKeys.clear();
 }
 
 string KeyManager::toString() const
@@ -22161,42 +22244,41 @@ string KeyManager::toString() const
     buf << "PrivRSA: " << Base64::btoa(mPrivRSA)<< "\n";
     buf << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHRING))<< "\n";
     buf << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHCU255))<< "\n";
-    buf << shareKeysToString();
-    buf << pendingOutsharesToString();
-    buf << "Pending Inshares: \n" << pendingInsharesToString();
+    buf << shareKeysToString(*this);
+    buf << pendingOutsharesToString(*this);
+    buf << "Pending Inshares: \n" << pendingInsharesToString(*this);
     buf << "Backups: " << Base64::btoa(mBackups) << "\n";
     buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
 
     return buf.str();
 }
 
-string KeyManager::shareKeysToString() const
+string KeyManager::shareKeysToString(const KeyManager& km)
 {
     ostringstream buf;
     buf << "Share Keys:\n";
 
     unsigned count = 0;
-    for (const auto &it : mShareKeys)
+    for (const auto &it : km.mShareKeys)
     {
         ++count;
         handle h = it.first;
-        const string shareKeyStr = it.second;
-        const auto& itTrust = mTrustedShareKeys.find(h);
-        int trust = (itTrust != mTrustedShareKeys.end()) ? itTrust->second : -1;
+        const string& shareKeyStr = it.second.first;
+        bool trust = it.second.second;
         buf << "\t#" << count << "\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t (int): " << (int)trust << "\n";
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << "\n";
     }
 
     return buf.str();
 }
 
-string KeyManager::pendingOutsharesToString() const
+string KeyManager::pendingOutsharesToString(const KeyManager& km)
 {
     ostringstream buf;
     buf << "Pending Outshares:\n";
 
     unsigned count = 0;
-    for (const auto &it : mPendingOutShares)
+    for (const auto &it : km.mPendingOutShares)
     {
         ++count;
         handle h = it.first;
@@ -22209,13 +22291,13 @@ string KeyManager::pendingOutsharesToString() const
     return buf.str();
 }
 
-string KeyManager::pendingInsharesToString() const
+string KeyManager::pendingInsharesToString(const KeyManager& km)
 {
     ostringstream buf;
     buf << "Pending Inshares:\n";
 
     unsigned count = 0;
-    for (const auto &it : mPendingInShares)
+    for (const auto &it : km.mPendingInShares)
     {
         ++count;
         const string& nh = it.first;
@@ -22317,15 +22399,14 @@ bool KeyManager::getPostRegistration() const
     return mPostRegistration;
 }
 
-bool KeyManager::unserialize(const string &keysContainer)
+bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
 {
     // Decode blob
 
     const char* blob = keysContainer.data();
     size_t blobLength = keysContainer.length();
 
-    uint8_t headerSize = 4;  // 1 byte for Tag, 3 bytes for Length
-
+    static const uint8_t headerSize = 4;  // 1 byte for Tag, 3 bytes for Length
     size_t offset = headerSize;
     while (offset <= blobLength)
     {
@@ -22344,169 +22425,111 @@ bool KeyManager::unserialize(const string &keysContainer)
         switch (tag)
         {
         case TAG_VERSION:
-            if (len != sizeof(mVersion)) return false;
-            mVersion = MemAccess::get<uint8_t>(blob + offset);
-            LOG_verbose << "Version: " << (int)mVersion;
+            if (len != sizeof(km.mVersion)) return false;
+            km.mVersion = MemAccess::get<uint8_t>(blob + offset);
+            LOG_verbose << "Version: " << (int)km.mVersion;
             break;
 
         case TAG_CREATION_TIME:
-            if (len != sizeof(mCreationTime)) return false;
-            mCreationTime = MemAccess::get<uint32_t>(blob + offset);
-            mCreationTime = ntohl(mCreationTime); // Webclient sets this value as BigEndian
-            LOG_verbose << "Creation time: " << mCreationTime;
+            if (len != sizeof(km.mCreationTime)) return false;
+            km.mCreationTime = MemAccess::get<uint32_t>(blob + offset);
+            km.mCreationTime = ntohl(km.mCreationTime); // Webclient sets this value as BigEndian
+            LOG_verbose << "Creation time: " << km.mCreationTime;
             break;
 
         case TAG_IDENTITY:
             if (len != sizeof(mIdentity)) return false;
-            mIdentity = MemAccess::get<handle>(blob + offset);
-            LOG_verbose << "Identity: " << toHandle(mIdentity);
+            km.mIdentity = MemAccess::get<handle>(blob + offset);
+            LOG_verbose << "Identity: " << toHandle(km.mIdentity);
             break;
 
         case TAG_GENERATION:
         {
-            uint32_t generation = 0;
-
-            if (len != sizeof(generation)) return false;
-            generation = MemAccess::get<uint32_t>(blob + offset);
-            generation = ntohl(generation); // Webclient sets this value as BigEndian
-
-            if (generation < mGeneration)
-            {
-                mDowngradeAttack = true;
-
-                ostringstream msg;
-                msg << "Downgrade attack for ^!keys: " << mGeneration << " < " << generation;
-                LOG_err << msg.str();
-                mClient.sendevent(99461, msg.str().c_str());
-
-                // TODO: uncomment next 2 lines (callback and return) so the app
-                // can warn about the potential attack and bails out
-//                mClient.app->downgrade_attack();
-//                return false;
-            }
-            else
-            {
-                mGeneration = generation;
-                LOG_verbose << "Generation: " << mGeneration;
-            }
+            if (len != sizeof(km.mGeneration)) return false;
+            km.mGeneration = MemAccess::get<uint32_t>(blob + offset);
+            km.mGeneration = ntohl(km.mGeneration); // Webclient sets this value as BigEndian
+            LOG_verbose << "Generation: " << km.mGeneration;
             break;
         }
         case TAG_ATTR:
-            mAttr.assign(blob + offset, len);
-            LOG_verbose << "Attr: " << Base64::btoa(mAttr);
+            km.mAttr.assign(blob + offset, len);
+            LOG_verbose << "Attr: " << Base64::btoa(km.mAttr);
             break;
 
         case TAG_PRIV_ED25519:
-            if (mPrivEd25519.empty())
-            {
-                if (len != EdDSA::SEED_KEY_LENGTH) return false;
-                mPrivEd25519.assign(blob + offset, len);
-            }
-            else
-            {
-                // TODO: should check if private key has not changed
-            }
-            LOG_verbose << "PrivEd25519: " << Base64::btoa(mPrivEd25519);
+            if (len != EdDSA::SEED_KEY_LENGTH) return false;
+            km.mPrivEd25519.assign(blob + offset, len);
+            LOG_verbose << "PrivEd25519: " << Base64::btoa(km.mPrivEd25519);
             break;
 
         case TAG_PRIV_CU25519:
-            if (mPrivCu25519.empty())
-            {
-                if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
-                mPrivCu25519.assign(blob + offset, len);
-            }
-            else
-            {
-                // TODO: should check if private key has not changed
-            }
-            LOG_verbose << "PrivCu25519: " << Base64::btoa(mPrivCu25519);
+            if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
+            km.mPrivCu25519.assign(blob + offset, len);
+            LOG_verbose << "PrivCu25519: " << Base64::btoa(km.mPrivCu25519);
             break;
 
         case TAG_PRIV_RSA:
         {
-            if (mPrivRSA.empty())
-            {
-                if (!len)
-                {
-                    LOG_debug << "Empty RSA key";
-                    break;
-                }
-
-                if (len < 512)
-                {
-                    LOG_err << "Invalid RSA key";
-                    assert(false);
-                    break;
-                }
-
-                mPrivRSA.assign(blob + offset, len);
-                if (!decodeRSAKey(mPrivRSA))
-                {
-                    LOG_warn << "Private key malformed while unserializing ^!keys.";
-                }
-                // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
-            }
-            else
-            {
-                // TODO: should check if private key has not changed
-            }
-            LOG_verbose << "PrivRSA: " << Base64::btoa(mPrivRSA);
+            km.mPrivRSA.assign(blob + offset, len);
+            LOG_verbose << "PrivRSA: " << Base64::btoa(km.mPrivRSA);
             break;
         }
         case TAG_AUTHRING_ED25519:
         {
             attr_t at = ATTR_AUTHRING;
-            mAuthEd25519.assign(blob + offset, len);
-            mClient.mAuthRings.erase(at);
-            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
-            LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
+            km.mAuthEd25519.assign(blob + offset, len);
+//            mClient.mAuthRings.erase(at);
+//            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
+            AuthRing tmp(at, km.mAuthEd25519);
+            LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(tmp);
             break;
         }
         case TAG_AUTHRING_CU25519:
         {
             attr_t at = ATTR_AUTHCU255;
-            mAuthCu25519.assign(blob + offset, len);
-            mClient.mAuthRings.erase(at);
-            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
-            LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(at));
+            km.mAuthCu25519.assign(blob + offset, len);
+//            mClient.mAuthRings.erase(at);
+//            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
+            AuthRing tmp(at, km.mAuthCu25519);
+            LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(tmp);
             break;
         }
         case TAG_SHAREKEYS:
         {
             string buf(blob + offset, len);
-            if (!deserializeShareKeys(buf)) return false;
-            LOG_verbose << shareKeysToString();
+            if (!deserializeShareKeys(km, buf)) return false;
+            LOG_verbose << shareKeysToString(km);
             break;
         }
         case TAG_PENDING_OUTSHARES:
         {
             string buf(blob + offset, len);
-            if (!deserializePendingOutshares(buf)) return false;
-            LOG_verbose << pendingOutsharesToString();
+            if (!deserializePendingOutshares(km, buf)) return false;
+            LOG_verbose << pendingOutsharesToString(km);
             break;
         }
         case TAG_PENDING_INSHARES:
         {
             string buf(blob + offset, len);
-            if (!deserializePendingInshares(buf)) return false;
-            LOG_verbose << pendingInsharesToString();
+            if (!deserializePendingInshares(km, buf)) return false;
+            LOG_verbose << pendingInsharesToString(km);
             break;
         }
         case TAG_BACKUPS:
         {
             string buf(blob + offset, len);
-            if (!deserializeBackups(buf)) return false;
-            LOG_verbose << "Backups: " << Base64::btoa(mBackups);
+            if (!deserializeBackups(km, buf)) return false;
+            LOG_verbose << "Backups: " << Base64::btoa(km.mBackups);
             break;
         }
         case TAG_WARNINGS:
-            mWarnings.assign(blob + offset, len);
+            km.mWarnings.assign(blob + offset, len);
             // TODO: deserialize it
-            LOG_verbose << "Warnings: " << Base64::btoa(mWarnings);
+            LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
             break;
 
         default:    // any other tag needs to be stored as well, and included in newer versions
-            mOther.append(blob + offset - headerSize, headerSize + len);
+            km.mOther.append(blob + offset - headerSize, headerSize + len);
             break;
         }
 
@@ -22516,11 +22539,10 @@ bool KeyManager::unserialize(const string &keysContainer)
     return true;
 }
 
-bool KeyManager::deserializeShareKeys(const string &blob)
+bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
 {
     // clean old data, so we don't left outdated sharekeys in place
-    mTrustedShareKeys.clear();
-    mShareKeys.clear();
+    km.mShareKeys.clear();
 
     // [nodeHandle.6 shareKey.16 trust.1]*
     CacheableReader r(blob);
@@ -22543,13 +22565,8 @@ bool KeyManager::deserializeShareKeys(const string &blob)
         }
 
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
-        mTrustedShareKeys[h] = trust ? true : false;
-        mShareKeys[h] = shareKeyStr;
+        km.mShareKeys[h] = pair<string, bool>(shareKeyStr, trust ? true : false);
     }
-
-    // Set the sharekey to the node, if missing (since it might not have been received along with
-    // the share itself (ok / k is discontinued since ^!keys)
-    loadShareKeys();
 
     return true;
 }
@@ -22563,24 +22580,23 @@ string KeyManager::serializeShareKeys() const
     for (const auto& it : mShareKeys)
     {
         handle h = it.first;
-        w.serializenodehandle(it.first);
+        w.serializenodehandle(h);
 
-        size_t shareKeyLen = it.second.size();
-        byte *shareKey = (byte*)it.second.data();
+        size_t shareKeyLen = it.second.first.size();
+        byte *shareKey = (byte*)it.second.first.data();
         w.serializebinary(shareKey, shareKeyLen);
 
-        auto itTrust = mTrustedShareKeys.find(h);
-        byte trust = (itTrust != mTrustedShareKeys.end() && itTrust->second) ? 1 : 0;
+        byte trust = it.second.second;
         w.serializebyte(trust);
     }
 
     return result;
 }
 
-bool KeyManager::deserializePendingOutshares(const string &blob)
+bool KeyManager::deserializePendingOutshares(KeyManager& km, const string &blob)
 {
     // clean old data, so we don't left outdated pending outshares in place
-    mPendingOutShares.clear();
+    km.mPendingOutShares.clear();
 
     // [len.1 nodeHandle.6 uid]*
     // if len=0  -> uid is a user handle
@@ -22622,7 +22638,7 @@ bool KeyManager::deserializePendingOutshares(const string &blob)
             return false;
         }
 
-        mPendingOutShares[h].emplace(uid);
+        km.mPendingOutShares[h].emplace(uid);
     }
 
     return true;
@@ -22685,10 +22701,10 @@ string KeyManager::serializePendingOutshares() const
     return result;
 }
 
-bool KeyManager::deserializePendingInshares(const string &blob)
+bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 {
     // clean old data, so we don't left outdated pending inshares in place
-    mPendingInShares.clear();
+    km.mPendingInShares.clear();
 
     // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
     // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
@@ -22751,7 +22767,7 @@ bool KeyManager::deserializePendingInshares(const string &blob)
             return false;
         }
 
-        mPendingInShares[name] = pair<handle, string>(uh, shareKey);
+        km.mPendingInShares[name] = pair<handle, string>(uh, shareKey);
     }
 
     return true;
@@ -22791,10 +22807,10 @@ string KeyManager::serializePendingInshares() const
     return result;
 }
 
-bool KeyManager::deserializeBackups(const string &blob)
+bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
 {
     // FIXME: add support to deserialize backups
-    mBackups = blob;
+    km.mBackups = blob;
     return true;
 }
 
@@ -22837,30 +22853,57 @@ string KeyManager::computeSymmetricKey(handle user)
     return sharedKey;
 }
 
-bool KeyManager::decodeRSAKey(const string& pqdKey)
+bool KeyManager::decodeRSAKey()
 {
+//    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
+
     string currentPK;
-    size_t pos;
-    bool keyOk;
-
-    LOG_verbose << Base64::btoa(pqdKey) << "\n\n" << Utils::stringToHex(pqdKey);
-
     mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
 
     // Compare serialized keys using find just in case pqdKey has extra bytes. It should be found at pos = 0.
-    pos = pqdKey.find(currentPK);
-    keyOk = !pos;
+    size_t pos = mPrivRSA.find(currentPK);
+    bool keyOk = (pos == 0);
 
     // Keep client RSA key serialized as received by login/"ug"
     // It is used by intermediate layer and login/ug are 4 Ints long, not 3, which could cause problems when comparing them.
-    // mClient.mPrivKey = Base64::btoa(pqdKey);
-    if (!mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)pqdKey.data(), (int)pqdKey.size()))
+    // mClient.mPrivKey = Base64::btoa(mPrivRSA);
+
+    // update asymcipher to use RSA from ^!keys
+    if (keyOk && !mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)mPrivRSA.data(), (int)mPrivRSA.size()))
     {
         keyOk = false;
     }
 
     assert(keyOk);
     return keyOk;
+}
+
+void KeyManager::updateAuthring(attr_t at, string& value)
+{
+    string& authring = (at == ATTR_AUTHRING) ? mAuthEd25519 : mAuthCu25519;
+    authring = move(value);
+    mClient.mAuthRings.erase(at);
+    mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+}
+
+void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
+{
+    for (const auto& it : shareKeys)
+    {
+        handle h = it.first;
+
+        const auto& it2 = mShareKeys.find(h);
+        if (it2 != mShareKeys.end() && it.second != shareKeys.at(h))
+        {
+            LOG_warn << "[keymgr] Sharekey (or trust) for " << toNodeHandle(h) << " has changed. Updating...";
+        }
+
+        mShareKeys[h] = move(it.second);
+    }
+
+    // Set the sharekey to the node, if missing (since it might not have been received along with
+    // the share itself (ok / k is discontinued since ^!keys)
+    loadShareKeys();
 }
 
 string KeyManager::serializeBackups() const
