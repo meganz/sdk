@@ -22799,6 +22799,8 @@ string KeyManager::computeSymmetricKey(handle user)
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
         // TODO: Do we need to request it and retry?
+        assert(false);
+        mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
         return std::string();
     }
 
