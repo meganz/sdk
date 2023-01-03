@@ -691,7 +691,13 @@ typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
-typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
+// these correspond to MegaApi::STATE_SYNCED etc
+typedef enum { TREESTATE_NONE = 0,
+               TREESTATE_SYNCED,
+               TREESTATE_PENDING,
+               TREESTATE_SYNCING,
+			   TREESTATE_IGNORED,
+               } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
