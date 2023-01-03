@@ -21731,16 +21731,18 @@ bool KeyManager::isValidKeysContainer(const KeyManager& km)
     // downgrade attack detection
     if (km.mGeneration < mGeneration)
     {
-        mDowngradeAttack = true;
-
         ostringstream msg;
-        msg << "KeyMgr / Downgrade attack for ^!keys: " << mGeneration << " < " << km.mGeneration;
+        msg << "KeyMgr / Downgrade attack for ^!keys: " << km.mGeneration << " < " << mGeneration;
         LOG_err << msg.str();
         mClient.sendevent(99461, msg.str().c_str());
 
-        // TODO: uncomment next line / callback, so the app
-        // can warn about the potential attack and block user's interface
-//            mClient.app->downgrade_attack();
+        // block updates of ^!keys attribute and notify the app, so it can
+        // warn about the potential attack and block user's interface
+        if (isSecure())
+        {
+            mDowngradeAttack = true;
+            mClient.app->downgrade_attack();
+        }
         return false;
     }
 
@@ -21764,22 +21766,21 @@ bool KeyManager::isValidKeysContainer(const KeyManager& km)
         assert(km.mPrivRSA.size() >= 512);
         if (km.mPrivRSA.empty())
         {
-            LOG_debug << "Empty RSA key";
-            return false;
+            LOG_warn << "Empty RSA key";
         }
-
-        if (km.mPrivRSA.size() < 512)
+        else if (km.mPrivRSA.size() < 512)
         {
             LOG_err << "Invalid RSA key";
-            return false;
         }
-
-        mPrivRSA = km.mPrivRSA;
-        if (!decodeRSAKey())
+        else
         {
-            LOG_warn << "Private key malformed while unserializing ^!keys.";
+            mPrivRSA = km.mPrivRSA;
+            if (!decodeRSAKey())
+            {
+                LOG_warn << "Private key malformed while unserializing ^!keys.";
+            }
+            // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
         }
-        // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
     }
     assert(mPrivRSA == km.mPrivRSA);
 
@@ -22478,8 +22479,6 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             attr_t at = ATTR_AUTHRING;
             km.mAuthEd25519.assign(blob + offset, len);
-//            mClient.mAuthRings.erase(at);
-//            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthEd25519));
             AuthRing tmp(at, km.mAuthEd25519);
             LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(tmp);
             break;
@@ -22488,8 +22487,6 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             attr_t at = ATTR_AUTHCU255;
             km.mAuthCu25519.assign(blob + offset, len);
-//            mClient.mAuthRings.erase(at);
-//            mClient.mAuthRings.emplace(at, AuthRing(at, mAuthCu25519));
             AuthRing tmp(at, km.mAuthCu25519);
             LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(tmp);
             break;

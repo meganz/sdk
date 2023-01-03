@@ -3277,9 +3277,13 @@ bool CommandPutUAVer::procresult(Result r)
             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
             {
                 LOG_err << "Error processing new established value for the Key Manager";
-                // bail out -> better to keep old value than a corrupt one
-                mCompletion(API_EKEY);
-                return true;
+
+                if (client->mKeyManager.isSecure())
+                {
+                    // bail out -> better to keep old value than a corrupt one
+                    mCompletion(API_EKEY);
+                    return true;
+                }
             }
 
             User *u = client->ownuser();
@@ -3668,12 +3672,12 @@ bool CommandGetUA::procresult(Result r)
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
 
-                            if (at == ATTR_KEYS)
+                            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {
-                                string d((const char*)value.data(), value.size());
-                                if (!client->mKeyManager.fromKeysContainer(d))
+                                LOG_err << "Error processing new established value for the Key Manager upon init";
+
+                                if (client->mKeyManager.isSecure())
                                 {
-                                    LOG_err << "Error processing new established value for the Key Manager upon init";
                                     // bail out -> better to keep old value than a corrupt one
                                     mCompletionErr(API_EKEY);
                                     return true;
