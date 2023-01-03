@@ -1807,13 +1807,10 @@ static void listnodependingshares(Node* n)
 
             if (it->first)
             {
-                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")"
-                     << endl;
+                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
             }
-            else
-            {
-                cout << ", shared as exported folder link" << endl;
-            }
+
+            cout << endl;
         }
     }
 }
