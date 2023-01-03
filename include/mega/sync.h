@@ -1446,7 +1446,7 @@ class OverlayIconCachedPaths
 public:
     void addOrUpdate(const LocalPath& lp, int value)
     {
-        lock_guard g(mMutex);
+        lock_guard<mutex> g(mMutex);
         auto it_bool = paths.insert(Map::value_type(lp, value));
         if (it_bool.second)
         {
@@ -1464,7 +1464,7 @@ public:
     }
     void overwriteExisting(const LocalPath& lp, int value)
     {
-        lock_guard g(mMutex);
+        lock_guard<mutex> g(mMutex);
         auto it = paths.find(lp);
         if (it != paths.end())
         {
@@ -1473,7 +1473,7 @@ public:
     }
     bool lookup(const LocalPath& lp, int& value)
     {
-        lock_guard g(mMutex);
+        lock_guard<mutex> g(mMutex);
         auto it = paths.find(lp);
         if (it == paths.end()) return false;
         value = it->second;
@@ -1481,7 +1481,7 @@ public:
     }
     void clear()
     {
-        lock_guard g(mMutex);
+        lock_guard<mutex> g(mMutex);
         recentOrder.clear();
         paths.clear();
     }
