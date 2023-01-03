@@ -2871,6 +2871,11 @@ dstime Sync::procscanq()
         // Check it's not an excluded path
         if (nearest && !remainder.empty())
         {
+            if (nearest->type == TYPE_DONOTSYNC)
+            {
+                continue;
+            }
+
             LocalPath firstComponent;
             size_t index = 0;
             if (remainder.nextPathComponent(index, firstComponent))
@@ -6932,6 +6937,12 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         return false;
     }
 
+    if (row.fsNode && isDoNotSyncFileName(row.fsNode->toName_of_localname(*syncs.fsaccess)))
+    {
+        // don't consider these for moves
+        return true;
+    }
+
     // Don't perform any moves until we know the row's exclusion state.
     if ((row.cloudNode && parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN) ||
         (row.fsNode && parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN))
@@ -10976,6 +10987,13 @@ void Syncs::syncLoop()
                 {
                     if (auto sbp = i->lock())
                     {
+                        if (sbp->localNode->exclusionState() == ES_EXCLUDED)
+                        {
+                            // the user ignored the path in response to the stall item, probably
+                            i = scanBlockedPaths.erase(i);
+                            continue;
+                        }
+
                         if (sbp->scanBlockedTimer.armed())
                         {
                             if (sbp->folderUnreadable)

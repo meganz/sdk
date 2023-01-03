@@ -905,7 +905,8 @@ bool add(const string& text, StringFilterPtrVector& filters)
     enum FilterType
     {
         FT_NAME,
-        FT_PATH
+        FT_PATH,
+        FT_DEFAULT_BY_CONTENT
     }; /* FilterType */
 
     enum MatchStrategy
@@ -982,8 +983,8 @@ bool add(const string& text, StringFilterPtrVector& filters)
         type = FT_PATH;
         break;
     default:
-        // Default to subtree name filter.
-        type = FT_NAME;
+        // Default to subtree name filter, unless the user used / separators, in which case they will be expecting to exlcude sub-paths
+        type = FT_DEFAULT_BY_CONTENT;
         break;
     }
 
@@ -1022,6 +1023,12 @@ bool add(const string& text, StringFilterPtrVector& filters)
     if (*m++ != ':')
     {
         return syntaxError(text);
+    }
+
+    if (type == FT_DEFAULT_BY_CONTENT)
+    {
+        // if the user specifies something like -:Documents/MEGAsync, then we should treat that as a sub-path
+        type = strchr(m, '/') ? FT_PATH : FT_NAME;
     }
 
     // Ignore trailing whitespace.
@@ -1074,6 +1081,8 @@ bool add(const string& text, StringFilterPtrVector& filters)
                                     inclusion,
                                     inheritable));
         break;
+    case FT_DEFAULT_BY_CONTENT:
+        assert(false);
     }
 
     // Add the filter to the chain.

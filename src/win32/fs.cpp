@@ -1813,6 +1813,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                 if (WinFileAccess::skipattributes(info->FileAttributes))
                 {
                     result.type = TYPE_DONOTSYNC;
+                    LOG_debug << "do-not-sync path identified by attributes: " << path;
                 }
                 else
                 {
