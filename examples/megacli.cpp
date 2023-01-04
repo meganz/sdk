@@ -1797,6 +1797,24 @@ static void listnodeshares(Node* n)
     }
 }
 
+static void listnodependingshares(Node* n)
+{
+    if(n->pendingshares)
+    {
+        for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
+
+            if (it->first)
+            {
+                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
+            }
+
+            cout << endl;
+        }
+    }
+}
+
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
     std::ostream& stream = toFile ? *toFile : cout;
@@ -5867,16 +5885,18 @@ void exec_share(autocomplete::ACState& s)
 
     switch (s.words.size())
     {
-    case 1:		// list all shares (incoming and outgoing)
+    case 1:		// list all shares (incoming, outgoing and pending outgoing)
     {
         cout << "Shared folders:" << endl;
 
+        // outgoing
         node_vector outshares = client->mNodeManager.getNodesWithOutShares();
         for (auto& share : outshares)
         {
             listnodeshares(share);
         }
 
+        // incoming
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
         {
@@ -5897,6 +5917,15 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
             }
+        }
+
+        cout << "Pending shared folders:" << endl;
+
+        // pending outgoing
+        node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+        for (auto& share : pendingoutshares)
+        {
+            listnodependingshares(share);
         }
     }
     break;
