@@ -2196,8 +2196,8 @@ MegaStringList* MegaUserAlertPrivate::getUpdatedTitle() const
     }
 
     MegaStringList* updatedTitle = MegaStringList::createInstance();
-    updatedTitle->add(schedMeetingChangeset.getUpdatedTitle()->oldValue.c_str());
-    updatedTitle->add(schedMeetingChangeset.getUpdatedTitle()->newValue.c_str());
+    updatedTitle->add(Base64::atob(schedMeetingChangeset.getUpdatedTitle()->oldValue).c_str());
+    updatedTitle->add(Base64::atob(schedMeetingChangeset.getUpdatedTitle()->newValue).c_str());
     return updatedTitle;
 }
 #endif
