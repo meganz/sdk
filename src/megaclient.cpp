@@ -5033,7 +5033,14 @@ bool MegaClient::procsc()
                             }
                             else // -> upgrade automatically and silently
                             {
-                                upgradeSecurity(nullptr);
+                                upgradeSecurity([this](Error e)
+                                {
+                                    if (e != API_OK)
+                                    {
+                                        LOG_err << "Failed to upgrade security. Error: " << e;
+                                        sendevent(99466, "KeyMgr / (auto) Upgrade security failed");
+                                    }
+                                });
                             }
                         }
                     }
