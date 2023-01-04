@@ -18311,6 +18311,29 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                         else
                         {
+                            MegaTransferPrivate* prevTransfer = NULL;
+                            auto range = client->multi_transfers[PUT].equal_range(f);
+                            for (auto it = range.first; it != range.second; ++it)
+                            {
+                                Transfer *t = it->second;
+                                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
+                                {
+                                    if (f->h != UNDEF && f->h == (*fi)->h && !f->targetuser.size()
+                                            && !(*fi)->targetuser.size() && f->name == (*fi)->name)
+                                    {
+                                        prevTransfer = getMegaTransferPrivate((*fi)->tag);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (prevTransfer && transfer->getAppData())
+                            {
+                                string appData = prevTransfer->getAppData() ? string(prevTransfer->getAppData()) + "!" : string();
+                                appData.append(transfer->getAppData());
+                                prevTransfer->setAppData(appData.c_str());
+                            }
+
                             //Already existing transfer
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
