@@ -6695,7 +6695,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // normal case: consider all the combinations
                             if (!syncItem(childRow, row, fullPath))
                             {
-                                if (childRow.syncNode)
+                                if (childRow.syncNode && childRow.syncNode->type != FOLDERNODE)
                                 {
                                     childRow.syncNode->setSyncAgain(true, true, false);
                                 }
