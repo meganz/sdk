@@ -581,6 +581,7 @@ struct CacheableWriter
     void serializei64(int64_t field);
     void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
+    void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializefsfp(fsfp_t field);
@@ -613,6 +614,7 @@ struct CacheableReader
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
+    bool unserializeu8(uint8_t& field);
     bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
