@@ -1509,6 +1509,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
             auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
             usm->setRelevant(b->relevant);
             usm->setSeen(b->seen);
+            return usm;
         }
     }
 
