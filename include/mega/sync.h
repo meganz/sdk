@@ -1428,6 +1428,66 @@ private:
     friend struct ProgressingMonitor;
 };
 
+class OverlayIconCachedPaths
+{
+    // This class is to help with reporting the status of synced files to the OS filesystem shell app
+    // We can't always immediately look up the status instantly, due to mutex lock waits
+    // and we don't want to stall the OS shell and make it wait.
+    // So,
+    // - remember the last (say) 512 paths the shell wanted to know about, and keep those up to date as we notify about them so we can reply instantly for those
+    // - remember the last (say) 512 paths that we notified anyway, so that when the OS shell comes back to ask what the status of that notified path is, we can reply instantly
+    // 512 should be enough as it would be tough to have that many files on screen at any one time
+
+    typedef map<LocalPath, int> Map;
+    Map paths;
+    deque<Map::iterator> recentOrder;
+    size_t sizeLimit = 512;
+    mutex mMutex;
+public:
+    void addOrUpdate(const LocalPath& lp, int value)
+    {
+        lock_guard<mutex> g(mMutex);
+        auto it_bool = paths.insert(Map::value_type(lp, value));
+        if (it_bool.second)
+        {
+            recentOrder.push_back(it_bool.first);
+        }
+        else
+        {
+            it_bool.first->second = value;
+        }
+        if (recentOrder.size() > sizeLimit)
+        {
+            paths.erase(recentOrder.front());
+            recentOrder.pop_front();
+        }
+    }
+    void overwriteExisting(const LocalPath& lp, int value)
+    {
+        lock_guard<mutex> g(mMutex);
+        auto it = paths.find(lp);
+        if (it != paths.end())
+        {
+            it->second = value;
+        }
+    }
+    bool lookup(const LocalPath& lp, int& value)
+    {
+        lock_guard<mutex> g(mMutex);
+        auto it = paths.find(lp);
+        if (it == paths.end()) return false;
+        value = it->second;
+        return true;
+    }
+    void clear()
+    {
+        lock_guard<mutex> g(mMutex);
+        recentOrder.clear();
+        paths.clear();
+    }
+};
+
+
 } // namespace
 
 #endif

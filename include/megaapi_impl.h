@@ -2909,6 +2909,9 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_SYNC
         //Sync
+        OverlayIconCachedPaths mRecentlyNotifiedOverlayIconPaths;
+        OverlayIconCachedPaths mRecentlyRequestedOverlayIconPaths;
+
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
         void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal = NULL, const char* excludePath = NULL, MegaRequestListener* listener = NULL);

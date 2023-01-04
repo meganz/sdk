@@ -6695,7 +6695,14 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // normal case: consider all the combinations
                             if (!syncItem(childRow, row, fullPath))
                             {
-                                row.syncNode->setSyncAgain(false, true, false);
+                                if (childRow.syncNode && childRow.syncNode->type != FOLDERNODE)
+                                {
+                                    childRow.syncNode->setSyncAgain(true, true, false);
+                                }
+                                else
+                                {
+                                    row.syncNode->setSyncAgain(false, true, false);
+                                }
                             }
 
                             if (ignoreFilePresent && childRow.isIgnoreFile() && childRow.fsNode)

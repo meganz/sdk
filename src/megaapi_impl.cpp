@@ -8816,6 +8816,13 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
 {
     LocalPath localpath = LocalPath::fromPlatformEncodedAbsolute(*platformEncoded);
 
+    int cached_ts;
+    if (mRecentlyRequestedOverlayIconPaths.lookup(localpath, cached_ts) ||
+        mRecentlyNotifiedOverlayIconPaths.lookup(localpath, cached_ts))
+    {
+        return cached_ts;
+    }
+
     handle containingSyncId = client->syncs.getSyncIdContainingActivePath(localpath);
 
     if (containingSyncId == UNDEF) return MegaApi::STATE_IGNORED;
@@ -8877,12 +8884,10 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
                 }
             }
             LOG_verbose << "Completed updates for OS path icon ovelays for . " << tmp->size() << " paths";
-
-            // avoid calling recursiveSync() straight away on the sync thread, which would mean we
-            // have the mLocalNodeChangeMutex locked, and we can't service the requests we just triggered
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
         });
     }
+
+    mRecentlyRequestedOverlayIconPaths.addOrUpdate(localpath, ts);
 
     return ts;
 }
@@ -12485,20 +12490,7 @@ void MegaApiImpl::file_added(File *f)
             transfer->setParentHandle(f->h.as8byte());
         }
 
-
-        string path;
-#ifdef ENABLE_SYNC
-// todo: this won't be working - need to figure out a better solution
-        LocalNode *l = dynamic_cast<LocalNode *>(f);
-        if (l)
-        {
-            path = l->getLocalPath().toPath(false);
-        }
-        else
-#endif
-        {
-            path = f->getLocalname().toPath(false);
-        }
+        string path = f->getLocalname().toPath(false);
         transfer->setPath(path.c_str());
     }
 
@@ -13393,6 +13385,9 @@ void MegaApiImpl::syncupdate_stateconfig(const SyncConfig& config)
 {
     mCachedMegaSyncPrivate.reset();
 
+    mRecentlyNotifiedOverlayIconPaths.clear();
+    mRecentlyRequestedOverlayIconPaths.clear();
+
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         fireOnSyncStateChanged(megaSync);
@@ -13429,6 +13424,9 @@ void MegaApiImpl::syncupdate_syncing(bool syncing)
 
 void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
+    mRecentlyNotifiedOverlayIconPaths.addOrUpdate(lp, ts);
+    mRecentlyRequestedOverlayIconPaths.overwriteExisting(lp, ts);
+
     if (auto megaSync = cachedMegaSyncPrivateByBackupId(config))
     {
         string s = lp.toPath(false);  // MegaSync was changed to expect utf8 for all platforms
@@ -13440,6 +13438,9 @@ void MegaApiImpl::syncupdate_treestate(const SyncConfig &config, const LocalPath
 
 void MegaApiImpl::sync_removed(const SyncConfig& config)
 {
+    mRecentlyNotifiedOverlayIconPaths.clear();
+    mRecentlyRequestedOverlayIconPaths.clear();
+
     auto msp_ptr = ::mega::make_unique<MegaSyncPrivate>(config, client);
     fireOnSyncDeleted(msp_ptr.get());
 }
