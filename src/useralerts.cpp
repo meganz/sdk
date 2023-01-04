@@ -231,16 +231,25 @@ bool UserAlert::Base::serialize(string* d)
     return true;
 }
 
-unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::unserialize(std::string* d)
+unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::readBase(CacheableReader& r)
 {
     auto p = make_unique<Persistent>();
-    CacheableReader r(*d);
-
     if (r.unserializecompressedi64(p->timestamp)
         && r.unserializehandle(p->userHandle)
         && r.unserializestring(p->userEmail)
         && r.unserializebool(p->relevant)
         && r.unserializebool(p->seen))
+    {
+        return p;
+    }
+
+    return nullptr;
+}
+
+unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::unserialize(std::string* d)
+{
+    CacheableReader r(*d);
+    if (auto p = readBase(r))
     {
         r.eraseused(*d);
         return p;
@@ -1318,21 +1327,65 @@ bool UserAlert::NewScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializeu8(subtype_new_Sched);
     w.serializehandle(mSchedMeetingHandle);
     w.serializeexpansionflags();
 
     return true;
 }
 
+UserAlert::Base* UserAlert::unserializeNewUpdSched(string* d, unsigned id)
+{
+    CacheableReader r(*d);
+    if (!Base::readBase(r))
+    {
+        assert(false);
+        LOG_err << "unserializeNewUpdSched: can't read UserAlert::Base";
+        return nullptr;
+    }
+
+    uint8_t subType = subtype_invalid;
+    if (!r.unserializeu8(subType))
+    {
+        assert(false);
+        LOG_err << "unserializeNewUpdSched: ill-formed mcsmp user alert (sub-type is not present)";
+        return nullptr;
+    }
+
+    switch (subType)
+    {
+        case subtype_new_Sched:
+            return UserAlert::NewScheduledMeeting::unserialize(d, id);
+            break;
+
+        case subtype_upd_Sched:
+            return UserAlert::UpdatedScheduledMeeting::unserialize(d, id);
+            break;
+
+        default:
+        {
+            assert(false);
+            LOG_err << "unserializeNewUpdSched: invalid mcsmp user alert sub-type";
+            return nullptr;
+        }
+    }
+}
+
 UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(string* d, unsigned id)
 {
     auto b = Base::unserialize(d);
     if (!b) return nullptr;
+    CacheableReader r(*d);
+
+    uint8_t subType = subtype_invalid;
+    r.unserializeu8(subType);
+    if (subType != subtype_new_Sched)
+    {
+        return nullptr;
+    }
 
     handle sm = UNDEF;
     unsigned char expF[8];
-
-    CacheableReader r(*d);
     if (r.unserializehandle(sm)
         && r.unserializeexpansionflags(expF, 0))
     {
@@ -1463,6 +1516,7 @@ bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializeu8(subtype_upd_Sched);
     w.serializehandle(mSchedMeetingHandle);
 
     w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
@@ -1483,12 +1537,18 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
 {
     auto b = Base::unserialize(d);
     if (!b) return nullptr;
+    CacheableReader r(*d);
+
+    uint8_t subType = subtype_invalid;
+    r.unserializeu8(subType);
+    if (subType != subtype_upd_Sched)
+    {
+        return nullptr;
+    }
 
     handle sm = UNDEF;
     uint64_t bits = 0;
     unsigned char expF[8];
-
-    CacheableReader r(*d);
     if (r.unserializehandle(sm)
         && r.unserializeu64(bits))
     {
@@ -2518,6 +2578,16 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
 
     case UserAlert::type_ph:
         a = UserAlert::Takedown::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_nusm:
+        // this method disambiguates between NewScheduledMeeting and UpdatedScheduledMeeting
+        a = UserAlert::unserializeNewUpdSched(d, nextId());
+        assert(a);
+        break;
+
+    case UserAlert::type_dsm:
+        a = UserAlert::DeletedScheduledMeeting::unserialize(d, nextId());
         break;
     }
 

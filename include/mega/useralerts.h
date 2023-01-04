@@ -80,6 +80,15 @@ namespace UserAlert
     static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
 #endif
 
+    enum userAlertsSubtype
+    {
+        subtype_invalid   = 0,
+        subtype_new_Sched = 1,
+        subtype_upd_Sched = 2,
+    };
+
+    struct Base;
+    static Base* unserializeNewUpdSched(string*, unsigned id);
     using handle_alerttype_map_t = map<handle, nameid>;
 
     struct Base : public Cacheable
@@ -131,7 +140,9 @@ namespace UserAlert
         } pst;
 
         bool serialize(string*) override;
+        static unique_ptr<Persistent> readBase(CacheableReader& r);
         static unique_ptr<Persistent> unserialize(string*);
+        friend Base* unserializeNewUpdSched(string*, unsigned id);
 
     private:
         bool mRemoved = false; // useful to know when to remove from persist db
