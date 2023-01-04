@@ -809,6 +809,11 @@ bool MegaUserAlert::hasSchedMeetingChanged(int) const
 {
     return false;
 }
+
+MegaStringList* MegaUserAlert::getUpdatedTitle() const
+{
+    return NULL;
+}
 #endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {

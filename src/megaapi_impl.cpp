@@ -2186,6 +2186,20 @@ bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
 {
     return schedMeetingChangeset.hasChanged(changeType);
 }
+
+MegaStringList* MegaUserAlertPrivate::getUpdatedTitle() const
+{
+    if (!hasSchedMeetingChanged(SM_CHANGE_TYPE_TITLE)
+            | !schedMeetingChangeset.getUpdatedTitle())
+    {
+        return nullptr;
+    }
+
+    MegaStringList* updatedTitle = MegaStringList::createInstance();
+    updatedTitle->add(schedMeetingChangeset.getUpdatedTitle()->oldValue.c_str());
+    updatedTitle->add(schedMeetingChangeset.getUpdatedTitle()->newValue.c_str());
+    return updatedTitle;
+}
 #endif
 
 bool MegaUserAlertPrivate::isOwnChange() const

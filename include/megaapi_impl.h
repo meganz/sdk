@@ -848,6 +848,7 @@ public:
 #ifdef ENABLE_CHAT
     MegaHandle getSchedId() const override;
     bool hasSchedMeetingChanged(int changeType) const override;
+    MegaStringList* getUpdatedTitle() const override;
 #endif
     bool isOwnChange() const override;
     bool isRemoved() const override;
