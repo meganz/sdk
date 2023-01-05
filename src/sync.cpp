@@ -8260,7 +8260,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag, nodeName == ".megaignore");  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
+                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag, nodeName == ".megaignore", displaceHandle);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
 
@@ -8363,7 +8364,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                                 if (signalPutnodesBegin)
                                     signalPutnodesBegin(*c);
 
-                                existingUpload->sendPutnodes(c, NodeHandle());
+                                existingUpload->sendPutnodesOfUpload(c, NodeHandle());
                             }, canChangeVault);
 
                         // putnodes will be executed after or simultaneous with the
@@ -8375,7 +8376,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     if (signalPutnodesBegin)
                         signalPutnodesBegin(mc);
 
-                    existingUpload->sendPutnodes(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
+                    existingUpload->sendPutnodesOfUpload(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
         }
         else if (existingUpload->putnodesStarted)

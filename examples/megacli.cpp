@@ -366,7 +366,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     auto onCompleted_foward = onCompleted;
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
         [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)

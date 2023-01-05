@@ -2406,15 +2406,44 @@ void LocalNode::updateMoveInvolvement()
     }
 }
 
-void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst)
+void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut)
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
+    sync->syncs.queueClient([upload, vo, queueFirst, ovHandleIfShortcut](MegaClient& mc, TransferDbCommitter& committer)
         {
-            upload->tag = mc.nextreqtag();
-            upload->selfKeepAlive = upload;
-            mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
+            // Can we do it by Node clone if there is a matching file already in the cloud?
+            Node* cloneNode = nullptr;
+            node_vector v = mc.mNodeManager.getNodesByFingerprint(*upload);
+            for (auto n: v)
+            {
+                string ext1, ext2;
+                mc.fsaccess->getextension(upload->getLocalname(), ext1);
+                n->getExtension(ext2);
+                if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
+                {
+                    cloneNode = n;
+                    break;
+                }
+            }
+
+            if (cloneNode)
+            {
+                // completion function is supplied to putNodes command
+                upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
+                upload->putnodesStarted = true;
+                upload->wasCompleted = true;
+            }
+            else
+            {
+                // upload will get called back on either completed() or termainted()
+                upload->tag = mc.nextreqtag();
+                upload->selfKeepAlive = upload;
+                mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo, nullptr, upload->tag);
+            }
         });
 
 }
@@ -2525,7 +2554,7 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
     SyncTransfer_inClient::completed(t, source);
 }
 
-void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
+void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
 {
     // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
@@ -2536,7 +2565,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
     syncThreadSafeState->client()->transferBackstop.forget(tag);
 
-    File::sendPutnodes(client,
+    File::sendPutnodesOfUpload(client,
         uploadHandle,
         uploadToken,
         fileNodeKey,
@@ -2577,6 +2606,50 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
             client->app->putnodes_result(e, t, nn, targetOverride, tag);
 
         }, nullptr, syncThreadSafeState->mCanChangeVault);
+}
+
+void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone)
+{
+    // Always called from the client thread
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
+    File::sendPutnodesToCloneNode(client,
+        nodeToClone,
+        PUTNODES_SYNC,
+        ovHandle,
+        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
+            {
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
+
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
+                {
+                    assert(!nn.empty());
+                    s->putnodesResultHandle = nn.front().mAddedHandle;
+                }
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
+            }
+
+            if (auto s = stts.lock())
+            {
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                }
+            }
+        }, syncThreadSafeState->mCanChangeVault);
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
