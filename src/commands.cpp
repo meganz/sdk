@@ -3274,19 +3274,23 @@ bool CommandPutUAVer::procresult(Result r)
         }
         else
         {
+            User *u = client->ownuser();
+
             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
             {
                 LOG_err << "Error processing new established value for the Key Manager";
 
-                if (client->mKeyManager.isSecure())
+                // if there's a previous version, better to keep that one in cache
+                const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                if (oldVersion)
                 {
-                    // bail out -> better to keep old value than a corrupt one
-                    mCompletion(API_EKEY);
-                    return true;
+                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << ", current: " << v;
+                    const string* oldValue = u->getattr(ATTR_KEYS);
+                    assert(oldValue);
+                    av = *oldValue;
                 }
             }
 
-            User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
 
@@ -3669,20 +3673,24 @@ bool CommandGetUA::procresult(Result r)
                         }
                         case '^': // private, non-encrypted
                         {
-                            // store the value in cache in binary format
-                            u->setattr(at, &value, &version);
-
                             if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {
                                 LOG_err << "Error processing new established value for the Key Manager upon init";
 
-                                if (client->mKeyManager.isSecure())
+                                // if there's a previous version, better to keep that one in cache
+                                const string* oldValue = u->getattr(ATTR_KEYS);
+                                const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                                if (oldValue)
                                 {
-                                    // bail out -> better to keep old value than a corrupt one
-                                    mCompletionErr(API_EKEY);
-                                    return true;
+                                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << version;
+                                    const string* oldValue = u->getattr(ATTR_KEYS);
+                                    assert(oldValue);
+                                    value = *oldValue;
                                 }
                             }
+
+                            // store the value in cache in binary format
+                            u->setattr(at, &value, &version);
 
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
@@ -4728,12 +4736,23 @@ bool CommandGetUserData::procresult(Result r)
 #endif
                 if (keys.size())
                 {
-                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                     client->mKeyManager.setKey(client->key);
                     if (!client->mKeyManager.fromKeysContainer(keys))
                     {
                         LOG_err << "Error processing new received values for the Key Manager (ug command)";
+
+                        // if there's a previous version, better to keep that one in cache
+                        const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                        if (oldVersion)
+                        {
+                            LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << keysVersion;
+                            const string* oldValue = u->getattr(ATTR_KEYS);
+                            assert(oldValue);
+                            keys = *oldValue;
+                        }
                     }
+
+                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                 }
 
                 if (changes > 0)
