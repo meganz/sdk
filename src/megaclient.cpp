@@ -21713,7 +21713,7 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
-            success = unserialize(keysPlain);
+            success = unserialize(km, keysPlain);
             if (!success)
             {
                 LOG_err << "Failed to unserialize ^!keys. Ignoring received value";
