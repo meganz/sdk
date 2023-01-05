@@ -3046,7 +3046,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 t->serialize(&serialized);
 
                 // put the transfer in cachedtransfers so we can resume it
-                Transfer::unserialize(client, &serialized, client->cachedtransfers);
+                Transfer::unserialize(client, &serialized, client->multi_cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
                 auto fpstr = t->files.front()->getLocalname().toPath(false);

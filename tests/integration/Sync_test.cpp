@@ -3613,7 +3613,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
 
         thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
             {
-                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
+                if (!client.multi_transfers[GET].empty() || !client.multi_transfers[PUT].empty())
                 {
                     any_add_del = true;
                 }
@@ -3882,7 +3882,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         int direction[] = { PUT, GET };
         for (int d = 0; d < 2; ++d)
         {
-            for (auto& it : sc.client.transfers[direction[d]])
+            for (auto& it : sc.client.multi_transfers[direction[d]])
             {
                 for (auto& it2 : it.second->files)
                 {
@@ -3902,19 +3902,19 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     }
 
     // wait for completion of ongoing transfers, up to 60s
-    for (int i = 30000; i-- && !client.transfers[GET].empty(); ) WaitMillisec(1);
-    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[GET].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
     LOG_debug << clientname << "transfers cleaned";
 
     // wait further for reqs to finish if any are queued, up to 30s
-    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
 
     // check transfers were canceled successfully
-    if (client.transfers[PUT].size() || client.transfers[GET].size())
+    if (client.multi_transfers[PUT].size() || client.multi_transfers[GET].size())
     {
         LOG_err << clientname << "Failed to clean transfers at cleanupForTestReuse():"
-                   << " put: " << client.transfers[PUT].size()
-                   << " get: " << client.transfers[GET].size();
+                   << " put: " << client.multi_transfers[PUT].size()
+                   << " get: " << client.multi_transfers[GET].size();
     }
     else
     {

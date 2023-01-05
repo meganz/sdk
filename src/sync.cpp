@@ -5701,7 +5701,7 @@ void Sync::purgeStaleDownloads()
         }
 
         // Filter out paths that are still "alive."
-        for (auto& i : client.cachedtransfers[GET])
+        for (auto& i : client.multi_cachedtransfers[GET])
         {
             if (!i.second->localfilename.empty())
                 paths.erase(i.second->localfilename);

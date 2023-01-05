@@ -138,7 +138,7 @@ struct MEGA_API Transfer : public FileFingerprint
     UploadHandle uploadhandle;
 
     // position in transfers[type]
-    transfer_map::iterator transfers_it;
+    transfer_multimap::iterator transfers_it;
 
     // upload result
     unique_ptr<UploadToken> ultoken;
@@ -194,7 +194,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool serialize(string*) override;
 
     // unserialize a Transfer and add it to the transfer map
-    static Transfer* unserialize(MegaClient *, string*, transfer_map *);
+    static Transfer* unserialize(MegaClient *, string*, transfer_multimap *);
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
     void addAnyMissingMediaFileAttributes(Node* node, LocalPath& localpath);

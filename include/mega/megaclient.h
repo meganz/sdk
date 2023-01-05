@@ -1723,7 +1723,7 @@ public:
     node_vector getInShares();
 
     // transfer queues (PUT/GET)
-    transfer_map transfers[2];
+    transfer_multimap multi_transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
     uint32_t lastKnownCancelCount = 0;
 #ifdef ENABLE_SYNC
@@ -1735,7 +1735,7 @@ public:
     TransferList transferlist;
 
     // cached transfers (PUT/GET)
-    transfer_map cachedtransfers[2];
+    transfer_multimap multi_cachedtransfers[2];
 
     // cached files and their dbids
     vector<string> cachedfiles;
@@ -1848,6 +1848,12 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
+
+    // functions for determining whether we can clone a node instead of upload
+    // or whether two files are the same so we can just upload/download the data once
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
 
 #ifdef ENABLE_SYNC
 

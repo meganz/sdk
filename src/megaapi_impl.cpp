@@ -18313,8 +18313,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->transfers[PUT].find(f);
-                            if (it != client->transfers[PUT].end())
+                            auto range = client->multi_transfers[PUT].equal_range(f);
+                            for (auto it = range.first; it != range.second; ++it)
                             {
                                 Transfer *t = it->second;
                                 for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
@@ -18415,7 +18415,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
 
-                    MegaFileGet *f;
                     if (node)
                     {
                         if (!fileName)
@@ -18452,44 +18451,31 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     }
                     wLocalPath.appendWithSeparator(name, true);
 
-                    FileFingerprint *prevFp = NULL;
-                    m_off_t size = 0;
-                    auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(wLocalPath, true, false))
+                    FileFingerprint nodeFingerprint;
+                    if (node)
                     {
-                        if (node)
-                        {
-                            prevFp = node;
-                            size = node->size;
-                        }
-                        else
-                        {
-                            const char *fpstring = publicNode->getFingerprint();
-                            prevFp = getFileFingerprintInternal(fpstring);
-                            size = publicNode->getSize();
-                        }
+                        nodeFingerprint = *node;
+                    }
+                    else
+                    {
+                        unique_ptr<FileFingerprint> fp(getFileFingerprintInternal(publicNode->getFingerprint()));
+                        if (fp) nodeFingerprint = *fp;
+                    }
 
-                        bool duplicate = false;
-                        if (prevFp && prevFp->isvalid)
-                        {
-                            FileFingerprint fp;
-                            fp.genfingerprint(fa.get());
-                            if (fp == *prevFp)
-                            {
-                                duplicate = true;
-                            }
-                        }
-                        else if (fa->size == size)
-                        {
-                            duplicate = true;
-                        }
+                    // Is there already a file at the download location that matches that node?
+                    // If so, report the transfer as complete and successful, instantly (as it did before)
+                    string ext;
+                    if (nodeFingerprint.isvalid &&
+                        fsAccess->getextension(wLocalPath, ext))
+                    {
+                        if (!ext.empty() && ext[0] == '.') ext.erase(0, 1);
 
-                        if (duplicate)
+                        if (client->treatAsIfFileDataEqual(nodeFingerprint, wLocalPath, ext))
                         {
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
-                            transfer->setTotalBytes(fa->size);
+                            transfer->setTotalBytes(nodeFingerprint.size);
                             transfer->setTransferredBytes(0);
                             transfer->setPath(wLocalPath.toPath(false).c_str());
                             transfer->setStartTime(Waiter::ds);
@@ -18504,9 +18490,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             else
                             {
                                 transfer->setNodeHandle(publicNode->getHandle());
-                                delete prevFp;
                             }
-                            transfer->setDeltaSize(fa->size);
+                            transfer->setDeltaSize(nodeFingerprint.size);
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -18515,17 +18500,20 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             break;
                         }
                     }
-                    fa.reset();
+                    else
+                    {
+                        LOG_debug << "Could not get fingerprint or extension to evaluate whether the on-disk file is the same as the node";
+                    }
 
                     currentTransfer = transfer;
+                    unique_ptr<MegaFileGet> f;
                     if (node)
                     {
-                        f = new MegaFileGet(client, node, wLocalPath, fsType);
+                        f.reset(new MegaFileGet(client, node, wLocalPath, fsType));
                     }
                     else
                     {
-                        delete prevFp;
-                        f = new MegaFileGet(client, publicNode, wLocalPath);
+                        f.reset(new MegaFileGet(client, publicNode, wLocalPath));
                     }
 
                     transfer->setPath(wLocalPath.toPath(false).c_str());
@@ -18535,7 +18523,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     mega::error cause;
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
+                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -21424,7 +21412,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             // 2. cancel transfers that were already startxfer'd
-            for (auto& it : client->transfers[direction])
+            for (auto& it : client->multi_transfers[direction])
             {
                 for (auto& it2 : it.second->files)
                 {
@@ -22162,7 +22150,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->usehttps = usehttps;
                 for (int d = GET; d == GET || d == PUT; d += PUT - GET)
                 {
-                    for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); )
+                    for (auto it = client->multi_transfers[d].begin(); it != client->multi_transfers[d].end(); )
                     {
                         Transfer *t = it->second;
                         it++; // in case the failed() call deletes the transfer (which removes it from the list)
@@ -23492,13 +23480,13 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
 void MegaApiImpl::updateStats()
 {
     sdkMutex.lock();
-    if (pendingDownloads && !client->transfers[GET].size())
+    if (pendingDownloads && !client->multi_transfers[GET].size())
     {
         LOG_warn << "Incorrect number of pending downloads: " << pendingDownloads;
         pendingDownloads = 0;
     }
 
-    if (pendingUploads && !client->transfers[PUT].size())
+    if (pendingUploads && !client->multi_transfers[PUT].size())
     {
         LOG_warn << "Incorrect number of pending uploads: " << pendingUploads;
         pendingUploads = 0;
@@ -23542,7 +23530,7 @@ void MegaApiImpl::update()
               << " " << client->fileAttributesUploading.size()
               << " " << client->fetchingnodes
               << " " << client->xferpaused[0] << " " << client->xferpaused[1]
-              << " " << client->transfers[0].size() << " " << client->transfers[1].size()
+              << " " << client->multi_transfers[0].size() << " " << client->multi_transfers[1].size()
               << " " << client->statecurrent
               << " " << client->syncdebrisadding
               << " " << client->umindex.size() << " " << client->uhindex.size();

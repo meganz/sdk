@@ -953,7 +953,9 @@ public:
 };
 
 bool isDoNotSyncFileName(const string& name);
-#endif
+#endif  // ENABLE_SYNC
+
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot);
 
 } // namespace
 
