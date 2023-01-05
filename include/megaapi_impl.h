@@ -849,6 +849,9 @@ public:
     MegaHandle getSchedId() const override;
     bool hasSchedMeetingChanged(int changeType) const override;
     MegaStringList* getUpdatedTitle() const override;
+    MegaStringList* getUpdatedTimeZone() const override;
+    MegaIntegerList* getUpdatedStartDate() const override;
+    MegaIntegerList* getUpdatedEndDate() const override;
 #endif
     bool isOwnChange() const override;
     bool isRemoved() const override;

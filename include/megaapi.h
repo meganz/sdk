@@ -89,6 +89,7 @@ class MegaScheduledMeetingList;
 class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
+class MegaIntegerList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -2128,9 +2129,51 @@ public:
      * To retrieve old title you need to call: MegaStringList::get(0)
      * To retrieve new title you need to call: MegaStringList::get(1)
      *
-     * @return MegaStringList that contains old and new title for ther scheduled meeting
+     * @return MegaStringList that contains old and new title for the scheduled meeting
      */
     virtual MegaStringList* getUpdatedTitle() const;
+
+    /**
+     * @brief Returns a MegaStringList that contains old and new TimeZone for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE)
+     *
+     * To retrieve old TimeZone you need to call: MegaStringList::get(0)
+     * To retrieve new TimeZone you need to call: MegaStringList::get(1)
+     *
+     * @return MegaStringList that contains old and new TimeZone for the scheduled meeting
+     */
+    virtual MegaStringList* getUpdatedTimeZone() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_STARTDATE)
+     *
+     * To retrieve old StartDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new StartDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedStartDate() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_ENDDATE)
+     *
+     * To retrieve old EndDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new EndDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedEndDate() const;
 #endif
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.
