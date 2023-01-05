@@ -8425,46 +8425,47 @@ MegaTransferList *MegaApiImpl::getTansfersByFolderTag(int folderTransferTag)
 MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
 {
     map<int64_t, string> backupTimesPaths;
-    SdkMutexGuard g(sdkMutex);
-
-    map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(backuptag) ;
-    if (itr == backupsMap.end())
     {
-        LOG_err << "Failed to find backup with tag " << backuptag;
-        return NULL;
-    }
+        SdkMutexGuard g(sdkMutex);
 
-    MegaScheduledCopyController *mbc = itr->second;
-
-    MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
-    if (parentNode)
-    {
-        MegaNodeList* children = getChildren(parentNode, MegaApi::ORDER_NONE);
-        if (children)
+        map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(backuptag) ;
+        if (itr == backupsMap.end())
         {
-            for (int i = 0; i < children->size(); i++)
+            LOG_err << "Failed to find backup with tag " << backuptag;
+            return NULL;
+        }
+
+        MegaScheduledCopyController *mbc = itr->second;
+
+        MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
+        if (parentNode)
+        {
+            MegaNodeList* children = getChildren(parentNode, MegaApi::ORDER_NONE);
+            if (children)
             {
-                MegaNode *childNode = children->get(i);
-                string childname = childNode->getName();
-                if (mbc->isBackup(childname, mbc->getBackupName()) )
+                for (int i = 0; i < children->size(); i++)
                 {
-                    int64_t timeofbackup = mbc->getTimeOfBackup(childname);
-                    if (timeofbackup)
+                    MegaNode *childNode = children->get(i);
+                    string childname = childNode->getName();
+                    if (mbc->isBackup(childname, mbc->getBackupName()) )
                     {
-                        backupTimesPaths[timeofbackup]=getNodePath(childNode);
-                    }
-                    else
-                    {
-                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                        int64_t timeofbackup = mbc->getTimeOfBackup(childname);
+                        if (timeofbackup)
+                        {
+                            backupTimesPaths[timeofbackup]=getNodePath(childNode);
+                        }
+                        else
+                        {
+                            LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                        }
                     }
                 }
-            }
 
-            delete children;
+                delete children;
+            }
+            delete parentNode;
         }
-        delete parentNode;
     }
-    g.unlock();
 
     string_vector listofpaths;
 
