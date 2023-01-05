@@ -3756,6 +3756,19 @@ TEST_F(SdkTest, SdkTestShareKeys)
     LOG_info << "___TEST ShareKeys___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
+    // make sure users B and C have no inshares (since before this test was started)
+    for (int apiIdx = 1; apiIdx <= 2; ++apiIdx)
+    {
+        unique_ptr<MegaShareList> inShares(megaApi[apiIdx]->getInSharesList());
+        for (int i = 0; i < inShares->size(); ++i)
+        {
+            // leave share
+            MegaShare* s = inShares->get(i);
+            unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(s->getNodeHandle()));
+            ASSERT_EQ(API_OK, synchronousRemove(apiIdx, n.get()));
+        }
+    }
+
     // Three user scenario, with nested shares and new nodes created that need keys to be shared to the other users.
     // User A creates folder and shares it with user B
     // User A creates folders / subfolder and shares it with user C
