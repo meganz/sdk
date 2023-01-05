@@ -21817,7 +21817,11 @@ string KeyManager::toKeysContainer()
         return string();
     }
 
-    ++mGeneration;
+    // Do not update mGeneration here, since it may lead to fake
+    // detection of downgrade-attacks. Instead, use mGeneration+1
+    // at the serialize(). The mGeneration will be updated later,
+    // when the putua() from updateAttribute() success.
+    //++mGeneration;
 
     const string iv = mClient.rng.genstring(IV_LEN);
     const string keysPlain = serialize();
@@ -21858,7 +21862,7 @@ string KeyManager::serialize() const
     result.append((const char*)&mIdentity, sizeof(mIdentity));
 
     result.append(tagHeader(TAG_GENERATION, sizeof(mGeneration)));
-    uint32_t generationBE = htonl(mGeneration); // Webclient sets this value as BigEndian
+    uint32_t generationBE = htonl(mGeneration+1); // Webclient sets this value as BigEndian
     result.append((const char*)&generationBE, sizeof(generationBE));
 
     result.append(tagHeader(TAG_ATTR, mAttr.size()));
