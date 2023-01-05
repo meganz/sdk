@@ -345,18 +345,29 @@ namespace UserAlert
 
                 CHANGE_TYPE_SIZE
             };
-            struct TitleChangeset { string oldValue, newValue; };
+            struct StrChangeset { string oldValue, newValue; };
+            struct TsChangeset  { m_time_t oldValue, newValue; };
 
-            const TitleChangeset* getUpdatedTitle() const { return mUpdatedTitle.get(); }
-            unsigned long getChanges() const { return mUpdatedFields.to_ulong(); }
-            string changeToString(int changeType) const;
+            const StrChangeset* getUpdatedTitle() const         { return mUpdatedTitle.get(); }
+            const StrChangeset* getUpdatedTimeZone() const      { return mUpdatedTimeZone.get(); }
+            const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
+            const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
+            unsigned long getChanges() const                    { return mUpdatedFields.to_ulong(); }
             bool hasChanged(int changeType) const
-            { return isValidChange(changeType) ? mUpdatedFields[changeType] : false; }
+            {
+                return isValidChange(changeType)
+                        ? mUpdatedFields[changeType]
+                        : false;
+            }
 
-            void addChange(int changeType, const string& oldValue = "", const string& newValue = "");
-
+            string changeToString(int changeType) const;
+            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
             Changeset() = default;
-            Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs, unique_ptr<TitleChangeset>& _titleCS);
+            Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
+                      unique_ptr<StrChangeset>& _titleCS,
+                      unique_ptr<StrChangeset>& _tzCS,
+                      unique_ptr<TsChangeset>& _sdCS,
+                      unique_ptr<TsChangeset>& _edCS);
 
             Changeset(const Changeset& src) { replaceCurrent(src); }
             Changeset& operator=(const Changeset& src) { replaceCurrent(src); return *this; }
@@ -369,29 +380,50 @@ namespace UserAlert
              * invariant:
              * - bitset size must be the maximum types of changes allowed
              * - if title changed, there must be previous and new title string
+             * - if timezone changed, there must be previous and new title string
+             * - if StartDateTime changed, there must be previous and new title string
+             * - if EndDateTime changed, there must be previous and new title string
              */
             bool invariant() const
             {
                 return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
-                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]
-                            || !!mUpdatedTitle));
+                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]     || !!mUpdatedTitle)
+                        && (!mUpdatedFields[CHANGE_TYPE_TIMEZONE]  || !!mUpdatedTimeZone)
+                        && (!mUpdatedFields[CHANGE_TYPE_STARTDATE] || !!mUpdatedStartDateTime)
+                        && (!mUpdatedFields[CHANGE_TYPE_ENDDATE]   || !!mUpdatedEndDateTime));
             }
 
             bool isValidChange(int changeType) const
-            { return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE); }
+            {
+                return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE);
+            }
 
             void replaceCurrent(const Changeset& src)
             {
                 mUpdatedFields = src.mUpdatedFields;
                 if (src.mUpdatedTitle)
                 {
-                    mUpdatedTitle.reset(new TitleChangeset{src.mUpdatedTitle->oldValue,
-                                                           src.mUpdatedTitle->newValue});
+                    mUpdatedTitle.reset(new StrChangeset{src.mUpdatedTitle->oldValue, src.mUpdatedTitle->newValue});
+                }
+                if (src.mUpdatedTimeZone)
+                {
+                    mUpdatedTimeZone.reset(new StrChangeset{src.mUpdatedTimeZone->oldValue, src.mUpdatedTimeZone->newValue});
+                }
+                if (src.mUpdatedStartDateTime)
+                {
+                    mUpdatedStartDateTime.reset(new TsChangeset{src.mUpdatedStartDateTime->oldValue, src.mUpdatedStartDateTime->newValue});
+                }
+                if (src.mUpdatedEndDateTime)
+                {
+                    mUpdatedEndDateTime.reset(new TsChangeset{src.mUpdatedEndDateTime->oldValue, src.mUpdatedEndDateTime->newValue});
                 }
             }
 
             std::bitset<CHANGE_TYPE_SIZE> mUpdatedFields;
-            unique_ptr<TitleChangeset> mUpdatedTitle;
+            unique_ptr<StrChangeset> mUpdatedTitle;
+            unique_ptr<StrChangeset> mUpdatedTimeZone;
+            unique_ptr<TsChangeset> mUpdatedStartDateTime;
+            unique_ptr<TsChangeset> mUpdatedEndDateTime;
         };
 
         handle mSchedMeetingHandle = UNDEF;

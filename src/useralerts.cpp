@@ -1504,6 +1504,27 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
             oss << ": previous title |" << Base64::atob(titleCS->oldValue)
                 << "| new title |" << Base64::atob(titleCS->newValue) << "|";
         }
+
+        if (changeType == Changeset::CHANGE_TYPE_TIMEZONE && mUpdatedChangeset.getUpdatedTimeZone())
+        {
+            const auto& tzCS = mUpdatedChangeset.getUpdatedTimeZone();
+            oss << ": previous timezone |" << Base64::atob(tzCS->oldValue)
+                << "| new timezone |" << Base64::atob(tzCS->newValue) << "|";
+        }
+
+        if (changeType == Changeset::CHANGE_TYPE_STARTDATE && mUpdatedChangeset.getUpdatedStartDateTime())
+        {
+            const auto& sdCS = mUpdatedChangeset.getUpdatedStartDateTime();
+            oss << ": previous startDateTime |" << sdCS->oldValue
+                << "| new startDateTime |" << sdCS->newValue << "|";
+        }
+
+        if (changeType == Changeset::CHANGE_TYPE_ENDDATE && mUpdatedChangeset.getUpdatedEndDateTime())
+        {
+            const auto& edCS = mUpdatedChangeset.getUpdatedEndDateTime();
+            oss << ": previous endDateTime |" << edCS->oldValue
+                << "| new endDateTime |" << edCS->newValue << "|";
+        }
     };
 
     header = "Updated Scheduled Meeting";
@@ -1518,14 +1539,34 @@ bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
     CacheableWriter w(*d);
     w.serializeu8(subtype_upd_Sched);
     w.serializehandle(mSchedMeetingHandle);
-
     w.serializeu64(static_cast<uint64_t>(mUpdatedChangeset.getChanges()));
-    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE)
-        && mUpdatedChangeset.getUpdatedTitle())
+
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TITLE) && mUpdatedChangeset.getUpdatedTitle())
     {
         const auto& titleCS = mUpdatedChangeset.getUpdatedTitle();
         w.serializestring(titleCS->oldValue);
         w.serializestring(titleCS->newValue);
+    }
+
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_TIMEZONE) && mUpdatedChangeset.getUpdatedTimeZone())
+    {
+        const auto& tzCS = mUpdatedChangeset.getUpdatedTimeZone();
+        w.serializestring(tzCS->oldValue);
+        w.serializestring(tzCS->newValue);
+    }
+
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_STARTDATE) && mUpdatedChangeset.getUpdatedStartDateTime())
+    {
+        const auto& sdCS = mUpdatedChangeset.getUpdatedStartDateTime();
+        w.serializei64(sdCS->oldValue);
+        w.serializei64(sdCS->newValue);
+    }
+
+    if (mUpdatedChangeset.hasChanged(Changeset::CHANGE_TYPE_ENDDATE) && mUpdatedChangeset.getUpdatedEndDateTime())
+    {
+        const auto& edCS = mUpdatedChangeset.getUpdatedEndDateTime();
+        w.serializei64(edCS->oldValue);
+        w.serializei64(edCS->newValue);
     }
 
     w.serializeexpansionflags();
@@ -1552,21 +1593,51 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     if (r.unserializehandle(sm)
         && r.unserializeu64(bits))
     {
-        unique_ptr<Changeset::TitleChangeset> tcs;
         std::bitset<Changeset::CHANGE_TYPE_SIZE> bs (static_cast<unsigned long>(bits));
+
+        unique_ptr<Changeset::StrChangeset> tcs;
         if (bs[Changeset::CHANGE_TYPE_TITLE])
         {
-            string oldTitle;
-            string newTitle;
+            string oldTitle, newTitle;
             if (r.unserializestring(oldTitle) && r.unserializestring(newTitle))
             {
-                tcs.reset(new Changeset::TitleChangeset{oldTitle, newTitle});
+                tcs.reset(new Changeset::StrChangeset{oldTitle, newTitle});
+            }
+        }
+
+        unique_ptr<Changeset::StrChangeset> tzcs;
+        if (bs[Changeset::CHANGE_TYPE_TIMEZONE])
+        {
+            string oldTz, newTz;
+            if (r.unserializestring(oldTz) && r.unserializestring(newTz))
+            {
+                tzcs.reset(new Changeset::StrChangeset{oldTz, newTz});
+            }
+        }
+
+        unique_ptr<Changeset::TsChangeset> sdcs;
+        if (bs[Changeset::CHANGE_TYPE_STARTDATE])
+        {
+            m_time_t oldsd, newsd;
+            if (r.unserializei64(oldsd) && r.unserializei64(newsd))
+            {
+                sdcs.reset(new Changeset::TsChangeset{oldsd, newsd});
+            }
+        }
+
+        unique_ptr<Changeset::TsChangeset> edcs;
+        if (bs[Changeset::CHANGE_TYPE_ENDDATE])
+        {
+            m_time_t olded, newed;
+            if (r.unserializei64(olded) && r.unserializei64(newed))
+            {
+                edcs.reset(new Changeset::TsChangeset{olded, newed});
             }
         }
 
         if (r.unserializeexpansionflags(expF, 0))
         {
-            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs});
+            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, sm, {bs, tcs, tzcs, sdcs, edcs});
             usm->setRelevant(b->relevant);
             usm->setSeen(b->seen);
             return usm;
@@ -1577,8 +1648,15 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
 }
 
 UserAlert::UpdatedScheduledMeeting::Changeset::Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
-                                                         unique_ptr<TitleChangeset>& _titleCS)
-    : mUpdatedFields(_bs), mUpdatedTitle(std::move(_titleCS))
+                                                         unique_ptr<StrChangeset>& _titleCS,
+                                                         unique_ptr<StrChangeset>& _tzCS,
+                                                         unique_ptr<TsChangeset>& _sdCS,
+                                                         unique_ptr<TsChangeset>& _edCS)
+    : mUpdatedFields(_bs),
+      mUpdatedTitle(std::move(_titleCS)),
+      mUpdatedTimeZone(std::move(_tzCS)),
+      mUpdatedStartDateTime(std::move(_sdCS)),
+      mUpdatedEndDateTime(std::move(_edCS))
 {
     if (!invariant())
     {
@@ -1603,15 +1681,28 @@ string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeT
 }
 
 void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
-                                                              const string& oldValue,
-                                                              const string& newValue)
+                             UpdatedScheduledMeeting::Changeset::StrChangeset* sSet,
+                             UpdatedScheduledMeeting::Changeset::TsChangeset* tSet)
 {
     if (isValidChange(changeType))
     {
-        mUpdatedFields[static_cast<size_t>(changeType)] = true;
-        if (changeType == CHANGE_TYPE_TITLE)
+        mUpdatedFields[static_cast<size_t>(changeType)] = true; // update bitmask
+        switch (changeType)
         {
-            mUpdatedTitle.reset(new TitleChangeset{oldValue, newValue});
+            case CHANGE_TYPE_TITLE:
+                if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+                break;
+            case CHANGE_TYPE_TIMEZONE:
+                if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+                break;
+            case CHANGE_TYPE_STARTDATE:
+                if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+                break;
+            case CHANGE_TYPE_ENDDATE:
+                if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+                break;
+            default:
+                break;
         }
     }
     if (!invariant())
