@@ -114,8 +114,9 @@ typedef fingerprint_set::iterator FingerprintPosition;
 class NodeManagerNode
 {
 public:
+    // Instances of this class cannot be copied
     std::unique_ptr<Node> mNode;
-    std::map<NodeHandle, Node*> mChildren;
+    std::unique_ptr<std::map<NodeHandle, Node*>> mChildren;
     bool mAllChildrenHandleLoaded = false;
 };
 typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
@@ -329,6 +330,7 @@ private:
 
     static nameid getExtensionNameId(const std::string& ext);
 
+ public:
     enum
     {
         FLAGS_IS_VERSION = 0,  // This bit is active if node is a version

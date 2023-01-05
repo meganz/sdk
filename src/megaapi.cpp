@@ -799,7 +799,17 @@ const char* MegaUserAlert::getString(unsigned) const
 {
     return NULL;
 }
+#ifdef ENABLE_CHAT
+MegaHandle MegaUserAlert::getSchedId() const
+{
+    return INVALID_HANDLE;
+}
 
+bool MegaUserAlert::hasSchedMeetingChanged(int) const
+{
+    return false;
+}
+#endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
     return INVALID_HANDLE;
@@ -5744,6 +5754,11 @@ MegaSet* MegaApi::getSet(MegaHandle sid)
 MegaHandle MegaApi::getSetCover(MegaHandle sid)
 {
     return pImpl->getSetCover(sid);
+}
+
+unsigned MegaApi::getSetElementCount(MegaHandle sid)
+{
+    return pImpl->getSetElementCount(sid);
 }
 
 MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)

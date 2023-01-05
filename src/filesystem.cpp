@@ -803,11 +803,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -1836,14 +1836,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 
     return isFilenameAnomaly(localPath, node->displayname(), node->type);
 }
-
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.getLocalname(), node.name, node.type);
-}
-#endif
-
 
 bool isNetworkFilesystem(FileSystemType type)
 {
