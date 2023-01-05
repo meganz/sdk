@@ -4045,6 +4045,10 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
                             ++next_request_tag,
                             [result](Error e2, bool) {result->set_value(!e2);});
                     }
+                    else
+                    {
+                        result->set_value(false);
+                    }
                 }
             );
         }

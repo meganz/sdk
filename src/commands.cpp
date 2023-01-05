@@ -4754,6 +4754,12 @@ bool CommandGetUserData::procresult(Result r)
 
                     changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                 }
+                else if (client->mKeyManager.generation())
+                {
+                    // once the KeyManager is initialized, a future `ug` should always
+                    // include the user's attribute
+                    client->sendevent(99465, "KeyMgr / Setup failure");
+                }
 
                 if (changes > 0)
                 {

@@ -11157,16 +11157,17 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         return;
     }
 
-    std::string previousKey;
+    bool updateKeys = false;
     if (!n->sharekey)
     {
-        previousKey = mKeyManager.getShareKey(n->nodehandle);
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
         if (!previousKey.size())
         {
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
             n->sharekey = new SymmCipher(key);
+            updateKeys = true;
         }
         else
         {
@@ -11175,7 +11176,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
     }
 
-    if (!previousKey.size())    // new share: add key to ^!keys and
+    if (updateKeys)    // new share: add key to ^!keys
     {
         handle nodehandle = n->nodehandle;
         std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
@@ -21712,7 +21713,12 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
-            success = unserialize(km, keysPlain);
+            success = unserialize(keysPlain);
+            if (!success)
+            {
+                LOG_err << "Failed to unserialize ^!keys. Ignoring received value";
+                mClient.sendevent(99463, "KeyMgr / Failed to unserialize ^!keys");
+            }
         }
     }
 
@@ -22385,6 +22391,11 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
             return;
         }
 
+        if (e == API_EEXPIRED)
+        {
+            mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
+        }
+
         mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
         [e, completion](error err)
         {
@@ -22828,6 +22839,8 @@ string KeyManager::computeSymmetricKey(handle user)
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
         // TODO: Do we need to request it and retry?
+        assert(false);
+        mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
         return std::string();
     }
 
