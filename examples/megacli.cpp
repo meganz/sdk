@@ -4730,18 +4730,11 @@ void exec_rm(autocomplete::ACState& s)
 
         for (auto d : v)
         {
-            if (client->checkaccess(d, FULL))
-            {
-                error e = client->unlink(d, false, 0, false);
+            error e = client->unlink(d, false, 0, false);
 
-                if (e)
-                {
-                    cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                }
-            }
-            else
+            if (e)
             {
-                cout << d->displaypath() << ": Access denied" << endl;
+                cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
             }
         }
     }
