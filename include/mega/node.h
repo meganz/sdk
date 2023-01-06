@@ -134,12 +134,11 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 
     bool putnodesStarted = false;
 
-    // Valid when wasPutnodesCompleted is true.
+    // Valid when wasPutnodesCompleted is true. (putnodes might be from upload, or shortcut node clone)
     handle putnodesResultHandle;
     bool putnodesFailed = false;
 
     std::atomic<bool> wasPutnodesCompleted{false};
-    //std::atomic<bool> renameInProgress{false};
 
     handle sourceFsid;
     LocalPath sourceLocalname;
@@ -149,7 +148,8 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     UploadToken uploadToken;
     FileNodeKey fileNodeKey;
 
-    void sendPutnodes(MegaClient* client, NodeHandle ovHandle);
+    void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
+    void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
 };
 
 // new node for putnodes()
@@ -444,7 +444,9 @@ private:
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
 
+public:
     bool getExtension(std::string& ext) const;
+private:
     bool isPhoto(const std::string& ext, bool checkPreview) const;
     bool isVideo(const std::string& ext) const;
     bool isAudio(const std::string& ext) const;
@@ -822,7 +824,7 @@ struct MEGA_API LocalNode
 
     // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that
-    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst);
+    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload, bool queueFirst);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
     void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);

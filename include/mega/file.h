@@ -51,10 +51,15 @@ struct MEGA_API File: public FileFingerprint
     // update localname
     virtual void updatelocalname() { }
 
-    void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+    void sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                       const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                       std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
                       const m_time_t* overrideMtime, bool canChangeVault);
+
+    void sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
+                      putsource_t source, NodeHandle ovHandle,
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                      bool canChangeVault);
 
     // generic filename for this transfer
     void displayname(string*);
