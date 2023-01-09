@@ -17928,18 +17928,21 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 {
                     Changeset::StrChangeset cs;
                     j->storeobject(&cs.oldValue);
-                    j->storeobject(&cs.newValue);
-                    if (cs.oldValue == cs.newValue)
+                    bool updated = j->storeobject(&cs.newValue);
+                    if (updated)
                     {
-                        LOG_err << "ScheduledMeetings: Received updated SM with updated TimeZone "
-                                << "notification but no modification: old TimeZone |" << cs.oldValue
-                                << "| new TimeZone |" << cs.newValue <<"|";
-                        keepParsing = false;
-                        e = API_EINTERNAL;
-                    }
-                    else
-                    {
-                        auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &cs);
+                        if (cs.oldValue == cs.newValue)
+                        {
+                            LOG_err << "ScheduledMeetings: Received updated SM with updated TimeZone "
+                                    << "notification but no modification: old TimeZone |" << cs.oldValue
+                                    << "| new TimeZone |" << cs.newValue <<"|";
+                            keepParsing = false;
+                            e = API_EINTERNAL;
+                        }
+                        else
+                        {
+                            auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &cs);
+                        }
                     }
                     j->leavearray();
                 }
@@ -17952,27 +17955,25 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 {
                     Changeset::TsChangeset cs;
                     cs.oldValue = j->getint();
-                    cs.newValue = j->getint();
-                    if (cs.oldValue == cs.newValue)
+                    bool updated = cs.newValue = j->getint();
+                    if (updated)
                     {
-                        LOG_err << "ScheduledMeetings: Received updated SM with updated StartDateTime "
-                                << "notification but no modification: old StartDateTime |" << cs.oldValue
-                                << "| new StartDateTime |" << cs.newValue <<"|";
-                        keepParsing = false;
-                        e = API_EINTERNAL;
-                    }
-                    else
-                    {
-                        auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &cs);
+                        if (cs.oldValue == cs.newValue)
+                        {
+                            LOG_err << "ScheduledMeetings: Received updated SM with updated StartDateTime "
+                                    << "notification but no modification: old StartDateTime |" << cs.oldValue
+                                    << "| new StartDateTime |" << cs.newValue <<"|";
+                            keepParsing = false;
+                            e = API_EINTERNAL;
+                        }
+                        else
+                        {
+                            auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &cs);
+                        }
                     }
                     j->leavearray();
                 }
                 */
-
-                if (wasFieldUpdated())
-                {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE);
-                }
                 break;
 
             case MAKENAMEID1('e'):
@@ -17982,27 +17983,25 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 {
                     Changeset::TsChangeset cs;
                     cs.oldValue = j->getint();
-                    cs.newValue = j->getint();
-                    if (cs.oldValue == cs.newValue)
+                    bool updated = cs.newValue = j->getint();
+                    if (updated)
                     {
-                        LOG_err << "ScheduledMeetings: Received updated SM with updated EndDateTime "
-                                << "notification but no modification: old EndDateTime |" << cs.oldValue
-                                << "| new EndDateTime |" << cs.newValue <<"|";
-                        keepParsing = false;
-                        e = API_EINTERNAL;
-                    }
-                    else
-                    {
-                        auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &cs);
+                        if (cs.oldValue == cs.newValue)
+                        {
+                            LOG_err << "ScheduledMeetings: Received updated SM with updated EndDateTime "
+                                    << "notification but no modification: old EndDateTime |" << cs.oldValue
+                                    << "| new EndDateTime |" << cs.newValue <<"|";
+                            keepParsing = false;
+                            e = API_EINTERNAL;
+                        }
+                        else
+                        {
+                            auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &cs);
+                        }
                     }
                     j->leavearray();
                 }
                 */
-
-                if (wasFieldUpdated())
-                {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE);
-                }
                 break;
 
             case MAKENAMEID1('r'):
