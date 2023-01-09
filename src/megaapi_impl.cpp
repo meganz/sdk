@@ -12197,7 +12197,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
     else
     {
         node_vector result;
-        Node *node;
 
         // Target parameter is only considered if node is not provided
         if (target < MegaApi::SEARCH_TARGET_INSHARE || target > MegaApi::SEARCH_TARGET_ALL)
@@ -12210,27 +12209,38 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             // Search on rootnode (Cloud and Vault, excludes Rubbish)
             if (recursive)
             {
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+                Node* node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+                if (!node)
+                {
+                    return new MegaNodeListPrivate();
+                }
                 node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                if (node) // if Root was there, Vault should always be there
+                {
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                }
             }
             else
             {
                 // We kept this case for compatibility with no-NOD version but it doesn't make
                 // sense to search under file root node and vault root node by name
                 assert(false);
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+                Node* node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+                if (!node)
+                {
+                    return new MegaNodeListPrivate();
+                }
                 if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
                     result.push_back(node);
                 }
 
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault()); // if Root was there, Vault should always be there
+                if (node && node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
                     result.push_back(node);
                 }
@@ -12245,8 +12255,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
                 for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
-                    node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    if (recursive)
+                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    if (node)
                     {
                         node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                         result.insert(result.end(), nodeVector.begin(), nodeVector.end());
@@ -12281,9 +12291,12 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                         continue;   // avoid duplicates
                     }
                     outsharesHandles.insert(h);
-                    node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    if (node)
+                    {
+                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
+                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                    }
                 }
             }
             else
