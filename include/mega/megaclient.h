@@ -591,10 +591,8 @@ public:
     // returns a formatted string, for logging purposes
     string toString() const;
 
-#ifdef DEBUG
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
-#endif
 
 protected:
 

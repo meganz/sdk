@@ -6827,13 +6827,11 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
     waiter->notify();
 }
 
-#ifdef DEBUG
 void MegaApiImpl::setSecureFlag(bool enable)
 {
     SdkMutexGuard m(sdkMutex);
     client->mKeyManager.setSecureFlag(enable);
 }
-#endif
 
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
 {
