@@ -4961,6 +4961,7 @@ public:
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
         EVENT_RELOAD                    = 17, // App should force a reload when receives this event
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
+        EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
@@ -7848,6 +7849,13 @@ class MegaGlobalListener
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
          *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -8436,6 +8444,13 @@ class MegaListener
          *
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
+         *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event

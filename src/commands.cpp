@@ -3275,6 +3275,22 @@ bool CommandPutUAVer::procresult(Result r)
         else
         {
             User *u = client->ownuser();
+
+            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(av))
+            {
+                LOG_err << "Error processing new established value for the Key Manager";
+
+                // if there's a previous version, better to keep that one in cache
+                const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                if (oldVersion)
+                {
+                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << ", current: " << v;
+                    const string* oldValue = u->getattr(ATTR_KEYS);
+                    assert(oldValue);
+                    av = *oldValue;
+                }
+            }
+
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
 
@@ -3299,13 +3315,6 @@ bool CommandPutUAVer::procresult(Result r)
             else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
             {
                 LOG_info << "JSON config data successfully created.";
-            }
-            else if (at == ATTR_KEYS)
-            {
-                if (!client->mKeyManager.fromKeysContainer(av))
-                {
-                    LOG_err << "Error processing new established value for the Key Manager";
-                }
             }
 
             client->notifyuser(u);
@@ -3664,17 +3673,24 @@ bool CommandGetUA::procresult(Result r)
                         }
                         case '^': // private, non-encrypted
                         {
-                            // store the value in cache in binary format
-                            u->setattr(at, &value, &version);
-
-                            if (at == ATTR_KEYS)
+                            if (at == ATTR_KEYS && !client->mKeyManager.fromKeysContainer(value))
                             {
-                                string d((const char*)value.data(), value.size());
-                                if (!client->mKeyManager.fromKeysContainer(d))
+                                LOG_err << "Error processing new established value for the Key Manager upon init";
+
+                                // if there's a previous version, better to keep that one in cache
+                                const string* oldValue = u->getattr(ATTR_KEYS);
+                                const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                                if (oldValue)
                                 {
-                                    LOG_err << "Error processing new established values for the Key Manager upon init";
+                                    LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << version;
+                                    const string* oldValue = u->getattr(ATTR_KEYS);
+                                    assert(oldValue);
+                                    value = *oldValue;
                                 }
                             }
+
+                            // store the value in cache in binary format
+                            u->setattr(at, &value, &version);
 
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
@@ -4720,12 +4736,23 @@ bool CommandGetUserData::procresult(Result r)
 #endif
                 if (keys.size())
                 {
-                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                     client->mKeyManager.setKey(client->key);
                     if (!client->mKeyManager.fromKeysContainer(keys))
                     {
                         LOG_err << "Error processing new received values for the Key Manager (ug command)";
+
+                        // if there's a previous version, better to keep that one in cache
+                        const string* oldVersion = u->getattrversion(ATTR_KEYS);
+                        if (oldVersion)
+                        {
+                            LOG_warn << "Replacing ^!keys value by previous version " << *oldVersion << " current: " << keysVersion;
+                            const string* oldValue = u->getattr(ATTR_KEYS);
+                            assert(oldValue);
+                            keys = *oldValue;
+                        }
                     }
+
+                    changes += u->updateattr(ATTR_KEYS, &keys, &keysVersion);
                 }
                 else if (client->mKeyManager.generation())
                 {

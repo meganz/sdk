@@ -15782,6 +15782,12 @@ void MegaApiImpl::upgrading_security()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::downgrade_attack()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DOWNGRADE_ATTACK);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -34047,7 +34053,9 @@ const char *MegaEventPrivate::getEventString(int type)
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
+        case MegaEvent::EVENT_RELOAD: return "RELOAD";
         case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
+        case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
     }
 
     return "UNKNOWN";
