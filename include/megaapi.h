@@ -11358,7 +11358,6 @@ class MegaApi
          */
         void upgradeSecurity(MegaRequestListener* listener = NULL);
 
-#ifdef DEBUG
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
          *
@@ -11375,7 +11374,6 @@ class MegaApi
          * @param enable New value of the flag
          */
         void setSecureFlag(bool enable);
-#endif
 
         /**
          * @brief Creates a new share key for the node if there is no share key already created.
