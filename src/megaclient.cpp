@@ -19548,7 +19548,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -19558,8 +19558,49 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
+    if (recursive)
+    {
+        mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
+    }
+    else
+    {
+        assert(!nodeHandle.isUndef());
+        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, nodeHandle, cancelFlag);
+    }
+
     nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::IN_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::OUT_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
 
     return nodes;
 }

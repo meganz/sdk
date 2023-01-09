@@ -12064,7 +12064,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, CancelToken cancelToken)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, CancelToken cancelToken, bool recursive)
 {
     node_vector nodeVector;
 
@@ -12075,7 +12075,7 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
     }
     else
     {
-        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
+        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken, recursive);
 
         auto it = nodeVector.begin();
         while (it != nodeVector.end() && !cancelToken.isCancelled())
@@ -12189,23 +12189,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
 
         // searchString and nodeType (if provided), are considered in search
         node_vector nodeVector;
-        if (recursive)
-        {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelToken);
-        }
-        else
-        {
-            node_list list = client->getChildren(node);
-            for (node_list::iterator it = list.begin(); it != list.end()
-                 && !cancelToken.isCancelled(); it++)
-            {
-                Node* node = *it;
-                if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
-                {
-                    nodeVector.push_back(node);
-                }
-            }
-        }
+        nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelToken, recursive);
 
         sortByComparatorFunction(nodeVector, order, *client);
         nodeList = new MegaNodeListPrivate(nodeVector.data(), int(nodeVector.size()));
@@ -12227,15 +12211,18 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             if (recursive)
             {
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
             {
+                // We kept this case for compatibility with no-NOD version but it doesn't make
+                // sense to search under file root node and vault root node by name
+                assert(false);
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
@@ -12252,58 +12239,57 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
 
         if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
-            // Search on inshares
-            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+            if (recursive)
             {
-                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                if (recursive)
+                // Search on inshares
+                unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
-                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                }
-                else
-                {
-                    if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
+                    node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    if (recursive)
                     {
-                        result.push_back(node);
+                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
+                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                     }
                 }
+            }
+            else
+            {
+                node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
+                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
 
         if (target == MegaApi::SEARCH_TARGET_ALL)
         {
-            result = searchInNodeManager(UNDEF, searchString, type, cancelToken);
+            result = searchInNodeManager(UNDEF, searchString, type, cancelToken, true);
         }
 
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
-            // Search on outshares
-            std::set<MegaHandle> outsharesHandles;
-            unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+            if (recursive)
             {
-                handle h = shares->get(i)->getNodeHandle();
-                if (outsharesHandles.find(h) != outsharesHandles.end())
+                // Search on outshares
+                std::set<MegaHandle> outsharesHandles;
+                unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
+                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
-                    // shares list includes an item per outshare AND per sharee/user
-                    continue;   // avoid duplicates
-                }
-                outsharesHandles.insert(h);
-                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                if (recursive)
-                {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                    handle h = shares->get(i)->getNodeHandle();
+                    if (outsharesHandles.find(h) != outsharesHandles.end())
+                    {
+                        // shares list includes an item per outshare AND per sharee/user
+                        continue;   // avoid duplicates
+                    }
+                    outsharesHandles.insert(h);
+                    node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
-                else
-                {
-                    if (node->type == type && strcasestr(node->displayname(), searchString) != NULL)
-                    {
-                        result.push_back(node);
-                    }
-                }
+            }
+            else
+            {
+                node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
+                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
 
@@ -12314,7 +12300,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !cancelToken.isCancelled(); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelToken);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelToken, true);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
