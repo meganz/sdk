@@ -18484,7 +18484,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
 
 string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
-    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
     cipher.cbc_decrypt(decrKey.get(), k.size());
     return string((char*)decrKey.get(), k.size());

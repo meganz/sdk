@@ -19082,13 +19082,16 @@ void MegaApiImpl::sendPendingRequests()
             client->fetchSet(request->getParentHandle(),
                 [this, request](Error e, Set* s, map<handle, SetElement>* els)
                 {
+                    unique_ptr<Set> sp(s);
+                    unique_ptr<map<handle, SetElement>> elsp(els);
+
                     if (e == API_OK)
                     {
-                        assert(s && els);
-                        if (s && els)
+                        assert(sp && elsp);
+                        if (sp && elsp)
                         {
-                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
-                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
+                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*sp));
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(elsp.get()));
                         }
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

@@ -9848,7 +9848,15 @@ int main(int argc, char* argv[])
     startDir.reset();
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    delete CurlHttpIO::sslMutexes;
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
 #endif
 
 #if defined(_WIN32) && defined(_DEBUG)
