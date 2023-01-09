@@ -2671,6 +2671,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
         a = UserAlert::Takedown::unserialize(d, nextId());
         break;
 
+#ifdef ENABLE_CHAT
     case UserAlert::type_nusm:
         // this method disambiguates between NewScheduledMeeting and UpdatedScheduledMeeting
         a = UserAlert::unserializeNewUpdSched(d, nextId());
@@ -2680,6 +2681,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
     case UserAlert::type_dsm:
         a = UserAlert::DeletedScheduledMeeting::unserialize(d, nextId());
         break;
+#endif ENABLE_CHAT
     }
 
     if (a)
