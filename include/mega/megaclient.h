@@ -1913,11 +1913,6 @@ public:
     handle nextsyncid();
     handle currsyncid;
 
-#ifdef ENABLE_CHAT
-    // SFU id to specify the SFU server where all chat calls will be started
-    int mSfuid = sfu_invalid_id;
-#endif
-
     // SyncDebris folder addition result
     void putnodes_syncdebris_result(error, vector<NewNode>&);
 
@@ -1986,6 +1981,11 @@ public:
     bool requestLock;
     dstime disconnecttimestamp;
     dstime nextDispatchTransfersDs = 0;
+
+#ifdef ENABLE_CHAT
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+#endif
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
