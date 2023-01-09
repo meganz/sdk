@@ -17959,10 +17959,10 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         {
             case MAKENAMEID1('t'):
             {
-                Changeset::StrChangeset cs;
-                if (getOldNewStrValues(cs, "Title") == API_OK)
+                Changeset::StrChangeset tCs;
+                if (getOldNewStrValues(tCs, "Title") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &cs);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
                 }
             }
             break;
@@ -17983,10 +17983,10 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
 
             case MAKENAMEID2('t', 'z'):
             {
-                Changeset::StrChangeset cs;
-                if (getOldNewStrValues(cs, "TimeZone") == API_OK)
+                Changeset::StrChangeset tzCs;
+                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &cs);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
                 }
             }
             break;
@@ -17994,10 +17994,10 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('s'):
             /*{
                 // uncomment when support for unix timestamps has been merged into develop
-                Changeset::TsChangeset cs;
-                if (getOldNewTsValues(cs, "StartDateTime") == API_OK)
+                Changeset::TsChangeset sdCs;
+                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &cs);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
                 }
             }*/
             break;
@@ -18005,10 +18005,10 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('e'):
             /*{
                 // uncomment when support for unix timestamps has been merged into develop
-                Changeset::TsChangeset cs;
-                if (getOldNewTsValues(cs, "EndDateTime") == API_OK)
+                Changeset::TsChangeset edCs;
+                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &cs);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
                 }
             }*/
             break;
