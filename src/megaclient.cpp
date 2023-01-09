@@ -17888,8 +17888,8 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         {
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
-            return API_EINTERNAL;
             keepParsing = false;
+            return API_EINTERNAL;
         }
 
         error e = API_OK;
@@ -17922,13 +17922,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         {
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
-            return API_EINTERNAL;
             keepParsing = false;
+            return API_EINTERNAL; 
         }
 
         error e = API_OK;
         cs.oldValue = j->getint();
-        bool updated = cs.newValue = j->getint();
+        cs.newValue = j->getint();
+        bool updated = static_cast<bool>(cs.newValue);
         if (!updated)
         {
             e = API_ENOENT;

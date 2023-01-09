@@ -2681,7 +2681,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
     case UserAlert::type_dsm:
         a = UserAlert::DeletedScheduledMeeting::unserialize(d, nextId());
         break;
-#endif ENABLE_CHAT
+#endif
     }
 
     if (a)
