@@ -12218,7 +12218,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
-                if (node) // if Root was there, Vault should always be there
+                if (node)
                 {
                     nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
@@ -12239,7 +12239,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                     result.push_back(node);
                 }
 
-                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault()); // if Root was there, Vault should always be there
+                node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node && node->type == type && strcasestr(node->displayname(), searchString) != NULL)
                 {
                     result.push_back(node);
