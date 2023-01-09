@@ -591,10 +591,8 @@ public:
     // returns a formatted string, for logging purposes
     string toString() const;
 
-#ifdef DEBUG
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
-#endif
 
 protected:
 
@@ -641,6 +639,10 @@ private:
     // false when the account is being upgraded to ^!keys -> show the warning
     bool mPostRegistration = false;
 
+    // if the last known value of generation is greater than a value received in a ^!keys,
+    // then a rogue API could be tampering with the attribute
+    bool mDowngradeAttack = false;
+
     uint8_t mVersion = 0;
     uint32_t mCreationTime = 0;
     handle mIdentity = UNDEF;
@@ -652,20 +654,18 @@ private:
     string mWarnings;
     string mOther;
 
-    map<handle, bool> mTrustedShareKeys;
-    map<handle, string> mShareKeys;
-    string shareKeysToString() const;
+    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
+    map<handle, pair<string, bool>> mShareKeys;
 
     // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
-    string pendingOutsharesToString() const;
 
     // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
-    string pendingInsharesToString() const;
 
-    // decode data from the decrypted ^!keys attribute
-    bool unserialize(const string& keysContainer);
+    // decode data from the decrypted ^!keys attribute and stores values in `km`
+    // returns false in case of unserializatison isues
+    static bool unserialize(KeyManager& km, const string& keysContainer);
 
     // prepares the header for a new serialized record of type 'tag' and 'len' bytes
     string tagHeader(const byte tag, size_t len) const;
@@ -674,20 +674,36 @@ private:
     string serialize() const;
 
     string serializeShareKeys() const;
-    bool deserializeShareKeys(const string& blob);
+    static bool deserializeShareKeys(KeyManager& km, const string& blob);
+    static string shareKeysToString(const KeyManager& km);
 
     string serializePendingOutshares() const;
-    bool deserializePendingOutshares(const string& blob);
+    static bool deserializePendingOutshares(KeyManager& km, const string& blob);
+    static string pendingOutsharesToString(const KeyManager& km);
 
     string serializePendingInshares() const;
-    bool deserializePendingInshares(const string& blob);
+    static bool deserializePendingInshares(KeyManager& km, const string& blob);
+    static string pendingInsharesToString(const KeyManager& km);
 
     string serializeBackups() const;
-    bool deserializeBackups(const string& blob);
+    static bool deserializeBackups(KeyManager& km, const string& blob);
 
     std::string computeSymmetricKey(handle user);
 
-    bool decodeRSAKey(const string& pqdKey);
+    // validates data in `km`: ie. downgrade attack, tampered keys...
+    bool isValidKeysContainer(const KeyManager& km);
+
+    void updateValues(KeyManager& km);
+
+    // decodes the RSA private key and sets it at MegaClient::asymkey
+    // returns false if it doesn't match the current key or if failed to set the key
+    bool decodeRSAKey();
+
+    // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
+    void updateAuthring(attr_t at, std::string &value);
+
+    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
 };
 
 

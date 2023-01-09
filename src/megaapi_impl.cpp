@@ -6827,13 +6827,11 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
     waiter->notify();
 }
 
-#ifdef DEBUG
 void MegaApiImpl::setSecureFlag(bool enable)
 {
     SdkMutexGuard m(sdkMutex);
     client->mKeyManager.setSecureFlag(enable);
 }
-#endif
 
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
 {
@@ -15779,6 +15777,12 @@ void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
 void MegaApiImpl::upgrading_security()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_UPGRADE_SECURITY);
+    fireOnEvent(event);
+}
+
+void MegaApiImpl::downgrade_attack()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DOWNGRADE_ATTACK);
     fireOnEvent(event);
 }
 
@@ -34047,7 +34051,9 @@ const char *MegaEventPrivate::getEventString(int type)
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
+        case MegaEvent::EVENT_RELOAD: return "RELOAD";
         case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
+        case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
     }
 
     return "UNKNOWN";
