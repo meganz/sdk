@@ -3187,7 +3187,12 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     }
     else if (r.wasErrorOrOK())
     {
-        client->sendevent(99419, "Error attaching keys", 0);
+        if (client->fetchingkeys)
+        {
+            client->sendevent(99419, "Error attaching keys", 0);
+            client->clearKeys();
+            client->resetKeyring();
+        }
 
         mCompletion(r.errorOrOK());
         return true;
@@ -3197,7 +3202,6 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     return false;
 
 }
-
 
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
