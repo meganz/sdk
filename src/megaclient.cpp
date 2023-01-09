@@ -14220,6 +14220,11 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         assert(false);
         return API_EARGS;
     }
+    if (authringType == ATTR_AUTHRSA && mKeyManager.generation())
+    {
+        LOG_info << "Skip tracking RSA key for user " << uid << ": secure client doesn't rely on RSA";
+        return API_OK;
+    }
 
     // If checking authrings for all contacts (new session), accumulate updates for all contacts first
     // in temporal authrings to put them all at once. Otherwise, update authring immediately
