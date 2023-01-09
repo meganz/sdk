@@ -20762,6 +20762,12 @@ void MegaApiImpl::sendPendingRequests()
                 else
                 {
                     node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
+                    if (!node)
+                    {
+                        LOG_debug << "Lookup of files root node failed";
+                        e = API_ENOENT;
+                        break;
+                    }
                 }
 
                 // Check if 'node' is favourite, DB query starts at 'node' children
