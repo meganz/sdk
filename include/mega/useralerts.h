@@ -380,9 +380,9 @@ namespace UserAlert
              * invariant:
              * - bitset size must be the maximum types of changes allowed
              * - if title changed, there must be previous and new title string
-             * - if timezone changed, there must be previous and new title string
-             * - if StartDateTime changed, there must be previous and new title string
-             * - if EndDateTime changed, there must be previous and new title string
+             * - if timezone changed, there must be previous and new timezone
+             * - if StartDateTime changed, there must be previous and new StartDateTime
+             * - if EndDateTime changed, there must be previous and new EndDateTime
              */
             bool invariant() const
             {
