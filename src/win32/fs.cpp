@@ -518,7 +518,8 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // without doing a FindFirstFile()?
 bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    fopenSucceeded = fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    return fopenSucceeded;
 }
 
 bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)

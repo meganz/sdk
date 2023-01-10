@@ -1116,6 +1116,7 @@ public:
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
+    void triggerSync(const LocalPath& lp, bool scan);
 
     // ------ public data members (thread safe)
 
@@ -1158,6 +1159,7 @@ private:
     void stopSyncsInErrorState();
 
     void processTriggerHandles();
+    void processTriggerLocalpaths();
 
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
@@ -1381,6 +1383,7 @@ private:
 
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
     map<NodeHandle, bool> triggerHandles;
+    map<LocalPath, bool> triggerLocalpaths;
     mutex triggerMutex;
 
     // Keep track of files that we can't move yet because they are changing

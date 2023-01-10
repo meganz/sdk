@@ -385,6 +385,11 @@ int FileFingerprint::unserializefingerprint(string* d)
     return 1;
 }
 
+string FileFingerprint::fingerprintDebugString() const
+{
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
+}
+
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const
 {
     if (a->size < b->size)
@@ -414,5 +419,6 @@ bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerpr
 {
      return operator()(&a, &b);
 }
+
 
 } // mega

@@ -9346,7 +9346,8 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             {fullPath.localPath, PathProblem::DeletedOrMovedByUser},
             {}));
     }
-    else if (syncs.mSyncFlags->movesWereComplete)
+    else if (syncs.mSyncFlags->movesWereComplete ||
+             row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         if (row.syncNode->rareRO().removeNodeHere.expired())
         {
@@ -9514,6 +9515,17 @@ std::future<size_t> Syncs::triggerPeriodicScanEarly(handle backupID)
     return result;
 }
 
+void Syncs::triggerSync(const LocalPath& lp, bool scan)
+{
+    assert(!onSyncThread());
+
+    if (mClient.fetchingnodes) return;  // on start everything needs scan+sync anyway
+
+    lock_guard<mutex> g(triggerMutex);
+    auto& entry = triggerLocalpaths[lp];
+    if (scan) entry = true;
+}
+
 void Syncs::triggerSync(NodeHandle h, bool recurse)
 {
     assert(!onSyncThread());
@@ -9523,6 +9535,44 @@ void Syncs::triggerSync(NodeHandle h, bool recurse)
     lock_guard<mutex> g(triggerMutex);
     auto& entry = triggerHandles[h];
     if (recurse) entry = true;
+}
+
+void Syncs::processTriggerLocalpaths()
+{
+    // Mark nodes to be scanned because upload transfers failed.
+    // This may save us trying to immediately start the same failed upload
+    assert(onSyncThread());
+
+    map<LocalPath, bool> triggers;
+    {
+        lock_guard<mutex> g(triggerMutex);
+        triggers.swap(triggerLocalpaths);
+    }
+
+    if (mSyncVec.empty()) return;
+
+    for (auto& lp : triggers)
+    {
+        for (auto& us : mSyncVec)
+        {
+            if (Sync* sync = us->mSync.get())
+            {
+                if (LocalNode* triggerLn = sync->localnodebypath(nullptr, lp.first, nullptr, nullptr, false))
+                {
+                    if (lp.second)
+                    {
+                        LOG_debug << "Scan trigger by path received for " << triggerLn->getLocalPath();
+                        triggerLn->setScanAgain(false, true, false, 0);
+                    }
+                    else
+                    {
+                        LOG_debug << "Sync trigger by path received for " << triggerLn->getLocalPath();
+                        triggerLn->setSyncAgain(false, true, false);
+                    }
+                }
+            }
+        }
+    }
 }
 
 void Syncs::processTriggerHandles()
@@ -10584,6 +10634,7 @@ void Syncs::syncLoop()
         }
 
         processTriggerHandles();
+        processTriggerLocalpaths();
 
         waiter.bumpds();
 

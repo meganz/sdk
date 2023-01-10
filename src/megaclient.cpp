@@ -3335,9 +3335,9 @@ void MegaClient::dispatchTransfers()
                                   << nexttransfer->localfilename;
 
                         // try to open file (PUT transfers: open in nonblocking mode)
-                        nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
+                        nexttransfer->asyncopencontext.reset( (nexttransfer->type == PUT)
                             ? ts->fa->asyncfopen(nexttransfer->localfilename)
-                            : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size);
+                            : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size));
                         asyncfopens++;
                     }
 
@@ -3348,9 +3348,9 @@ void MegaClient::dispatchTransfers()
 
                         openok = !nexttransfer->asyncopencontext->failed;
                         openfinished = true;
-                        delete nexttransfer->asyncopencontext;
-                        nexttransfer->asyncopencontext = NULL;
+                        nexttransfer->asyncopencontext.reset();
                         asyncfopens--;
+                        ts->fa->fopenSucceeded = openok;
                     }
 
                     assert(!asyncfopens);

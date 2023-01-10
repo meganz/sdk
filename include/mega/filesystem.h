@@ -466,6 +466,9 @@ struct MEGA_API DirAccess;
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
+    // if true, then size and mtime are valid
+    bool fopenSucceeded = false;
+
     // file size
     m_off_t size = 0;
 

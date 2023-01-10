@@ -174,7 +174,7 @@ struct MEGA_API Transfer : public FileFingerprint
     std::vector<string> tempurls;
 
     // context of the async fopen operation
-    AsyncIOContext* asyncopencontext;
+    unique_ptr<AsyncIOContext> asyncopencontext;
 
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;

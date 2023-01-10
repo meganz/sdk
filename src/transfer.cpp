@@ -151,8 +151,7 @@ Transfer::~Transfer()
 
     if (asyncopencontext)
     {
-        delete asyncopencontext;
-        asyncopencontext = NULL;
+        asyncopencontext.reset();
         client->asyncfopens--;
     }
 
@@ -553,11 +552,19 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         ultoken.reset();
         pos = 0;
 
-        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        if (slot && slot->fa)
         {
-            LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
-                     << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
-            defer = false;
+            if (!slot->fa->fopenSucceeded)
+            {
+                LOG_warn << "fopen failed for upload.";
+                defer = false;
+            }
+            else if (slot->fa->mtime != mtime || slot->fa->size != size)
+            {
+                LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
+                         << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
+                defer = false;
+            }
         }
     }
 
@@ -577,7 +584,11 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         finished = true;
 
 #ifdef ENABLE_SYNC
-        bool alreadyDisabled = false;
+        if (e == API_EBUSINESSPASTDUE)
+        {
+            LOG_debug << "Disabling syncs on account of API_EBUSINESSPASTDUE error on transfer";
+            client->syncs.disableSyncs(ACCOUNT_EXPIRED, false, true);
+        }
 #endif
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -588,15 +599,12 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->syncs.setSyncsNeedFullSync(false, false, UNDEF);
-            }
-
-            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
-            {
-                client->syncs.disableSyncs(ACCOUNT_EXPIRED, false, true);
-                alreadyDisabled = true;
+                // Get the sync to check that folder again so it doesn't just recreate that same transfer
+                LOG_debug << "Trigger sync parent path scan for failed transfer of " << (*it)->getLocalname();
+                client->syncs.triggerSync((*it)->getLocalname().parentPath(), type == PUT);
             }
 #endif
+
 
             client->app->file_removed(*it, e);
         }
