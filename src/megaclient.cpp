@@ -14318,7 +14318,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                 // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
                 // if found in the temporal ones.
                 putua(&attrs, 0,
-                [this, authringType, serializedAuthring](Error e)
+                [this, serializedAuthring](Error e)
                 {
                     if (e || !mKeyManager.generation())
                     {
@@ -14327,23 +14327,13 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                         return;
                     }
 
-                    if (authringType == ATTR_AUTHRING || authringType == ATTR_AUTHCU255)
+                    mKeyManager.commit(
+                    [this, serializedAuthring]()
                     {
-                        mKeyManager.commit(
-                        [this, authringType, serializedAuthring]()
-                        {
-                            // Changes to apply in the commit
-                            if (authringType == ATTR_AUTHRING)
-                            {
-                                mKeyManager.setAuthRing(serializedAuthring);
-                            }
-                            else if (authringType == ATTR_AUTHCU255)
-                            {
-                                mKeyManager.setAuthCU255(serializedAuthring);
-                            }
-                            mKeyManager.promotePendingShares();
-                        }); // No completion callback in this case
-                    }
+                        // Changes to apply in the commit
+                        mKeyManager.setAuthRing(serializedAuthring);
+                        mKeyManager.promotePendingShares();
+                    }); // No completion callback in this case
                 });
             }
 
