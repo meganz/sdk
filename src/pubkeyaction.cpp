@@ -122,7 +122,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
-    if (!n->sharekey && !uid.size())
+    if (!n->sharekey && uid.empty())
     {
         assert(newshare);
 
@@ -150,9 +150,9 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     std::function<void()> completeShare =
     [client, uid, nodehandle, accessLevel, newshare, msg, reqtag, shareKey, writable, completionCallback]()
     {
-        Node *n;
+        Node *n = client->nodebyhandle(nodehandle);
         // node vanished: bail
-        if (!(n = client->nodebyhandle(nodehandle)))
+        if (!n)
         {
             completionCallback(API_ENOENT, writable);
             return;
@@ -170,7 +170,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
             }
 
             std::string encryptedKey = client->mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-            if (!encryptedKey.size())
+            if (encryptedKey.empty())
             {
                 LOG_debug << "Unable to encrypt share key (contact not verified?)";
                 completionCallback(e, writable);
@@ -184,8 +184,10 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
                 {
                     LOG_err << "Error sending share key: " << err;
                 }
-
-                LOG_debug << "Share key correctly sent";
+                else
+                {
+                    LOG_debug << "Share key correctly sent";
+                }
                 completionCallback(API_OK, writable);
             }));
         }));

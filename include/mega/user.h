@@ -221,7 +221,7 @@ public:
     // returns a human-friendly string for a given authentication method
     static string authMethodToStr(AuthMethod authMethod);
 
-    static string toString(AuthRing& authRing);
+    static string toString(const AuthRing& authRing);
 
 private:
     attr_t mType;
