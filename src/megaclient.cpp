@@ -6649,7 +6649,6 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
-                                        if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
                                     }
