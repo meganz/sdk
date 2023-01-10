@@ -14614,15 +14614,34 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 error MegaClient::verifyCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    auto it = mAuthRings.find(ATTR_AUTHRING);
-    if (it == mAuthRings.end())
+    auto itEd = mAuthRings.find(ATTR_AUTHRING);
+    bool hasEdAuthring = itEd != mAuthRings.end();
+    auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+    bool hasCuAuthring = itCu != mAuthRings.end();
+    if (!hasEdAuthring || !hasCuAuthring)
     {
-        LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
-        assert(false);
+        LOG_warn << "Failed to verify public Ed25519 key for user " << uid << ": authring(s) not available";
         return API_ETEMPUNAVAIL;
     }
 
-    AuthRing authring = it->second; // copy, do not modify yet the cached authring
+    if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+    {
+        LOG_err << "Failed to verify credentials for user " << uid << ": signature of Cu25519 public key is not verified";
+        assert(false);
+
+        // Let's try to authenticate Cu25519 for this user
+        // because its verification is required to promote pending sharesUser *user = finduser(uh);
+        User *user = finduser(uh);
+        if (user)
+        {
+            attr_t attrType = ATTR_CU25519_PUBK;
+            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+        }
+        return API_EINTERNAL;
+    }
+
+    AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
     AuthMethod authMethod = authring.getAuthMethod(uh);
     switch (authMethod)
     {
@@ -14662,7 +14681,7 @@ error MegaClient::verifyCredentials(handle uh)
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     std::string serializedAuthring = authring.serializeForJS();
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
-    [this, uh, tag, serializedAuthring](Error e)
+    [this, tag, serializedAuthring](Error e)
     {
         if (e || !mKeyManager.generation())
         {
@@ -14683,17 +14702,8 @@ error MegaClient::verifyCredentials(handle uh)
             mKeyManager.setAuthRing(serializedAuthring);
             mKeyManager.promotePendingShares();
         },
-        [this, uh, tag]()
+        [this, tag]()
         {
-            User *user = finduser(uh);
-            if (user)
-            {
-                // Ensure that cu25519 is tracked and verified for the user
-                // because its verification is required to promote pending shares
-                user->invalidateattr(ATTR_CU25519_PUBK);
-                getua(user, ATTR_CU25519_PUBK, 0);
-            }
-
             restag = tag;
             app->putua_result(API_OK);
             return;
