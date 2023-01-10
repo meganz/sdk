@@ -17996,7 +17996,6 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
 
             case MAKENAMEID1('s'):
             {
-                // uncomment when support for unix timestamps has been merged into develop
                 Changeset::TsChangeset sdCs;
                 if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
@@ -18007,7 +18006,6 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
 
             case MAKENAMEID1('e'):
             {
-                // uncomment when support for unix timestamps has been merged into develop
                 Changeset::TsChangeset edCs;
                 if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
