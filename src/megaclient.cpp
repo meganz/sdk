@@ -17919,8 +17919,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
          return e;
     };
 
-    // uncomment when support for unix timestamps has been merged into develop
-    /*auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+    auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
                 const char *fieldMsg)
     {
         if (!j->enterarray())
@@ -17953,7 +17952,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
          }
          j->leavearray();
          return e;
-    };*/
+    };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
     using Changeset = UserAlert::UpdatedScheduledMeeting::Changeset;
@@ -17996,25 +17995,25 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             break;
 
             case MAKENAMEID1('s'):
-            /*{
+            {
                 // uncomment when support for unix timestamps has been merged into develop
                 Changeset::TsChangeset sdCs;
                 if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
                 }
-            }*/
+            }
             break;
 
             case MAKENAMEID1('e'):
-            /*{
+            {
                 // uncomment when support for unix timestamps has been merged into develop
                 Changeset::TsChangeset edCs;
                 if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
                 }
-            }*/
+            }
             break;
 
             case MAKENAMEID1('r'):
