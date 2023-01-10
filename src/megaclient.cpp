@@ -14173,7 +14173,13 @@ void MegaClient::fetchContactKeys(User *user)
     // call trackKey() in case the key is in cache
     // otherwise, send getua() to server, CommandGetUA::procresult() will call trackKey()
     attr_t attrType = ATTR_ED25519_PUBK;
-    if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+    if (!user->isattrvalid(attrType))
+    {
+        getua(user, attrType, 0);
+
+        // if Ed25519 is not in cache, better to ensure that Ed25519 is tracked before Cu25519
+        user->invalidateattr(ATTR_CU25519_PUBK);
+    }
     else trackKey(attrType, user->userhandle, *user->getattr(attrType));
 
     attrType = ATTR_CU25519_PUBK;
