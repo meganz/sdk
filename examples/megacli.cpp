@@ -1792,6 +1792,24 @@ static void listnodeshares(Node* n)
     }
 }
 
+static void listnodependingshares(Node* n)
+{
+    if(n->pendingshares)
+    {
+        for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
+
+            if (it->first)
+            {
+                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
+            }
+
+            cout << endl;
+        }
+    }
+}
+
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
     std::ostream& stream = toFile ? *toFile : cout;
@@ -4055,6 +4073,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -5903,16 +5922,18 @@ void exec_share(autocomplete::ACState& s)
 
     switch (s.words.size())
     {
-    case 1:		// list all shares (incoming and outgoing)
+    case 1:		// list all shares (incoming, outgoing and pending outgoing)
     {
         cout << "Shared folders:" << endl;
 
+        // outgoing
         node_vector outshares = client->mNodeManager.getNodesWithOutShares();
         for (auto& share : outshares)
         {
             listnodeshares(share);
         }
 
+        // incoming
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
         {
@@ -5933,6 +5954,15 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
             }
+        }
+
+        cout << "Pending shared folders:" << endl;
+
+        // pending outgoing
+        node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+        for (auto& share : pendingoutshares)
+        {
+            listnodependingshares(share);
         }
     }
     break;
@@ -9862,7 +9892,15 @@ int main(int argc, char* argv[])
     startDir.reset();
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    delete CurlHttpIO::sslMutexes;
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
 #endif
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -11101,4 +11139,35 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
+}
+
+void exec_searchbyname(autocomplete::ACState &s)
+{
+    if (s.words.size() >= 2)
+    {
+        bool recursive = !s.extractflag("-norecursive");
+
+        NodeHandle nodeHandle;
+        if (s.words.size() == 3)
+        {
+            handle h;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+            nodeHandle.set6byte(h);
+        }
+
+        if (!recursive && nodeHandle.isUndef())
+        {
+            cout << "Search no recursive need node handle" << endl;
+            return;
+        }
+
+
+        std::string searchString = s.words[1].s;
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+
+        for (const auto& node : nodes)
+        {
+            cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
+        }
+    }
 }

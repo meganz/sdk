@@ -164,9 +164,9 @@ bool ScheduledRules::equalTo(const mega::ScheduledRules *r) const
 
 int ScheduledRules::stringToFreq (const char* freq)
 {
-    if (strcmp(freq, "d") == 0)     { return FREQ_DAILY; }
-    if (strcmp(freq, "w") == 0)    { return FREQ_WEEKLY; }
-    if (strcmp(freq, "m") == 0)   { return FREQ_WEEKLY; }
+    if (strcmp(freq, "d") == 0)   { return FREQ_DAILY; }
+    if (strcmp(freq, "w") == 0)   { return FREQ_WEEKLY; }
+    if (strcmp(freq, "m") == 0)   { return FREQ_MONTHLY; }
     return FREQ_INVALID;
 }
 
