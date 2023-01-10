@@ -22679,7 +22679,7 @@ string KeyManager::serializePendingOutshares() const
         for (const std::string& uid : itNodes.second)
         {
             byte len = 0;
-            if (strchr(uid.c_str(), '@'))
+            if (uid.find('@') != string::npos)
             {
                 if (uid.size() >= 256)
                 {

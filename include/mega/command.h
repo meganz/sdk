@@ -659,7 +659,7 @@ public:
         int tag, std::function<void(Error, bool writable)> f);
 };
 
-typedef std::function<void(Error, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)> CommandPendingKeysReadCompletion;
+using CommandPendingKeysReadCompletion = std::function<void(Error, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)>;
 class MEGA_API CommandPendingKeys : public Command
 {
 public:

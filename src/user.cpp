@@ -1677,7 +1677,7 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     return "unknown";
 }
 
-string AuthRing::toString(AuthRing &authRing)
+string AuthRing::toString(const AuthRing &authRing)
 {
     auto uhVector = authRing.getTrackedUsers();
     ostringstream result;
