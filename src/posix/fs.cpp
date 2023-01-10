@@ -347,6 +347,8 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -396,6 +398,8 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -446,6 +450,8 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -568,6 +574,8 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
             }
         }
     }
+#else
+    (void)skipcasecheck; // avoid unused parameter warning
 #endif
 
 #ifndef HAVE_FDOPENDIR
