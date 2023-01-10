@@ -14163,22 +14163,7 @@ void MegaClient::fetchContactsKeys()
         User *user = &it.second;
         if (user->userhandle != me)
         {
-            // call trackKey() in case the key is in cache
-            // otherwise, send getua() to server, CommandGetUA::procresult() will call trackKey()
-            attr_t attrType = ATTR_ED25519_PUBK;
-            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
-            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
-
-            attrType = ATTR_CU25519_PUBK;
-            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
-            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
-
-            // TODO: remove obsolete retrieval and tracking of public RSA keys and its signatures
-            // (authrings for RSA are deprecated)
-            int creqtag = reqtag;
-            reqtag = 0;
-            getpubkey(user->uid.c_str());
-            reqtag = creqtag;
+            fetchContactKeys(user);
         }
     }
 }
