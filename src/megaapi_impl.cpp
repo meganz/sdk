@@ -12256,6 +12256,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
                     Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    assert(node);
                     if (node)
                     {
                         node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
@@ -12292,6 +12293,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                     }
                     outsharesHandles.insert(h);
                     Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    assert(node);
                     if (node)
                     {
                         node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
