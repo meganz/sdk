@@ -14707,7 +14707,10 @@ error MegaClient::verifyCredentials(handle uh)
 error MegaClient::resetCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    if (mAuthRings.size() != 3 || (mKeyManager.generation() && mAuthRings.size() < 2))
+    // Check at least the two relevant authrings are available before proceed
+    bool hasEdAuthring = mAuthRings.find(ATTR_AUTHRING) != mAuthRings.end();
+    bool hasCuAuthring = mAuthRings.find(ATTR_AUTHCU255) != mAuthRings.end();
+    if (!hasEdAuthring || !hasCuAuthring)
     {
         LOG_warn << "Failed to reset credentials for user " << uid << ": authring/s not available";
         // TODO: after testing, if not hit, remove assertion below
