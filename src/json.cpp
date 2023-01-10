@@ -160,6 +160,8 @@ bool JSON::skipnullvalue()
         if (strncmp(pos, "null", 4))
             return false; // not enough information to skip it
 
+        assert(false); // the MEGA servers should never send null.  Investigation needed.
+
         // let's peak at what's after "null"
         switch (*(pos + 4))
         {

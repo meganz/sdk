@@ -89,6 +89,7 @@ class MegaScheduledMeetingList;
 class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
+class MegaIntegerList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -1841,10 +1842,24 @@ public:
         TYPE_PAYMENTREMINDER,
         TYPE_TAKEDOWN,
         TYPE_TAKEDOWN_REINSTATED,
+        TYPE_SCHEDULEDMEETING_NEW,
+        TYPE_SCHEDULEDMEETING_DELETED,
+        TYPE_SCHEDULEDMEETING_UPDATED,
 
         TOTAL_OF_ALERT_TYPES
     };
-
+#ifdef ENABLE_CHAT
+    enum
+    {
+        SM_CHANGE_TYPE_TITLE            = 0,
+        SM_CHANGE_TYPE_DESCRIPTION      = 1,
+        SM_CHANGE_TYPE_CANCELLED        = 2,
+        SM_CHANGE_TYPE_TIMEZONE         = 3,
+        SM_CHANGE_TYPE_STARTDATE        = 4,
+        SM_CHANGE_TYPE_ENDDATE          = 5,
+        SM_CHANGE_TYPE_RULES            = 6,
+    };
+#endif
     virtual ~MegaUserAlert();
 
     /**
@@ -1912,7 +1927,8 @@ public:
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
-    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES,
+    *  TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @warning This value is still valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
@@ -1963,6 +1979,7 @@ public:
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *   TYPE_SCHEDULEDMEETING_NEW, TYPE_SCHEDULEDMEETING_UPDATED, TYPE_SCHEDULEDMEETING_DELETED
     *
     * @return email string of the relevant user, or NULL if not available
     */
@@ -2070,7 +2087,94 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
+#ifdef ENABLE_CHAT
+    /**
+    * @brief Returns the MegaHandle that identifies the scheduled meeting id related to this alert
+    *
+    * This value is currently only valid for:
+    *   TYPE_SCHEDULEDMEETING_NEW
+    *   TYPE_SCHEDULEDMEETING_DELETED
+    *   TYPE_SCHEDULEDMEETING_UPDATED
+    *
+    * @return MegaHandle that identifies the scheduled meeting id related to this alert
+    */
+    virtual MegaHandle getSchedId() const;
 
+    /**
+     * @brief Returns true if the scheduled meeting associated to this alert has an specific change
+     *
+     * This value is currently only valid for:
+     *   TYPE_SCHEDULEDMEETING_UPDATED
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     *
+     * @return true if this scheduled meeting associated to this alert has an specific change
+     */
+    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+
+    /**
+     * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_TITLE)
+     *
+     * To retrieve old title you need to call: MegaStringList::get(0)
+     * To retrieve new title you need to call: MegaStringList::get(1)
+     *
+     * @return MegaStringList that contains old and new title for the scheduled meeting
+     */
+    virtual MegaStringList* getUpdatedTitle() const;
+
+    /**
+     * @brief Returns a MegaStringList that contains old and new TimeZone for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE)
+     *
+     * To retrieve old TimeZone you need to call: MegaStringList::get(0)
+     * To retrieve new TimeZone you need to call: MegaStringList::get(1)
+     *
+     * @return MegaStringList that contains old and new TimeZone for the scheduled meeting
+     */
+    virtual MegaStringList* getUpdatedTimeZone() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_STARTDATE)
+     *
+     * To retrieve old StartDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new StartDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedStartDate() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_ENDDATE)
+     *
+     * To retrieve old EndDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new EndDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedEndDate() const;
+#endif
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.
      *
@@ -8762,7 +8866,7 @@ class MegaApi
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            USER_ATTR_DRIVE_NAMES = 35,          // private - byte array
+            // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
         };
 
@@ -11751,6 +11855,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
          *
          * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
          * is obtained for the active account
@@ -11799,15 +11904,13 @@ class MegaApi
          * MegaApi::USER_ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
          * MegaApi::USER_ATTR_DEVICE_NAMES = 30
-         * Get the list of device names (private)
+         * Get the list of device or external drive names (private)
          * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
          * Get the target folder for My Backups (private)
          * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
          * Get whether user has Cookie Settings enabled
          * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
          * Get name and key to cypher sync-configs file
-         * MegaApi::USER_ATTR_DRIVE_NAMES = 35
-         * Get external drive names by id
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
@@ -13467,8 +13570,9 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
          * - MegaRequest::getFile - Returns the path to the drive
+         * - MegaRequest::getFlag - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -13484,9 +13588,10 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DRIVE_NAMES
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
          * - MegaRequest::getName - Returns drive name.
          * - MegaRequest::getFile - Returns the path to the drive
+         * - MegaRequest::getFlag - Returns true
          *
          * @param pathToDrive Path to the root of the external drive
          * @param driveName String with drive name
@@ -19659,6 +19764,15 @@ class MegaApi
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 
+        /**
+         * @brief Change the SFU id
+         *
+         * This function allows to set the SFU server where all chat calls will be started
+         * It's only useful for testing or debugging purposes.
+         *
+         * @param sfuid New SFU id
+         */
+        void setSFUid(int sfuid);
 #endif
 
         /**
@@ -20383,6 +20497,15 @@ class MegaApi
          * @return Element id of the cover, or INVALIDHANDLE if not set or invalid id
          */
         MegaHandle getSetCover(MegaHandle sid);
+
+        /**
+         * @brief Get Element count of the Set with the given id, for current user.
+         *
+         * @param sid the id of the Set to get Element count for
+         *
+         * @return Element count of requested Set, or 0 if not found
+         */
+        unsigned getSetElementCount(MegaHandle sid);
 
         /**
          * @brief Get all Elements in the Set with given id, for current user.

@@ -538,7 +538,7 @@ bool Node::serialize(string* d)
         }
         else // with ^!keys, shares may not receive the sharekey along with the share's data
         {
-            d->append(SymmCipher::KEYLENGTH, 0);
+            d->append(SymmCipher::KEYLENGTH, '\0');
         }
 
         if (inshare)
