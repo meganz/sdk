@@ -1627,8 +1627,9 @@ void AuthRing::update(handle uh, AuthMethod authMethod)
 
 bool AuthRing::remove(handle uh)
 {
-    mNeedsUpdate = mFingerprint.erase(uh) + mAuthMethod.erase(uh);
-    return mNeedsUpdate;
+    bool removed = mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+    mNeedsUpdate |= removed;
+    return removed;
 }
 
 attr_t AuthRing::keyTypeToAuthringType(attr_t at)
