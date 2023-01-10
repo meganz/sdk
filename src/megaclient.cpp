@@ -22741,21 +22741,18 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
             return;
         }
 
-        if (e == API_EEXPIRED)
-        {
-            mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
-        }
+        mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
 
         mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
-        [e, completion](error err)
+        [completion](error err)
         {
             LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
-            completion(e);
+            completion(API_EEXPIRED);
         },
-        [e, completion](byte*, unsigned, attr_t)
+        [completion](byte*, unsigned, attr_t)
         {
             LOG_debug << "[keymgr] Success getting the value of ^!keys";
-            completion(e);
+            completion(API_EEXPIRED);
         }, nullptr));
     });
 }
