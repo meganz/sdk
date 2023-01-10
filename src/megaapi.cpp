@@ -5475,6 +5475,10 @@ void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, Mega
     pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
+void MegaApi::setSFUid(int sfuid)
+{
+    pImpl->setSFUid(sfuid);
+}
 #endif
 
 bool MegaApi::isSharesNotifiable()
