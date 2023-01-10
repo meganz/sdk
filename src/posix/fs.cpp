@@ -1248,7 +1248,10 @@ bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath&
     char buffer[PATH_MAX];
 
     if (!realpath(destination.localpath.c_str(), buffer))
-        return destination = source, false;
+    {
+        destination = source;
+        return false;
+    }
 
     destination.localpath.assign(buffer);
 
