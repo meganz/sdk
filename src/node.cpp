@@ -2513,6 +2513,14 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
         }
 
         LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
+        if (dir != (uploadPtr ? PUT : GET))
+        {
+            LOG_debug << sync->syncname << "Because transfer direction needs to change";
+        }
+        else
+        {
+            LOG_debug << sync->syncname << "Due to fingerprint change, was:" << transferSP->fingerprintDebugString() << " now:" << fingerprint.fingerprintDebugString();
+        }
         resetTransfer(nullptr);
     }
     return true;

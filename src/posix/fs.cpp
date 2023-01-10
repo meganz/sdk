@@ -506,6 +506,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 {
     struct stat statbuf;
 
+    fopenSucceeded = false;
     retry = false;
     bool statok = false;
     if (iteratingDir) //reuse statbuf from iterator
@@ -592,6 +593,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 
             FileSystemAccess::captimestamp(&mtime);
 
+            fopenSucceeded = true;
             return true;
         }
 
@@ -663,6 +665,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 
             FileSystemAccess::captimestamp(&mtime);
 
+            fopenSucceeded = true;
             return true;
         }
 

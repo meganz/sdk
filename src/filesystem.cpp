@@ -932,7 +932,8 @@ bool FileAccess::fopen(const LocalPath& name)
 {
     updatelocalname(name, true);
 
-    return sysstat(&mtime, &size);
+    fopenSucceeded = sysstat(&mtime, &size);
+    return fopenSucceeded;
 }
 
 bool FileAccess::isfile(const LocalPath& path)
