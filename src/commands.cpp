@@ -3984,7 +3984,6 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
-    string driveNames;
     string versionDriveNames;
     string myBackupsFolder;
     string versionMyBackupsFolder;
@@ -4121,10 +4120,6 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
-            break;
-
-        case MAKENAMEID5('*', '!', 'd', 'r', 'n'):
-            parseUserAttribute(driveNames, versionDriveNames);
             break;
 
         case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
@@ -4528,21 +4523,6 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-
-                if (!driveNames.empty())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&driveNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DRIVE_NAMES, tlvString.get(), &versionDriveNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DRIVE_NAMES";
                     }
                 }
 
@@ -9439,7 +9419,11 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    //TODO: add support for sfuId
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
     if (schedId != UNDEF)
     {
         // sm param indicates that call is in the context of a scheduled meeting, so it won't ring

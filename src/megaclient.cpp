@@ -4503,8 +4503,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches();
     }
 
-    mNodeManager.reset();
     sctable.reset();
+    mNodeManager.setTable(nullptr);
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4540,6 +4540,10 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mSets.clear();
     mSetElements.clear();
 
+#ifdef ENABLE_CHAT
+    mSfuid = sfu_invalid_id;
+#endif
+
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
 
@@ -4556,6 +4560,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    mNodeManager.reset();
 
     reqs.clear();
 
@@ -4666,7 +4671,7 @@ void MegaClient::removeCaches()
 {
     if (sctable)
     {
-        mNodeManager.reset();
+        mNodeManager.setTable(nullptr);
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
@@ -6486,7 +6491,6 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
-                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -12500,27 +12504,66 @@ error MegaClient::changepw(const char* password, const char *pin)
         return API_EACCESS;
     }
 
-    if (accountversion == 1)
-    {
-        error e;
-        byte newpwkey[SymmCipher::KEYLENGTH];
-        if ((e = pw_key(password, newpwkey)))
+    // Confirm account version, not rely on cached values
+    string spwd = password ? password : string();
+    string spin = pin ? pin : string();
+    reqs.add(new CommandGetUserData(this, reqtag,
+        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
-            return e;
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+                return;
+            }
+
+            switch (accountversion)
+            {
+            case 1:
+                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                break;
+
+            default:
+                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
+                // fallthrough
+
+            case 2:
+                e = changePasswordV2(spwd.c_str(), spin.c_str());
+                break;
+            }
+
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+            }
         }
+    ));
 
-        byte newkey[SymmCipher::KEYLENGTH];
-        SymmCipher pwcipher;
-        memcpy(newkey, key.key,  sizeof newkey);
-        pwcipher.setkey(newpwkey);
-        pwcipher.ecb_encrypt(newkey);
+    return API_OK;
+}
 
-        string email = u->email;
-        uint64_t stringhash = stringhash64(&email, &pwcipher);
-        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
-        return API_OK;
+error MegaClient::changePasswordV1(User* u, const char* password, const char* pin)
+{
+    error e;
+    byte newpwkey[SymmCipher::KEYLENGTH];
+    if ((e = pw_key(password, newpwkey)))
+    {
+        return e;
     }
 
+    byte newkey[SymmCipher::KEYLENGTH];
+    SymmCipher pwcipher;
+    memcpy(newkey, key.key, sizeof newkey);
+    pwcipher.setkey(newpwkey);
+    pwcipher.ecb_encrypt(newkey);
+
+    string email = u->email;
+    uint64_t stringhash = stringhash64(&email, &pwcipher);
+    reqs.add(new CommandSetMasterKey(this, newkey, (const byte*)&stringhash, sizeof(stringhash), NULL, pin));
+    return API_OK;
+}
+
+error MegaClient::changePasswordV2(const char* password, const char* pin)
+{
     byte clientRandomValue[SymmCipher::KEYLENGTH];
     rng.genblock(clientRandomValue, sizeof(clientRandomValue));
 
@@ -14863,7 +14906,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        attr_t attrType = ATTR_DEVICE_NAMES;
         if (!u->isattrvalid(attrType))
         {
             LOG_err << "Add backup: device/drive name not set";
@@ -14878,7 +14921,8 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
         string deviceName;
         std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
-        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
+        if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
             return completion(API_EINCOMPLETE, sc, nullptr);
@@ -17816,7 +17860,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
 {
     error e = API_OK;
-
+    bool keepParsing = true;
     auto wasFieldUpdated = [&j]()
     {
         bool updated = true;
@@ -17840,35 +17884,92 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
 
         return updated;
     };
+
+    auto getOldNewStrValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::StrChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL;
+        }
+
+        error e = API_OK;
+        j->storeobject(&cs.oldValue);
+        bool updated = j->storeobject(&cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };
+
+    // uncomment when support for unix timestamps has been merged into develop
+    /*auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL; 
+        }
+
+        error e = API_OK;
+        cs.oldValue = j->getint();
+        cs.newValue = j->getint();
+        bool updated = static_cast<bool>(cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };*/
+
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
     using Changeset = UserAlert::UpdatedScheduledMeeting::Changeset;
-    bool keepParsing = true;
     do
     {
         switch(j->getnameid())
         {
             case MAKENAMEID1('t'):
-                if (j->enterarray())
+            {
+                Changeset::StrChangeset tCs;
+                if (getOldNewStrValues(tCs, "Title") == API_OK)
                 {
-                    string oldTitle, newTitle;
-                    j->storeobject(&oldTitle);
-                    j->storeobject(&newTitle);
-                    if (oldTitle == newTitle)
-                    {
-                        LOG_err << "ScheduledMeetings: Received updated SM with updated Title "
-                                << "notification but no modification: old title |" << oldTitle
-                                << "| new title |" << newTitle <<"|";
-                        keepParsing = false;
-                        e = API_EINTERNAL;
-                    }
-                    else
-                    {
-                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE,
-                                        oldTitle, newTitle);
-                    }
-                    j->leavearray();
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
                 }
-                break;
+            }
+            break;
 
             case MAKENAMEID1('d'):
                 if (wasFieldUpdated())
@@ -17885,25 +17986,36 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 break;
 
             case MAKENAMEID2('t', 'z'):
-                if (wasFieldUpdated())
+            {
+                Changeset::StrChangeset tzCs;
+                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
                 }
-                break;
+            }
+            break;
 
             case MAKENAMEID1('s'):
-                if (wasFieldUpdated())
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset sdCs;
+                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
                 }
-                break;
+            }*/
+            break;
 
             case MAKENAMEID1('e'):
-                if (wasFieldUpdated())
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset edCs;
+                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
                 }
-                break;
+            }*/
+            break;
 
             case MAKENAMEID1('r'):
                 /* - empty rules field           => scheduled meeting doesn't have rules
@@ -18444,7 +18556,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
 
 string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
-    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
     cipher.cbc_decrypt(decrKey.get(), k.size());
     return string((char*)decrKey.get(), k.size());
@@ -18718,6 +18830,12 @@ bool MegaClient::deleteSet(handle sid)
     }
 
     return false;
+}
+
+unsigned MegaClient::getSetElementCount(handle sid) const
+{
+    auto* elements = getSetElements(sid);
+    return elements ? static_cast<unsigned>(elements->size()) : 0u;
 }
 
 const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
@@ -19502,7 +19620,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -19512,8 +19630,49 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
+    if (recursive)
+    {
+        mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
+    }
+    else
+    {
+        assert(!nodeHandle.isUndef());
+        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, nodeHandle, cancelFlag);
+    }
+
     nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::IN_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::OUT_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
 
     return nodes;
 }
