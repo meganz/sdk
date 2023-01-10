@@ -75,7 +75,20 @@ namespace UserAlert
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+#ifdef ENABLE_CHAT
+    static const nameid type_nusm = MAKENAMEID5('m', 'c', 's', 'm', 'p');           // new or updated scheduled meeting
+    static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
+#endif
 
+    enum userAlertsSubtype
+    {
+        subtype_invalid   = 0,
+        subtype_new_Sched = 1,
+        subtype_upd_Sched = 2,
+    };
+
+    struct Base;
+    static Base* unserializeNewUpdSched(string*, unsigned id);
     using handle_alerttype_map_t = map<handle, nameid>;
 
     struct Base : public Cacheable
@@ -127,7 +140,9 @@ namespace UserAlert
         } pst;
 
         bool serialize(string*) override;
+        static unique_ptr<Persistent> readBase(CacheableReader& r);
         static unique_ptr<Persistent> unserialize(string*);
+        friend Base* unserializeNewUpdSched(string*, unsigned id);
 
     private:
         bool mRemoved = false; // useful to know when to remove from persist db
@@ -297,6 +312,149 @@ namespace UserAlert
         bool serialize(string*) override;
         static Takedown* unserialize(string*, unsigned id);
     };
+
+#ifdef ENABLE_CHAT
+    struct NewScheduledMeeting : public Base
+    {
+        handle mSchedMeetingHandle = UNDEF;
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+            : Base(UserAlert::type_nusm, _ou, string(), _ts, _id)
+            , mSchedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string* d) override;
+        static NewScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct UpdatedScheduledMeeting : public Base
+    {
+        class Changeset
+        {
+        public:
+            enum
+            {
+                CHANGE_TYPE_TITLE,
+                CHANGE_TYPE_DESCRIPTION,
+                CHANGE_TYPE_CANCELLED,
+                CHANGE_TYPE_TIMEZONE,
+                CHANGE_TYPE_STARTDATE,
+                CHANGE_TYPE_ENDDATE,
+                CHANGE_TYPE_RULES,
+
+                CHANGE_TYPE_SIZE
+            };
+            struct StrChangeset { string oldValue, newValue; };
+            struct TsChangeset  { m_time_t oldValue, newValue; };
+
+            const StrChangeset* getUpdatedTitle() const         { return mUpdatedTitle.get(); }
+            const StrChangeset* getUpdatedTimeZone() const      { return mUpdatedTimeZone.get(); }
+            const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
+            const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
+            unsigned long getChanges() const                    { return mUpdatedFields.to_ulong(); }
+            bool hasChanged(int changeType) const
+            {
+                return isValidChange(changeType)
+                        ? mUpdatedFields[changeType]
+                        : false;
+            }
+
+            string changeToString(int changeType) const;
+            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
+            Changeset() = default;
+            Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
+                      unique_ptr<StrChangeset>& _titleCS,
+                      unique_ptr<StrChangeset>& _tzCS,
+                      unique_ptr<TsChangeset>& _sdCS,
+                      unique_ptr<TsChangeset>& _edCS);
+
+            Changeset(const Changeset& src) { replaceCurrent(src); }
+            Changeset& operator=(const Changeset& src) { replaceCurrent(src); return *this; }
+            Changeset(Changeset&&) = default;
+            Changeset& operator=(Changeset&&) = default;
+            ~Changeset() = default;
+
+        private:
+            /*
+             * invariant:
+             * - bitset size must be the maximum types of changes allowed
+             * - if title changed, there must be previous and new title string
+             * - if timezone changed, there must be previous and new timezone
+             * - if StartDateTime changed, there must be previous and new StartDateTime
+             * - if EndDateTime changed, there must be previous and new EndDateTime
+             */
+            bool invariant() const
+            {
+                return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
+                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]     || !!mUpdatedTitle)
+                        && (!mUpdatedFields[CHANGE_TYPE_TIMEZONE]  || !!mUpdatedTimeZone)
+                        && (!mUpdatedFields[CHANGE_TYPE_STARTDATE] || !!mUpdatedStartDateTime)
+                        && (!mUpdatedFields[CHANGE_TYPE_ENDDATE]   || !!mUpdatedEndDateTime));
+            }
+
+            bool isValidChange(int changeType) const
+            {
+                return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE);
+            }
+
+            void replaceCurrent(const Changeset& src)
+            {
+                mUpdatedFields = src.mUpdatedFields;
+                if (src.mUpdatedTitle)
+                {
+                    mUpdatedTitle.reset(new StrChangeset{src.mUpdatedTitle->oldValue, src.mUpdatedTitle->newValue});
+                }
+                if (src.mUpdatedTimeZone)
+                {
+                    mUpdatedTimeZone.reset(new StrChangeset{src.mUpdatedTimeZone->oldValue, src.mUpdatedTimeZone->newValue});
+                }
+                if (src.mUpdatedStartDateTime)
+                {
+                    mUpdatedStartDateTime.reset(new TsChangeset{src.mUpdatedStartDateTime->oldValue, src.mUpdatedStartDateTime->newValue});
+                }
+                if (src.mUpdatedEndDateTime)
+                {
+                    mUpdatedEndDateTime.reset(new TsChangeset{src.mUpdatedEndDateTime->oldValue, src.mUpdatedEndDateTime->newValue});
+                }
+            }
+
+            std::bitset<CHANGE_TYPE_SIZE> mUpdatedFields;
+            unique_ptr<StrChangeset> mUpdatedTitle;
+            unique_ptr<StrChangeset> mUpdatedTimeZone;
+            unique_ptr<TsChangeset> mUpdatedStartDateTime;
+            unique_ptr<TsChangeset> mUpdatedEndDateTime;
+        };
+
+        handle mSchedMeetingHandle = UNDEF;
+        Changeset mUpdatedChangeset;
+
+        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, Changeset&& _cs)
+            : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
+            , mSchedMeetingHandle(_sm)
+            , mUpdatedChangeset(_cs)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string*) override;
+        static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct DeletedScheduledMeeting : public Base
+    {
+        handle mSchedMeetingHandle = UNDEF;
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , mSchedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string* d) override;
+        static DeletedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+#endif
 };
 
 struct UserAlertFlags
@@ -436,8 +594,11 @@ public:
     bool isDeletedSharedNodesStashEmpty() const;
     void stashDeletedNotedSharedNodes(handle originatingUser);
 
-    // marks all as seen, and notifies the API also
+    // request from API to acknowledge all alerts
     void acknowledgeAll();
+
+    // marks all as seen, after API request has succeeded
+    void acknowledgeAllSucceeded();
 
     // the API notified us another client updated the last acknowleged
     void onAcknowledgeReceived();

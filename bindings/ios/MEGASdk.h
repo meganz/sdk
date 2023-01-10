@@ -3720,6 +3720,15 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 -(NSArray<MEGASetElement *>*)megaSetElementsBySid:(MEGAHandle)sid;
 
 /**
+ * @brief Get Element count of the Set with the given id, for current user.
+ *
+ * @param sid the id of the Set to get Element count for
+ *
+ * @return Element count of requested Set, or 0 if not found
+ */
+-(NSUInteger)megaSetElementCount:(MEGAHandle)sid;
+
+/**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
  * To remove the existing coordinates, set both the latitude and longitude to nil.
@@ -6288,6 +6297,23 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate to track this request.
  */
 - (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Allows to change the hardcoded value of the "secure" flag
+ *
+ * With this feature flag set, the client will manage encryption keys for
+ * shared folders in a secure way. Legacy clients won't be able to decrypt
+ * shared folders created with this flag enabled.
+ *
+ * Manual verification of credentials of users (both sharers AND sharees) is
+ * required in order to decrypt shared folders correctly.
+ *
+ * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+ * result on unexpected behavior.
+ *
+ * @param enable New value of the flag
+ */
+- (void)setSecureFlag:(BOOL)enable;
 
 #pragma mark - Transfers
 

@@ -59,7 +59,6 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         if (newValue != currentValue)
         {
             if ((type == ATTR_ALIAS
-                 || type == ATTR_DRIVE_NAMES
                  || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
             {
                 // alias/deviceName/driveName being removed
@@ -599,10 +598,6 @@ string User::attr2string(attr_t type)
             attrname = "*~jscd";
             break;
 
-        case ATTR_DRIVE_NAMES:
-            attrname =  "*!drn";
-            break;
-
         case ATTR_KEYS:
             attrname =  "^!keys";
             break;
@@ -764,10 +759,6 @@ string User::attr2longname(attr_t type)
         longname = "JSON_SYNC_CONFIG_DATA";
         break;
 
-        case ATTR_DRIVE_NAMES:
-            longname = "DRIVE_NAMES";
-            break;
-
     case ATTR_KEYS:
         longname = "KEYS";
         break;
@@ -919,10 +910,6 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_JSON_SYNC_CONFIG_DATA;
     }
-    else if (!strcmp(name, "*!drn"))
-    {
-        return ATTR_DRIVE_NAMES;
-    }
     else if (!strcmp(name, "^!keys"))
     {
         return ATTR_KEYS;
@@ -972,7 +959,6 @@ int User::needversioning(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_DRIVE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_KEYS:
             return 1;
@@ -1001,7 +987,6 @@ char User::scope(attr_t at)
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_DRIVE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1452,10 +1437,6 @@ bool User::setChanged(attr_t at)
             changed.jsonSyncConfigData = true;
             break;
 
-        case ATTR_DRIVE_NAMES:
-            changed.drivenames = true;
-            break;
-
         case ATTR_KEYS:
             changed.keys = true;
             break;
@@ -1490,6 +1471,16 @@ void User::set(visibility_t v, m_time_t ct)
 {
     show = v;
     ctime = ct;
+}
+
+string User::attributePrefixInTLV(attr_t type, bool modifier)
+{
+    if (type == ATTR_DEVICE_NAMES && modifier)
+    {
+        return "ext:";
+    }
+
+    return string();
 }
 
 AuthRing::AuthRing(attr_t type, const TLVstore &authring)
@@ -1699,7 +1690,7 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     return "unknown";
 }
 
-string AuthRing::toString(AuthRing &authRing)
+string AuthRing::toString(const AuthRing &authRing)
 {
     auto uhVector = authRing.getTrackedUsers();
     ostringstream result;

@@ -81,7 +81,7 @@ struct MEGA_API User : public Cacheable
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
-        bool devicenames : 1; // device names
+        bool devicenames : 1; // device or external drive names
         bool myBackupsFolder : 1; // target folder for My Backups
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
         bool jsonSyncConfigData : 1;
@@ -161,6 +161,7 @@ public:
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
     static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
+    static string attributePrefixInTLV(attr_t type, bool modifier);
 };
 
 class AuthRing
@@ -220,7 +221,7 @@ public:
     // returns a human-friendly string for a given authentication method
     static string authMethodToStr(AuthMethod authMethod);
 
-    static string toString(AuthRing& authRing);
+    static string toString(const AuthRing& authRing);
 
     bool needsUpdate() const { return mNeedsUpdate; }
 

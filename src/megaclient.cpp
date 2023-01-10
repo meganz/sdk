@@ -28,6 +28,7 @@
 #include <future>
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include "mega/heartbeats.h"
+#include "mega/testhooks.h"
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -2083,6 +2084,7 @@ void MegaClient::exec()
 
                                 if (auto completion = std::move(mOnCSCompletion))
                                 {
+                                    LOG_debug << "calling mOnCSCompletion after request reply processing";  // track possible lack of logout callbacks
                                     assert(mOnCSCompletion == nullptr);
                                     completion(this);
                                 }
@@ -4515,6 +4517,7 @@ void MegaClient::catchup()
     mPendingCatchUps++;
     if (pendingsc && !jsonsc.pos)
     {
+        LOG_debug << "Terminating pendingsc connection for catchup.   Pending: " << mPendingCatchUps;
         pendingsc->disconnect();
         pendingsc.reset();
     }
@@ -4565,6 +4568,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
+    LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
 
     mAsyncQueue.clearDiscardable();
@@ -4578,8 +4582,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches();
     }
 
-    mNodeManager.reset();
     sctable.reset();
+    mNodeManager.setTable(nullptr);
     pendingsccommit = false;
 
     statusTable.reset();
@@ -4615,6 +4619,10 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mSets.clear();
     mSetElements.clear();
 
+#ifdef ENABLE_CHAT
+    mSfuid = sfu_invalid_id;
+#endif
+
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
 
@@ -4631,6 +4639,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    mNodeManager.reset();
 
     reqs.clear();
 
@@ -4741,7 +4750,7 @@ void MegaClient::removeCaches()
 {
     if (sctable)
     {
-        mNodeManager.reset();
+        mNodeManager.setTable(nullptr);
         sctable->remove();
         sctable.reset();
         pendingsccommit = false;
@@ -4895,6 +4904,7 @@ bool MegaClient::procsc()
                         if (!pendingcs && !csretrying && !reqs.cmdspending())
                         {
                             sctable->commit();
+                            assert(!sctable->inTransaction());
                             sctable->begin();
                             app->notify_dbcommit();
                             pendingsccommit = false;
@@ -4926,6 +4936,7 @@ bool MegaClient::procsc()
                             if (sctable)
                             {
                                 sctable->commit();
+                                assert(!sctable->inTransaction());
                                 sctable->begin();
                                 pendingsccommit = false;
                             }
@@ -5049,6 +5060,7 @@ bool MegaClient::procsc()
                     {
                         mReceivingCatchUp = false;
                         mPendingCatchUps--;
+                        LOG_debug << "catchup complete. Still pending: " << mPendingCatchUps;
                         app->catchup_result();
                     }
                     return true;
@@ -6626,7 +6638,6 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
-                                    case ATTR_DRIVE_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -7548,6 +7559,7 @@ void MegaClient::sc_delscheduledmeeting()
 {
     bool done = false;
     handle schedId = UNDEF;
+    handle ou = UNDEF;
 
     while(!done)
     {
@@ -7555,6 +7567,10 @@ void MegaClient::sc_delscheduledmeeting()
         {
             case MAKENAMEID2('i','d'):
                 schedId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
                 break;
 
             case EOO:
@@ -7566,9 +7582,16 @@ void MegaClient::sc_delscheduledmeeting()
                     if (chat->removeSchedMeeting(schedId))
                     {
                         // remove children scheduled meetings (API requirement)
-                        chat->removeChildSchedMeetings(schedId);
+                        handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+
+                        // remove scheduled meetings occurrences and children
+                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
+
                         chat->setTag(0);    // external change
                         notifychat(chat);
+                        for_each(begin(deletedChildren), end(deletedChildren),
+                                 [this, ou](handle sm) { createDeletedSMAlert(ou, sm); });
+                        createDeletedSMAlert(ou, schedId);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
                         break;
                     }
@@ -7590,7 +7613,9 @@ void MegaClient::sc_delscheduledmeeting()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true);
+    UserAlert::UpdatedScheduledMeeting::Changeset cs;
+    handle ou = UNDEF;
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -7612,9 +7637,17 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
-        unsigned int deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
+
+        // remove all child scheduled meeting occurrences
+        // API currently just supports 1 level in scheduled meetings hierarchy
+        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
+        bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || deletedChildren)
+        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
         {
             if (!res)
             {
@@ -7624,9 +7657,51 @@ void MegaClient::sc_scheduledmeetings()
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             chat->setTag(0);    // external change
             notifychat(chat);
+
+            for_each(begin(deletedChildren), end(deletedChildren),
+                     [this, ou](const handle& sm) { createDeletedSMAlert(ou, sm); });
+            if (res)
+            {
+                if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
+                else createUpdatedSMAlert(ou, schedId, std::move(cs));
+            }
         }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
     }
+}
+
+void MegaClient::createNewSMAlert(const handle& ou, handle sm)
+{
+    if (ou == me)
+    {
+        LOG_verbose << "ScheduledMeetings: Avoiding New SM alert generated by myself"
+                    << " in a different session";
+        return;
+    }
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+}
+
+void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
+{
+    if (ou == me)
+    {
+        LOG_verbose << "ScheduledMeetings: Avoiding Deleted SM alert generated by myself"
+                    << " in a different session";
+        return;
+    }
+    useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+}
+
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
+                                      UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
+{
+    if (ou == me)
+    {
+        LOG_verbose << "ScheduledMeetings: Avoiding Updated SM alert generated by myself"
+                    << " in a differet session";
+        return;
+    }
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, std::move(cs)));
 }
 
 #endif
@@ -8745,37 +8820,6 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         removeOutSharesFromSubtree(c, tag);
     }
 }
-
-#ifdef ENABLE_SYNC
-void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
-{
-    // Try and deregister this sync's backup ID first.
-    // If later removal operations fail, the heartbeat record will be resurrected
-
-    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
-
-    syncs.forEachRunningSync([&](Sync* sync) {
-        if (sync->getConfig().mBackupId == backupId)
-        {
-            // prevent any sp or sphb messages being queued after
-            sync->getConfig().mSyncDeregisterSent = true;
-
-            // Prevent notifying the client app for this sync's state changes
-            sync->getConfig().mRemovingSyncBySds = removingSyncBySds;
-        }
-    });
-
-    reqs.add(new CommandBackupRemove(this, backupId,
-            [backupId, completion, this](Error e){
-                if (e)
-                {
-                    // de-registering is not critical - we continue anyway
-                    LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
-                }
-                syncs.removeSyncAfterDeregistration(backupId, completion);
-            }));
-}
-#endif // ENABLE_SYNC
 
 void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
 {
@@ -13035,27 +13079,66 @@ error MegaClient::changepw(const char* password, const char *pin)
         return API_EACCESS;
     }
 
-    if (accountversion == 1)
-    {
-        error e;
-        byte newpwkey[SymmCipher::KEYLENGTH];
-        if ((e = pw_key(password, newpwkey)))
+    // Confirm account version, not rely on cached values
+    string spwd = password ? password : string();
+    string spin = pin ? pin : string();
+    reqs.add(new CommandGetUserData(this, reqtag,
+        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
-            return e;
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+                return;
+            }
+
+            switch (accountversion)
+            {
+            case 1:
+                e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                break;
+
+            default:
+                LOG_warn << "Unexpected account version v" << accountversion << " processed as v2";
+                // fallthrough
+
+            case 2:
+                e = changePasswordV2(spwd.c_str(), spin.c_str());
+                break;
+            }
+
+            if (e != API_OK)
+            {
+                app->changepw_result(e);
+            }
         }
+    ));
 
-        byte newkey[SymmCipher::KEYLENGTH];
-        SymmCipher pwcipher;
-        memcpy(newkey, key.key,  sizeof newkey);
-        pwcipher.setkey(newpwkey);
-        pwcipher.ecb_encrypt(newkey);
+    return API_OK;
+}
 
-        string email = u->email;
-        uint64_t stringhash = stringhash64(&email, &pwcipher);
-        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
-        return API_OK;
+error MegaClient::changePasswordV1(User* u, const char* password, const char* pin)
+{
+    error e;
+    byte newpwkey[SymmCipher::KEYLENGTH];
+    if ((e = pw_key(password, newpwkey)))
+    {
+        return e;
     }
 
+    byte newkey[SymmCipher::KEYLENGTH];
+    SymmCipher pwcipher;
+    memcpy(newkey, key.key, sizeof newkey);
+    pwcipher.setkey(newpwkey);
+    pwcipher.ecb_encrypt(newkey);
+
+    string email = u->email;
+    uint64_t stringhash = stringhash64(&email, &pwcipher);
+    reqs.add(new CommandSetMasterKey(this, newkey, (const byte*)&stringhash, sizeof(stringhash), NULL, pin));
+    return API_OK;
+}
+
+error MegaClient::changePasswordV2(const char* password, const char* pin)
+{
     byte clientRandomValue[SymmCipher::KEYLENGTH];
     rng.genblock(clientRandomValue, sizeof(clientRandomValue));
 
@@ -13426,24 +13509,8 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 {
     bool purgeOrphanTransfers = statecurrent;
 
-#ifdef ENABLE_SYNC
-    if (purgeOrphanTransfers && !remove)
-    {
-        if (!syncsup)
-        {
-            purgeOrphanTransfers = false;
-        }
-        else
-        {
-            syncs.forEachRunningSync([&](Sync* sync) {
-                if (sync->state() != SYNC_ACTIVE)
-                {
-                    purgeOrphanTransfers = false;
-                }
-            });
-        }
-    }
-#endif
+    unsigned purgeCount = 0;
+    unsigned notPurged = 0;
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
@@ -13454,14 +13521,30 @@ void MegaClient::purgeOrphanTransfers(bool remove)
             Transfer *transfer = it->second;
             if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
             {
-                LOG_warn << "Purging orphan transfer";
+                if (purgeCount == 0)
+                {
+                    LOG_warn << "Purging orphan transfers";
+                }
+                purgeCount ++;
                 transfer->finished = true;
             }
+            else
+            {
+                notPurged ++;
+            }
 
-            app->transfer_removed(transfer);
+            // if the transfer is still in cachedtransfers, then the app never knew about it
+            // during this running instance, so no need to call the app back here.
+            //app->transfer_removed(transfer);
+
             delete transfer;
             cachedtransfers[d].erase(it);
         }
+    }
+
+    if (purgeCount > 0 || notPurged > 0)
+    {
+        LOG_warn << "Purged " << purgeCount << " orphan transfers, " << notPurged << " non-referenced cached transfers remain";
     }
 }
 
@@ -13668,7 +13751,7 @@ void MegaClient::fetchnodes(bool nocache)
             // upon ug completion
             if (e != API_OK)
             {
-                LOG_err << "Session load failed: unable not get user data";
+                LOG_err << "Session load failed: unable to get user data";
                 app->fetchnodes_result(API_EINTERNAL);
                 return; //from completion function
             }
@@ -14718,6 +14801,8 @@ bool MegaClient::areCredentialsVerified(handle uh)
 
 void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
+    // this function's purpose is to remove from RAM everything that we would populate in FetchNodes.
+
     app->clearing();
 
     while (!hdrns.empty())
@@ -15614,7 +15699,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        attr_t attrType = ATTR_DEVICE_NAMES;
         if (!u->isattrvalid(attrType))
         {
             LOG_err << "Add backup: device/drive name not set";
@@ -15629,7 +15714,8 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
         string deviceName;
         std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
-        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
+        if (!tlvRecords || !tlvRecords->get(deviceNameKey, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
             return completion(API_EINCOMPLETE, sc, nullptr);
@@ -18279,7 +18365,8 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 }
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
-                                         bool parsingOccurrences, JSON *j, bool parseOnce)
+                                         bool parsingOccurrences, JSON *j, bool parseOnce,
+                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
 {
     JSON* auxJson = j
             ? j         // custom Json provided
@@ -18297,6 +18384,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         handle organizerUserId = UNDEF;
         handle schedId = UNDEF;
         handle parentSchedId = UNDEF;
+        handle originatingUser = UNDEF;
         std::string timezone;
         std::string startDateTime;
         std::string endDateTime;
@@ -18330,6 +18418,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 case MAKENAMEID1('u'): // organizer user Handle
                 {
                     organizerUserId = auxJson->gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
+                case MAKENAMEID2('o', 'u'): // originating user
+                {
+                    assert(ou);
+                    originatingUser = auxJson->gethandle(MegaClient::USERHANDLE);
                     break;
                 }
                 case MAKENAMEID2('t', 'z'): // timezone
@@ -18501,6 +18595,16 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                                                             until, &vWeek, &vMonth, &mMonth));
                     break;
                 }
+                case MAKENAMEID2('c', 's'):
+                {
+                    assert(cs);
+                    if (auxJson->enterobject())
+                    {
+                        parseScheduledMeetingChangeset(auxJson, cs);
+                        auxJson->leaveobject();
+                    }
+                    break;
+                }
                 case EOO:
                 {
                     exit = true;
@@ -18524,6 +18628,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     else
                     {
                         schedMeetings.emplace_back(std::move(auxMeet));
+                        if (ou) *ou = originatingUser;
                     }
 
                     break;
@@ -18544,6 +18649,197 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
     }
     return API_OK;
 }
+
+error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
+{
+    error e = API_OK;
+    bool keepParsing = true;
+    auto wasFieldUpdated = [&j]()
+    {
+        bool updated = true;
+        if (j->enterarray())
+        {
+            j->storeobject();
+            updated = j->storeobject(); // if it is an array, it didn't change unless there are 2 values
+            j->leavearray();
+        }
+        else
+        {
+            int v = static_cast<int>(j->getint());
+            if (v != 1)
+            {
+                LOG_err << "ScheduledMeetings: Expected a different flag to indicate updated "
+                        << "field. Expected 1 received " << v;
+                assert(false);
+            }
+            // else => field has changed but don't receive old|new values due to size reasons
+        }
+
+        return updated;
+    };
+
+    auto getOldNewStrValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::StrChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL;
+        }
+
+        error e = API_OK;
+        j->storeobject(&cs.oldValue);
+        bool updated = j->storeobject(&cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };
+
+    // uncomment when support for unix timestamps has been merged into develop
+    /*auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL; 
+        }
+
+        error e = API_OK;
+        cs.oldValue = j->getint();
+        cs.newValue = j->getint();
+        bool updated = static_cast<bool>(cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };*/
+
+    UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
+    using Changeset = UserAlert::UpdatedScheduledMeeting::Changeset;
+    do
+    {
+        switch(j->getnameid())
+        {
+            case MAKENAMEID1('t'):
+            {
+                Changeset::StrChangeset tCs;
+                if (getOldNewStrValues(tCs, "Title") == API_OK)
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                }
+            }
+            break;
+
+            case MAKENAMEID1('d'):
+                if (wasFieldUpdated())
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_DESCRIPTION);
+                }
+                break;
+
+            case MAKENAMEID1('c'):
+                if (wasFieldUpdated())
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_CANCELLED);
+                }
+                break;
+
+            case MAKENAMEID2('t', 'z'):
+            {
+                Changeset::StrChangeset tzCs;
+                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                }
+            }
+            break;
+
+            case MAKENAMEID1('s'):
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset sdCs;
+                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                }
+            }*/
+            break;
+
+            case MAKENAMEID1('e'):
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset edCs;
+                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                }
+            }*/
+            break;
+
+            case MAKENAMEID1('r'):
+                /* - empty rules field           => scheduled meeting doesn't have rules
+                 * - rules array with 1 element  => rules not modified
+                 * - rules array with 2 elements => rules modified [old value, new value]
+                 *   + note: if 2º value in array is empty, rules have been removed
+                 */
+                if (wasFieldUpdated())
+                {
+                    auxCS.addChange(Changeset::CHANGE_TYPE_RULES);
+                }
+                break;
+
+            case EOO:
+                keepParsing = false;
+                *cs = std::move(auxCS);
+            break;
+
+            default:
+                if (!j->storeobject())
+                {
+                    keepParsing = false;
+                    e = API_EINTERNAL;
+                }
+            break;
+        }
+    } while (keepParsing);
+
+    return e;
+}
+
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
@@ -19053,7 +19349,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
 
 string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
-    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
     cipher.cbc_decrypt(decrKey.get(), k.size());
     return string((char*)decrKey.get(), k.size());
@@ -19327,6 +19623,12 @@ bool MegaClient::deleteSet(handle sid)
     }
 
     return false;
+}
+
+unsigned MegaClient::getSetElementCount(handle sid) const
+{
+    auto* elements = getSetElements(sid);
+    return elements ? static_cast<unsigned>(elements->size()) : 0u;
 }
 
 const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
@@ -20111,7 +20413,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -20121,8 +20423,49 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
+    if (recursive)
+    {
+        mTable->searchForNodesByName(searchString, nodesFromTable, cancelFlag);
+    }
+    else
+    {
+        assert(!nodeHandle.isUndef());
+        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, nodeHandle, cancelFlag);
+    }
+
     nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::IN_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
+}
+
+node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::OUT_SHARES, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
 
     return nodes;
 }
@@ -20155,7 +20498,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
     if (nodesFromTable.size())
     {
@@ -20216,7 +20559,7 @@ Node *NodeManager::getNodeByFingerprint(FileFingerprint &fingerprint)
 
     NodeSerialized nodeSerialized;
     std::string fingerprintString;
-    fingerprint.serialize(&fingerprintString);
+    fingerprint.FileFingerprint::serialize(&fingerprintString);
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
     if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
@@ -21056,7 +21399,7 @@ void NodeManager::notifyPurge()
                 };
 
                 // Try and remove the sync.
-                mClient.deregisterThenRemoveSync(us.mConfig.mBackupId,
+                mClient.syncs.deregisterThenRemoveSync(us.mConfig.mBackupId,
                                                  move(completion), true);
             }
 
@@ -22392,21 +22735,18 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
             return;
         }
 
-        if (e == API_EEXPIRED)
-        {
-            mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
-        }
+        mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
 
         mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
-        [e, completion](error err)
+        [completion](error err)
         {
             LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
-            completion(e);
+            completion(API_EEXPIRED);
         },
-        [e, completion](byte*, unsigned, attr_t)
+        [completion](byte*, unsigned, attr_t)
         {
             LOG_debug << "[keymgr] Success getting the value of ^!keys";
-            completion(e);
+            completion(API_EEXPIRED);
         }, nullptr));
     });
 }
@@ -22673,7 +23013,7 @@ string KeyManager::serializePendingOutshares() const
         for (const std::string& uid : itNodes.second)
         {
             byte len = 0;
-            if (strchr(uid.c_str(), '@'))
+            if (uid.find('@') != string::npos)
             {
                 if (uid.size() >= 256)
                 {

@@ -3200,7 +3200,6 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 
     mCompletion(API_EINTERNAL);
     return false;
-
 }
 
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
@@ -4137,7 +4136,6 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
-    string driveNames;
     string versionDriveNames;
     string myBackupsFolder;
     string versionMyBackupsFolder;
@@ -4275,10 +4273,6 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
-            break;
-
-        case MAKENAMEID5('*', '!', 'd', 'r', 'n'):
-            parseUserAttribute(driveNames, versionDriveNames);
             break;
 
         case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
@@ -4686,21 +4680,6 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-
-                if (!driveNames.empty())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&driveNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DRIVE_NAMES, tlvString.get(), &versionDriveNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DRIVE_NAMES";
                     }
                 }
 
@@ -5372,7 +5351,11 @@ bool CommandGetUserTransactions::procresult(Result r)
             details->transactions[t].currency[3] = 0;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, true, false);
@@ -5414,7 +5397,11 @@ bool CommandGetUserPurchases::procresult(Result r)
             details->purchases[t].method = method;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, true, false, false);
@@ -5453,7 +5440,11 @@ bool CommandGetUserSessions::procresult(Result r)
         details->sessions[t].id = client->json.gethandle(8);
         details->sessions[t].alive = (int)client->json.getint();
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, false, true);
@@ -8540,6 +8531,11 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 bool CommandSetLastAcknowledged::procresult(Result r)
 {
+    if (r.succeeded())
+    {
+        client->useralerts.acknowledgeAllSucceeded();
+    }
+
     client->app->acknowledgeuseralerts_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -9615,7 +9611,11 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    //TODO: add support for sfuId
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
     if (schedId != UNDEF)
     {
         // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
@@ -9804,7 +9804,14 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     TextChat* chat = it->second;
 
     // remove children scheduled meetings (API requirement)
-    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
+    handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+
+    // remove all child scheduled meeting occurrences
+    // API currently just supports 1 level in scheduled meetings hierarchy
+    // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+    // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+    handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
     mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
@@ -9815,7 +9822,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (deletedChildren)
+    else if (!deletedChildren.empty() || !deletedChildrenOccurr.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
@@ -9859,6 +9866,9 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
+
+            // remove scheduled meetings occurrences and children
+            chat->removeSchedMeetingsOccurrencesAndChildren(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
 

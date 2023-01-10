@@ -620,7 +620,7 @@ struct Syncs
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -690,7 +690,7 @@ public:
 
     void syncRun(std::function<void()>);
     void queueSync(std::function<void()>&&);
-    void queueClient(QueuedClientFunc&&);
+    void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
     bool onSyncThread() const {
         // when sync rework is merged, there really will be a sync thread
