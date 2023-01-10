@@ -2176,6 +2176,62 @@ bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
 {
     return schedMeetingChangeset.hasChanged(changeType);
 }
+
+MegaStringList* MegaUserAlertPrivate::getUpdatedTitle() const
+{
+    if (!hasSchedMeetingChanged(SM_CHANGE_TYPE_TITLE)
+            || !schedMeetingChangeset.getUpdatedTitle())
+    {
+        return nullptr;
+    }
+
+    MegaStringList* updatedTitle = MegaStringList::createInstance();
+    updatedTitle->add(Base64::atob(schedMeetingChangeset.getUpdatedTitle()->oldValue).c_str());
+    updatedTitle->add(Base64::atob(schedMeetingChangeset.getUpdatedTitle()->newValue).c_str());
+    return updatedTitle;
+}
+
+MegaStringList* MegaUserAlertPrivate::getUpdatedTimeZone() const
+{
+    if (!hasSchedMeetingChanged(SM_CHANGE_TYPE_TIMEZONE)
+            || !schedMeetingChangeset.getUpdatedTimeZone())
+    {
+        return nullptr;
+    }
+
+    MegaStringList* updatedTimezone = MegaStringList::createInstance();
+    updatedTimezone->add(Base64::atob(schedMeetingChangeset.getUpdatedTimeZone()->oldValue).c_str());
+    updatedTimezone->add(Base64::atob(schedMeetingChangeset.getUpdatedTimeZone()->newValue).c_str());
+    return updatedTimezone;
+}
+
+MegaIntegerList* MegaUserAlertPrivate::getUpdatedStartDate() const
+{
+    if (!hasSchedMeetingChanged(SM_CHANGE_TYPE_STARTDATE)
+            || !schedMeetingChangeset.getUpdatedStartDateTime())
+    {
+        return nullptr;
+    }
+
+    MegaIntegerList* updatedStartDateTime = MegaIntegerList::createInstance();
+    updatedStartDateTime->add(schedMeetingChangeset.getUpdatedStartDateTime()->oldValue);
+    updatedStartDateTime->add(schedMeetingChangeset.getUpdatedStartDateTime()->newValue);
+    return updatedStartDateTime;
+}
+
+MegaIntegerList* MegaUserAlertPrivate::getUpdatedEndDate() const
+{
+    if (!hasSchedMeetingChanged(SM_CHANGE_TYPE_ENDDATE)
+            || !schedMeetingChangeset.getUpdatedEndDateTime())
+    {
+        return nullptr;
+    }
+
+    MegaIntegerList* updatedEndDateTime = MegaIntegerList::createInstance();
+    updatedEndDateTime->add(schedMeetingChangeset.getUpdatedEndDateTime()->oldValue);
+    updatedEndDateTime->add(schedMeetingChangeset.getUpdatedEndDateTime()->newValue);
+    return updatedEndDateTime;
+}
 #endif
 
 bool MegaUserAlertPrivate::isOwnChange() const

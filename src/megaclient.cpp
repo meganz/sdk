@@ -17860,7 +17860,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
 {
     error e = API_OK;
-
+    bool keepParsing = true;
     auto wasFieldUpdated = [&j]()
     {
         bool updated = true;
@@ -17884,35 +17884,92 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
 
         return updated;
     };
+
+    auto getOldNewStrValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::StrChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL;
+        }
+
+        error e = API_OK;
+        j->storeobject(&cs.oldValue);
+        bool updated = j->storeobject(&cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };
+
+    // uncomment when support for unix timestamps has been merged into develop
+    /*auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+                const char *fieldMsg)
+    {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            keepParsing = false;
+            return API_EINTERNAL; 
+        }
+
+        error e = API_OK;
+        cs.oldValue = j->getint();
+        cs.newValue = j->getint();
+        bool updated = static_cast<bool>(cs.newValue);
+        if (!updated)
+        {
+            e = API_ENOENT;
+        }
+        else
+        {
+            if (cs.oldValue == cs.newValue)
+            {
+                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
+                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
+
+                e = API_EINTERNAL;
+                keepParsing = false;
+            }
+         }
+         j->leavearray();
+         return e;
+    };*/
+
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
     using Changeset = UserAlert::UpdatedScheduledMeeting::Changeset;
-    bool keepParsing = true;
     do
     {
         switch(j->getnameid())
         {
             case MAKENAMEID1('t'):
-                if (j->enterarray())
+            {
+                Changeset::StrChangeset tCs;
+                if (getOldNewStrValues(tCs, "Title") == API_OK)
                 {
-                    string oldTitle, newTitle;
-                    j->storeobject(&oldTitle);
-                    j->storeobject(&newTitle);
-                    if (oldTitle == newTitle)
-                    {
-                        LOG_err << "ScheduledMeetings: Received updated SM with updated Title "
-                                << "notification but no modification: old title |" << oldTitle
-                                << "| new title |" << newTitle <<"|";
-                        keepParsing = false;
-                        e = API_EINTERNAL;
-                    }
-                    else
-                    {
-                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE,
-                                        oldTitle, newTitle);
-                    }
-                    j->leavearray();
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
                 }
-                break;
+            }
+            break;
 
             case MAKENAMEID1('d'):
                 if (wasFieldUpdated())
@@ -17929,25 +17986,36 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 break;
 
             case MAKENAMEID2('t', 'z'):
-                if (wasFieldUpdated())
+            {
+                Changeset::StrChangeset tzCs;
+                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
                 }
-                break;
+            }
+            break;
 
             case MAKENAMEID1('s'):
-                if (wasFieldUpdated())
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset sdCs;
+                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
                 }
-                break;
+            }*/
+            break;
 
             case MAKENAMEID1('e'):
-                if (wasFieldUpdated())
+            /*{
+                // uncomment when support for unix timestamps has been merged into develop
+                Changeset::TsChangeset edCs;
+                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE);
+                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
                 }
-                break;
+            }*/
+            break;
 
             case MAKENAMEID1('r'):
                 /* - empty rules field           => scheduled meeting doesn't have rules
