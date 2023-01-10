@@ -14706,46 +14706,23 @@ error MegaClient::verifyCredentials(handle uh)
 error MegaClient::resetCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    // Check at least the two relevant authrings are available before proceed
-    bool hasEdAuthring = mAuthRings.find(ATTR_AUTHRING) != mAuthRings.end();
-    bool hasCuAuthring = mAuthRings.find(ATTR_AUTHCU255) != mAuthRings.end();
-    if (!hasEdAuthring || !hasCuAuthring)
+    auto it = mAuthRings.find(ATTR_AUTHRING);
+    if (it != mAuthRings.end())
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": authring/s not available";
-        // TODO: after testing, if not hit, remove assertion below
-        assert(false);
+        LOG_warn << "Failed to reset credentials for user " << uid << ": authring not available";
         return API_ETEMPUNAVAIL;
     }
 
-    // store all required changes into user attributes
-    userattr_map attrs;
-    std::string serializedAuthring;
-    std::string serializedAuthCU255;
-    for (auto &it : mAuthRings)
-    {
-        AuthRing authring = it.second; // copy, do not update cached authring yet
-        if (authring.remove(uh))
-        {
-            attrs[it.first] = *authring.serialize(rng, key);
-        }
-
-        if (it.first == ATTR_AUTHRING)
-        {
-            serializedAuthring = authring.serializeForJS();
-        }
-        else if (it.first == ATTR_AUTHCU255)
-        {
-            serializedAuthCU255 = authring.serializeForJS();
-        }
-    }
-
-    if (attrs.size())
+    AuthRing authring = it->second; // copy, do not update cached authring yet
+    if (authring.remove(uh))
     {
         LOG_debug << "Removing credentials for user " << uid << "...";
 
+        unique_ptr<string> buf(authring.serialize(rng, key));
+        string serializedAuthring = authring.serializeForJS();
         int tag = reqtag;
-        putua(&attrs, 0,
-        [this, tag, serializedAuthring, serializedAuthCU255](Error e)
+        putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag, UNDEF, 0, 0,
+        [this, tag, serializedAuthring](Error e)
         {
             if (e || !mKeyManager.generation())
             {
@@ -14757,11 +14734,10 @@ error MegaClient::resetCredentials(handle uh)
             }
 
             mKeyManager.commit(
-            [this, serializedAuthring, serializedAuthCU255]()
+            [this, serializedAuthring]()
             {
                 // Changes to apply in the commit
                 mKeyManager.setAuthRing(serializedAuthring);
-                mKeyManager.setAuthCU255(serializedAuthCU255);
             },
             [this, tag]()
             {
@@ -14773,7 +14749,7 @@ error MegaClient::resetCredentials(handle uh)
     }
     else
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": keys not tracked yet";
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key not tracked yet";
         return API_ENOENT;
     }
 
