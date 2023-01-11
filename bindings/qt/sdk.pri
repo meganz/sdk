@@ -49,6 +49,7 @@ SOURCES += src/attrmap.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
+    src/setandelement.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
@@ -482,6 +483,7 @@ HEADERS  += include/mega.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
+            include/mega/setandelement.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
@@ -575,11 +577,11 @@ else {
         }
 
         LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
-        -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
-        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
+        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
+        -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
     }
     else {
         macx{
@@ -642,6 +644,7 @@ vcpkg {
 
     win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
+    win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
 }
 

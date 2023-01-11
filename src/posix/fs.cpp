@@ -347,6 +347,8 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -396,6 +398,8 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -446,6 +450,8 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
+#else
+    (void)context; // avoid unused parameter warning
 #endif
 }
 
@@ -568,6 +574,8 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
             }
         }
     }
+#else
+    (void)skipcasecheck; // avoid unused parameter warning
 #endif
 
 #ifndef HAVE_FDOPENDIR
@@ -1240,7 +1248,10 @@ bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath&
     char buffer[PATH_MAX];
 
     if (!realpath(destination.localpath.c_str(), buffer))
-        return destination = source, false;
+    {
+        destination = source;
+        return false;
+    }
 
     destination.localpath.assign(buffer);
 
@@ -1879,6 +1890,8 @@ fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
     // FIXME: statfs() does not really do what we want.
     if (statfs(path.localpath.c_str(), &statfsbuf))
     {
+        int e = errno;
+        LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
         return 0;
     }
     fsfp_t tmp;
@@ -2211,7 +2224,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = errno;
 
         LOG_warn << "Unable to determine available disk space on volume: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 

@@ -741,12 +741,12 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodeByHandle(client->rootnodes.vault);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodeByHandle(client->rootnodes.rubbish);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                     }
                     else
                     {
@@ -758,7 +758,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     pathprefix = "/";
-                    n = client->nodeByHandle(client->rootnodes.files);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 }
             }
             else
@@ -788,7 +788,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     Node* nodematch = NULL;
-                    for (Node* subnode : n->children)
+                    for (Node* subnode : client->getChildren(n))
                     {
                         if (subnode->type == FOLDERNODE && subnode->displayname() == folderName)
                         {
@@ -810,7 +810,7 @@ bool MegaFS::addCompletions(ACState& s)
                 // iterate specified folder
                 if (n)
                 {
-                    for (Node* subnode : n->children)
+                    for (Node* subnode : client->getChildren(n))
                     {
                         if ((reportFolders && subnode->type == FOLDERNODE) ||
                             (reportFiles && subnode->type == FILENODE))

@@ -1,8 +1,8 @@
 /**
- * @file MEGAChildrenLists+init
- * @brief Private functions of MEGAChildrenLists
+ * @file MEGASet+init.h
+ * @brief Private functions of MEGASet
  *
- * (c) 2013-2017 by Mega Limited, Auckland, New Zealand
+ * (c) 2022- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,13 +18,11 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-#import "MEGAChildrenLists.h"
+#import "MEGASet.h"
 #import "megaapi.h"
 
-@interface MEGAChildrenLists (init)
+@interface MEGASet (init)
 
-- (instancetype)initWithMegaChildrenLists:(mega::MegaChildrenLists *)megaChildrenLists cMemoryOwn:(BOOL)cMemoryOwn;
-- (mega::MegaChildrenLists *)getCPtr;
+- (instancetype)initWithMegaSet:(mega::MegaSet *)megaSet cMemoryOwn:(BOOL)cMemoryOwn;
 
 @end

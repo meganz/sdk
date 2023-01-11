@@ -240,22 +240,149 @@ int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool 
         caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-bool isCaseInsensitive(const FileSystemType type)
+RemotePath::RemotePath(const string& path)
+  : mPath(path)
 {
-    if    (type == FS_EXFAT
-        || type == FS_FAT32
-        || type == FS_NTFS
-        || type == FS_UNKNOWN)
-    {
-        return true;
-    }
-#ifdef WIN32
-    return true;
-#else
-    return false;
-#endif
 }
 
+RemotePath& RemotePath::operator=(const string& rhs)
+{
+    return mPath = rhs, *this;
+}
+
+bool RemotePath::operator==(const RemotePath& rhs) const
+{
+    return mPath == rhs.mPath;
+}
+
+bool RemotePath::operator==(const string& rhs) const
+{
+    return mPath == rhs;
+}
+
+RemotePath::operator const string&() const
+{
+    return mPath;
+}
+
+void RemotePath::appendWithSeparator(const RemotePath& component, bool always)
+{
+    appendWithSeparator(component.mPath, always);
+}
+
+void RemotePath::appendWithSeparator(const string& component, bool always)
+{
+    // Only add a separator if necessary.
+    while (always || !mPath.empty())
+    {
+        // Does the path already end with a separator?
+        if (endsInSeparator())
+            break;
+
+        // Does the component begin with a separator?
+        if (component.empty() || component.front() == '/')
+            break;
+
+        // Add the separator.
+        mPath.append(1, '/');
+        break;
+    }
+
+    // Add the component.
+    mPath.append(component);
+}
+
+bool RemotePath::beginsWithSeparator() const
+{
+    return !mPath.empty() && mPath.front() == '/';
+}
+
+void RemotePath::clear()
+{
+    mPath.clear();
+}
+
+bool RemotePath::empty() const
+{
+    return mPath.empty();
+}
+
+bool RemotePath::endsInSeparator() const
+{
+    return !mPath.empty() && mPath.back() == '/';
+}
+
+bool RemotePath::findNextSeparator(size_t& index) const
+{
+    index = std::min(mPath.find('/', index), mPath.size());
+
+    return index < mPath.size();
+}
+
+bool RemotePath::hasNextPathComponent(size_t index) const
+{
+    return index < mPath.size();
+}
+
+bool RemotePath::nextPathComponent(size_t& index, RemotePath& component) const
+{
+    // Skip leading separators.
+    while (index < mPath.size() && mPath[index] == '/')
+        ++index;
+
+    // Have we hit the end of the string?
+    if (index >= mPath.size())
+        return component.clear(), false;
+
+    // Start of component.
+    auto i = index;
+
+    // Locate next separator.
+    findNextSeparator(index);
+
+    // Extract component.
+    component.mPath.assign(mPath, i, index - i);
+
+    return true;
+}
+
+void RemotePath::prependWithSeparator(const RemotePath& component)
+{
+    // Add a separator only if necessary.
+    if (!beginsWithSeparator() && !component.endsInSeparator())
+        mPath.insert(0, 1, '/');
+
+    // Prepend the component.
+    mPath.insert(0, component.mPath);
+}
+
+const string& RemotePath::str() const
+{
+    return mPath;
+}
+
+RemotePath RemotePath::subpathFrom(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath = mPath.substr(index, string::npos);
+
+    return path;
+}
+
+RemotePath RemotePath::subpathTo(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath.assign(mPath, 0, index);
+
+    return path;
+}
+
+const string& RemotePath::toName(const FileSystemAccess&) const
+{
+    return mPath;
+}
 
 bool IsContainingPathOf(const string& a, const char* b, size_t bLength, char sep)
 {
@@ -590,7 +717,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
     {
         c = static_cast<unsigned char>((*name)[i]);
         utf8seqsize = Utils::utf8SequenceSize(c);
-        assert (utf8seqsize);
+        assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
             sprintf(buf, "%%%02x", c);
@@ -676,11 +803,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -1180,13 +1307,13 @@ string LocalPath::leafOrParentName() const
     if (name.localpath.back() == L':')
     {
         // drop trailing ':'
-        string n = name.toPath();
+        string n = name.toPath(true);
         n.pop_back();
         return n;
     }
 #endif
 
-    return name.leafName().toPath();
+    return name.leafName().toPath(true);
 }
 
 void LocalPath::append(const LocalPath& additionalPath)
@@ -1404,11 +1531,11 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
 }
 
 
-string LocalPath::toPath() const
+string LocalPath::toPath(bool normalize) const
 {
     assert(invariant());
     string path;
-    local2path(&localpath, &path);
+    local2path(&localpath, &path, normalize);
 
 #ifdef WIN32
     if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
@@ -1423,7 +1550,7 @@ string LocalPath::toPath() const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    string name = toPath();
+    string name = toPath(true);
     fsaccess.unescapefsincompatible(&name);
     return name;
 }
@@ -1551,7 +1678,7 @@ void LocalPath::path2local(const string* path, std::wstring* local)
 }
 
 // convert Windows Unicode to UTF-8
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1560,10 +1687,11 @@ void LocalPath::local2path(const string* local, string* path)
         (char*)path->data(),
         int(path->size()),
         NULL, NULL));
-    utf8_normalize(path);
-    }
 
-void LocalPath::local2path(const std::wstring* local, string* path)
+    if (normalize) utf8_normalize(path);
+}
+
+void LocalPath::local2path(const std::wstring* local, string* path, bool normalize)
 {
     path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1573,7 +1701,7 @@ void LocalPath::local2path(const std::wstring* local, string* path)
         int(path->size()),
         NULL, NULL));
 
-    utf8_normalize(path);
+    if (normalize) utf8_normalize(path);
 }
 
 #else
@@ -1587,10 +1715,10 @@ void LocalPath::path2local(const string* path, string* local)
 #endif
 }
 
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     *path = *local;
-    LocalPath::utf8_normalize(path);
+    if (normalize) LocalPath::utf8_normalize(path);
 }
 
 #endif
@@ -1688,9 +1816,9 @@ ScopedLengthRestore::~ScopedLengthRestore()
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
     // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath();
+    auto localName = localPath.leafName().toPath(true);
 
-    if (localName != remoteName)
+    if (compareUtf(localName, false, remoteName, false, true))
     {
         return FILENAME_ANOMALY_NAME_MISMATCH;
     }
@@ -1708,14 +1836,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 
     return isFilenameAnomaly(localPath, node->displayname(), node->type);
 }
-
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.localname, node.name, node.type);
-}
-#endif
-
 
 bool isNetworkFilesystem(FileSystemType type)
 {
@@ -1868,10 +1988,7 @@ void ScanService::Worker::loop()
             mPending.pop_front();
         }
 
-        const auto targetPath =
-            request->mTargetPath.toPath();
-
-        LOG_verbose << "Directory scan begins: " << targetPath;
+        LOG_verbose << "Directory scan begins: " << request->mTargetPath;
         using namespace std::chrono;
         auto scanStart = high_resolution_clock::now();
 
@@ -1882,14 +1999,14 @@ void ScanService::Worker::loop()
 
         if (result == SCAN_SUCCESS)
         {
-            LOG_verbose << "Directory scan complete for: " << targetPath
+            LOG_verbose << "Directory scan complete for: " << request->mTargetPath
                 << " entries: " << request->mResults.size()
                 << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
                 << " fingerprinted: " << nFingerprinted;
         }
         else
         {
-            LOG_verbose << "Directory scan FAILED (" << result << "): " << targetPath;
+            LOG_verbose << "Directory scan FAILED (" << result << "): " << request->mTargetPath;
         }
 
         request->mScanResult = result;
