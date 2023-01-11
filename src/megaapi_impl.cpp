@@ -18261,7 +18261,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     // where is f supposed to be released ?!
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
-                    f->setTransfer(transfer);
+                    f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!
                     f->cancelToken = transfer->accessCancelToken();
 
                     error result = API_OK;
@@ -18321,7 +18321,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     currentTransfer = NULL;
 
                     // determine (somehow) when f was not used and clean it up
-                    if (f->file_it == file_list::iterator())
+                    if (!f->transfer || f->transfer->files.empty() || f->transfer->files.back() != f)
                     {
                         delete f;
                     }
@@ -18530,7 +18530,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     }
 
                     // determine (somehow) when f was not used and clean it up
-                    if (f->file_it == file_list::iterator())
+                    if (!f->transfer || f->transfer->files.empty() || f->transfer->files.back() != f)
                     {
                         delete f;
                     }
