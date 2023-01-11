@@ -2036,6 +2036,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
             type = TYPE_SCHEDULEDMEETING_DELETED;
             userHandle = p->user();
             email = p->email();
+            nodeHandle = p->mChatid;
             schedMeetingId = p->mSchedMeetingHandle;
         }
         else

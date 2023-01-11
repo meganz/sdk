@@ -447,10 +447,12 @@ namespace UserAlert
 
     struct DeletedScheduledMeeting : public Base
     {
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
             : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             {}
 

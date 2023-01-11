@@ -1413,7 +1413,15 @@ UserAlert::NewScheduledMeeting* UserAlert::NewScheduledMeeting::unserialize(stri
 UserAlert::DeletedScheduledMeeting::DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
+    mChatid = un.gethandle(MAKENAMEID3('c', 'i', 'd'), MegaClient::CHATHANDLE, UNDEF);
     mSchedMeetingHandle = un.gethandle(MAKENAMEID2('i', 'd'), MegaClient::CHATHANDLE, UNDEF);
+    if (mChatid == UNDEF)
+    {
+        assert(false);
+        LOG_err << "DeletedScheduledMeeting user alert ctor: invalid scheduled chatid";
+        return;
+    }
+
     if (mSchedMeetingHandle == UNDEF)
     {
         assert(false);
@@ -1427,6 +1435,7 @@ void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, Meg
     Base::updateEmail(mc);
     ostringstream oss;
     oss << "Deleted Scheduled Meeting details:"
+        << "\n\tChatid: " << toHandle(mChatid)
         << "\n\tSched Meeting Id: " << toHandle(mSchedMeetingHandle)
         << "\n\tDeleted by: " << pst.userEmail;
 
@@ -1440,6 +1449,7 @@ bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
 {
     Base::serialize(d);
     CacheableWriter w(*d);
+    w.serializehandle(mChatid);
     w.serializehandle(mSchedMeetingHandle);
     w.serializeexpansionflags();
 
@@ -1451,14 +1461,16 @@ UserAlert::DeletedScheduledMeeting* UserAlert::DeletedScheduledMeeting::unserial
     auto b = Base::unserialize(d);
     if (!b) return nullptr;
 
+    handle chatid = UNDEF;
     handle sm = UNDEF;
     unsigned char expF[8];
 
     CacheableReader r(*d);
-    if (r.unserializehandle(sm)
+    if (r.unserializehandle(chatid)
+        && r.unserializehandle(sm)
         && r.unserializeexpansionflags(expF, 0))
     {
-        auto* dsm = new DeletedScheduledMeeting(b->userHandle, b->timestamp, id, sm);
+        auto* dsm = new DeletedScheduledMeeting(b->userHandle, b->timestamp, id, chatid, sm);
         dsm->setSeen(b->seen);
         dsm->setRelevant(b->relevant);
         return dsm;
