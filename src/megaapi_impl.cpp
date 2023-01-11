@@ -16326,6 +16326,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
     activeTransfer = NULL;
     activeError = NULL;
+    client->removeAppData(transfer);
     delete transfer;
 }
 
@@ -18274,6 +18275,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_FAILED);
+                            f->setTransfer(nullptr);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EREAD));
                         }
                         else
@@ -18309,6 +18311,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
+                            f->setTransfer(nullptr);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result));
                         }
                     }
@@ -18519,6 +18522,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_FAILED);
+                        f->setTransfer(nullptr);
                         fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(cause));
                     }
                 }
