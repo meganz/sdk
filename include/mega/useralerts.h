@@ -428,12 +428,14 @@ namespace UserAlert
             unique_ptr<TsChangeset> mUpdatedEndDateTime;
         };
 
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         Changeset mUpdatedChangeset;
 
         UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, Changeset&& _cs)
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, Changeset&& _cs)
             : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             , mUpdatedChangeset(_cs)
             {}

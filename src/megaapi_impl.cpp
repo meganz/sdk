@@ -2015,6 +2015,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
                  type = TYPE_SCHEDULEDMEETING_UPDATED;
                  userHandle = p->user();
                  email = p->email();
+                 nodeHandle = p->mChatid;
                  schedMeetingId = p->mSchedMeetingHandle;
                  schedMeetingChangeset = p->mUpdatedChangeset;
              }
