@@ -599,7 +599,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
 
 private:
     friend class MegaClient;
@@ -1570,7 +1570,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;

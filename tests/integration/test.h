@@ -284,7 +284,7 @@ struct StandardClient : public MegaApp
 
         // f is to return true if no more callbacks are expected, and the expected-entry will be removed
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF);
+        void processresult(resultprocenum rpe, error e, handle h, int tag);
     } resultproc;
 
     // thread as last member so everything else is initialised before we start it
@@ -330,7 +330,6 @@ struct StandardClient : public MegaApp
     void syncupdate_scanning(bool b) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
-    void syncupdate_local_lockretry(bool b) override;
 
 #ifdef DEBUG
     using SyncDebugNotificationHandler =
@@ -440,7 +439,7 @@ struct StandardClient : public MegaApp
         {
         }
 
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool)
+        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
         {
             mCallable(e);
         }
@@ -498,22 +497,29 @@ struct StandardClient : public MegaApp
     bool downloadFile(const CloudItem& item, const fs::path& destination);
 
     struct FilePut : public File {
+
+        std::function<void(bool)> completion;
+
+        FilePut(std::function<void(bool)>&& c) : completion(c) {}
+
         void completed(Transfer* t, putsource_t source) override
         {
             File::completed(t, source);
+            if (completion) completion(true);
             delete this;
         }
 
         void terminated(error e) override
         {
+            if (completion) completion(false);
             delete this;
         }
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
 
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo = NoVersioning);
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 
@@ -521,7 +527,6 @@ struct StandardClient : public MegaApp
 
     void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     void uploadFile(const fs::path& sourcePath,
                     const string& targetName,
@@ -580,6 +585,16 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
+    // setupBackup is implicitly in Vault
+    handle setupBackup_mainthread(const string& rootPath);
+    handle setupBackup_mainthread(const string& rootPath,
+                                const SyncOptions& syncOptions);
+
+    void setupBackup_inThread(const string& rootPath,
+                            const SyncOptions& syncOptions,
+                            PromiseHandleSP result);
+
+    // isBackup here allows configuring backups that are not in vault
     handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
                                 const bool isBackup,
@@ -657,7 +672,7 @@ struct StandardClient : public MegaApp
 
     handle lastPutnodesResultFirstHandle = UNDEF;
 
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override;
+    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag) override;
     void catchup_result() override;
     void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result);
     bool disableSync(handle id, SyncError error, bool enabled);

@@ -294,11 +294,11 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
-static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path, int tag)
 {
     error result = API_OK;
 
-    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
+    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result, tag))
     {
         file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.get());
         file.release();
@@ -317,9 +317,9 @@ static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> fi
     return result;
 }
 
-static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node, int tag)
 {
-    return startxfer(committer, std::move(file), node.displaypath());
+    return startxfer(committer, std::move(file), node.displaypath(), tag);
 }
 
 
@@ -367,7 +367,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)
             {
@@ -1118,7 +1118,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag)
 {
     if (t == USER_HANDLE)
     {
@@ -1153,7 +1153,7 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
         cout << "Target folder has changed!" << endl;
     }
 
-    auto i = gOnPutNodeTag.find(client->restag);
+    auto i = gOnPutNodeTag.find(tag);
     if (i != gOnPutNodeTag.end())
     {
         for (auto &newNode : nn)
@@ -1314,10 +1314,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         {
             const string& key = it->empty() ? "(no key)" : *it;
 
-            // drive names can be filtered
-            if (type == ATTR_DRIVE_NAMES)
+            // external drive names can be filtered
+            if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == b64driveid;
+                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
                 if (!printDriveId)
                 {
                     continue;
@@ -1333,10 +1333,15 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             else
             {
                 cout << "\t" << key << "\t";
-                if (type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES || type == ATTR_ALIAS)
+                if (type == ATTR_DEVICE_NAMES || type == ATTR_ALIAS)
                 {
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
+
+                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
+                    {
+                        cout << " (external drive)";
+                    }
                 }
                 else
                 {
@@ -1788,6 +1793,24 @@ static void listnodeshares(Node* n)
             {
                 cout << ", shared as exported folder link" << endl;
             }
+        }
+    }
+}
+
+static void listnodependingshares(Node* n)
+{
+    if(n->pendingshares)
+    {
+        for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
+
+            if (it->first)
+            {
+                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
+            }
+
+            cout << endl;
         }
     }
 }
@@ -3009,7 +3032,7 @@ void cycleDownload(LocalPath lp, int count)
 
     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
     TransferDbCommitter committer(client->tctable);
-    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+    client->startxfer(GET, f, committer, false, false, false, NoVersioning, nullptr, client->nextreqtag());
 
     // also delete the old local file
     lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
@@ -3560,7 +3583,8 @@ void exec_setextdrivename(autocomplete::ACState& s)
         return;
     }
 
-    putua_map(string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)), Base64::btoa(drivename), ATTR_DRIVE_NAMES);
+    putua_map(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)),
+              Base64::btoa(drivename), ATTR_DEVICE_NAMES);
 }
 
 void exec_getextdrivename(autocomplete::ACState& s)
@@ -3600,7 +3624,7 @@ void exec_getextdrivename(autocomplete::ACState& s)
         }
     }
 
-    client->getua(u, ATTR_DRIVE_NAMES);
+    client->getua(u, ATTR_DEVICE_NAMES);
 }
 
 void exec_setmybackups(autocomplete::ACState& s)
@@ -3929,6 +3953,28 @@ void exec_logFilenameAnomalies(autocomplete::ACState& s)
     client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+void exec_simulatecondition(autocomplete::ACState& s)
+{
+    auto condition = s.words[1].s;
+    if (condition == "ETOOMANY")
+    {
+        globalMegaTestHooks.interceptSCRequest = [](std::unique_ptr<HttpReq>& pendingsc){
+            pendingsc.reset(new HttpReq);
+            pendingsc->status = REQ_SUCCESS;
+            pendingsc->in = "-6";
+            globalMegaTestHooks.interceptSCRequest = nullptr;
+            cout << "ETOOMANY prepared and reset" << endl;
+        };
+        client->waiter->notify();
+    }
+    else
+    {
+        cout << "unknown condition: " << condition << endl;
+    }
+}
+#endif
+
 #ifdef ENABLE_SYNC
 void exec_syncoutput(autocomplete::ACState& s)
 {
@@ -4032,6 +4078,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -4137,12 +4184,15 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
 #endif
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
+#endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
     p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
 
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
-    p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
+    p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
@@ -4303,7 +4353,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         {
             TransferDbCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
-            error result = startxfer(committer, std::move(file), *n);
+            error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
     }
@@ -4351,7 +4401,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     if (regex_search(string(node->displayname()), re))
                     {
                         auto file = ::mega::make_unique<AppFileGet>(node);
-                        error result = startxfer(committer, std::move(file), *node);
+                        error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
                 }
@@ -5110,7 +5160,7 @@ void exec_get(autocomplete::ACState& s)
 
                         TransferDbCommitter committer(client->tctable);
                         auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
-                        startxfer(committer, std::move(file), *filename);
+                        startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
                     return true;
@@ -5173,7 +5223,7 @@ void exec_get(autocomplete::ACState& s)
                         memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
-                    startxfer(committer, std::move(f), *n);
+                    startxfer(committer, std::move(f), *n, client->nextreqtag());
                 }
                 else
                 {
@@ -5183,7 +5233,7 @@ void exec_get(autocomplete::ACState& s)
                         if (node->type == FILENODE)
                         {
                             auto f = ::mega::make_unique<AppFileGet>(node);
-                            startxfer(committer, std::move(f), *node);
+                            startxfer(committer, std::move(f), *node, client->nextreqtag());
                         }
                     }
                 }
@@ -5262,7 +5312,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-            client->startxfer(PUT, f, committer, false, false, false, vo);
+            client->startxfer(PUT, f, committer, false, false, false, vo, nullptr, client->nextreqtag());
             total++;
         }
         else
@@ -5493,6 +5543,7 @@ void exec_llockfile(autocomplete::ACState& s)
 
     if (unlock)
     {
+        if (llockedFiles.find(localpath) == llockedFiles.end()) return;
         CloseHandle(llockedFiles[localpath]);
     }
     else
@@ -5835,16 +5886,18 @@ void exec_share(autocomplete::ACState& s)
 
     switch (s.words.size())
     {
-    case 1:		// list all shares (incoming and outgoing)
+    case 1:		// list all shares (incoming, outgoing and pending outgoing)
     {
         cout << "Shared folders:" << endl;
 
+        // outgoing
         node_vector outshares = client->mNodeManager.getNodesWithOutShares();
         for (auto& share : outshares)
         {
             listnodeshares(share);
         }
 
+        // incoming
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
         {
@@ -5865,6 +5918,15 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
             }
+        }
+
+        cout << "Pending shared folders:" << endl;
+
+        // pending outgoing
+        node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+        for (auto& share : pendingoutshares)
+        {
+            listnodependingshares(share);
         }
     }
     break;
@@ -6206,8 +6268,7 @@ void exec_putua(autocomplete::ACState& s)
         {
             // received <attrKey> will be B64 encoded
             // received <attrValue> will have the real text value
-            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name }
-                    || attrtype == ATTR_DRIVE_NAMES // TLV: { B64enc DriveId, drive name}
+            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name } or { ext:B64enc DriveId, drive name }
                     || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
             {
                 putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
@@ -9787,7 +9848,15 @@ int main(int argc, char* argv[])
     startDir.reset();
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    delete CurlHttpIO::sslMutexes;
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
 #endif
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -10433,7 +10502,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->deregisterThenRemoveSync(v[0].mBackupId, completion, false);
+    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, false);
 }
 
 void exec_syncxable(autocomplete::ACState& s)
@@ -10820,4 +10889,35 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
+}
+
+void exec_searchbyname(autocomplete::ACState &s)
+{
+    if (s.words.size() >= 2)
+    {
+        bool recursive = !s.extractflag("-norecursive");
+
+        NodeHandle nodeHandle;
+        if (s.words.size() == 3)
+        {
+            handle h;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+            nodeHandle.set6byte(h);
+        }
+
+        if (!recursive && nodeHandle.isUndef())
+        {
+            cout << "Search no recursive need node handle" << endl;
+            return;
+        }
+
+
+        std::string searchString = s.words[1].s;
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+
+        for (const auto& node : nodes)
+        {
+            cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
+        }
+    }
 }

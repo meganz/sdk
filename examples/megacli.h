@@ -171,7 +171,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -321,6 +321,7 @@ void exec_du(autocomplete::ACState& s);
 void exec_nodecounter(autocomplete::ACState& s);
 void exec_numberofnodes(autocomplete::ACState& s);
 void exec_numberofchildren(autocomplete::ACState& s);
+void exec_searchbyname(autocomplete::ACState &s);
 void exec_export(autocomplete::ACState& s);
 void exec_encryptLink(autocomplete::ACState& s);
 void exec_decryptLink(autocomplete::ACState& s);

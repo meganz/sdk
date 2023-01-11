@@ -122,6 +122,22 @@ bool JSON::storeobject(string* s)
     }
 }
 
+bool JSON::storeKeyValueFromObject(string& key, string& value)
+{
+    // this one can be used when the key is not a nameid
+    if (!storeobject(&key))
+    {
+        return false;
+    }
+    if (*pos != ':') return false;
+    ++pos;
+    if (!storeobject(&value))
+    {
+        return false;
+    }
+    return true;
+}
+
 bool JSON::skipnullvalue()
 {
     // this applies only to values, after ':'
@@ -143,6 +159,8 @@ bool JSON::skipnullvalue()
     case 'n':
         if (strncmp(pos, "null", 4))
             return false; // not enough information to skip it
+
+        assert(false); // the MEGA servers should never send null.  Investigation needed.
 
         // let's peak at what's after "null"
         switch (*(pos + 4))

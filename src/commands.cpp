@@ -1184,8 +1184,8 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 
 void CommandPutNodes::performAppCallback(Error e, vector<NewNode>& newnodes, bool targetOverride)
 {
-    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride);
-	else client->app->putnodes_result(e, type, newnodes, targetOverride);
+    if (mResultFunction) mResultFunction(e, type, newnodes, targetOverride, tag);
+	else client->app->putnodes_result(e, type, newnodes, targetOverride, tag);
 }
 
 bool CommandPutNodes::procresult(Result r)
@@ -2986,7 +2986,90 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
 bool CommandPutMultipleUAVer::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.hasJsonObject())
+    {
+        User *u = client->ownuser();
+        for(;;)   // while there are more attrs to read...
+        {
+
+            if (*client->json.pos == '}')
+            {
+                client->notifyuser(u);
+                client->app->putua_result(API_OK);
+                return true;
+            }
+
+            string key, value;
+            if (!client->json.storeKeyValueFromObject(key, value))
+            {
+                break;
+            }
+
+            attr_t type = User::string2attr(key.c_str());
+            userattr_map::iterator it = this->attrs.find(type);
+            if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
+            {
+                LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << key;
+                for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
+                break;
+            }
+            else
+            {
+                u->setattr(type, &it->second, &value);
+                u->setTag(tag ? tag : -1);
+
+                if (type == ATTR_KEYRING)
+                {
+                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
+                    if (tlvRecords)
+                    {
+                        string prEd255;
+                        if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+                        {
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+                        }
+
+                        string prCu255;
+                        if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+                        {
+                            client->chatkey = new ECDH((unsigned char *) prCu255.data());
+                        }
+
+                        if (!client->chatkey || !client->chatkey->initializationOK ||
+                                !client->signkey || !client->signkey->initializationOK)
+                        {
+                            client->resetKeyring();
+                            client->sendevent(99418, "Failed to load attached keys", 0);
+                        }
+                        else
+                        {
+                            client->sendevent(99420, "Signing and chat keys attached OK", 0);
+                        }
+
+                        delete tlvRecords;
+                    }
+                    else
+                    {
+                        LOG_warn << "Failed to decrypt keyring after putua";
+                    }
+                }
+                else if (User::isAuthring(type))
+                {
+                    client->mAuthRings.erase(type);
+                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                    if (tlvRecords)
+                    {
+                        client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to decrypt keyring after putua";
+                    }
+                }
+            }
+        }
+    }
+    else if (r.wasErrorOrOK())
     {
         client->sendevent(99419, "Error attaching keys", 0);
 
@@ -2994,91 +3077,8 @@ bool CommandPutMultipleUAVer::procresult(Result r)
         return true;
     }
 
-    User *u = client->ownuser();
-    for(;;)   // while there are more attrs to read...
-    {
-        const char* ptr;
-        const char* end;
-
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-        {
-            break;
-        }
-        attr_t type = User::string2attr(string(ptr, (end-ptr)).c_str());
-
-        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-        {
-            client->app->putua_result(API_EINTERNAL);
-            return false;
-        }
-        string version = string(ptr, (end-ptr));
-
-        userattr_map::iterator it = this->attrs.find(type);
-        if (type == ATTR_UNKNOWN || version.empty() || (it == this->attrs.end()))
-        {
-            LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            client->app->putua_result(API_EINTERNAL);
-            return false;
-        }
-        else
-        {
-            u->setattr(type, &it->second, &version);
-            u->setTag(tag ? tag : -1);
-
-            if (type == ATTR_KEYRING)
-            {
-                TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
-                if (tlvRecords)
-                {
-                    string prEd255;
-                    if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
-                    {
-                        client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
-                    }
-
-                    string prCu255;
-                    if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
-                    {
-                        client->chatkey = new ECDH((unsigned char *) prCu255.data());
-                    }
-
-                    if (!client->chatkey || !client->chatkey->initializationOK ||
-                            !client->signkey || !client->signkey->initializationOK)
-                    {
-                        client->resetKeyring();
-                        client->sendevent(99418, "Failed to load attached keys", 0);
-                    }
-                    else
-                    {
-                        client->sendevent(99420, "Signing and chat keys attached OK", 0);
-                    }
-
-                    delete tlvRecords;
-                }
-                else
-                {
-                    LOG_warn << "Failed to decrypt keyring after putua";
-                }
-            }
-            else if (User::isAuthring(type))
-            {
-                client->mAuthRings.erase(type);
-                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
-                if (tlvRecords)
-                {
-                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
-                }
-                else
-                {
-                    LOG_err << "Failed to decrypt keyring after putua";
-                }
-            }
-        }
-    }
-
-    client->notifyuser(u);
-    client->app->putua_result(API_OK);
-    return true;
+    client->app->putua_result(API_EINTERNAL);
+    return false;
 }
 
 
@@ -3704,23 +3704,24 @@ CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 
 bool CommandGetUserEmail::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    if (r.hasJsonItem())
     {
+        string email;
+        if (client->json.storeobject(&email))
+        {
+            client->app->getuseremail_result(&email, API_OK);
+            return true;
+        }
+    }
+    else if (r.wasErrorOrOK())
+    {
+        assert(r.wasStrictlyError());
         client->app->getuseremail_result(NULL, r.errorOrOK());
         return true;
     }
 
-    string email;
-    if (!client->json.storeobject(&email))
-    {
-        client->app->getuseremail_result(NULL, API_EINTERNAL);
-        return false;
-    }
-    else
-    {
-        client->app->getuseremail_result(&email, API_OK);
-        return true;
-    }
+    client->app->getuseremail_result(NULL, API_EINTERNAL);
+    return false;
 }
 
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
@@ -3983,7 +3984,6 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
-    string driveNames;
     string versionDriveNames;
     string myBackupsFolder;
     string versionMyBackupsFolder;
@@ -4120,10 +4120,6 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
-            break;
-
-        case MAKENAMEID5('*', '!', 'd', 'r', 'n'):
-            parseUserAttribute(driveNames, versionDriveNames);
             break;
 
         case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
@@ -4527,21 +4523,6 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-
-                if (!driveNames.empty())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&driveNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DRIVE_NAMES, tlvString.get(), &versionDriveNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DRIVE_NAMES";
                     }
                 }
 
@@ -5187,7 +5168,11 @@ bool CommandGetUserTransactions::procresult(Result r)
             details->transactions[t].currency[3] = 0;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, true, false);
@@ -5229,7 +5214,11 @@ bool CommandGetUserPurchases::procresult(Result r)
             details->purchases[t].method = method;
         }
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, true, false, false);
@@ -5268,7 +5257,11 @@ bool CommandGetUserSessions::procresult(Result r)
         details->sessions[t].id = client->json.gethandle(8);
         details->sessions[t].alive = (int)client->json.getint();
 
-        client->json.leavearray();
+        if (!client->json.leavearray())
+        {
+            client->app->account_details(details.get(), API_EINTERNAL);
+            return false;
+        }
     }
 
     client->app->account_details(details.get(), false, false, false, false, false, true);
@@ -5313,17 +5306,14 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
 
 bool CommandSetPH::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    // depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
+    if (r.hasJsonObject())
     {
-        completion(r.errorOrOK(), UNDEF, UNDEF);
-        return true;
-    }
+        assert(mWritable);
+        assert(!mDeleting);
+        handle ph = UNDEF;
+        std::string authKey;
 
-    handle ph = UNDEF;
-    std::string authKey;
-
-    if (mWritable) // apparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
-    {
         bool exit = false;
         while (!exit)
         {
@@ -5339,10 +5329,17 @@ bool CommandSetPH::procresult(Result r)
 
             case EOO:
             {
-                if (authKey.empty())
+                if (!authKey.empty() && !ISUNDEF(ph))
                 {
-                    completion(API_EINTERNAL, UNDEF, UNDEF);
-                    return false;
+                    Node *n = client->nodebyhandle(h);
+                    if (n)
+                    {
+                        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
+                        n->changed.publiclink = true;
+                        client->notifynode(n);
+                    }
+                    completion(API_OK, h, ph);
+                    return true;
                 }
                 exit = true;
                 break;
@@ -5350,39 +5347,46 @@ bool CommandSetPH::procresult(Result r)
             default:
                 if (!client->json.storeobject())
                 {
-                    completion(API_EINTERNAL, UNDEF, UNDEF);
-                    return false;
+                    exit = true;
+                    break;
                 }
             }
         }
     }
-    else if (mDeleting)
+    else if (r.hasJsonItem())   // format: [XXXXXXXX]
     {
-        client->json.getint(); // consume the 0 for success in the [`st`, 0] array
-        completion(API_OK, h, UNDEF);
+        assert(!mWritable);
+        assert(!mDeleting);
+        handle ph = client->json.gethandle();
+        if (!ISUNDEF(ph))
+        {
+            Node *n = client->nodebyhandle(h);
+            if (n)
+            {
+                n->setpubliclink(ph, time(nullptr), ets, false, "");
+                n->changed.publiclink = true;
+                client->notifynode(n);
+            }
+
+            completion(API_OK, h, ph);
+            return true;
+        }
+    }
+    else if (r.wasError(API_OK))
+    {
+        assert(mDeleting);
+        // link removal is done by actionpacket in this case
+        completion(r.errorOrOK(), h, UNDEF);
         return true;
     }
-    else    // format: [XXXXXXXX]
+    else if (r.wasStrictlyError())
     {
-        ph = client->json.gethandle();
+        completion(r.errorOrOK(), h, UNDEF);
+        return true;
     }
 
-    if (ISUNDEF(ph))
-    {
-        completion(API_EINTERNAL, UNDEF, UNDEF);
-        return false;
-    }
-
-    Node *n = client->nodebyhandle(h);
-    if (n)
-    {
-        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
-        n->changed.publiclink = true;
-        client->notifynode(n);
-    }
-
-    completion(API_OK, h, ph);
-    return true;
+    completion(API_EINTERNAL, UNDEF, UNDEF);
+    return false;
 }
 
 CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int cop)
@@ -5501,11 +5505,7 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
 
 bool CommandSetMasterKey::procresult(Result r)
 {
-    if (r.wasStrictlyError())
-    {
-        client->app->changepw_result(r.errorOrOK());
-    }
-    else
+    if (r.hasJsonItem())
     {
         // update encrypted MK and salt for further checkups
         client->k.assign((const char *) newkey, SymmCipher::KEYLENGTH);
@@ -5513,8 +5513,16 @@ bool CommandSetMasterKey::procresult(Result r)
 
         client->json.storeobject();
         client->app->changepw_result(API_OK);
+        return true;
     }
-    return true;
+    else if (r.wasErrorOrOK())
+    {
+        client->app->changepw_result(r.errorOrOK());
+        return true;
+    }
+
+    client->app->changepw_result(API_EINTERNAL);
+    return false;
 }
 
 CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
@@ -5533,19 +5541,23 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 
 bool CommandCreateEphemeralSession::procresult(Result r)
 {
-    if (r.wasStrictlyError())
-    {
-        client->ephemeralSession = false;
-        client->ephemeralSessionPlusPlus = false;
-        client->app->ephemeral_result(r.errorOrOK());
-    }
-    else
+    if (r.hasJsonItem())
     {
         client->me = client->json.gethandle(MegaClient::USERHANDLE);
         client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
         client->resumeephemeral(client->me, pw, tag);
+        return true;
     }
-    return true;
+    else if (r.wasErrorOrOK())
+    {
+        client->ephemeralSession = false;
+        client->ephemeralSessionPlusPlus = false;
+        client->app->ephemeral_result(r.errorOrOK());
+        return true;
+    }
+
+    client->app->ephemeral_result(API_EINTERNAL);
+    return false;
 }
 
 CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
@@ -5755,20 +5767,26 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 bool CommandSetKeyPair::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    if (r.hasJsonItem())
+    {
+        client->json.storeobject();
+
+        client->key.ecb_decrypt(privkBuffer.get(), len);
+        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+        client->mPrivKey.resize(Base64::btoa(privkBuffer.get(), len, (char *)client->mPrivKey.data()));
+
+        client->app->setkeypair_result(API_OK);
+        return true;
+
+    }
+    else if (r.wasErrorOrOK())
     {
         client->app->setkeypair_result(r.errorOrOK());
         return true;
     }
 
-    client->json.storeobject();
-
-    client->key.ecb_decrypt(privkBuffer.get(), len);
-    client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-    client->mPrivKey.resize(Base64::btoa(privkBuffer.get(), len, (char *)client->mPrivKey.data()));
-
-    client->app->setkeypair_result(API_OK);
-    return true;
+    client->app->setkeypair_result(API_EINTERNAL);
+    return false;
 }
 
 // fetch full node tree
@@ -7039,25 +7057,23 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
 bool CommandChatURL::procresult(Result r)
 {
-    if (r.wasStrictlyError())
-    {
-        client->app->chaturl_result(NULL, r.errorOrOK());
-        return true;
-    }
-    else
+    if (r.hasJsonItem())
     {
         string url;
-        if (!client->json.storeobject(&url))
-        {
-            client->app->chaturl_result(NULL, API_EINTERNAL);
-            return false;
-        }
-        else
+        if (client->json.storeobject(&url))
         {
             client->app->chaturl_result(&url, API_OK);
             return true;
         }
     }
+    else if (r.wasErrorOrOK())
+    {
+        client->app->chaturl_result(NULL, r.errorOrOK());
+        return true;
+    }
+
+    client->app->chaturl_result(NULL, API_EINTERNAL);
+    return false;
 }
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
@@ -7296,25 +7312,23 @@ CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 
 bool CommandChatPresenceURL::procresult(Result r)
 {
-    if (r.wasStrictlyError())
-    {
-        client->app->chatpresenceurl_result(NULL, r.errorOrOK());
-        return true;
-    }
-    else
+    if (r.hasJsonItem())
     {
         string url;
-        if (!client->json.storeobject(&url))
-        {
-            client->app->chatpresenceurl_result(NULL, API_EINTERNAL);
-            return false;
-        }
-        else
+        if (client->json.storeobject(&url))
         {
             client->app->chatpresenceurl_result(&url, API_OK);
             return true;
         }
     }
+    else if (r.wasErrorOrOK())
+    {
+        client->app->chatpresenceurl_result(NULL, r.errorOrOK());
+        return true;
+    }
+
+    client->app->chatpresenceurl_result(NULL, API_EINTERNAL);
+    return false;
 }
 
 CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *client, int deviceType, const char *token)
@@ -7493,32 +7507,25 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 bool CommandChatLink::procresult(Result r)
 {
-    if (r.wasError(API_OK) && !mDelete)
+    if (r.hasJsonItem())
     {
-        LOG_err << "Unexpected response for create/get chatlink";
-        client->app->chatlink_result(UNDEF, API_EINTERNAL);
-        return true;
-    }
-
-    if (r.wasStrictlyError())
-    {
-        client->app->chatlink_result(UNDEF, r.errorOrOK());
-        return true;
-    }
-    else
-    {
+        assert(!mDelete);
         handle h = client->json.gethandle(MegaClient::CHATLINKHANDLE);
-        if (ISUNDEF(h))
-        {
-            client->app->chatlink_result(UNDEF, API_EINTERNAL);
-            return false;
-        }
-        else
+        if (!ISUNDEF(h))
         {
             client->app->chatlink_result(h, API_OK);
             return true;
         }
     }
+    else if (r.wasErrorOrOK())
+    {
+        client->app->chatlink_result(UNDEF, r.errorOrOK());
+        return true;
+    }
+
+    LOG_err << "Unexpected response for create/get chatlink";
+    client->app->chatlink_result(UNDEF, API_EINTERNAL);
+    return false;
 }
 
 CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
@@ -7978,16 +7985,20 @@ CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool rene
 
 bool CommandContactLinkCreate::procresult(Result r)
 {
-    if (r.wasStrictlyError())
-    {
-        client->app->contactlinkcreate_result(r.errorOrOK(), UNDEF);
-    }
-    else
+    if (r.hasJsonItem())
     {
         handle h = client->json.gethandle(MegaClient::CONTACTLINKHANDLE);
         client->app->contactlinkcreate_result(API_OK, h);
+        return true;
     }
-    return true;
+    else if (r.wasErrorOrOK())
+    {
+        client->app->contactlinkcreate_result(r.errorOrOK(), UNDEF);
+        return true;
+    }
+
+    client->app->contactlinkcreate_result(API_EINTERNAL, UNDEF);
+    return false;
 }
 
 CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
@@ -8097,20 +8108,26 @@ CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, con
 
 bool CommandMultiFactorAuthSetup::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    // don't call storeobject unless we are sure we should, as it could consume a top level `,`
+    if (r.hasJsonItem())
+    {
+        // code string is returned when mfa is not supplied in the request
+        string code;
+        if (client->json.storeobject(&code))
+        {
+            client->app->multifactorauthsetup_result(&code, API_OK);
+            return true;
+        }
+    }
+    else if (r.wasErrorOrOK())  //[0] is valid response (returned when mfa is supplied in the request)
     {
         client->app->multifactorauthsetup_result(NULL, r.errorOrOK());
         return true;
     }
 
-    string code;
-    if (!client->json.storeobject(&code))
-    {
-        client->app->multifactorauthsetup_result(NULL, API_EINTERNAL);
-        return false;
-    }
-    client->app->multifactorauthsetup_result(&code, API_OK);
-    return true;
+    // if anything went wrong
+    client->app->multifactorauthsetup_result(NULL, API_EINTERNAL);
+    return false;  // caller will reevaluate json to get to the next command
 }
 
 CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
@@ -8322,6 +8339,11 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 bool CommandSetLastAcknowledged::procresult(Result r)
 {
+    if (r.succeeded())
+    {
+        client->useralerts.acknowledgeAllSucceeded();
+    }
+
     client->app->acknowledgeuseralerts_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -8387,23 +8409,25 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 
 bool CommandSMSVerificationCheck::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    if (r.hasJsonItem())
+    {
+        string phoneNumber;
+        if (client->json.storeobject(&phoneNumber))
+        {
+            assert(CommandSMSVerificationSend::isPhoneNumber(phoneNumber));
+            client->mSmsVerifiedPhone = phoneNumber;
+            client->app->smsverificationcheck_result(API_OK, &phoneNumber);
+            return true;
+        }
+    }
+    else if (r.wasErrorOrOK())
     {
         client->app->smsverificationcheck_result(r.errorOrOK(), nullptr);
         return true;
     }
 
-    string phoneNumber;
-    if (!client->json.storeobject(&phoneNumber))
-    {
-        client->app->smsverificationcheck_result(API_EINTERNAL, nullptr);
-        return false;
-    }
-
-    assert(CommandSMSVerificationSend::isPhoneNumber(phoneNumber));
-    client->mSmsVerifiedPhone = phoneNumber;
-    client->app->smsverificationcheck_result(API_OK, &phoneNumber);
-    return true;
+    client->app->smsverificationcheck_result(API_EINTERNAL, nullptr);
+    return false;
 }
 
 CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
@@ -8737,7 +8761,15 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
 
 bool CommandBackupPut::procresult(Result r)
 {
-    if (r.wasStrictlyError())
+    if (r.hasJsonItem())
+    {
+        handle backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
+
+        if (mCompletion) mCompletion(API_OK, backupId);
+        client->app->backupput_result(API_OK, backupId);
+        return true;
+    }
+    else if (r.wasErrorOrOK())
     {
         assert(r.errorOrOK() != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
         if (mCompletion) mCompletion(r.errorOrOK(), UNDEF);
@@ -8745,12 +8777,9 @@ bool CommandBackupPut::procresult(Result r)
         return true;
     }
 
-    handle backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
-
-    if (mCompletion) mCompletion(API_OK, backupId);
-    client->app->backupput_result(API_OK, backupId);
-
-    return true;
+    if (mCompletion) mCompletion(API_EINTERNAL, UNDEF);
+    client->app->backupput_result(API_EINTERNAL, UNDEF);
+    return false;
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
@@ -9384,11 +9413,22 @@ bool CommandMeetingStart::procresult(Command::Result r)
     }
 }
 
-CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, handle schedId, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
+    if (schedId != UNDEF)
+    {
+        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
+        arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
+    }
     tag = client->reqtag;
 }
 
@@ -9572,7 +9612,14 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     TextChat* chat = it->second;
 
     // remove children scheduled meetings (API requirement)
-    unsigned int deletedChildren = chat->removeChildSchedMeetings(schedId);
+    handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+
+    // remove all child scheduled meeting occurrences
+    // API currently just supports 1 level in scheduled meetings hierarchy
+    // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
+    // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
+    handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
+
     mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
@@ -9583,7 +9630,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (deletedChildren)
+    else if (!deletedChildren.empty() || !deletedChildrenOccurr.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
@@ -9627,6 +9674,9 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
+
+            // remove scheduled meetings occurrences and children
+            chat->removeSchedMeetingsOccurrencesAndChildren(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
 

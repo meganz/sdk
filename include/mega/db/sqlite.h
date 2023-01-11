@@ -71,13 +71,15 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
+    bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
+    bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) override;
+    bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
-    bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
+    bool getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size, nodetype_t& nodeType, uint64_t &oldFlags) override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
@@ -87,10 +89,12 @@ public:
     bool removeNodes() override;
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
+    void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override;
     void createIndexes() override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    void finalise();
     virtual ~SqliteAccountState();
 
     // Callback registered by some long-time running queries, so they can be canceled
@@ -102,14 +106,18 @@ private:
     // Allow at least the following containers:
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
+    // if add a new sqlite3_stmt update finalise()
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
+    sqlite3_stmt* mStmtUpdateNodeAndFlags = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
     sqlite3_stmt* mStmtChildren = nullptr;
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
     sqlite3_stmt* mStmtNumChildren = nullptr;
     sqlite3_stmt* mStmtNodeByName = nullptr;
+    sqlite3_stmt* mStmtNodeByNameNoRecursive = nullptr;
+    sqlite3_stmt* mStmtInShareOutShareByName = nullptr;
     sqlite3_stmt* mStmtNodeByMimeType = nullptr;
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;

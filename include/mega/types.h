@@ -739,7 +739,7 @@ typedef enum {
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
@@ -1181,6 +1181,9 @@ public:
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

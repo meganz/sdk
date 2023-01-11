@@ -85,10 +85,18 @@ public:
     {
         return 0;
     }
-    bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
+    bool searchForNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
     {
         return false;
         //throw NotImplemented(__func__);
+    }
+    bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::NodeHandle parentHandle, mega::CancelToken cancelFlag)
+    {
+        return false;
+    }
+    bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::ShareType_t shareType, mega::CancelToken cancelFlag) override
+    {
+        return false;
     }
     bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
@@ -102,7 +110,7 @@ public:
     {
         return false;
     }
-    bool getNodeSizeAndType(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType) override
+    bool getNodeSizeTypeAndFlags(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType, uint64_t& oldFlags) override
     {
         return false;
     }
@@ -123,6 +131,10 @@ public:
         return false;
     }
     void updateCounter(mega::NodeHandle, const std::string&) override
+    {
+
+    }
+    void updateCounterAndFlags(mega::NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override
     {
 
     }

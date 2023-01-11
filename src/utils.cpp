@@ -208,6 +208,11 @@ void CacheableWriter::serializeu32(uint32_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu8(uint8_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -742,6 +747,18 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu8(uint8_t& field)
+{
+    if (ptr + sizeof(uint8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
     fieldnum += 1;
     return true;
 }
@@ -1827,7 +1844,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);
