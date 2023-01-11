@@ -14717,7 +14717,7 @@ error MegaClient::resetCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
     auto it = mAuthRings.find(ATTR_AUTHRING);
-    if (it != mAuthRings.end())
+    if (it == mAuthRings.end())
     {
         LOG_warn << "Failed to reset credentials for user " << uid << ": authring not available";
         return API_ETEMPUNAVAIL;
