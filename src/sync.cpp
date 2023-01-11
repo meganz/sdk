@@ -1339,7 +1339,7 @@ struct ProgressingMonitor
 
         if (sf.stall.local.empty())
         {
-            LOG_debug << "First sync node cloud-waiting: " << e.reason << " " << sync.logTriplet(sr, sp);
+            LOG_debug << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingCloud(mapKeyPath, move(e));
@@ -1353,7 +1353,7 @@ struct ProgressingMonitor
 
         if (sf.stall.local.empty())
         {
-            LOG_debug << "First sync node local-waiting: " << e.reason << " " << sync.logTriplet(sr, sp);
+            LOG_debug << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingLocal(mapKeyPath, move(e));
