@@ -7968,6 +7968,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         if (request->getType() == MegaRequest::TYPE_DELETE)
         {
             continue; // this request is deleted in MegaApiImpl dtor, its finish is the Impl destructor exiting.
+            // where exactly would `request` be released ??
         }
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(preverror));
     }
@@ -7993,6 +7994,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
                 // just remove it from the map.  When its last dependent transfer is deleted
                 // then it will have its fireOnTransferFinish called also.
                 transferMap.erase(transferMap.begin());
+                // where exactly would `transfer` be released ??
             }
             else
             {
@@ -13831,8 +13833,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         return;
     }
 
-    if(requestMap.find(tag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(tag);
+    auto reqIt = requestMap.find(tag);
+    MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
@@ -18256,6 +18258,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
                             NodeHandle().set6byte(transfer->getParentHandle()),
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
+                    // where is f supposed to be released ?!
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
                     f->setTransfer(transfer);
@@ -18316,6 +18319,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                     }
                     currentTransfer = NULL;
+
+                    // determine (somehow) when f was not used and clean it up
+                    if (f->file_it == file_list::iterator())
+                    {
+                        delete f;
+                    }
                 }
                 else
                 {
@@ -18384,7 +18393,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
 
-                    MegaFileGet *f;
                     if (node)
                     {
                         if (!fileName)
@@ -18422,6 +18430,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     wLocalPath.appendWithSeparator(name, true);
 
                     FileFingerprint *prevFp = NULL;
+                    unique_ptr<FileFingerprint> prevFpCleaner; // because prevFp might be allocated here!
                     m_off_t size = 0;
                     auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(wLocalPath, true, false))
@@ -18435,6 +18444,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         {
                             const char *fpstring = publicNode->getFingerprint();
                             prevFp = getFileFingerprintInternal(fpstring);
+                            prevFpCleaner.reset(prevFp); // must be released in this case!
                             size = publicNode->getSize();
                         }
 
@@ -18473,7 +18483,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             else
                             {
                                 transfer->setNodeHandle(publicNode->getHandle());
-                                delete prevFp;
                             }
                             transfer->setDeltaSize(fa->size);
                             transfer->setSpeed(0);
@@ -18487,17 +18496,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     fa.reset();
 
                     currentTransfer = transfer;
-                    if (node)
-                    {
-                        f = new MegaFileGet(client, node, wLocalPath, fsType);
-                    }
-                    else
-                    {
-                        delete prevFp;
-                        f = new MegaFileGet(client, publicNode, wLocalPath);
-                    }
-
                     transfer->setPath(wLocalPath.toPath(false).c_str());
+
+                    MegaFileGet* f = node ? new MegaFileGet(client, node, wLocalPath, fsType) :
+                                            new MegaFileGet(client, publicNode, wLocalPath);
+                    // where is f supposed to be released ?!
 
                     f->setTransfer(transfer);
                     f->cancelToken = transfer->accessCancelToken();
@@ -18524,6 +18527,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setState(MegaTransfer::STATE_FAILED);
                         f->setTransfer(nullptr);
                         fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(cause));
+                    }
+
+                    // determine (somehow) when f was not used and clean it up
+                    if (f->file_it == file_list::iterator())
+                    {
+                        delete f;
                     }
                 }
                 else
