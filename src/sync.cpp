@@ -2246,7 +2246,8 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
             rowResult = false;
             return true;  // row processed (no further action) but not synced
         }
-        else if (row.cloudNode->handle == moveHerePtr->movedHandle)
+        else if (row.cloudNode &&
+                 row.cloudNode->handle == moveHerePtr->movedHandle)
         {
 
             SYNC_verbose << syncname << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
@@ -2885,11 +2886,13 @@ dstime Sync::procscanq()
         // Notify the node or its parent
         LocalNode* match = localnodebypath(node, notification.path, &nearest, &remainder, false);
 
-        // Check it's not an excluded path
+        // Check it's not below an excluded path
         if (nearest && !remainder.empty())
         {
             if (nearest->type == TYPE_DONOTSYNC)
             {
+                SYNC_verbose << "Ignoring notification under do-not-sync node: "
+                             << node->getLocalPath() << LocalPath::localPathSeparator_utf8 << notification.path;
                 continue;
             }
 
@@ -2897,13 +2900,13 @@ dstime Sync::procscanq()
             size_t index = 0;
             if (remainder.nextPathComponent(index, firstComponent))
             {
-                if (isDoNotSyncFileName(firstComponent.toPath(false)))
+                if (!(firstComponent == IGNORE_FILE_NAME) &&  // as the exclusionState check below skips that check for TYPE_UNKNOWN
+                    (isDoNotSyncFileName(firstComponent.toPath(false)) ||
+                    ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0)))
                 {
-                    continue;
-                }
-
-                if (ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0))
-                {
+                    // no need to rescan anything when the change was in an excluded folder
+                    SYNC_verbose << "Ignoring notification under excluded/do-not-sync node:"
+                                 << node->getLocalPath() << LocalPath::localPathSeparator_utf8 << notification.path;;
                     continue;
                 }
             }
@@ -2952,6 +2955,7 @@ dstime Sync::procscanq()
         if (!nearest)
         {
             // we didn't find any suitable ancestor within the sync
+            LOG_debug << "Notification had no scannable result:"  << node->getLocalPath() << " " << notification.path;;
             continue;
         }
 
@@ -2978,14 +2982,12 @@ dstime Sync::procscanq()
         }
 
         // Let the parent know it needs to perform a scan.
-#ifdef DEBUG
         //if (nearest->scanAgain < TREE_ACTION_HERE)
         {
             SYNC_verbose << "Trigger scan flag by fs notification on "
                          << nearest->getLocalPath()
                          << (scanDescendants ? " (recursive)" : "");
         }
-#endif
 
         nearest->setScanAgain(false, true, scanDescendants, SCANNING_DELAY_DS);
 
