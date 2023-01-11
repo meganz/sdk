@@ -6623,6 +6623,7 @@ void MegaClient::sc_userattr()
                                 {
                                     case ATTR_KEYRING:
                                     {
+                                        assert(false);
                                         resetKeyring();
                                         break;
                                     }
@@ -6648,7 +6649,6 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
-                                        if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
                                     }
@@ -13885,7 +13885,10 @@ void MegaClient::fetchkeys()
 
     // RSA public key is retrieved by getuserdata
 
-    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+    if (!mKeyManager.generation())
+    {
+        getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+    }
     getua(u, ATTR_ED25519_PUBK, 0);
     getua(u, ATTR_CU25519_PUBK, 0);
     getua(u, ATTR_SIG_CU255_PUBK, 0);
@@ -14186,39 +14189,43 @@ void MegaClient::loadAuthrings()
 {
     if (User* ownUser = finduser(me))
     {
-        std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
-        for (auto at : attrs)
+        // if KeyManager is ready, authrings are already retrieved by getuserdata (from ^!keys attribute)
+        if (!mKeyManager.generation())
         {
-            const string *av = ownUser->getattr(at);
-            if (av)
+            std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
+            for (auto at : attrs)
             {
-                if (ownUser->isattrvalid(at))
+                const string *av = ownUser->getattr(at);
+                if (av)
                 {
-                    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
-                    if (tlvRecords)
+                    if (ownUser->isattrvalid(at))
                     {
-                        mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                        LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+                        if (tlvRecords)
+                        {
+                            mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                            LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                        }
+                        else
+                        {
+                            LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                        }
+
+                        continue;
                     }
                     else
                     {
-                        LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                        LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
                     }
-
-                    continue;
                 }
                 else
                 {
-                    LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
+                    LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
+                    getua(ownUser, at, 0);
+                    ++mFetchingAuthrings;
                 }
             }
-            else
-            {
-                LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
-                getua(ownUser, at, 0);
-                ++mFetchingAuthrings;
-            }
-        }
+        }   // --> end if(!mKeyManager.generation())
 
         // if all authrings were loaded from cache...
         if (mFetchingAuthrings == 0)
@@ -14230,51 +14237,39 @@ void MegaClient::loadAuthrings()
 
 void MegaClient::fetchContactsKeys()
 {
-    assert(mAuthRings.size() == 3);
+    assert(mAuthRings.size() == 3 || (mKeyManager.generation() && mAuthRings.size() == 2));
     mAuthRingsTemp = mAuthRings;
-
-    bool edFinished = true;
-    bool cuFinished = true;
-    bool rsaFinished = true;
 
     for (auto &it : users)
     {
         User *user = &it.second;
         if (user->userhandle != me)
         {
-            edFinished &= getua(user, ATTR_ED25519_PUBK, 0);
-            cuFinished &= getua(user, ATTR_CU25519_PUBK, 0);
-            rsaFinished &= user->pubk.isvalid() != 0;
-
-            int creqtag = reqtag;
-            reqtag = 0;
-            getpubkey(user->uid.c_str());
-            reqtag = creqtag;
+            fetchContactKeys(user);
         }
-    }
-
-    // Keys could be already cached
-    if (edFinished)
-    {
-        mAuthRingsTemp.erase(ATTR_AUTHRING);
-    }
-
-    if (cuFinished)
-    {
-        mAuthRingsTemp.erase(ATTR_AUTHCU255);
-    }
-
-    if (rsaFinished)
-    {
-        mAuthRingsTemp.erase(ATTR_AUTHRSA);
     }
 }
 
 void MegaClient::fetchContactKeys(User *user)
 {
-    getua(user, ATTR_ED25519_PUBK, 0);
-    getua(user, ATTR_CU25519_PUBK, 0);
+    // call trackKey() in case the key is in cache
+    // otherwise, send getua() to server, CommandGetUA::procresult() will call trackKey()
+    attr_t attrType = ATTR_ED25519_PUBK;
+    if (!user->isattrvalid(attrType))
+    {
+        getua(user, attrType, 0);
 
+        // if Ed25519 is not in cache, better to ensure that Ed25519 is tracked before Cu25519
+        user->invalidateattr(ATTR_CU25519_PUBK);
+    }
+    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+
+    attrType = ATTR_CU25519_PUBK;
+    if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+
+    // TODO: remove obsolete retrieval and tracking of public RSA keys and its signatures
+    // (authrings for RSA are deprecated)
     int creqtag = reqtag;
     reqtag = 0;
     getpubkey(user->uid.c_str());
@@ -14297,6 +14292,11 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         LOG_err << "Attempt to track an unknown type of key for user " << uid << ": " << User::attr2string(keyType);
         assert(false);
         return API_EARGS;
+    }
+    if (authringType == ATTR_AUTHRSA && mKeyManager.generation())
+    {
+        LOG_info << "Skip tracking RSA key for user " << uid << ": secure client doesn't rely on RSA";
+        return API_OK;
     }
 
     // If checking authrings for all contacts (new session), accumulate updates for all contacts first
@@ -14352,13 +14352,16 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     if (authring->isSignedKey())
     {
-        if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch || temporalAuthring)
-        {
-            // load public signing key and key signature
-            getua(user, ATTR_ED25519_PUBK, 0);
+        assert(user->getattr(ATTR_ED25519_PUBK) != nullptr); // User's public Ed25519 should be in cache already
 
-            attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
-            user->invalidateattr(attrType);
+        attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
+        const string* signature = user->getattr(attrType);
+        if (signature)
+        {
+            trackSignature(attrType, uh, *signature);
+        }
+        else
+        {
             getua(user, attrType, 0); // in CommandGetUA::procresult(), we check signature actually matches
         }
     }
@@ -14368,10 +14371,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
         // tracking has changed --> persist authring
         authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
-    }
 
-    if (!authring->isSignedKey() && (!keyTracked || temporalAuthring))
-    {
         // if checking authrings for all contacts, accumulate updates for all contacts first
         bool finished = true;
         if (temporalAuthring)
@@ -14389,42 +14389,35 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         if (finished)
         {
-            userattr_map attrs;
-
-            std::string serializedAuthring = authring->serializeForJS();
-            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            attrs[authringType] = *newAuthring;
-
-            // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
-            // if found in the temporal ones.
-            putua(&attrs, 0,
-            [this, authringType, serializedAuthring](Error e)
+            if (authring->needsUpdate())
             {
-                if (e || !mKeyManager.generation())
-                {
-                    // We have failed (or the account has not been upgraded),
-                    // so we don't propagate the changes to mKeyManager
-                    return;
-                }
+                userattr_map attrs;
 
-                if (authringType == ATTR_AUTHRING || authringType == ATTR_AUTHCU255)
+                std::string serializedAuthring = authring->serializeForJS();
+                std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
+                attrs[authringType] = *newAuthring;
+
+                // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
+                // if found in the temporal ones.
+                putua(&attrs, 0,
+                [this, serializedAuthring](Error e)
                 {
+                    if (e || !mKeyManager.generation())
+                    {
+                        // We have failed (or the account has not been upgraded),
+                        // so we don't propagate the changes to mKeyManager
+                        return;
+                    }
+
                     mKeyManager.commit(
-                    [this, authringType, serializedAuthring]()
+                    [this, serializedAuthring]()
                     {
                         // Changes to apply in the commit
-                        if (authringType == ATTR_AUTHRING)
-                        {
-                            mKeyManager.setAuthRing(serializedAuthring);
-                        }
-                        else if (authringType == ATTR_AUTHCU255)
-                        {
-                            mKeyManager.setAuthCU255(serializedAuthring);
-                        }
+                        mKeyManager.setAuthRing(serializedAuthring);
                         mKeyManager.promotePendingShares();
                     }); // No completion callback in this case
-                }
-            });
+                });
+            }
 
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
         }
@@ -14533,15 +14526,12 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             {
                 LOG_err << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                if (authring->isSignedKey()) // for unsigned keys, already notified in trackKey()
-                {
-                    app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
-                    sendevent(99451, "Key modification detected");
-                }
+                app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
+                sendevent(99451, "Key modification detected");
 
                 return API_EKEY;
             }
-            else
+            else if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
             {
                 LOG_debug << "Updating authentication method for user " << uid << " to signature verified";
 
@@ -14572,35 +14562,38 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         }
         if (finished)
         {
-            userattr_map attrs;
-
-            std::string serializedAuthring = authring->serializeForJS();
-            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            attrs[authringType] = *newAuthring;
-
-            // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
-            // if found in the temporal ones.
-            putua(&attrs, 0,
-            [this, authringType, serializedAuthring](Error e)
+            if (authring->needsUpdate())
             {
-                if (e || !mKeyManager.generation())
-                {
-                    // We have failed (or the account has not been upgraded),
-                    // so we don't propagate the changes to mKeyManager
-                    return;
-                }
+                userattr_map attrs;
 
-                if (authringType == ATTR_AUTHCU255)
+                std::string serializedAuthring = authring->serializeForJS();
+                std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
+                attrs[authringType] = *newAuthring;
+
+                // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
+                // if found in the temporal ones.
+                putua(&attrs, 0,
+                [this, authringType, serializedAuthring](Error e)
                 {
-                    mKeyManager.commit(
-                    [this, serializedAuthring]()
+                    if (e || !mKeyManager.generation())
                     {
-                        // Changes to apply in the commit
-                        mKeyManager.setAuthCU255(serializedAuthring);
-                        mKeyManager.promotePendingShares();
-                    }); // No completion callback in this case
-                }
-            });
+                        // We have failed (or the account has not been upgraded),
+                        // so we don't propagate the changes to mKeyManager
+                        return;
+                    }
+
+                    if (authringType == ATTR_AUTHCU255)
+                    {
+                        mKeyManager.commit(
+                        [this, serializedAuthring]()
+                        {
+                            // Changes to apply in the commit
+                            mKeyManager.setAuthCU255(serializedAuthring);
+                            mKeyManager.promotePendingShares();
+                        }); // No completion callback in this case
+                    }
+                });
+            }
 
             mAuthRingsTemp.erase(authringType);
         }
@@ -14621,15 +14614,34 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 error MegaClient::verifyCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    auto it = mAuthRings.find(ATTR_AUTHRING);
-    if (it == mAuthRings.end())
+    auto itEd = mAuthRings.find(ATTR_AUTHRING);
+    bool hasEdAuthring = itEd != mAuthRings.end();
+    auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+    bool hasCuAuthring = itCu != mAuthRings.end();
+    if (!hasEdAuthring || !hasCuAuthring)
     {
-        LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
-        assert(false);
+        LOG_warn << "Failed to verify public Ed25519 key for user " << uid << ": authring(s) not available";
         return API_ETEMPUNAVAIL;
     }
 
-    AuthRing authring = it->second; // copy, do not modify yet the cached authring
+    if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+    {
+        LOG_err << "Failed to verify credentials for user " << uid << ": signature of Cu25519 public key is not verified";
+        assert(false);
+
+        // Let's try to authenticate Cu25519 for this user
+        // because its verification is required to promote pending sharesUser *user = finduser(uh);
+        User *user = finduser(uh);
+        if (user)
+        {
+            attr_t attrType = ATTR_CU25519_PUBK;
+            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+        }
+        return API_EINTERNAL;
+    }
+
+    AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
     AuthMethod authMethod = authring.getAuthMethod(uh);
     switch (authMethod)
     {
@@ -14669,7 +14681,7 @@ error MegaClient::verifyCredentials(handle uh)
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     std::string serializedAuthring = authring.serializeForJS();
     putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
-    [this, uh, tag, serializedAuthring](Error e)
+    [this, tag, serializedAuthring](Error e)
     {
         if (e || !mKeyManager.generation())
         {
@@ -14690,17 +14702,8 @@ error MegaClient::verifyCredentials(handle uh)
             mKeyManager.setAuthRing(serializedAuthring);
             mKeyManager.promotePendingShares();
         },
-        [this, uh, tag]()
+        [this, tag]()
         {
-            User *user = finduser(uh);
-            if (user)
-            {
-                // Ensure that cu25519 is tracked and verified for the user
-                // because its verification is required to promote pending shares
-                user->invalidateattr(ATTR_CU25519_PUBK);
-                getua(user, ATTR_CU25519_PUBK, 0);
-            }
-
             restag = tag;
             app->putua_result(API_OK);
             return;
@@ -14713,43 +14716,23 @@ error MegaClient::verifyCredentials(handle uh)
 error MegaClient::resetCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    if (mAuthRings.size() != 3)
+    auto it = mAuthRings.find(ATTR_AUTHRING);
+    if (it == mAuthRings.end())
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": authring/s not available";
-        // TODO: after testing, if not hit, remove assertion below
-        assert(false);
+        LOG_warn << "Failed to reset credentials for user " << uid << ": authring not available";
         return API_ETEMPUNAVAIL;
     }
 
-    // store all required changes into user attributes
-    userattr_map attrs;
-    std::string serializedAuthring;
-    std::string serializedAuthCU255;
-    for (auto &it : mAuthRings)
-    {
-        AuthRing authring = it.second; // copy, do not update cached authring yet
-        if (authring.remove(uh))
-        {
-            attrs[it.first] = *authring.serialize(rng, key);
-        }
-
-        if (it.first == ATTR_AUTHRING)
-        {
-            serializedAuthring = authring.serializeForJS();
-        }
-        else if (it.first == ATTR_AUTHCU255)
-        {
-            serializedAuthCU255 = authring.serializeForJS();
-        }
-    }
-
-    if (attrs.size())
+    AuthRing authring = it->second; // copy, do not update cached authring yet
+    if (authring.remove(uh))
     {
         LOG_debug << "Removing credentials for user " << uid << "...";
 
+        unique_ptr<string> buf(authring.serialize(rng, key));
+        string serializedAuthring = authring.serializeForJS();
         int tag = reqtag;
-        putua(&attrs, 0,
-        [this, tag, serializedAuthring, serializedAuthCU255](Error e)
+        putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag, UNDEF, 0, 0,
+        [this, tag, serializedAuthring](Error e)
         {
             if (e || !mKeyManager.generation())
             {
@@ -14761,11 +14744,10 @@ error MegaClient::resetCredentials(handle uh)
             }
 
             mKeyManager.commit(
-            [this, serializedAuthring, serializedAuthCU255]()
+            [this, serializedAuthring]()
             {
                 // Changes to apply in the commit
                 mKeyManager.setAuthRing(serializedAuthring);
-                mKeyManager.setAuthCU255(serializedAuthCU255);
             },
             [this, tag]()
             {
@@ -14777,7 +14759,7 @@ error MegaClient::resetCredentials(handle uh)
     }
     else
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": keys not tracked yet";
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key not tracked yet";
         return API_ENOENT;
     }
 

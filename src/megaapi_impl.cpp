@@ -15080,12 +15080,6 @@ void MegaApiImpl::putua_result(error e)
         return;
     }
 
-    if (e && client->fetchingkeys)
-    {
-        client->clearKeys();
-        client->resetKeyring();
-    }
-
     // if user just set the preferred language... change the GET param to the new language
     if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
     {
@@ -20176,6 +20170,7 @@ void MegaApiImpl::sendPendingRequests()
             string attrvalue;
 
             if (type == ATTR_KEYRING                ||
+                    type == ATTR_KEYS               ||
                     User::isAuthring(type)          ||
                     type == ATTR_CU25519_PUBK       ||
                     type == ATTR_ED25519_PUBK       ||

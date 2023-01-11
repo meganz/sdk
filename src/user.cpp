@@ -289,49 +289,67 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-    if (av)
+    // initialize private Ed25519 and Cu25519 from cache
+    if (u->userhandle == client->me)
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
-        if (tlvRecords)
+        string prEd255, prCu255;
+
+        const string* keys = u->getattr(ATTR_KEYS);
+        if (keys)
         {
-            string edDsaValue;
-            if (tlvRecords->get(EdDSA::TLV_KEY, edDsaValue) && !edDsaValue.empty())
+            client->mKeyManager.setKey(client->key);
+            if (client->mKeyManager.fromKeysContainer(*keys))
             {
-                client->signkey = new EdDSA(client->rng, (unsigned char *) edDsaValue.data());
-                if (!client->signkey->initializationOK)
-                {
-                    delete client->signkey;
-                    client->signkey = NULL;
-                    LOG_warn << "Failed to load chat key from local cache.";
-                }
-                else
-                {
-                    LOG_info << "Signing key loaded from local cache.";
-                }
+                prEd255 = client->mKeyManager.privEd25519();
+                prCu255 = client->mKeyManager.privCu25519();
             }
-
-            string ecdhValue;
-            if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
-            {
-                client->chatkey = new ECDH(ecdhValue);
-                if (!client->chatkey->initializationOK)
-                {
-                    delete client->chatkey;
-                    client->chatkey = NULL;
-                    LOG_warn << "Failed to load chat key from local cache.";
-                }
-                else
-                {
-                    LOG_info << "Chat key successfully loaded from local cache.";
-                }
-            }
-
-            delete tlvRecords;
         }
-        else
+
+        if (!client->mKeyManager.generation())
         {
-            LOG_warn << "Failed to decrypt keyring from cache";
+            const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+            if (av)
+            {
+                unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+                if (tlvRecords)
+                {
+                    tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+                    tlvRecords->get(ECDH::TLV_KEY, prCu255);
+                }
+                else
+                {
+                    LOG_warn << "Failed to decrypt keyring from cache";
+                }
+            }
+        }
+
+        if (prEd255.size())
+        {
+            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+            if (!client->signkey->initializationOK)
+            {
+                delete client->signkey;
+                client->signkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Signing key loaded from local cache.";
+            }
+        }
+        if (prCu255.size())
+        {
+            client->chatkey = new ECDH(prCu255);
+            if (!client->chatkey->initializationOK)
+            {
+                delete client->chatkey;
+                client->chatkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Chat key successfully loaded from local cache.";
+            }
         }
     }
 
@@ -1589,16 +1607,20 @@ void AuthRing::add(handle uh, const std::string &fingerprint, AuthMethod authMet
     assert(mAuthMethod.find(uh) == mAuthMethod.end());
     mFingerprint[uh] = fingerprint;
     mAuthMethod[uh] = authMethod;
+    mNeedsUpdate = true;
 }
 
 void AuthRing::update(handle uh, AuthMethod authMethod)
 {
     mAuthMethod.at(uh) = authMethod;
+    mNeedsUpdate = true;
 }
 
 bool AuthRing::remove(handle uh)
 {
-    return mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+    bool removed = mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+    mNeedsUpdate |= removed;
+    return removed;
 }
 
 attr_t AuthRing::keyTypeToAuthringType(attr_t at)

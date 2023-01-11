@@ -223,10 +223,15 @@ public:
 
     static string toString(const AuthRing& authRing);
 
+    bool needsUpdate() const { return mNeedsUpdate; }
+
 private:
     attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
+
+    // indicates if the authring has changed and needs to update value in server
+    bool mNeedsUpdate = false;
 
     bool deserialize(const std::string &authValue);
 };
