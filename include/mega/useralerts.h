@@ -316,10 +316,12 @@ namespace UserAlert
 #ifdef ENABLE_CHAT
     struct NewScheduledMeeting : public Base
     {
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
             : Base(UserAlert::type_nusm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             {}
 

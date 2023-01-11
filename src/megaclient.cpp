@@ -7515,7 +7515,7 @@ void MegaClient::sc_scheduledmeetings()
                      [this, ou](const handle& sm) { createDeletedSMAlert(ou, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
                 else createUpdatedSMAlert(ou, schedId, std::move(cs));
             }
         }
@@ -7523,7 +7523,7 @@ void MegaClient::sc_scheduledmeetings()
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
 {
     if (ou == me)
     {
@@ -7531,7 +7531,7 @@ void MegaClient::createNewSMAlert(const handle& ou, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
 void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
