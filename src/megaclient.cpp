@@ -6653,12 +6653,13 @@ void MegaClient::sc_userattr()
                                         break;
                                     }
                                     default:
+                                        LOG_debug << User::attr2string(type) << " has changed externally (skip fetching)";
                                         break;
                                 }
                             }
                             else
                             {
-                                LOG_info << "User attribute already up to date";
+                                LOG_info << "User attribute already up to date: " << User::attr2string(type);
                                 return;
                             }
                         }
@@ -14190,7 +14191,7 @@ void MegaClient::loadAuthrings()
     if (User* ownUser = finduser(me))
     {
         // if KeyManager is ready, authrings are already retrieved by getuserdata (from ^!keys attribute)
-        if (!mKeyManager.generation())
+        if (!mKeyManager.generation() || !mKeyManager.isSecure())
         {
             std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
             for (auto at : attrs)
