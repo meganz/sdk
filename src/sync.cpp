@@ -6651,7 +6651,10 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                     delete p;
                                 }
                             }
-
+                            if (s->transferSP)
+                            {
+                                s->resetTransfer(nullptr);
+                            }
                             continue;
                         }
                     }
