@@ -10051,6 +10051,8 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_pt
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferFinish(api, transfer, e.get());
 
+    client->removeAppData(transfer);
+
     delete transfer;
 }
 
@@ -10328,6 +10330,8 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
         (*it)->onTransferFinish(api, transfer, e.get());
+
+    client->removeAppData(transfer);
 
     delete transfer;
 }
@@ -12635,6 +12639,7 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
                     // don't resume the upload if the node already exist in the target folder
                     TransferDbCommitter committer(client->tctable);
                     delete file;
+                    client->removeAppData(transfer);
                     delete transfer;   // committer needed here
                     file = NULL;
                     break;
