@@ -1616,13 +1616,6 @@ void AuthRing::update(handle uh, AuthMethod authMethod)
     mNeedsUpdate = true;
 }
 
-bool AuthRing::remove(handle uh)
-{
-    bool removed = mFingerprint.erase(uh) + mAuthMethod.erase(uh);
-    mNeedsUpdate |= removed;
-    return removed;
-}
-
 attr_t AuthRing::keyTypeToAuthringType(attr_t at)
 {
     if (at == ATTR_ED25519_PUBK)

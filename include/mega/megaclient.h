@@ -932,7 +932,7 @@ public:
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
 
-    // reset the tracking of public keys in the authrings for a given user
+    // reset the authentication method of Ed25519 key from Fingerprint-verified to Seen for a given user
     error resetCredentials(handle uh);
 
     // check credentials are verified for a given user

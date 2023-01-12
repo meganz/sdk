@@ -179,9 +179,6 @@ public:
     // assumes the key is already tracked for uh (otherwise, it will throw)
     void update(handle uh, AuthMethod authMethod);
 
-    // return false if uh was not tracked
-    bool remove(handle uh);
-
     // return the authring as tlv container, ready to set as user's attribute [*!authring | *!authCu255 | *!authRSA]
     std::string *serialize(PrnGen &rng, SymmCipher &key) const;
 
