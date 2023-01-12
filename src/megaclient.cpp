@@ -14727,7 +14727,8 @@ error MegaClient::resetCredentials(handle uh)
     AuthMethod authMethod = authring.getAuthMethod(uh);
     if (authMethod == AUTH_METHOD_SEEN)
     {
-        return API_OK;
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
+        return API_EARGS;
     }
     else if (authMethod == AUTH_METHOD_UNKNOWN)
     {
