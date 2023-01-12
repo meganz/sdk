@@ -6653,12 +6653,13 @@ void MegaClient::sc_userattr()
                                         break;
                                     }
                                     default:
+                                        LOG_debug << User::attr2string(type) << " has changed externally (skip fetching)";
                                         break;
                                 }
                             }
                             else
                             {
-                                LOG_info << "User attribute already up to date";
+                                LOG_info << "User attribute already up to date: " << User::attr2string(type);
                                 return;
                             }
                         }
@@ -14191,7 +14192,7 @@ void MegaClient::loadAuthrings()
     if (User* ownUser = finduser(me))
     {
         // if KeyManager is ready, authrings are already retrieved by getuserdata (from ^!keys attribute)
-        if (!mKeyManager.generation())
+        if (!mKeyManager.generation() || !mKeyManager.isSecure())
         {
             std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
             for (auto at : attrs)
@@ -14725,44 +14726,50 @@ error MegaClient::resetCredentials(handle uh)
     }
 
     AuthRing authring = it->second; // copy, do not update cached authring yet
-    if (authring.remove(uh))
+    AuthMethod authMethod = authring.getAuthMethod(uh);
+    if (authMethod == AUTH_METHOD_SEEN)
     {
-        LOG_debug << "Removing credentials for user " << uid << "...";
-
-        unique_ptr<string> buf(authring.serialize(rng, key));
-        string serializedAuthring = authring.serializeForJS();
-        int tag = reqtag;
-        putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag, UNDEF, 0, 0,
-        [this, tag, serializedAuthring](Error e)
-        {
-            if (e || !mKeyManager.generation())
-            {
-                // We have failed (or the account has not been upgraded),
-                // so we don't propagate the changes to mKeyManager
-                restag = tag;
-                app->putua_result(e);
-                return;
-            }
-
-            mKeyManager.commit(
-            [this, serializedAuthring]()
-            {
-                // Changes to apply in the commit
-                mKeyManager.setAuthRing(serializedAuthring);
-            },
-            [this, tag]()
-            {
-                restag = tag;
-                app->putua_result(API_OK);
-                return;
-            });
-        });
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
+        return API_EARGS;
     }
-    else
+    else if (authMethod == AUTH_METHOD_UNKNOWN)
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key not tracked yet";
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not tracked yet";
         return API_ENOENT;
     }
+    assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
+
+    LOG_debug << "Reseting credentials for user " << uid << "...";
+    authring.update(uh, AUTH_METHOD_SEEN);
+
+    unique_ptr<string> buf(authring.serialize(rng, key));
+    string serializedAuthring = authring.serializeForJS();
+    int tag = reqtag;
+    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag, UNDEF, 0, 0,
+    [this, tag, serializedAuthring](Error e)
+    {
+        if (e || !mKeyManager.generation())
+        {
+            // We have failed (or the account has not been upgraded),
+            // so we don't propagate the changes to mKeyManager
+            restag = tag;
+            app->putua_result(e);
+            return;
+        }
+
+        mKeyManager.commit(
+        [this, serializedAuthring]()
+        {
+            // Changes to apply in the commit
+            mKeyManager.setAuthRing(serializedAuthring);
+        },
+        [this, tag]()
+        {
+            restag = tag;
+            app->putua_result(API_OK);
+            return;
+        });
+    });
 
     return API_OK;
 }

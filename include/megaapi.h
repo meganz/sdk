@@ -11001,8 +11001,7 @@ class MegaApi
         /**
          * @brief Reset credentials of a given user
          *
-         * Call this function to forget the existing authentication of keys and signatures for a given
-         * user. A full reload of the account will start the authentication process again.
+         * Call this function to undo the verification of credentials done by MegaApi::verifyCrendentials
          *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:
