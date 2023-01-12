@@ -11226,6 +11226,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }
+    else assert(mKeyManager.getShareKey(n->nodehandle).size());
 
     if (updateKeys)    // new share: add key to ^!keys
     {
