@@ -743,6 +743,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/megaclient.h
             ${MegaDir}/include/mega/autocomplete.h
             ${MegaDir}/include/mega/serialize64.h
+            ${MegaDir}/include/mega/nodemanager.h
             ${MegaDir}/include/mega/setandelement.h
             ${MegaDir}/include/mega/posix/megafs.h
             ${MegaDir}/include/mega/posix/meganet.h
@@ -825,6 +826,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/raid.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
+            ${MegaDir}/src/nodemanager.cpp
             ${MegaDir}/src/setandelement.cpp
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
