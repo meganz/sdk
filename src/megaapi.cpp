@@ -809,6 +809,27 @@ bool MegaUserAlert::hasSchedMeetingChanged(int) const
 {
     return false;
 }
+
+MegaStringList* MegaUserAlert::getUpdatedTitle() const
+{
+    return NULL;
+}
+
+MegaStringList* MegaUserAlert::getUpdatedTimeZone() const
+{
+    return NULL;
+}
+
+MegaIntegerList* MegaUserAlert::getUpdatedStartDate() const
+{
+    return NULL;
+}
+
+MegaIntegerList* MegaUserAlert::getUpdatedEndDate() const
+{
+    return NULL;
+}
+
 #endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
@@ -5476,6 +5497,10 @@ void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, Mega
     pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
+void MegaApi::setSFUid(int sfuid)
+{
+    pImpl->setSFUid(sfuid);
+}
 #endif
 
 bool MegaApi::isSharesNotifiable()

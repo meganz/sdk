@@ -1916,6 +1916,11 @@ public:
     dstime disconnecttimestamp;
     dstime nextDispatchTransfersDs = 0;
 
+#ifdef ENABLE_CHAT
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+#endif
+
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
 
