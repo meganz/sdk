@@ -848,6 +848,10 @@ public:
 #ifdef ENABLE_CHAT
     MegaHandle getSchedId() const override;
     bool hasSchedMeetingChanged(int changeType) const override;
+    MegaStringList* getUpdatedTitle() const override;
+    MegaStringList* getUpdatedTimeZone() const override;
+    MegaIntegerList* getUpdatedStartDate() const override;
+    MegaIntegerList* getUpdatedEndDate() const override;
 #endif
     bool isOwnChange() const override;
     bool isRemoved() const override;
@@ -3262,6 +3266,7 @@ class MegaApiImpl : public MegaApp
         void startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+        void setSFUid(int sfuid);
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);

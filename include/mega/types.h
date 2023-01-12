@@ -1198,6 +1198,10 @@ enum ExclusionState : unsigned char
 }; // ExclusionState
 
 
+
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
