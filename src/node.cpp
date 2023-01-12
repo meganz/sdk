@@ -3236,9 +3236,6 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
             return ES_EXCLUDED;
     }
 
-    // Which node we should start our search from.
-    auto* node = this;
-
     // Does the final path component represent a file?
     if (type == FILENODE)
     {
@@ -3247,12 +3244,12 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
             return ES_INCLUDED;
 
         // Is the file excluded by any size filters?
-        if (ES_EXCLUDED == node->calcExcluded(namePath, size))
+        if (ES_EXCLUDED == calcExcluded(namePath, size))
             return ES_EXCLUDED;
     }
 
     // Is the file excluded by any name filters?
-    return node->calcExcluded(namePath, type, node != this);
+    return calcExcluded(namePath, type, false);
 }
 
 // Make sure we instantiate the two types.  Jenkins gcc can't handle this in the header.

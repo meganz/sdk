@@ -504,13 +504,13 @@ public:
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount);
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
     bool resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
