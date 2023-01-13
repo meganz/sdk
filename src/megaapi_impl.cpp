@@ -5527,7 +5527,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     mTimezones = NULL;
 
     httpio = new MegaHttpIO();
-    waiter = new MegaWaiter();
+    waiter.reset(new MegaWaiter());
 
     fsAccess.reset(new MegaFileSystemAccess());
 
@@ -5592,7 +5592,6 @@ MegaApiImpl::~MegaApiImpl()
     assert(transferMap.empty());
 
     delete gfxAccess;
-    delete waiter;
 
 #ifndef DONT_RELEASE_HTTPIO
     delete httpio;
