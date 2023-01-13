@@ -237,7 +237,7 @@ struct SyncOptions
 
 struct StandardClient : public MegaApp
 {
-    WAIT_CLASS waiter;
+    shared_ptr<WAIT_CLASS> waiter;
 #ifdef GFX_CLASS
     GfxProc gfx;
 #endif
@@ -394,7 +394,7 @@ struct StandardClient : public MegaApp
         nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
         nextfunctionMC_sourcefile = sf;
         nextfunctionMC_sourceline = sl;
-        waiter.notify();
+        waiter->notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
         {
             if (!debugging)
@@ -414,7 +414,7 @@ struct StandardClient : public MegaApp
         nextfunctionSC_sourcefile = sf;
         nextfunctionSC_sourceline = sl;
         nextfunctionSC = [this, promiseSP, f]() { f(*this, promiseSP); };
-        waiter.notify();
+        waiter->notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
         {
             if (!debugging)

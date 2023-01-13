@@ -1548,7 +1548,7 @@ public:
     struct MegaApp* app;
 
     // event waiter
-    Waiter* waiter;
+    shared_ptr<Waiter> waiter;
 
     // HTTP access
     HttpIO* httpio;
@@ -2259,7 +2259,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);

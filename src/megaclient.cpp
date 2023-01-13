@@ -1248,7 +1248,7 @@ void MegaClient::init()
     mLastReceivedScSeqTag.clear();
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1329,7 +1329,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
 
     init();
 
-    fsaccess->waiter = w;
+    fsaccess->waiter = w.get();
     transferlist.client = this;
 
     if ((app = a))
@@ -2693,7 +2693,7 @@ void MegaClient::exec()
     if (Waiter::ds > lasttime + reportFreqDs)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+        LOG_info << performanceStats.report(false, httpio, waiter.get(), reqs);
 
         debugLogHeapUsage();
     }
@@ -2996,11 +2996,11 @@ int MegaClient::checkevents()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
 
-    int r =  httpio->checkevents(waiter);
-    r |= fsaccess->checkevents(waiter);
+    int r =  httpio->checkevents(waiter.get());
+    r |= fsaccess->checkevents(waiter.get());
     if (gfx)
     {
-        r |= gfx->checkevents(waiter);
+        r |= gfx->checkevents(waiter.get());
     }
     return r;
 }
@@ -4335,7 +4335,7 @@ bool MegaClient::procsc()
                     }
 
 #ifdef ENABLE_SYNC
-                    syncs.waiter.notify();
+                    syncs.waiter->notify();
 #endif
 
                     return true;
@@ -15790,7 +15790,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
-            return API_EINTERNAL; 
+            return API_EINTERNAL;
         }
 
         error e = API_OK;

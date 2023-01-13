@@ -647,7 +647,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     if (us.mConfig.mChangeDetectionMethod == CDM_NOTIFICATIONS)
     {
         // Notifications may be queueing from this moment
-        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, syncs.waiter.get()));
     }
 
     // set specified fsfp or get from fs if none
@@ -2860,7 +2860,7 @@ dstime Sync::procscanq()
 
     while (queue.popFront(notification))
     {
-        lastFSNotificationTime = syncs.waiter.ds;
+        lastFSNotificationTime = syncs.waiter->ds;
 
         // Skip invalidated notifications.
         if (notification.invalidated())
@@ -2961,7 +2961,7 @@ dstime Sync::procscanq()
 
         if (nearest->expectedSelfNotificationCount > 0)
         {
-            if (nearest->scanDelayUntil >= syncs.waiter.ds)
+            if (nearest->scanDelayUntil >= syncs.waiter->ds)
             {
                 // self-caused notifications shouldn't cause extra waiting
                 --nearest->expectedSelfNotificationCount;
@@ -2995,7 +2995,7 @@ dstime Sync::procscanq()
         {
             // in case permissions changed on a scan-blocked folder
             // retry straight away, but don't reset the backoff delay
-            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter.ds);
+            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter->ds);
         }
 
         // How long the caller should wait before syncing.
@@ -3456,10 +3456,11 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-  : mClient(mc)
+  : waiter(new WAIT_CLASS)
+  , mClient(mc)
   , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
   , mSyncFlags(new SyncFlags)
-  , mScanService(new ScanService(waiter))
+  , mScanService(new ScanService())
 {
     fsaccess->initFilesystemNotificationSystem();
 
@@ -3473,7 +3474,7 @@ Syncs::~Syncs()
 
     // null function is the signal to end the thread
     syncThreadActions.pushBack(nullptr);
-    waiter.notify();
+    waiter->notify();
     if (syncThread.joinable()) syncThread.join();
 }
 
@@ -3488,7 +3489,7 @@ void Syncs::syncRun(std::function<void()> f)
         });
 
     mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
+    waiter->notify();
     synchronous.get_future().get();
 }
 
@@ -3497,7 +3498,7 @@ void Syncs::queueSync(std::function<void()>&& f)
     assert(!onSyncThread());
     syncThreadActions.pushBack(move(f));
     mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
+    waiter->notify();
 }
 
 void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
@@ -6558,7 +6559,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         //      there are various reasons we may skip that, based on flags set by earlier steps
         //    - zeroth, we perform first->third for any .megaignore file before any others
         //      as any change involving .megaignore may affect anything else we do
-        int alreadySyncedCount = 0;
+        PerFolderLogSummaryCounts pflsc;
 
         for (auto& sequence : sequences)
         {
@@ -6569,7 +6570,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     sequence.second == sequences.back().second &&
                     !belowRemovedCloudNode && !belowRemovedFsNode)
                 {
-                    SYNC_verbose << syncname << alreadySyncedCount << " out of " << childRows.size() << " nodes in folder were already synced";
+                    string message;
+                    if (pflsc.report(message))
+                    {
+                        SYNC_verbose << syncname << message << " out of folder items:" << childRows.size();
+                    }
                 }
 
                 for (auto i = sequence.first; i != sequence.second; ++i)
@@ -6723,7 +6728,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         else if (syncHere && !childRow.itemProcessed)
                         {
                             // normal case: consider all the combinations
-                            if (!syncItem(childRow, row, fullPath, alreadySyncedCount))
+                            if (!syncItem(childRow, row, fullPath, pflsc))
                             {
                                 if (childRow.syncNode && childRow.syncNode->type != FOLDERNODE)
                                 {
@@ -7221,7 +7226,7 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
     return true;  // carry on with checkItem()
 }
 
-bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount)
+bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
 
@@ -7445,19 +7450,19 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
                 statecacheadd(row.syncNode);
             }
 
-            return resolve_rowMatched(row, parentRow, fullPath, alreadySyncedCount);
+            return resolve_rowMatched(row, parentRow, fullPath, pflsc);
         }
 
         if (cloudEqual || isBackupAndMirroring())
         {
             // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath);
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         if (fsEqual)
         {
             // cloud has changed, get the change
-            return resolve_downsync(row, parentRow, fullPath, true);
+            return resolve_downsync(row, parentRow, fullPath, true, pflsc);
         }
 
         if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
@@ -7501,7 +7506,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         if (isBackupAndMirroring())
         {
             // for backups, we only change the cloud
-            return resolve_upsync(row, parentRow, fullPath);
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         if (!row.syncNode->syncedCloudNodeHandle.isUndef()
@@ -7518,7 +7523,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         // either
         //  - cloud item did not exist before; upsync
         //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-        return resolve_upsync(row, parentRow, fullPath);
+        return resolve_upsync(row, parentRow, fullPath, pflsc);
     }
     case SRT_CSX:
     {
@@ -7557,13 +7562,13 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         else if (row.syncNode->fsid_lastSynced == UNDEF)
         {
             // fs item did not exist before; downsync
-            return resolve_downsync(row, parentRow, fullPath, false);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
         else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
                  row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-            return resolve_downsync(row, parentRow, fullPath, false);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
         else
         {
@@ -7829,7 +7834,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
     return sourceSyncNode != nullptr;
 }
 
-bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount)
+bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
 
@@ -7889,9 +7894,12 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     }
     else
     {
-        // This line is too verbose when debugging large syncs.  Instead, report the already-synced count in the containing folder
-        //SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
-        alreadySyncedCount += 1;
+        if (!pflsc.alreadySyncedCount)
+        {
+            // This line is too verbose when debugging large syncs.  Instead, report the already-synced count in the containing folder
+            SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
+        }
+        pflsc.alreadySyncedCount += 1;
     }
 
     if (row.syncNode->type == FILENODE)
@@ -8174,7 +8182,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8417,7 +8425,11 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
         else
         {
-            SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+            if (!pflsc.alreadyUploadingCount)
+            {
+                SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+            }
+            pflsc.alreadyUploadingCount += 1;
         }
     }
     else if (row.fsNode->type == FOLDERNODE)
@@ -8520,7 +8532,7 @@ void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name)
     });
 };
 
-bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists)
+bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8615,7 +8627,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             // terminated and completed transfers are checked for early in syncItem()
             else
             {
-                SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
+                if (!pflsc.alreadyDownloadingCount)
+                {
+                    SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
+                }
+                pflsc.alreadyDownloadingCount += 1;
             }
         }
         else
@@ -8678,7 +8694,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     // set up to skip the fs notification from this folder creation
                     parentRow.syncNode->expectedSelfNotificationCount += 1;  // TODO:  probably different platforms may have different counts, or it may vary, maybe some are skipped or double ups condensed?
-                    parentRow.syncNode->scanDelayUntil = std::max<dstime>(parentRow.syncNode->scanDelayUntil, syncs.waiter.ds + 1);
+                    parentRow.syncNode->scanDelayUntil = std::max<dstime>(parentRow.syncNode->scanDelayUntil, syncs.waiter->ds + 1);
                 }
                 else
                 {
@@ -9387,7 +9403,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             // a lot of delete notifications, but not yet the corrsponding add that makes it a move
             // then it would be a mistake.  Give the filesystem 2 seconds to deliver that one.
             // On windows at least, under some circumstance, it may first deliver many deletes for the subfolder in a reverse depth first order
-            bool timeToBeSure = syncs.waiter.ds - lastFSNotificationTime > 20;
+            bool timeToBeSure = syncs.waiter->ds - lastFSNotificationTime > 20;
 
             if (timeToBeSure)
             {
@@ -10612,7 +10628,7 @@ void Syncs::syncLoop()
 
     for (;;)
     {
-        waiter.bumpds();
+        waiter->bumpds();
 
         // Flush changes made to internal configs.
         syncConfigStoreFlush();
@@ -10623,11 +10639,11 @@ void Syncs::syncLoop()
         // If traversals are very long, have a fair wait between (up to 5 seconds)
         // If something happens that means the sync needs attention, the waiter
         // should be woken up by a waiter->notify() call, and we break out of this wait
-        waiter.init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
-        waiter.wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
-        waiter.wait();
+        waiter->init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
+        waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
+        waiter->wait();
 
-        fsaccess->checkevents(&waiter);
+        fsaccess->checkevents(waiter.get());
 
         // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
         syncKey.setkey(mClient.key.key);
@@ -10636,7 +10652,7 @@ void Syncs::syncLoop()
         mSyncFlags->earlyRecurseExitRequested = false;
 
         // execute any requests from the MegaClient
-        waiter.bumpds();
+        waiter->bumpds();
         std::function<void()> f;
         while (syncThreadActions.popFront(f))
         {
@@ -10651,7 +10667,7 @@ void Syncs::syncLoop()
             f();
         }
 
-        waiter.bumpds();
+        waiter->bumpds();
 
         // Process filesystem notifications.
         for (auto& us : mSyncVec)
@@ -10668,7 +10684,7 @@ void Syncs::syncLoop()
         processTriggerHandles();
         processTriggerLocalpaths();
 
-        waiter.bumpds();
+        waiter->bumpds();
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
         // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
@@ -10814,8 +10830,8 @@ void Syncs::syncLoop()
         //}
 
         if (syncStallState &&
-            (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
-            (waiter.ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
+            (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
+            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
             !lastLoopEarlyExit &&
             !mSyncVec.empty())
         {
@@ -10990,8 +11006,8 @@ void Syncs::syncLoop()
                     << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "");
 
 
-        waiter.bumpds();
-        mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
+        waiter->bumpds();
+        mSyncFlags->recursiveSyncLastCompletedDs = waiter->ds;
 
         if (skippedForScanning > 0)
         {
@@ -11602,6 +11618,23 @@ bool Syncs::hasIgnoreFile(const SyncConfig& config)
     filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
 
     return fileAccess->isfile(filePath);
+}
+
+bool Sync::PerFolderLogSummaryCounts::report(string& s)
+{
+    if (alreadySyncedCount)
+    {
+        s += " alreadySynced:" + std::to_string(alreadySyncedCount);
+    }
+    if (alreadyUploadingCount)
+    {
+        s += " alreadyUploading:" + std::to_string(alreadyUploadingCount);
+    }
+    if (alreadyDownloadingCount)
+    {
+        s += " alreadyDownloading:" + std::to_string(alreadyDownloadingCount);
+    }
+    return !s.empty();
 }
 
 } // namespace

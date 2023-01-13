@@ -2835,7 +2835,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-    cout << client->performanceStats.report(reset, client->httpio, client->waiter, client->reqs) << flush;
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter.get(), client->reqs) << flush;
 }
 
 #endif
@@ -5394,8 +5394,8 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
         return;
     }
 
-    ScanService s(*client->waiter);
-    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+    ScanService s;
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {}, client->waiter);
 
     while (!r->completed())
     {
@@ -9842,9 +9842,9 @@ int main(int argc, char* argv[])
     auto httpIO = new HTTPIO_CLASS;
 
 #ifdef WIN32
-    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
 #else
-    auto waiter = new CONSOLE_WAIT_CLASS;
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>();
 #endif
 
     auto demoApp = new DemoApp;
@@ -9882,7 +9882,6 @@ int main(int argc, char* argv[])
     megacli();
 
     delete client;
-    delete waiter;
     delete httpIO;
     delete gfx;
     delete demoApp;

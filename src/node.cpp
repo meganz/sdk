@@ -1855,7 +1855,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             }
 
             ourScanRequest = sync->syncs.mScanService->queueScan(fullPath.localPath,
-                row.fsNode->fsid, false, move(priorScanChildren));
+                row.fsNode->fsid, false, move(priorScanChildren), sync->syncs.waiter);
 
             rare().scanRequest = ourScanRequest;
             *availableScanSlot = ourScanRequest;

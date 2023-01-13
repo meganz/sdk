@@ -1152,13 +1152,14 @@ string StandardClient::ensureDir(const fs::path& p)
 
 StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
     :
+      waiter(new WAIT_CLASS),
 #ifdef GFX_CLASS
       gfx(::mega::make_unique<GFX_CLASS>()),
 #endif
       client_dbaccess_path(ensureDir(basepath / name))
     , httpio(new HTTPIO_CLASS)
     , client(this,
-                &waiter,
+                waiter,
                 httpio.get(),
 #ifdef DBACCESS_CLASS
                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
@@ -1208,7 +1209,7 @@ StandardClient::~StandardClient()
     LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
-    waiter.notify();
+    waiter->notify();
     clientthread.join();
     LOG_debug << "~StandardClient end of function (work thread joined)";
 }

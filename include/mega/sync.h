@@ -501,22 +501,32 @@ public:
         vector<FSNode>& fsNodes,
         vector<syncRow>& inferredRows) const;
 
+    struct PerFolderLogSummaryCounts
+    {
+        // in order to not swamp the logs, but still be able to diagnose.
+        // mention one specfic item, then the count of the rest
+        int alreadySyncedCount = 0;
+        int alreadyUploadingCount = 0;
+        int alreadyDownloadingCount = 0;
+        bool report(string&);
+    };
+
     bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
     bool syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount);
+    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
     bool resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount);
+    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
 
@@ -1121,7 +1131,7 @@ public:
     // ------ public data members (thread safe)
 
     // waiter for sync loop on thread
-    WAIT_CLASS waiter;
+    shared_ptr<Waiter> waiter;
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;
