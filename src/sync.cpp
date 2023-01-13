@@ -6558,7 +6558,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         //      there are various reasons we may skip that, based on flags set by earlier steps
         //    - zeroth, we perform first->third for any .megaignore file before any others
         //      as any change involving .megaignore may affect anything else we do
-        int alreadySyncedCount = 0;
+        PerFolderLogSummaryCounts pflsc;
 
         for (auto& sequence : sequences)
         {
@@ -6569,7 +6569,11 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     sequence.second == sequences.back().second &&
                     !belowRemovedCloudNode && !belowRemovedFsNode)
                 {
-                    SYNC_verbose << syncname << alreadySyncedCount << " out of " << childRows.size() << " nodes in folder were already synced";
+                    string message;
+                    if (pflsc.report(message))
+                    {
+                        SYNC_verbose << syncname << message << " out of folder items:" << childRows.size();
+                    }
                 }
 
                 for (auto i = sequence.first; i != sequence.second; ++i)
@@ -6723,7 +6727,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         else if (syncHere && !childRow.itemProcessed)
                         {
                             // normal case: consider all the combinations
-                            if (!syncItem(childRow, row, fullPath, alreadySyncedCount))
+                            if (!syncItem(childRow, row, fullPath, pflsc))
                             {
                                 if (childRow.syncNode && childRow.syncNode->type != FOLDERNODE)
                                 {
@@ -7221,7 +7225,7 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
     return true;  // carry on with checkItem()
 }
 
-bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount)
+bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
 
@@ -7445,19 +7449,19 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
                 statecacheadd(row.syncNode);
             }
 
-            return resolve_rowMatched(row, parentRow, fullPath, alreadySyncedCount);
+            return resolve_rowMatched(row, parentRow, fullPath, pflsc);
         }
 
         if (cloudEqual || isBackupAndMirroring())
         {
             // filesystem changed, put the change
-            return resolve_upsync(row, parentRow, fullPath);
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         if (fsEqual)
         {
             // cloud has changed, get the change
-            return resolve_downsync(row, parentRow, fullPath, true);
+            return resolve_downsync(row, parentRow, fullPath, true, pflsc);
         }
 
         if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
@@ -7501,7 +7505,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         if (isBackupAndMirroring())
         {
             // for backups, we only change the cloud
-            return resolve_upsync(row, parentRow, fullPath);
+            return resolve_upsync(row, parentRow, fullPath, pflsc);
         }
 
         if (!row.syncNode->syncedCloudNodeHandle.isUndef()
@@ -7518,7 +7522,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         // either
         //  - cloud item did not exist before; upsync
         //  - the fs item has changed too; upsync (this lets users recover from the both sides changed state - user deletes the one they don't want anymore)
-        return resolve_upsync(row, parentRow, fullPath);
+        return resolve_upsync(row, parentRow, fullPath, pflsc);
     }
     case SRT_CSX:
     {
@@ -7557,13 +7561,13 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& a
         else if (row.syncNode->fsid_lastSynced == UNDEF)
         {
             // fs item did not exist before; downsync
-            return resolve_downsync(row, parentRow, fullPath, false);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
         else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
                  row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
             // the cloud item has changed too; downsync (this lets users recover from both sides changed state - user deletes the one they don't want anymore)
-            return resolve_downsync(row, parentRow, fullPath, false);
+            return resolve_downsync(row, parentRow, fullPath, false, pflsc);
         }
         else
         {
@@ -7829,7 +7833,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
     return sourceSyncNode != nullptr;
 }
 
-bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, int& alreadySyncedCount)
+bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
 
@@ -7889,9 +7893,12 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
     }
     else
     {
-        // This line is too verbose when debugging large syncs.  Instead, report the already-synced count in the containing folder
-        //SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
-        alreadySyncedCount += 1;
+        if (!pflsc.alreadySyncedCount)
+        {
+            // This line is too verbose when debugging large syncs.  Instead, report the already-synced count in the containing folder
+            SYNC_verbose << syncname << "Row was already synced" << logTriplet(row, fullPath);
+        }
+        pflsc.alreadySyncedCount += 1;
     }
 
     if (row.syncNode->type == FILENODE)
@@ -8174,7 +8181,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8417,7 +8424,11 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
         else
         {
-            SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+            if (!pflsc.alreadyUploadingCount)
+            {
+                SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
+            }
+            pflsc.alreadyUploadingCount += 1;
         }
     }
     else if (row.fsNode->type == FOLDERNODE)
@@ -8520,7 +8531,7 @@ void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name)
     });
 };
 
-bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists)
+bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8615,7 +8626,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             // terminated and completed transfers are checked for early in syncItem()
             else
             {
-                SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
+                if (!pflsc.alreadyDownloadingCount)
+                {
+                    SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
+                }
+                pflsc.alreadyDownloadingCount += 1;
             }
         }
         else
@@ -11602,6 +11617,23 @@ bool Syncs::hasIgnoreFile(const SyncConfig& config)
     filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
 
     return fileAccess->isfile(filePath);
+}
+
+bool Sync::PerFolderLogSummaryCounts::report(string& s)
+{
+    if (alreadySyncedCount)
+    {
+        s += " alreadySynced:" + std::to_string(alreadySyncedCount);
+    }
+    if (alreadyUploadingCount)
+    {
+        s += " alreadyUploading:" + std::to_string(alreadyUploadingCount);
+    }
+    if (alreadyDownloadingCount)
+    {
+        s += " alreadyDownloading:" + std::to_string(alreadyDownloadingCount);
+    }
+    return !s.empty();
 }
 
 } // namespace
