@@ -1131,7 +1131,7 @@ public:
     // ------ public data members (thread safe)
 
     // waiter for sync loop on thread
-    WAIT_CLASS waiter;
+    shared_ptr<Waiter> waiter;
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;

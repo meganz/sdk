@@ -647,7 +647,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     if (us.mConfig.mChangeDetectionMethod == CDM_NOTIFICATIONS)
     {
         // Notifications may be queueing from this moment
-        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, &syncs.waiter));
+        dirnotify.reset(syncs.fsaccess->newdirnotify(*localroot, mLocalPath, syncs.waiter.get()));
     }
 
     // set specified fsfp or get from fs if none
@@ -2860,7 +2860,7 @@ dstime Sync::procscanq()
 
     while (queue.popFront(notification))
     {
-        lastFSNotificationTime = syncs.waiter.ds;
+        lastFSNotificationTime = syncs.waiter->ds;
 
         // Skip invalidated notifications.
         if (notification.invalidated())
@@ -2961,7 +2961,7 @@ dstime Sync::procscanq()
 
         if (nearest->expectedSelfNotificationCount > 0)
         {
-            if (nearest->scanDelayUntil >= syncs.waiter.ds)
+            if (nearest->scanDelayUntil >= syncs.waiter->ds)
             {
                 // self-caused notifications shouldn't cause extra waiting
                 --nearest->expectedSelfNotificationCount;
@@ -2995,7 +2995,7 @@ dstime Sync::procscanq()
         {
             // in case permissions changed on a scan-blocked folder
             // retry straight away, but don't reset the backoff delay
-            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter.ds);
+            nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter->ds);
         }
 
         // How long the caller should wait before syncing.
@@ -3456,10 +3456,11 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-  : mClient(mc)
+  : waiter(new WAIT_CLASS)
+  , mClient(mc)
   , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
   , mSyncFlags(new SyncFlags)
-  , mScanService(new ScanService(waiter))
+  , mScanService(new ScanService())
 {
     fsaccess->initFilesystemNotificationSystem();
 
@@ -3473,7 +3474,7 @@ Syncs::~Syncs()
 
     // null function is the signal to end the thread
     syncThreadActions.pushBack(nullptr);
-    waiter.notify();
+    waiter->notify();
     if (syncThread.joinable()) syncThread.join();
 }
 
@@ -3488,7 +3489,7 @@ void Syncs::syncRun(std::function<void()> f)
         });
 
     mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
+    waiter->notify();
     synchronous.get_future().get();
 }
 
@@ -3497,7 +3498,7 @@ void Syncs::queueSync(std::function<void()>&& f)
     assert(!onSyncThread());
     syncThreadActions.pushBack(move(f));
     mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
+    waiter->notify();
 }
 
 void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f, bool fromAnyThread)
@@ -8693,7 +8694,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     // set up to skip the fs notification from this folder creation
                     parentRow.syncNode->expectedSelfNotificationCount += 1;  // TODO:  probably different platforms may have different counts, or it may vary, maybe some are skipped or double ups condensed?
-                    parentRow.syncNode->scanDelayUntil = std::max<dstime>(parentRow.syncNode->scanDelayUntil, syncs.waiter.ds + 1);
+                    parentRow.syncNode->scanDelayUntil = std::max<dstime>(parentRow.syncNode->scanDelayUntil, syncs.waiter->ds + 1);
                 }
                 else
                 {
@@ -9402,7 +9403,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             // a lot of delete notifications, but not yet the corrsponding add that makes it a move
             // then it would be a mistake.  Give the filesystem 2 seconds to deliver that one.
             // On windows at least, under some circumstance, it may first deliver many deletes for the subfolder in a reverse depth first order
-            bool timeToBeSure = syncs.waiter.ds - lastFSNotificationTime > 20;
+            bool timeToBeSure = syncs.waiter->ds - lastFSNotificationTime > 20;
 
             if (timeToBeSure)
             {
@@ -10627,7 +10628,7 @@ void Syncs::syncLoop()
 
     for (;;)
     {
-        waiter.bumpds();
+        waiter->bumpds();
 
         // Flush changes made to internal configs.
         syncConfigStoreFlush();
@@ -10638,11 +10639,11 @@ void Syncs::syncLoop()
         // If traversals are very long, have a fair wait between (up to 5 seconds)
         // If something happens that means the sync needs attention, the waiter
         // should be woken up by a waiter->notify() call, and we break out of this wait
-        waiter.init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
-        waiter.wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
-        waiter.wait();
+        waiter->init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
+        waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
+        waiter->wait();
 
-        fsaccess->checkevents(&waiter);
+        fsaccess->checkevents(waiter.get());
 
         // make sure we are using the client key (todo: shall we set it just when the client sets its key? easy to miss one though)
         syncKey.setkey(mClient.key.key);
@@ -10651,7 +10652,7 @@ void Syncs::syncLoop()
         mSyncFlags->earlyRecurseExitRequested = false;
 
         // execute any requests from the MegaClient
-        waiter.bumpds();
+        waiter->bumpds();
         std::function<void()> f;
         while (syncThreadActions.popFront(f))
         {
@@ -10666,7 +10667,7 @@ void Syncs::syncLoop()
             f();
         }
 
-        waiter.bumpds();
+        waiter->bumpds();
 
         // Process filesystem notifications.
         for (auto& us : mSyncVec)
@@ -10683,7 +10684,7 @@ void Syncs::syncLoop()
         processTriggerHandles();
         processTriggerLocalpaths();
 
-        waiter.bumpds();
+        waiter->bumpds();
 
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
         // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
@@ -10829,8 +10830,8 @@ void Syncs::syncLoop()
         //}
 
         if (syncStallState &&
-            (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
-            (waiter.ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
+            (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
+            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
             !lastLoopEarlyExit &&
             !mSyncVec.empty())
         {
@@ -11005,8 +11006,8 @@ void Syncs::syncLoop()
                     << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "");
 
 
-        waiter.bumpds();
-        mSyncFlags->recursiveSyncLastCompletedDs = waiter.ds;
+        waiter->bumpds();
+        mSyncFlags->recursiveSyncLastCompletedDs = waiter->ds;
 
         if (skippedForScanning > 0)
         {

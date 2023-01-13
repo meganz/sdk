@@ -963,14 +963,14 @@ private:
 class MEGA_API ScanService
 {
 public:
-    ScanService(Waiter& waiter);
+    ScanService();
     ~ScanService();
 
     // Concrete representation of a scan request.
     class ScanRequest
     {
     public:
-        ScanRequest(Waiter& waiter,
+        ScanRequest(shared_ptr<Waiter> waiter,
             bool followSymlinks,
             LocalPath targetPath,
             handle expectedFsid,
@@ -1002,7 +1002,7 @@ public:
         friend class ScanService;
 
         // Waiter to notify when done
-        Waiter& mWaiter;
+        shared_ptr<Waiter> mWaiter;
 
         // Whether the scan request is complete.
         std::atomic<ScanResult> mScanResult; // SCAN_INPROGRESS;
@@ -1028,7 +1028,7 @@ public:
     using RequestPtr = std::shared_ptr<ScanRequest>;
 
     // Issue a scan for the given target.
-    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter);
 
     // Track performance (debug only)
     static CodeCounter::ScopeStats syncScanTime;
@@ -1070,8 +1070,6 @@ private:
         // Worker threads.
         std::vector<std::thread> mThreads;
     }; // Worker
-
-    Waiter& mWaiter;
 
     // How many services are currently active.
     static std::atomic<size_t> mNumServices;

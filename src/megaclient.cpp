@@ -4335,7 +4335,7 @@ bool MegaClient::procsc()
                     }
 
 #ifdef ENABLE_SYNC
-                    syncs.waiter.notify();
+                    syncs.waiter->notify();
 #endif
 
                     return true;
@@ -15790,7 +15790,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
-            return API_EINTERNAL; 
+            return API_EINTERNAL;
         }
 
         error e = API_OK;
