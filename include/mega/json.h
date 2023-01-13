@@ -78,6 +78,8 @@ struct MEGA_API JSON
     bool enterobject();
     bool leaveobject();
 
+    bool storeKeyValueFromObject(string& key, string& value);
+
     bool storeobject(string* = NULL);
     bool skipnullvalue();
 

@@ -39,6 +39,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fromInsycShare = false;
     temporaryfile = false;
     tag = 0;
 }
@@ -470,7 +471,7 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname, bool fromInshare)
 {
     sync = csync;
 
@@ -479,6 +480,7 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
     *(FileFingerprint*)this = *n;
 
     syncxfer = true;
+    fromInsycShare = fromInshare;
     n->syncget = this;
 
     setLocalname(clocalname);
@@ -571,7 +573,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare, n->parent->localnode->sync->isBackup());
+            n->parent->client->movetosyncdebris(n, fromInsycShare, n->parent->localnode->sync->isBackup());
         }
     }
 

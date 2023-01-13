@@ -1553,6 +1553,12 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
     return [setElements copy];
 }
 
+-(NSUInteger)megaSetElementCount:(MEGAHandle)sid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return 0;
+    
+    return self.megaApi->getSetElementCount(sid);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setNodeCoordinates(node.getCPtr, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
