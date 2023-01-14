@@ -401,7 +401,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
@@ -538,7 +537,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
         skey = NULL;
     }
 
-    n = new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    unique_ptr<Node> n(new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
     if (!encrypted && k)
     {
@@ -676,7 +675,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 
     if (ptr == end)
     {
-        return n;
+        return n.release();
     }
     else
     {
