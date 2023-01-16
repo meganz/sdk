@@ -394,6 +394,7 @@ ScheduledMeeting::~ScheduledMeeting()
 }
 
 void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
+void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
 
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }

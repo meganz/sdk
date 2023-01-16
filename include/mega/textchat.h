@@ -150,6 +150,7 @@ public:
 
     // setters
     void setSchedId(handle schedId);
+    void setChatid(handle chatid);
 
     // getters
     handle chatid() const;

@@ -6963,6 +6963,7 @@ bool CommandChatCreate::procresult(Result r)
                         {
                             assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
                             mSchedMeeting->setSchedId(schedId);
+                            mSchedMeeting->setChatid(chatid);
                             if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
                             {
                                 LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
