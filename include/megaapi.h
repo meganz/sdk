@@ -33,6 +33,7 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef int64_t MegaTimeStamp; // unix timestamp
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -48,6 +49,7 @@ typedef uint64_t MegaHandle;
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
+    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -2776,21 +2778,21 @@ public:
      * @param parentSchedId : parent scheduled meeting handle
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
-     * @param startDateTime : start dateTime (format: 20220726T133000)
-     * @param endDateTime   : end dateTime (format: 20220726T133000)
+     * @param startDateTime : start dateTime (unix timestamp)
+     * @param endDateTime   : end dateTime (unix timestamp)
      * @param title         : meeting title
      * @param description   : meeting description
      * @param attributes    : attributes to store any additional data
-     * @param overrides     : start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @param overrides     : start dateTime of the original meeting series event to be replaced (unix timestamp)
      * @param flags         : flags bitmask (used to store additional boolean settings as a bitmask)
      * @param rules         : scheduled meetings rules
      *
      * @return A pointer to the superclass of the private object
      */
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                     int cancelled, const char* timezone, const char* startDateTime,
-                                                     const char* endDateTime, const char* title, const char* description, const char* attributes,
-                                                     const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
+                                                     int cancelled, const char* timezone, MegaTimeStamp startDateTime,
+                                                     MegaTimeStamp endDateTime, const char* title, const char* description, const char* attributes,
+                                                     MegaTimeStamp overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
 
     /**
      * @brief Creates a copy of this MegaScheduledMeeting object
@@ -2848,18 +2850,18 @@ public:
     virtual const char* timezone() const;
 
     /**
-     * @brief Returns the start dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the start dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the start dateTime of the scheduled Meeting
      */
-    virtual const char* startDateTime() const;
+    virtual MegaTimeStamp startDateTime() const;
 
     /**
-     * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the end dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the end dateTime of the scheduled Meeting
      */
-    virtual const char* endDateTime() const;
+    virtual MegaTimeStamp endDateTime() const;
 
     /**
      * @brief Returns the scheduled meeting title
@@ -2883,11 +2885,11 @@ public:
     virtual const char* attributes() const;
 
     /**
-     * @brief Returns the start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @brief Returns the start dateTime of the original meeting series event to be replaced (unix timestamp)
      *
      * @return the start dateTime of the original meeting series event to be replaced
      */
-    virtual const char* overrides() const;
+    virtual MegaTimeStamp overrides() const;
 
     /**
      * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
@@ -2996,7 +2998,7 @@ public:
      */
     static MegaScheduledRules* createInstance(int freq,
                                                   int interval = INTERVAL_INVALID,
-                                                  const char* until = nullptr,
+                                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                                   const ::mega::MegaIntegerList* byWeekDay = nullptr,
                                                   const ::mega::MegaIntegerList* byMonthDay = nullptr,
                                                   const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -3028,11 +3030,11 @@ public:
     virtual int interval() const;
 
     /**
-     * @brief Returns when the repetitions should end
+     * @brief Returns when the repetitions should end (unix timestamp)
      *
      * @return When the repetitions should end
      */
-    virtual const char* until() const;
+    virtual MegaTimeStamp until() const;
 
     /**
      * @brief Returns a MegaIntegerList with the week days when the event will occur
@@ -19024,12 +19026,12 @@ class MegaApi
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies a chat room
-         * @param since DateTime from which we want to fetch occurrences
-         * @param until Datetime until we want to fetch occurrences
+         * @param since DateTime from which we want to fetch occurrences (unix timestamp)
+         * @param until Datetime until we want to fetch occurrences (unix timestamp)
          * @param count Number of occurrences we want to fetch
          * @param listener MegaChatRequestListener to track this request
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
