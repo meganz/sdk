@@ -7968,7 +7968,6 @@ void MegaApiImpl::abortPendingActions(error preverror)
         if (request->getType() == MegaRequest::TYPE_DELETE)
         {
             continue; // this request is deleted in MegaApiImpl dtor, its finish is the Impl destructor exiting.
-            // where exactly would `request` be released ??
         }
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(preverror));
     }
@@ -7994,7 +7993,6 @@ void MegaApiImpl::abortPendingActions(error preverror)
                 // just remove it from the map.  When its last dependent transfer is deleted
                 // then it will have its fireOnTransferFinish called also.
                 transferMap.erase(transferMap.begin());
-                // where exactly would `transfer` be released ??
             }
             else
             {
@@ -18263,7 +18261,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
                             NodeHandle().set6byte(transfer->getParentHandle()),
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
-                    // where is f supposed to be released ?!
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
                     f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!
@@ -18283,7 +18280,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_FAILED);
-                            f->setTransfer(nullptr);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EREAD));
                         }
                         else
@@ -18319,17 +18315,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
-                            f->setTransfer(nullptr);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result));
                         }
+
+                        delete f; // `started` was false, `f` wasn't stored at Transfer::files
                     }
                     currentTransfer = NULL;
-
-                    // determine (somehow) when f was not used and clean it up
-                    if (!f->transfer || f->transfer->files.empty() || f->transfer->files.back() != f)
-                    {
-                        delete f;
-                    }
                 }
                 else
                 {
@@ -18505,7 +18496,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     MegaFileGet* f = node ? new MegaFileGet(client, node, wLocalPath, fsType) :
                                             new MegaFileGet(client, publicNode, wLocalPath);
-                    // where is f supposed to be released ?!
 
                     f->setTransfer(transfer);
                     f->cancelToken = transfer->accessCancelToken();
@@ -18530,14 +18520,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_FAILED);
-                        f->setTransfer(nullptr);
                         fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(cause));
-                    }
-
-                    // determine (somehow) when f was not used and clean it up
-                    if (!f->transfer || f->transfer->files.empty() || f->transfer->files.back() != f)
-                    {
-                        delete f;
+                        delete f; // `ok` was false, `f` wasn't stored at Transfer::files
                     }
                 }
                 else
