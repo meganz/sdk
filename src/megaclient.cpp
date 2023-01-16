@@ -14170,7 +14170,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
 
 void MegaClient::removeAppData(void* t)
 {
-    for (auto it = dsdrns.begin(); it != dsdrns.end(); ++it) // could this loop drq instead?
+    for (auto it = hdrns.begin(); it != hdrns.end(); ++it)
     {
         dr_list& dreads = it->second->reads;
         for(auto it2 = dreads.begin(); it2 != dreads.end(); ++it2)
