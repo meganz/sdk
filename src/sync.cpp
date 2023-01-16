@@ -5951,12 +5951,12 @@ ExclusionState syncRow::exclusionState(const FSNode& node) const
                                     node.fingerprint.size);
 }
 
-ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type) const
+ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type, m_off_t size) const
 {
     assert(syncNode);
     assert(syncNode->type != FILENODE);
 
-    return syncNode->exclusionState(name, type);
+    return syncNode->exclusionState(name, type, size);
 }
 
 bool syncRow::hasCaseInsensitiveCloudNameChange() const
@@ -7383,7 +7383,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFol
     // Check blocked status.  Todo:  figure out use blocked flag clearing
     if (!row.syncNode && row.fsNode && (
         row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN) &&
-        parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN) == ES_INCLUDED)
+        parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN, -1) == ES_INCLUDED)
     {
         // so that we can checkForScanBlocked() immediately below
         resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
@@ -7601,22 +7601,20 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFol
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCXF);
 
-        switch (parentRow.exclusionState(row.fsNode->localname,
-                                   row.fsNode->type))
+        // we have to check both, due to the size parameter
+        auto cloudside = parentRow.exclusionState(row.fsNode->localname, row.fsNode->type, row.fsNode->fingerprint.size);
+        auto localside = parentRow.exclusionState(row.fsNode->localname, row.cloudNode->type, row.cloudNode->fingerprint.size); // use fsNode's name for convenience, size is what matters
+
+        if (cloudside == ES_EXCLUDED || localside == ES_EXCLUDED)
         {
-            case ES_UNKNOWN:
-                LOG_verbose << "Exclusion state uknown, come back later: " << logTriplet(row, fullPath);
-                return false;
+            LOG_verbose << "CXF case is excluded by size: " << row.fsNode->fingerprint.size << " vs " << row.cloudNode->fingerprint.size << logTriplet(row, fullPath);
+            return true;
+        }
 
-            case ES_EXCLUDED:
-                return true;
-
-            case ES_INCLUDED:
-                break;
-
-            case ES_UNMATCHED:
-                assert(false); // cannot occur.  Just here to keep the compilers happy
-                break;
+        if (cloudside != ES_INCLUDED || localside != ES_INCLUDED)
+        {
+            LOG_verbose << "Exclusion state unknown, come back later: " << int(cloudside) << " vs " << int(localside) << logTriplet(row, fullPath);
+            return false;
         }
 
         // Item exists locally and remotely but we haven't synced them previously

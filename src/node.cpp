@@ -1441,7 +1441,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 
         mIsIgnoreFile = type == FILENODE && localname == IGNORE_FILE_NAME;
 
-        mExclusionState = parent->exclusionState(localname, type);
+        mExclusionState = parent->exclusionState(localname, type, -1);
     }
     else
     {
@@ -3086,7 +3086,7 @@ bool LocalNode::recomputeExclusionState()
     if (mExclusionState != ES_UNKNOWN)
         return false;
 
-    mExclusionState = parent->exclusionState(localname, type);
+    mExclusionState = parent->exclusionState(localname, type, -1);
 
     if (mExclusionState == ES_EXCLUDED)
     {

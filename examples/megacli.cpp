@@ -5049,6 +5049,11 @@ void exec_du(autocomplete::ACState &s)
     else
     {
         n = client->nodeByHandle(cwd);
+        if (!n)
+        {
+            cout << "cwd not set" << endl;
+            return;
+        }
     }
 
     if (listfolders)
