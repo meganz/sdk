@@ -2371,7 +2371,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
     assert(syncs.onSyncThread());
 
-    SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
+    // this one is a bit too verbose for large down-syncs
+    //SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
     ProgressingMonitor monitor(*this, row, fullPath);
 
