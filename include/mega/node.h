@@ -909,10 +909,10 @@ public:
     // Query whether a file is excluded by this node or one of its parents.
     template<typename PathType>
     typename std::enable_if<IsPath<PathType>::value, ExclusionState>::type
-    exclusionState(const PathType& path, nodetype_t type, m_off_t size = -1) const;
+    exclusionState(const PathType& path, nodetype_t type, m_off_t size) const;
 
     // Specialization of above intended for cloud name queries.
-    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size = -1) const;
+    ExclusionState exclusionState(const string& name, nodetype_t type, m_off_t size) const;
 
     // Query this node's exclusion state.
     ExclusionState exclusionState() const;

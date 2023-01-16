@@ -329,7 +329,7 @@ struct syncRow
     // Convenience specializations.
     ExclusionState exclusionState(const CloudNode& node) const;
     ExclusionState exclusionState(const FSNode& node) const;
-    ExclusionState exclusionState(const LocalPath& name, nodetype_t type) const;
+    ExclusionState exclusionState(const LocalPath& name, nodetype_t type, m_off_t size) const;
 
     bool hasCaseInsensitiveLocalNameChange() const;
     bool hasCaseInsensitiveCloudNameChange() const;
