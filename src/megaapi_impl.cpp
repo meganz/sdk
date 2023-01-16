@@ -2005,6 +2005,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              type = TYPE_SCHEDULEDMEETING_NEW;
              userHandle = p->user();
              email = p->email();
+             nodeHandle = p->mChatid;
              schedMeetingId = p->mSchedMeetingHandle;
          }
          else
@@ -2014,6 +2015,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
                  type = TYPE_SCHEDULEDMEETING_UPDATED;
                  userHandle = p->user();
                  email = p->email();
+                 nodeHandle = p->mChatid;
                  schedMeetingId = p->mSchedMeetingHandle;
                  schedMeetingChangeset = p->mUpdatedChangeset;
              }
@@ -2034,6 +2036,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
             type = TYPE_SCHEDULEDMEETING_DELETED;
             userHandle = p->user();
             email = p->email();
+            nodeHandle = p->mChatid;
             schedMeetingId = p->mSchedMeetingHandle;
         }
         else

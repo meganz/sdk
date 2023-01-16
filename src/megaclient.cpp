@@ -7436,6 +7436,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+                        handle chatid = chat->id;
 
                         // remove scheduled meetings occurrences and children
                         chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
@@ -7443,9 +7444,10 @@ void MegaClient::sc_delscheduledmeeting()
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
-                                 [this, ou](handle sm) { createDeletedSMAlert(ou, sm); });
-                        createDeletedSMAlert(ou, schedId);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+
+                                 [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+                        createDeletedSMAlert(ou, chatid, schedId);
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                         break;
                     }
                 }
@@ -7508,22 +7510,23 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            handle chatid = chat->id;
             chat->setTag(0);    // external change
             notifychat(chat);
 
             for_each(begin(deletedChildren), end(deletedChildren),
-                     [this, ou](const handle& sm) { createDeletedSMAlert(ou, sm); });
+                     [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
-                else createUpdatedSMAlert(ou, schedId, std::move(cs));
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
+                else createUpdatedSMAlert(ou, chat->id, schedId, std::move(cs));
             }
         }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
 {
     if (ou == me)
     {
@@ -7531,10 +7534,10 @@ void MegaClient::createNewSMAlert(const handle& ou, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
+void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm)
 {
     if (ou == me)
     {
@@ -7542,10 +7545,10 @@ void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+    useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm,
                                       UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
 {
     if (ou == me)
@@ -7554,7 +7557,7 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
                     << " in a differet session";
         return;
     }
-    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, std::move(cs)));
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, std::move(cs)));
 }
 
 #endif
