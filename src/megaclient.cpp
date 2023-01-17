@@ -22099,7 +22099,7 @@ bool KeyManager::isValidKeysContainer(const KeyManager& km)
     // validate private RSA key
     if (mPrivRSA.empty())
     {
-        assert(km.mPrivRSA.size() >= 512);
+        assert(km.mPrivRSA.empty() || km.mPrivRSA.size() >= 512);
         if (km.mPrivRSA.empty())
         {
             LOG_warn << "Empty RSA key";
