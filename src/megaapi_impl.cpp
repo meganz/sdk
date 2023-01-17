@@ -16334,7 +16334,10 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
     activeTransfer = NULL;
     activeError = NULL;
-    client->removeAppData(transfer);
+    if (transfer->isStreamingTransfer())
+    {
+        client->removeAppData(transfer);
+    }
     delete transfer;
 }
 
