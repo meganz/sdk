@@ -23239,7 +23239,14 @@ void KeyManager::updateAuthring(attr_t at, string& value)
     string& authring = (at == ATTR_AUTHRING) ? mAuthEd25519 : mAuthCu25519;
     authring = move(value);
     mClient.mAuthRings.erase(at);
-    mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+    if (authring.empty())
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+    }
+    else
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+    }
 }
 
 void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
