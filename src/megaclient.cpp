@@ -7436,6 +7436,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
+                        handle chatid = chat->id;
 
                         // remove scheduled meetings occurrences and children
                         chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
@@ -7443,9 +7444,10 @@ void MegaClient::sc_delscheduledmeeting()
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
-                                 [this, ou](handle sm) { createDeletedSMAlert(ou, sm); });
-                        createDeletedSMAlert(ou, schedId);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+
+                                 [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+                        createDeletedSMAlert(ou, chatid, schedId);
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                         break;
                     }
                 }
@@ -7508,22 +7510,23 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
+            handle chatid = chat->id;
             chat->setTag(0);    // external change
             notifychat(chat);
 
             for_each(begin(deletedChildren), end(deletedChildren),
-                     [this, ou](const handle& sm) { createDeletedSMAlert(ou, sm); });
+                     [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, schedId);
-                else createUpdatedSMAlert(ou, schedId, std::move(cs));
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
+                else createUpdatedSMAlert(ou, chat->id, schedId, std::move(cs));
             }
         }
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
 {
     if (ou == me)
     {
@@ -7531,10 +7534,10 @@ void MegaClient::createNewSMAlert(const handle& ou, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
+void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm)
 {
     if (ou == me)
     {
@@ -7542,10 +7545,10 @@ void MegaClient::createDeletedSMAlert(const handle& ou, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm));
+    useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm,
                                       UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
 {
     if (ou == me)
@@ -7554,7 +7557,7 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle sm,
                     << " in a differet session";
         return;
     }
-    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), sm, std::move(cs)));
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, std::move(cs)));
 }
 
 #endif
@@ -11911,7 +11914,7 @@ void MegaClient::procmcsm(JSON *j)
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 #endif
@@ -17593,12 +17596,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         handle parentSchedId = UNDEF;
         handle originatingUser = UNDEF;
         std::string timezone;
-        std::string startDateTime;
-        std::string endDateTime;
+        m_time_t startDateTime = mega_invalid_timestamp;
+        m_time_t endDateTime = mega_invalid_timestamp;
         std::string title;
         std::string description;
         std::string attributes;
-        std::string overrides;
+        m_time_t overrides = mega_invalid_timestamp;
         int cancelled = 0;
         std::unique_ptr<ScheduledFlags> flags;
         std::unique_ptr<ScheduledRules> rules;
@@ -17640,12 +17643,12 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID1('s'): // start date time
                 {
-                    auxJson->storeobject(&startDateTime);
+                    startDateTime = auxJson->getint();
                     break;
                 }
                 case MAKENAMEID1('e'): // end date time
                 {
-                    auxJson->storeobject(&endDateTime);
+                    endDateTime = auxJson->getint();
                     break;
                 }
                 case MAKENAMEID1('t'):  // title
@@ -17665,7 +17668,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 case MAKENAMEID1('o'): // override
                 {
-                    auxJson->storeobject(&overrides);
+                    overrides = auxJson->getint();
                     break;
                 }
                 case MAKENAMEID1('c'): // cancelled
@@ -17698,7 +17701,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
 
                     string freq;
-                    string until;
+                    m_time_t until = mega_invalid_timestamp;
                     int interval = ScheduledRules::INTERVAL_INVALID;
                     ScheduledRules::rules_vector vWeek;
                     ScheduledRules::rules_vector vMonth;
@@ -17723,7 +17726,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                 }
                                 case MAKENAMEID1('u'):
                                 {
-                                    auxJson->storeobject(&until);
+                                    until = auxJson->getint();
                                     break;
                                 }
                                 case MAKENAMEID2('w', 'd'):
@@ -17919,8 +17922,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
          return e;
     };
 
-    // uncomment when support for unix timestamps has been merged into develop
-    /*auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+    auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
                 const char *fieldMsg)
     {
         if (!j->enterarray())
@@ -17953,7 +17955,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
          }
          j->leavearray();
          return e;
-    };*/
+    };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
     using Changeset = UserAlert::UpdatedScheduledMeeting::Changeset;
@@ -17996,25 +17998,23 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             break;
 
             case MAKENAMEID1('s'):
-            /*{
-                // uncomment when support for unix timestamps has been merged into develop
+            {
                 Changeset::TsChangeset sdCs;
                 if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
                 }
-            }*/
+            }
             break;
 
             case MAKENAMEID1('e'):
-            /*{
-                // uncomment when support for unix timestamps has been merged into develop
+            {
                 Changeset::TsChangeset edCs;
                 if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
                 }
-            }*/
+            }
             break;
 
             case MAKENAMEID1('r'):
