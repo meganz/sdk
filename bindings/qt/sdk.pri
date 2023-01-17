@@ -49,6 +49,7 @@ SOURCES += src/attrmap.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
+    src/setandelement.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
@@ -62,6 +63,7 @@ SOURCES += src/attrmap.cpp \
     src/waiterbase.cpp  \
     src/proxy.cpp \
     src/pendingcontactrequest.cpp \
+    src/textchat.cpp \
     src/crypto/cryptopp.cpp  \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
@@ -88,9 +90,8 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-
 !win32 {
-    QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
+    QMAKE_CXXFLAGS += -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter
 
     unix:!macx {
         GCC_VERSION = $$system("g++ -dumpversion")
@@ -99,8 +100,20 @@ CONFIG(USE_MEGAAPI) {
         }
     }
 }
+else {
+    # flags synced with contrib/cmake/CMakeLists.txt
+    QMAKE_CXXFLAGS_WARN_ON ~= s/-W3/-W4
+    QMAKE_CXXFLAGS += /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
+}
 
-
+CONFIG(ENABLE_WERROR_COMPILATION) {
+    !win32 {
+        QMAKE_CXXFLAGS += -Werror
+    }
+    else {
+        QMAKE_CXXFLAGS += /WX
+    }
+}
 
 CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
   SOURCES += src/rotativeperformancelogger.cpp
@@ -140,6 +153,11 @@ CONFIG(USE_CONSOLE) {
         SOURCES += src/posix/console.cpp
         SOURCES += src/posix/consolewaiter.cpp
         LIBS += -lreadline
+        macx:vcpkg{
+            debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libhistory.a
+            !debug:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libhistory.a
+            LIBS += -ltermcap
+        }
     }
 }
 
@@ -230,7 +248,7 @@ CONFIG(USE_LIBRAW) {
     vcpkg:win32:LIBS += -ljpeg
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
-    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2$$DEBUG_SUFFIX
+    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms$$DEBUG_SUFFIX
 
     win32 {
         DEFINES += LIBRAW_NODLL
@@ -465,6 +483,7 @@ HEADERS  += include/mega.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
+            include/mega/setandelement.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
@@ -480,6 +499,7 @@ HEADERS  += include/mega.h \
             include/mega/waiter.h \
             include/mega/proxy.h \
             include/mega/pendingcontactrequest.h \
+            include/mega/textchat.h \
             include/mega/crypto/cryptopp.h  \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
@@ -557,11 +577,11 @@ else {
         }
 
         LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
-        -lIlmImf-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -lIexMath-2_5$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_5$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_5$$UNDERSCORE_DEBUG_SUFFIX \
+        -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
         -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
-        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_5$$UNDERSCORE_DEBUG_SUFFIX \
-        -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
+        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
+        -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
     }
     else {
         macx{
@@ -624,6 +644,7 @@ vcpkg {
 
     win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
+    win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
 }
 
@@ -737,8 +758,15 @@ unix:!macx {
 }
 
 macx {
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+   # recreate source folder tree for object files. Needed to build osx/fs.cpp and posix/fs.cpp,
+   # otherwise all obj files are placed into same directory, causing overwrite.
+   CONFIG += object_parallel_to_source
+
+   HEADERS += $$MEGASDK_BASE_PATH/include/mega/osx/megafs.h
+   SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
+
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 

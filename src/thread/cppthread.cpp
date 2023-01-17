@@ -50,6 +50,10 @@ void CppThread::join()
     thread->join();
 }
 
+bool CppThread::isCurrentThread() {
+    return thread->get_id() == std::this_thread::get_id();
+}
+
 unsigned long long CppThread::currentThreadId()
 {
 #ifdef _WIN32

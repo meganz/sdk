@@ -246,14 +246,11 @@ else()
             OUTPUT_VARIABLE HOST_ARCHITECTURE
             OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-        # Are we building on Apple Silicon?
-        if (HOST_ARCHITECTURE STREQUAL "arm64")
-            # Are we building for x86_64?
-            if (VCPKG_OSX_ARCHITECTURES STREQUAL "x86_64")
-                # Then make sure we build using the correct toolchain.
-                set(_toolchain_cross_compile_args
-                    "-DCMAKE_OSX_ARCHITECTURES=${VCPKG_OSX_ARCHITECTURES}")
-            endif ()
+        # Are we crosscompiling? Compare against the triplet value
+        if (NOT HOST_ARCHITECTURE STREQUAL VCPKG_OSX_ARCHITECTURES)
+            set(_toolchain_cross_compile_args
+                "-DCMAKE_OSX_ARCHITECTURES=${VCPKG_OSX_ARCHITECTURES}")
+                message(STATUS "Cross compiling for arch ${VCPKG_OSX_ARCHITECTURES} in ${HOST_ARCHITECTURE} system.")
         endif ()
 
         # Clean up after ourselves.
@@ -266,7 +263,7 @@ else()
 
         execute_checked_command(
             COMMAND ${_cmake}
-               -B ${_build_dir}
+                -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
                 ${_common_cmake_args}
                 ${_extra_cmake_args}

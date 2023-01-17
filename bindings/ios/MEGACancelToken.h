@@ -32,9 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Allows to set the value of the flag
- * @param newValue YES to force the cancelation of the processing. NO to reset.
  */
-- (void)cancelWithNewValue:(BOOL)newValue;
+- (void)cancel;
 
 @end
 

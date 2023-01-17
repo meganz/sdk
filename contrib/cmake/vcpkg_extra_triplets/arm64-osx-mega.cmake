@@ -3,7 +3,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES arm64)
-set(VCPKG_OSX_DEPLOYMENT_TARGET 11.6)
+set(VCPKG_OSX_DEPLOYMENT_TARGET 11.0)
 
 if(PORT MATCHES "curl" OR
    PORT MATCHES "ffmpeg" OR
@@ -20,3 +20,4 @@ set(_macos_version_min_flag "-mmacosx-version-min=${VCPKG_OSX_DEPLOYMENT_TARGET}
 set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} ${_macos_version_min_flag}")
 set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} ${_macos_version_min_flag}")
 set(VCPKG_LINKER_FLAGS "${VCPKG_LINKER_FLAGS} ${_macos_version_min_flag}")
+

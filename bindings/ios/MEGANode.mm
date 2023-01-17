@@ -218,7 +218,7 @@ using namespace mega;
 }
 
 - (MEGANodeChangeType)getChanges {
-    return (MEGANodeChangeType) self.megaNode->getChanges();
+    return (MEGANodeChangeType) (self.megaNode ? self.megaNode->getChanges() : 0);
 }
 
 - (BOOL)hasThumbnail {

@@ -124,6 +124,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
@@ -151,6 +152,7 @@ class AuthRing;
 // Our own version of time_t which we can be sure is 64 bit.
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
+constexpr m_time_t mega_invalid_timestamp = 0;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -162,7 +164,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
                REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
                REQ_INFLIGHT,
                REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
@@ -214,6 +216,7 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error
@@ -336,12 +339,29 @@ typedef uint16_t fatype;
 typedef list<struct File*> file_list;
 
 // node types:
-// FILE - regular file nodes
-// FOLDER - regular folder nodes
-// ROOT - the cloud drive root node
-// INCOMING - inbox
-// RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum {
+
+    // these first two are for sync rework, and should not be used before that branch is merged (directoyScan is from sync rework)
+    TYPE_DONOTSYNC = -3,
+    TYPE_SPECIAL = -2,
+
+    TYPE_UNKNOWN = -1,
+    FILENODE = 0,    // FILE - regular file nodes
+    FOLDERNODE,      // FOLDER - regular folder nodes
+    ROOTNODE,        // ROOT - the cloud drive root node
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
+    RUBBISHNODE      // RUBBISH - rubbish bin
+} nodetype_t;
+
+typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
+
+// MimeType_t maps to file extensionse declared at Node
+typedef enum { MIME_TYPE_UNKNOWN    = 0,
+               MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
+               MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
+               MIME_TYPE_VIDEO      = 3,    // videoExtensions
+               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+             } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -350,6 +370,8 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+// Max nodes per putnodes command
+const unsigned MAXNODESUPLOAD = 1000;
 typedef union {
     std::array<byte, FILENODEKEYLENGTH> bytes;
     struct {
@@ -388,7 +410,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -409,6 +431,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
@@ -428,7 +453,17 @@ typedef enum
 }
 SyncBackupState;
 
+enum ScanResult
+{
+    SCAN_INPROGRESS,
+    SCAN_SUCCESS,
+    SCAN_FSID_MISMATCH,
+    SCAN_INACCESSIBLE
+}; // ScanResult
+
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
@@ -439,7 +474,7 @@ enum SyncError {
     LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
     REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
-    BUSINESS_EXPIRED = 10,                  // Business account expired
+    ACCOUNT_EXPIRED = 10,                   // Account expired (business or Pro Flexi)
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -452,7 +487,7 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    ACCOUNT_BLOCKED = 23,                   // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
@@ -461,6 +496,18 @@ enum SyncError {
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+    ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+    COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+    COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+    SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+    UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+    NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+    INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
+    FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
 };
 
 enum SyncWarning {
@@ -479,9 +526,17 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
-typedef set<Node*> node_set;
+struct UnlinkOrDebris {
+    bool unlink = false;
+    bool debris = false;
+    bool canChangeVault = false;
+    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
+};
+
+typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
@@ -559,6 +614,18 @@ public:
 
 };
 
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+    typedef map<T1, T2> base; // helps older gcc
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
+        return &it->second;
+    }
+};
+
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
@@ -569,20 +636,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<NodeHandle, Node*> node_map;
-
-struct NodeCounter
-{
-    m_off_t storage = 0;
-    m_off_t versionStorage = 0;
-    size_t files = 0;
-    size_t folders = 0;
-    size_t versions = 0;
-    void operator += (const NodeCounter&);
-    void operator -= (const NodeCounter&);
-};
-
-typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
+typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -645,8 +699,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
-
 
 // user attribute types
 typedef enum {
@@ -676,17 +730,17 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
@@ -705,65 +759,6 @@ typedef enum {
 } encryptionsetting_t;
 
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
-
-#ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
-typedef pair<handle, privilege_t> userpriv_pair;
-typedef vector< userpriv_pair > userpriv_vector;
-typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cacheable
-{
-    enum {
-        FLAG_OFFSET_ARCHIVE = 0
-    };
-
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
-    string title;        // byte array
-    string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
-    attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
-    bool meeting;     // chat is meeting room
-
-private:        // use setter to modify these members
-    byte flags;     // currently only used for "archive" flag at first bit
-
-public:
-    int tag;    // source tag, to identify own changes
-
-    TextChat();
-    ~TextChat();
-
-    bool serialize(string *d);
-    static TextChat* unserialize(class MegaClient *client, string *d);
-
-    void setTag(int tag);
-    int getTag();
-    void resetTag();
-
-    struct
-    {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-    } changed;
-
-    // return false if failed
-    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    bool setFlag(bool value, uint8_t offset = 0xFF);
-    bool setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset) const;
-    bool setMode(bool publicchat);
-
-};
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
-#endif
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
@@ -791,7 +786,8 @@ enum SmsVerificationState {
 
 typedef enum
 {
-    END_CALL_REASON_REJECTED    = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_REJECTED     = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_BY_MODERATOR = 0x06,    /// group or meeting call has been ended by moderator
 } endCall_t;
 
 typedef unsigned int achievement_class_id;
@@ -819,6 +815,7 @@ typedef enum {
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
+    ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
 
 typedef enum
@@ -838,6 +835,13 @@ typedef enum {
 } AuthMethod;
 
 typedef std::map<attr_t, AuthRing> AuthRingsMap;
+
+typedef enum {
+    REASON_ERROR_UNSERIALIZE_NODE = 0,
+    REASON_ERROR_WRITE_DB = 1,
+    REASON_ERROR_NODE_INCONSISTENCY = 2,
+    REASON_ERROR_UNKNOWN = 3,
+} ReasonsToReload;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
@@ -866,18 +870,22 @@ namespace CodeCounter
         uint64_t starts = 0;
         uint64_t finishes = 0;
         high_resolution_clock::duration timeSpent{};
+        high_resolution_clock::duration longest{};
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
         inline string report(bool reset = false)
         {
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
+            string s = " " + name + ": " + std::to_string(count) + " " +
+                    std::to_string(duration_cast<milliseconds>(timeSpent).count()) + " " +
+                    std::to_string(duration_cast<milliseconds>(longest).count());
             if (reset)
             {
                 count = 0;
                 starts -= finishes;
                 finishes = 0;
                 timeSpent = high_resolution_clock::duration{};
+                longest = high_resolution_clock::duration{};
             }
             return s;
         }
@@ -912,6 +920,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        high_resolution_clock::duration diff{};
         bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
@@ -920,7 +929,7 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
-            if (!done) complete();
+            complete();
         }
         high_resolution_clock::duration timeSpent()
         {
@@ -928,10 +937,16 @@ namespace CodeCounter
         }
         void complete()
         {
-            ++scope.count;
-            ++scope.finishes;
-            scope.timeSpent += timeSpent();
-            done = true;
+            // can be called early in which case the destructor's call is ignored
+            if (!done)
+            {
+                ++scope.count;
+                ++scope.finishes;
+                diff = high_resolution_clock::now() - blockStart;
+                scope.timeSpent += diff;
+                if (diff > scope.longest) scope.longest = diff;
+                done = true;
+            }
         }
 #else
         ScopeTimer(ScopeStats& sm) {}
@@ -991,6 +1006,51 @@ typedef enum
     BACKUP_UPLOAD = 5
 }
 BackupType;
+
+typedef mega::byte ChatOptions_t;
+struct ChatOptions
+{
+public:
+    enum: ChatOptions_t
+    {
+        kEmpty         = 0x00,
+        kSpeakRequest  = 0x01,
+        kWaitingRoom   = 0x02,
+        kOpenInvite    = 0x04,
+    };
+
+    // update with new options added, to get the max value allowed, with regard to the existing options
+    static constexpr ChatOptions_t maxValidValue = kSpeakRequest | kWaitingRoom | kOpenInvite;
+
+    ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
+    ChatOptions(ChatOptions_t options): mChatOptions(options){}
+    ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
+        : mChatOptions(static_cast<ChatOptions_t>((speakRequest ? kSpeakRequest : 0)
+                                            | (waitingRoom ? kWaitingRoom : 0)
+                                            | (openInvite ? kOpenInvite : 0)))
+    {
+    }
+
+    // setters/modifiers
+    void set(ChatOptions_t val)             { mChatOptions = val; }
+    void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & static_cast<ChatOptions_t>(~val); }
+    void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
+    void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
+    void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
+
+    // getters
+    ChatOptions_t value() const             { return mChatOptions; }
+    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
+    bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
+    bool openInvite() const                 { return mChatOptions & kOpenInvite; }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
+    bool isEmpty()                          { return mChatOptions == kEmpty; }
+
+protected:
+    ChatOptions_t mChatOptions = kEmpty;
+};
 
 enum VersioningOption
 {
@@ -1063,6 +1123,68 @@ public:
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
+class CancelToken
+{
+    // A small item with representation shared between many objects
+    // They can all be cancelled in one go by setting the token flag true
+    shared_ptr<bool> flag;
+
+public:
+
+    // invalid token, can't be cancelled.  No storage
+    CancelToken() {}
+
+    // create with a token available to be cancelled
+    explicit CancelToken(bool value)
+        : flag(std::make_shared<bool>(value))
+    {
+        if (value)
+        {
+            ++tokensCancelledCount;
+        }
+    }
+
+    // cancel() can be invoked from any thread
+    void cancel()
+    {
+        if (flag)
+        {
+            *flag = true;
+            ++tokensCancelledCount;
+        }
+    }
+
+    bool isCancelled() const
+    {
+        return !!flag && *flag;
+    }
+
+    bool exists()
+    {
+        return !!flag;
+    }
+
+    static std::atomic<uint32_t> tokensCancelledCount;
+
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
+    {
+        if (lastKnownCancelCount == tokensCancelledCount.load())
+        {
+            return false;
+        }
+        else
+        {
+            lastKnownCancelCount = tokensCancelledCount.load();
+            return true;
+        }
+    }
+};
+
+typedef std::map<NodeHandle, Node*> nodePtr_map;
+
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

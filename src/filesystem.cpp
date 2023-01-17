@@ -240,22 +240,149 @@ int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool 
         caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-bool isCaseInsensitive(const FileSystemType type)
+RemotePath::RemotePath(const string& path)
+  : mPath(path)
 {
-    if    (type == FS_EXFAT
-        || type == FS_FAT32
-        || type == FS_NTFS
-        || type == FS_UNKNOWN)
-    {
-        return true;
-    }
-#ifdef WIN32
-    return true;
-#else
-    return false;
-#endif
 }
 
+RemotePath& RemotePath::operator=(const string& rhs)
+{
+    return mPath = rhs, *this;
+}
+
+bool RemotePath::operator==(const RemotePath& rhs) const
+{
+    return mPath == rhs.mPath;
+}
+
+bool RemotePath::operator==(const string& rhs) const
+{
+    return mPath == rhs;
+}
+
+RemotePath::operator const string&() const
+{
+    return mPath;
+}
+
+void RemotePath::appendWithSeparator(const RemotePath& component, bool always)
+{
+    appendWithSeparator(component.mPath, always);
+}
+
+void RemotePath::appendWithSeparator(const string& component, bool always)
+{
+    // Only add a separator if necessary.
+    while (always || !mPath.empty())
+    {
+        // Does the path already end with a separator?
+        if (endsInSeparator())
+            break;
+
+        // Does the component begin with a separator?
+        if (component.empty() || component.front() == '/')
+            break;
+
+        // Add the separator.
+        mPath.append(1, '/');
+        break;
+    }
+
+    // Add the component.
+    mPath.append(component);
+}
+
+bool RemotePath::beginsWithSeparator() const
+{
+    return !mPath.empty() && mPath.front() == '/';
+}
+
+void RemotePath::clear()
+{
+    mPath.clear();
+}
+
+bool RemotePath::empty() const
+{
+    return mPath.empty();
+}
+
+bool RemotePath::endsInSeparator() const
+{
+    return !mPath.empty() && mPath.back() == '/';
+}
+
+bool RemotePath::findNextSeparator(size_t& index) const
+{
+    index = std::min(mPath.find('/', index), mPath.size());
+
+    return index < mPath.size();
+}
+
+bool RemotePath::hasNextPathComponent(size_t index) const
+{
+    return index < mPath.size();
+}
+
+bool RemotePath::nextPathComponent(size_t& index, RemotePath& component) const
+{
+    // Skip leading separators.
+    while (index < mPath.size() && mPath[index] == '/')
+        ++index;
+
+    // Have we hit the end of the string?
+    if (index >= mPath.size())
+        return component.clear(), false;
+
+    // Start of component.
+    auto i = index;
+
+    // Locate next separator.
+    findNextSeparator(index);
+
+    // Extract component.
+    component.mPath.assign(mPath, i, index - i);
+
+    return true;
+}
+
+void RemotePath::prependWithSeparator(const RemotePath& component)
+{
+    // Add a separator only if necessary.
+    if (!beginsWithSeparator() && !component.endsInSeparator())
+        mPath.insert(0, 1, '/');
+
+    // Prepend the component.
+    mPath.insert(0, component.mPath);
+}
+
+const string& RemotePath::str() const
+{
+    return mPath;
+}
+
+RemotePath RemotePath::subpathFrom(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath = mPath.substr(index, string::npos);
+
+    return path;
+}
+
+RemotePath RemotePath::subpathTo(size_t index) const
+{
+    RemotePath path;
+
+    path.mPath.assign(mPath, 0, index);
+
+    return path;
+}
+
+const string& RemotePath::toName(const FileSystemAccess&) const
+{
+    return mPath;
+}
 
 bool IsContainingPathOf(const string& a, const char* b, size_t bLength, char sep)
 {
@@ -590,7 +717,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
     {
         c = static_cast<unsigned char>((*name)[i]);
         utf8seqsize = Utils::utf8SequenceSize(c);
-        assert (utf8seqsize);
+        assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
             sprintf(buf, "%%%02x", c);
@@ -676,11 +803,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -1162,6 +1289,33 @@ LocalPath LocalPath::leafName() const
     return result;
 }
 
+string LocalPath::leafOrParentName() const
+{
+    assert(invariant());
+
+    LocalPath name;
+    // win32: normalizeAbsolute() does not work with paths like "D:\\foo\\..\\bar.txt". TODO ?
+    FSACCESS_CLASS().expanselocalpath(*this, name);
+    name.removeTrailingSeparators();
+
+    if (name.empty())
+    {
+        return string();
+    }
+
+#ifdef WIN32
+    if (name.localpath.back() == L':')
+    {
+        // drop trailing ':'
+        string n = name.toPath(true);
+        n.pop_back();
+        return n;
+    }
+#endif
+
+    return name.leafName().toPath(true);
+}
+
 void LocalPath::append(const LocalPath& additionalPath)
 {
     assert(invariant());
@@ -1377,11 +1531,11 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
 }
 
 
-string LocalPath::toPath() const
+string LocalPath::toPath(bool normalize) const
 {
     assert(invariant());
     string path;
-    local2path(&localpath, &path);
+    local2path(&localpath, &path, normalize);
 
 #ifdef WIN32
     if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
@@ -1396,7 +1550,7 @@ string LocalPath::toPath() const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    string name = toPath();
+    string name = toPath(true);
     fsaccess.unescapefsincompatible(&name);
     return name;
 }
@@ -1524,7 +1678,7 @@ void LocalPath::path2local(const string* path, std::wstring* local)
 }
 
 // convert Windows Unicode to UTF-8
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1533,10 +1687,11 @@ void LocalPath::local2path(const string* local, string* path)
         (char*)path->data(),
         int(path->size()),
         NULL, NULL));
-    utf8_normalize(path);
-    }
 
-void LocalPath::local2path(const std::wstring* local, string* path)
+    if (normalize) utf8_normalize(path);
+}
+
+void LocalPath::local2path(const std::wstring* local, string* path, bool normalize)
 {
     path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1546,7 +1701,7 @@ void LocalPath::local2path(const std::wstring* local, string* path)
         int(path->size()),
         NULL, NULL));
 
-    utf8_normalize(path);
+    if (normalize) utf8_normalize(path);
 }
 
 #else
@@ -1560,10 +1715,10 @@ void LocalPath::path2local(const string* path, string* local)
 #endif
 }
 
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     *path = *local;
-    LocalPath::utf8_normalize(path);
+    if (normalize) LocalPath::utf8_normalize(path);
 }
 
 #endif
@@ -1661,9 +1816,9 @@ ScopedLengthRestore::~ScopedLengthRestore()
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
     // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath();
+    auto localName = localPath.leafName().toPath(true);
 
-    if (localName != remoteName)
+    if (compareUtf(localName, false, remoteName, false, true))
     {
         return FILENAME_ANOMALY_NAME_MISMATCH;
     }
@@ -1682,14 +1837,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
     return isFilenameAnomaly(localPath, node->displayname(), node->type);
 }
 
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.localname, node.name, node.type);
-}
-#endif
-
-
 bool isNetworkFilesystem(FileSystemType type)
 {
     return type == FS_CIFS
@@ -1697,6 +1844,197 @@ bool isNetworkFilesystem(FileSystemType type)
            || type == FS_SMB
            || type == FS_SMB2;
 }
+
+
+std::atomic<size_t> ScanService::mNumServices(0);
+std::unique_ptr<ScanService::Worker> ScanService::mWorker;
+std::mutex ScanService::mWorkerLock;
+
+ScanService::ScanService(Waiter& waiter)
+    : mWaiter(waiter)
+{
+    // Locking here, rather than in the if statement, ensures that the
+    // worker is fully constructed when control leaves the constructor.
+    std::lock_guard<std::mutex> lock(mWorkerLock);
+
+    if (++mNumServices == 1)
+    {
+        mWorker.reset(new Worker());
+    }
+}
+
+ScanService::~ScanService()
+{
+    if (--mNumServices == 0)
+    {
+        std::lock_guard<std::mutex> lock(mWorkerLock);
+        mWorker.reset();
+    }
+}
+
+auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
+{
+    // Create a request to represent the scan.
+    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
+
+    // Queue request for processing.
+    mWorker->queue(request);
+
+    return request;
+}
+
+ScanService::ScanRequest::ScanRequest(Waiter& waiter,
+    bool followSymLinks,
+    LocalPath targetPath,
+    handle expectedFsid,
+    map<LocalPath, FSNode>&& priorScanChildren)
+    : mWaiter(waiter)
+    , mScanResult(SCAN_INPROGRESS)
+    , mFollowSymLinks(followSymLinks)
+    , mKnown(move(priorScanChildren))
+    , mResults()
+    , mTargetPath(std::move(targetPath))
+    , mExpectedFsid(expectedFsid)
+{
+}
+
+ScanService::Worker::Worker(size_t numThreads)
+    : mFsAccess(new FSACCESS_CLASS())
+    , mPending()
+    , mPendingLock()
+    , mPendingNotifier()
+    , mThreads()
+{
+    // Always at least one thread.
+    assert(numThreads > 0);
+
+    LOG_debug << "Starting ScanService worker...";
+
+    // Start the threads.
+    while (numThreads--)
+    {
+        try
+        {
+            mThreads.emplace_back([this]() { loop(); });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+        }
+    }
+
+    LOG_debug << mThreads.size() << " worker thread(s) started.";
+    LOG_debug << "ScanService worker started.";
+}
+
+ScanService::Worker::~Worker()
+{
+    LOG_debug << "Stopping ScanService worker...";
+
+    // Queue the 'terminate' sentinel.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back();
+    }
+
+    // Wake any sleeping threads.
+    mPendingNotifier.notify_all();
+
+    LOG_debug << "Waiting for worker thread(s) to terminate...";
+
+    // Wait for the threads to terminate.
+    for (auto& thread : mThreads)
+    {
+        thread.join();
+    }
+
+    LOG_debug << "ScanService worker stopped.";
+}
+
+void ScanService::Worker::queue(ScanRequestPtr request)
+{
+    // Queue the request.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back(std::move(request));
+    }
+
+    // Tell the lucky thread it has something to do.
+    mPendingNotifier.notify_one();
+}
+
+void ScanService::Worker::loop()
+{
+    // We're ready when we have some work to do.
+    auto ready = [this]() { return mPending.size(); };
+
+    for ( ; ; )
+    {
+        ScanRequestPtr request;
+
+        {
+            // Wait for something to do.
+            std::unique_lock<std::mutex> lock(mPendingLock);
+            mPendingNotifier.wait(lock, ready);
+
+            // Are we being told to terminate?
+            if (!mPending.front())
+            {
+                // Bail, don't deque the sentinel.
+                return;
+            }
+
+            request = std::move(mPending.front());
+            mPending.pop_front();
+        }
+
+        LOG_verbose << "Directory scan begins: " << request->mTargetPath;
+        using namespace std::chrono;
+        auto scanStart = high_resolution_clock::now();
+
+        // Process the request.
+        unsigned nFingerprinted = 0;
+        auto result = scan(request, nFingerprinted);
+        auto scanEnd = high_resolution_clock::now();
+
+        if (result == SCAN_SUCCESS)
+        {
+            LOG_verbose << "Directory scan complete for: " << request->mTargetPath
+                << " entries: " << request->mResults.size()
+                << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
+                << " fingerprinted: " << nFingerprinted;
+        }
+        else
+        {
+            LOG_verbose << "Directory scan FAILED (" << result << "): " << request->mTargetPath;
+        }
+
+        request->mScanResult = result;
+        request->mWaiter.notify();
+    }
+}
+
+// Really we only have one worker despite the vector of threads - maybe we should just have one
+// regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
+CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
+
+auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted) -> ScanResult
+{
+    CodeCounter::ScopeTimer rst(syncScanTime);
+
+    auto result = mFsAccess->directoryScan(request->mTargetPath,
+        request->mExpectedFsid,
+        request->mKnown,
+        request->mResults,
+        request->mFollowSymLinks,
+        nFingerprinted);
+
+    // No need to keep this data around anymore.
+    request->mKnown.clear();
+
+    return result;
+}
+
 
 } // namespace
 

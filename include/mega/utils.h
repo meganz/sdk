@@ -66,6 +66,12 @@ SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
 SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
+typedef enum
+{
+    FORMAT_SCHEDULED_COPY = 0,  // 20221205123045
+    FORMAT_ISO8601        = 1,  // 20221205T123045
+} date_time_format_t;
+
 std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
@@ -444,6 +450,14 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
+
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -456,6 +470,14 @@ extern m_time_t m_mktime(struct tm*);
 extern int m_clock_getmonotonictime(struct timespec *t);
 // Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
 extern m_time_t m_mktime_UTC(const struct tm *src);
+
+/**
+ * Converts a datetime from string format into a Unix timestamp
+ * Allowed input formats:
+ *  + FORMAT_SCHEDULED_COPY  => 20221205123045   => output format: Unix timestamp in deciseconds
+ *  + FORMAT_ISO8601         => 20221205T123045  => output format: Unix timestamp in seconds
+*/
+extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
@@ -487,7 +509,8 @@ class chunkmac_map
         // finished == true and offset == -1, and mac == macsmac to the end of this block.
         bool finished = false;
 
-        // valid for download where we always set one or the other.   Not so for upload
+        // True when the chunk is not entirely processed.
+        // Offset is only increased by downloads, so (!offset) should always be true for uploads.
         bool notStarted() { return !finished && !offset; }
 
         // the very first record can be the macsmac calculation so far, from the start to some contiguous point
@@ -511,12 +534,14 @@ public:
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* sumOfPartialChunks = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    m_off_t hasUnfinishedGap(m_off_t fileSize);
     void finishedUploadChunks(chunkmac_map& macs);
     bool finishedAt(m_off_t pos);
     m_off_t updateContiguousProgress(m_off_t fileSize);
     void updateMacsmacProgress(SymmCipher *cipher);
     void copyEntriesTo(chunkmac_map& other);
     void copyEntryTo(m_off_t pos, chunkmac_map& other);
+    void debugLogOuputMacs();
 
     void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
     void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
@@ -547,9 +572,16 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
-    void serializecompressed64(int64_t field);
+    void serializecompressedu64(uint64_t field);
+    void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
+
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
+    void serializei8(int8_t field);
+    void serializei32(int32_t field);
     void serializei64(int64_t field);
+    void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
+    void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializefsfp(fsfp_t field);
@@ -574,9 +606,16 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
-    bool unserializecompressed64(uint64_t& field);
+    bool unserializecompressedu64(uint64_t& field);
+    bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
+
+    // DO NOT add size_t or other types that are different sizes in different builds, eg 32/64 bit compilation
+    bool unserializei8(int8_t& s);
+    bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
+    bool unserializeu8(uint8_t& field);
+    bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
@@ -866,7 +905,10 @@ public:
 
         if (mCurrent < mEnd)
         {
-            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            #ifndef NDEBUG
+            ptrdiff_t nConsumed =
+            #endif
+                traits_type::get(result, mCurrent, mEnd);
             assert(nConsumed > 0);
         }
 
@@ -907,6 +949,10 @@ bool islchex_low(const int c);
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
+bool readLines(FileAccess& ifAccess, string_vector& destination);
+bool readLines(InputStreamAccess& isAccess, string_vector& destination);
+bool readLines(const std::string& input, string_vector& destination);
+
 bool wildcardMatch(const string& text, const string& pattern);
 bool wildcardMatch(const char* text, const char* pattern);
 
@@ -929,6 +975,8 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
+
 struct SyncTransferCount
 {
     bool operator==(const SyncTransferCount& rhs) const;
@@ -946,6 +994,8 @@ struct SyncTransferCounts
     bool operator==(const SyncTransferCounts& rhs) const;
     bool operator!=(const SyncTransferCounts& rhs) const;
     void operator-=(const SyncTransferCounts& rhs);
+
+    // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
 
     SyncTransferCount mDownloads;

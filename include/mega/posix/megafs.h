@@ -109,7 +109,7 @@ public:
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, std::string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
     int checkevents(Waiter*) override;
@@ -130,6 +130,13 @@ public:
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 
+    ScanResult directoryScan(const LocalPath& path,
+                             handle expectedFsid,
+                             map<LocalPath, FSNode>& known,
+                             std::vector<FSNode>& results,
+                             bool followSymLinks,
+                             unsigned& nFingerprinted) override;
+							 
 #ifdef ENABLE_SYNC
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
@@ -139,6 +146,8 @@ public:
 #endif // ENABLE_SYNC
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 };
 
 #ifdef HAVE_AIO_RT

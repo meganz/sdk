@@ -260,7 +260,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
     // deprecated/no longer required in FFMPEG 4.0:
     av_register_all();
 #endif
-    if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath(false).c_str(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
         return false;
@@ -554,8 +554,8 @@ const char* GfxProviderFreeImage::supportedformats()
 {
     if (sformats.empty())
     {
-        //Disable thumbnail creation temporarily for .tiff.tif
-        sformats+=".jpg.png.bmp.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
+        //Disable thumbnail creation temporarily for .tiff.tif.exr
+        sformats+=".jpg.png.bmp.jpeg.cut.dds.g3.gif.hdr.ico.iff.ilbm"
            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"

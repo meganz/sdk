@@ -48,20 +48,21 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                if (completion) completion(API_EINTERNAL, USER_HANDLE, nn, false);
-                else client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                if (completion) completion(API_EINTERNAL, USER_HANDLE, nn, false, tag);
+                else client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn, false, tag);
                 return;
             }
 
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion)));
+        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion), false));
+        // 'canChangeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
     }
     else
     {
-        if (completion) completion(API_ENOENT, USER_HANDLE, nn, false);
-        else client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
+        if (completion) completion(API_ENOENT, USER_HANDLE, nn, false, tag);
+        else client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn, false, tag);
     }
 }
 

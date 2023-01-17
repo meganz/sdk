@@ -20,6 +20,8 @@
  */
 #import "MEGARequest.h"
 #import "MEGANode+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 #import "MEGAPricing+init.h"
 #import "MEGAAccountDetails+init.h"
 #import "MEGAAchievementsDetails+init.h"
@@ -31,6 +33,7 @@
 #import "MEGABannerList+init.h"
 #import "MEGAHandleList+init.h"
 #import "MEGACurrency+init.h"
+#import "MEGARecentActionBucket+init.h"
 
 using namespace mega;
 
@@ -259,6 +262,39 @@ using namespace mega;
         [handleArray addObject:[NSNumber numberWithUnsignedLongLong:[handleList megaHandleAtIndex:i]]];
     }
     return handleArray.copy;
+}
+
+- (NSArray *)recentActionsBuckets {
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaRequest->getRecentActions();
+    int count = megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
+    for (int i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
+        [recentActionBucketMutableArray addObject:recentActionBucket];
+    }
+
+    return recentActionBucketMutableArray;
+}
+
+- (MEGASet *)set {
+    return self.megaRequest ? [[MEGASet alloc] initWithMegaSet:self.megaRequest->getMegaSet()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (NSArray<MEGASetElement *> *)elementsInSet {
+    MegaSetElementList *setElementList = self.megaRequest->getMegaSetElementList();
+    int size = setElementList->size();
+    
+    NSMutableArray<MEGASetElement *> *setElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        [setElements addObject:[[MEGASetElement alloc]
+                                initWithMegaSetElement:setElementList->get(i)->copy()
+                                            cMemoryOwn:YES]];
+    }
+    
+    delete setElementList;
+    
+    return [setElements copy];
 }
 
 @end

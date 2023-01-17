@@ -17,8 +17,16 @@ vcpkg_extract_source_archive_ex(
     ARCHIVE "${READLINE_TGZ}"
 )
 
+if(NOT "${TARGET_TRIPLET}" STREQUAL "${HOST_TRIPLET}")
+    # Crosscompiling
+    if(VCPKG_TARGET_ARCHITECTURE STREQUAL "arm64")
+        set(BUILD_TRIPLET --host=aarch64-apple-darwin)
+    endif()
+endif()
+
 vcpkg_configure_make(
     SOURCE_PATH ${SOURCE_PATH}
+    BUILD_TRIPLET ${BUILD_TRIPLET}
     NO_ADDITIONAL_PATHS
 )
 

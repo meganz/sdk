@@ -113,7 +113,7 @@ int PosixWaiter::wait()
         dstime us = 1000000 / 10 * maxds;
 
         tv.tv_sec = us / 1000000;
-        tv.tv_usec = us - tv.tv_sec * 1000000;
+        tv.tv_usec = (suseconds_t)(us - tv.tv_sec * 1000000);
     }
 
 #ifdef USE_POLL

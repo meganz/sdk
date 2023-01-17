@@ -44,6 +44,8 @@
 
 namespace mega {
 
+std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
+
 string toNodeHandle(handle nodeHandle)
 {
     char base64Handle[12];
@@ -92,7 +94,8 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
 
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
 {
-    return s << lp.toPath();
+    // when logging, do not normalize the string, or we can't diagnose failures to match differently encoded utf8 strings
+    return s << lp.toPath(false);
 }
 
 
@@ -174,10 +177,20 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
+}
+
+void CacheableWriter::serializei8(int8_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializei32(int32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
 }
 
 void CacheableWriter::serializei64(int64_t field)
@@ -185,7 +198,17 @@ void CacheableWriter::serializei64(int64_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu64(uint64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu8(uint8_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -420,7 +443,7 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
-        (npos - pos) <= maxReqSize &&
+        (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
@@ -428,6 +451,36 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
     }
     return npos;
 }
+
+m_off_t chunkmac_map::hasUnfinishedGap(m_off_t fileSize)
+{
+    bool sawUnfinished = false;
+
+    for (auto it = mMacMap.begin();
+        it != mMacMap.end(); )
+    {
+        if (!it->second.finished)
+        {
+            sawUnfinished = true;
+        }
+
+        auto nextpos = ChunkedHash::chunkceil(it->first, fileSize);
+        auto expected_it = mMacMap.find(nextpos);
+
+        if (sawUnfinished && expected_it != mMacMap.end() && expected_it->second.finished)
+        {
+            return true;
+        }
+
+        ++it;
+        if (it != expected_it)
+        {
+            sawUnfinished = true;
+        }
+    }
+    return false;
+}
+
 
 void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
 {
@@ -556,6 +609,13 @@ void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
     mMacMap[pos] = other.mMacMap[pos];
 }
 
+void chunkmac_map::debugLogOuputMacs()
+{
+    for (auto& it : mMacMap)
+    {
+        LOG_debug << "macs: " << it.first << " " << Base64Str<SymmCipher::BLOCKSIZE>(it.second.mac) << " " << it.second.finished;
+    }
+}
 
 // coalesce block macs into file mac
 int64_t chunkmac_map::macsmac(SymmCipher *cipher)
@@ -628,7 +688,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
@@ -640,6 +700,30 @@ bool CacheableReader::unserializecompressed64(uint64_t& field)
     {
         ptr += fieldSize;
     }
+    return true;
+}
+
+bool CacheableReader::unserializei8(int8_t& field)
+{
+    if (ptr + sizeof(int8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int8_t>(ptr);
+    ptr += sizeof(int8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializei32(int32_t& field)
+{
+    if (ptr + sizeof(int32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int32_t>(ptr);
+    ptr += sizeof(int32_t);
+    fieldnum += 1;
     return true;
 }
 
@@ -663,6 +747,30 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu8(uint8_t& field)
+{
+    if (ptr + sizeof(uint8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu64(uint64_t& field)
+{
+    if (ptr + sizeof(uint64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
@@ -761,419 +869,6 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     fieldnum += 1;
     return true;
 }
-
-#ifdef ENABLE_CHAT
-TextChat::TextChat()
-{
-    id = UNDEF;
-    priv = PRIV_UNKNOWN;
-    shard = -1;
-    userpriv = NULL;
-    group = false;
-    ou = UNDEF;
-    resetTag();
-    ts = 0;
-    flags = 0;
-    publicchat = false;
-
-    memset(&changed, 0, sizeof(changed));
-}
-
-TextChat::~TextChat()
-{
-    delete userpriv;
-}
-
-bool TextChat::serialize(string *d)
-{
-    unsigned short ll;
-
-    d->append((char*)&id, sizeof id);
-    d->append((char*)&priv, sizeof priv);
-    d->append((char*)&shard, sizeof shard);
-
-    ll = (unsigned short)(userpriv ? userpriv->size() : 0);
-    d->append((char*)&ll, sizeof ll);
-    if (userpriv)
-    {
-        userpriv_vector::iterator it = userpriv->begin();
-        while (it != userpriv->end())
-        {
-            handle uh = it->first;
-            d->append((char*)&uh, sizeof uh);
-
-            privilege_t priv = it->second;
-            d->append((char*)&priv, sizeof priv);
-
-            it++;
-        }
-    }
-
-    d->append((char*)&group, sizeof group);
-
-    // title is a binary array
-    ll = (unsigned short)title.size();
-    d->append((char*)&ll, sizeof ll);
-    d->append(title.data(), ll);
-
-    d->append((char*)&ou, sizeof ou);
-    d->append((char*)&ts, sizeof(ts));
-
-    char hasAttachments = attachedNodes.size() != 0;
-    d->append((char*)&hasAttachments, 1);
-
-    d->append((char*)&flags, 1);
-
-    char mode = publicchat ? 1 : 0;
-    d->append((char*)&mode, 1);
-
-    char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
-    d->append((char *)&hasUnifiedKey, 1);
-
-    char meetingRoom = meeting ? 1 : 0;
-    d->append((char*)&meetingRoom, 1);
-
-    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
-
-    if (hasAttachments)
-    {
-        ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
-        d->append((char*)&ll, sizeof ll);
-
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
-        {
-            d->append((char*)&it->first, sizeof it->first); // nodehandle
-
-            ll = (unsigned short)it->second.size(); // number of users with granted access to the node
-            d->append((char*)&ll, sizeof ll);
-            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
-            {
-                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        ll = (unsigned short) unifiedKey.size();
-        d->append((char *)&ll, sizeof ll);
-        d->append((char*) unifiedKey.data(), unifiedKey.size());
-    }
-
-    return true;
-}
-
-TextChat* TextChat::unserialize(class MegaClient *client, string *d)
-{
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv = NULL;
-    bool group;
-    string title;   // byte array
-    handle ou;
-    m_time_t ts;
-    byte flags;
-    char hasAttachments;
-    attachments_map attachedNodes;
-    bool publicchat;
-    string unifiedKey;
-
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(handle) + sizeof(privilege_t) + sizeof(int) + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    id = MemAccess::get<handle>(ptr);
-    ptr += sizeof id;
-
-    priv = MemAccess::get<privilege_t>(ptr);
-    ptr += sizeof priv;
-
-    shard = MemAccess::get<int>(ptr);
-    ptr += sizeof shard;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
-        {
-            return NULL;
-        }
-
-        userpriv = new userpriv_vector();
-
-        for (unsigned short i = 0; i < ll; i++)
-        {
-            handle uh = MemAccess::get<handle>(ptr);
-            ptr += sizeof uh;
-
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
-
-            userpriv->push_back(userpriv_pair(uh, priv));
-        }
-
-        if (priv == PRIV_RM)    // clear peerlist if removed
-        {
-            delete userpriv;
-            userpriv = NULL;
-        }
-    }
-
-    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    group = MemAccess::get<bool>(ptr);
-    ptr += sizeof group;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-        title.assign(ptr, ll);
-    }
-    ptr += ll;
-
-    if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    ou = MemAccess::get<handle>(ptr);
-    ptr += sizeof ou;
-
-    ts = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-    hasAttachments = MemAccess::get<char>(ptr);
-    ptr += sizeof hasAttachments;
-
-    flags = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char mode = MemAccess::get<char>(ptr);
-    publicchat = (mode == 1);
-    ptr += sizeof(char);
-
-    char hasUnifiedKey = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char meetingRoom = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    for (int i = 5; i--;)
-    {
-        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
-        {
-            ptr += MemAccess::get<unsigned char>(ptr) + 1;
-        }
-    }
-
-    if (hasAttachments)
-    {
-        unsigned short numNodes = 0;
-        if (ptr + sizeof numNodes > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        numNodes = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof numNodes;
-
-        for (int i = 0; i < numNodes; i++)
-        {
-            handle h = UNDEF;
-            unsigned short numUsers = 0;
-            if (ptr + sizeof h + sizeof numUsers > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            h = MemAccess::get<handle>(ptr);
-            ptr += sizeof h;
-
-            numUsers = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof numUsers;
-
-            handle uh = UNDEF;
-            if (ptr + (numUsers * sizeof(uh)) > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            for (int j = 0; j < numUsers; j++)
-            {
-                uh = MemAccess::get<handle>(ptr);
-                ptr += sizeof uh;
-
-                attachedNodes[h].insert(uh);
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        unsigned short keylen = 0;
-        if (ptr + sizeof keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        keylen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof keylen;
-
-        if (ptr + keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        unifiedKey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (ptr < end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    if (client->chats.find(id) == client->chats.end())
-    {
-        client->chats[id] = new TextChat();
-    }
-    else
-    {
-        LOG_warn << "Unserialized a chat already in RAM";
-    }
-    TextChat* chat = client->chats[id];
-    chat->id = id;
-    chat->priv = priv;
-    chat->shard = shard;
-    chat->userpriv = userpriv;
-    chat->group = group;
-    chat->title = title;
-    chat->ou = ou;
-    chat->resetTag();
-    chat->ts = ts;
-    chat->flags = flags;
-    chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
-    chat->unifiedKey = unifiedKey;
-    chat->meeting = meetingRoom;
-
-    memset(&chat->changed, 0, sizeof(chat->changed));
-
-    return chat;
-}
-
-void TextChat::setTag(int tag)
-{
-    if (this->tag != 0)    // external changes prevail
-    {
-        this->tag = tag;
-    }
-}
-
-int TextChat::getTag()
-{
-    return tag;
-}
-
-void TextChat::resetTag()
-{
-    tag = -1;
-}
-
-bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
-{
-    if (revoke)
-    {
-        attachments_map::iterator uhit = attachedNodes.find(h);
-        if (uhit != attachedNodes.end())
-        {
-            uhit->second.erase(uh);
-            if (uhit->second.empty())
-            {
-                attachedNodes.erase(h);
-                changed.attachments = true;
-            }
-            return true;
-        }
-    }
-    else
-    {
-        attachedNodes[h].insert(uh);
-        changed.attachments = true;
-        return true;
-    }
-
-    return false;
-}
-
-bool TextChat::setFlags(byte newFlags)
-{
-    if (flags == newFlags)
-    {
-        return false;
-    }
-
-    flags = newFlags;
-    changed.flags = true;
-
-    return true;
-}
-
-bool TextChat::isFlagSet(uint8_t offset) const
-{
-    return (flags >> offset) & 1U;
-}
-
-bool TextChat::setMode(bool publicchat)
-{
-    if (this->publicchat == publicchat)
-    {
-        return false;
-    }
-
-    this->publicchat = publicchat;
-    changed.mode = true;
-
-    return true;
-}
-
-bool TextChat::setFlag(bool value, uint8_t offset)
-{
-    if (bool((flags >> offset) & 1U) == value)
-    {
-        return false;
-    }
-
-    flags ^= byte(1U << offset);
-    changed.flags = true;
-
-    return true;
-}
-#endif
 
 /**
  * @brief Encrypts a string after padding it to block length.
@@ -1567,6 +1262,12 @@ string* TLVstore::tlvRecordsToContainer()
 
         // set Length of value
         length = it->second.length();
+        if (length > 0xFFFF)
+        {
+            assert(it->first == "" && tlv.size() == 1 && "Only records with a single empty key can be larger");
+            LOG_warn << "Overflow of Length for TLV record: " << length;
+            length = 0xFFFF;
+        }
         result->resize(offset + 2);
         result->at(offset) = static_cast<char>(length >> 8);
         result->at(offset + 1) = static_cast<char>(length & 0xFF);
@@ -1699,6 +1400,23 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
     size_t pos;
 
     size_t datalen = data->length();
+
+    // T is a C-string
+    // L is an unsigned integer encoded in 2 bytes (aka. uint16_t)
+    // V is a binary buffer of "L" bytes
+
+    // if the size of the container is greater than the 65538 (T.1, L.2, V.>65535),
+    // then the container is probably an authring whose value is greater than the
+    // maximum length supported by 2 bytes. Since the T is an empty string for this
+    // type of attributes, we can directly assign the value to the record
+    // note: starting from Nov2022, if the size of the record is too large,
+    // the Length will be truncated to indicate the maximum size 65535 = 0xFFFF
+    size_t maxSize = 1 + 2 + 0xFFFF;
+    if (datalen >= maxSize && !(*data)[0])
+    {
+        tlv->set("", data->substr(3));
+        return tlv;
+    }
 
     while (offset < datalen)
     {
@@ -2040,6 +1758,38 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #endif // ! _WIN32
 }
 
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -2094,7 +1844,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);
@@ -2155,6 +1905,57 @@ m_time_t m_mktime_UTC(const struct tm *src)
     t += dst.tm_gmtoff - dst.tm_isdst * 3600;
 #endif
     return t;
+}
+
+extern time_t stringToTimestamp(string stime, date_time_format_t format)
+{
+    if ((format == FORMAT_SCHEDULED_COPY && stime.size() != 14)
+       || (format == FORMAT_ISO8601 && stime.size() != 15))
+    {
+        return 0;
+    }
+
+    if (format == FORMAT_ISO8601)
+    {
+        stime.erase(8, 1); // remove T from stime (20220726T133000)
+    }
+
+    struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
+#ifdef _WIN32
+    for (int i = 0; i < stime.size(); i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
+
+    if (format == FORMAT_SCHEDULED_COPY)
+    {
+        // let mktime interprete if time has Daylight Saving Time flag correction
+        // TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+        dt.tm_isdst = -1;
+        return (mktime(&dt))*10;  // deciseconds
+    }
+    else
+    {
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
+        return mktime(&dt); // seconds
+    }
 }
 
 std::string rfc1123_datetime( time_t time )
@@ -2508,25 +2309,6 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    versionStorage += o.versionStorage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    versionStorage -= o.versionStorage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-}
-
-
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
     , mValue(value)
@@ -2752,7 +2534,7 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + sid, 'X', end - sid);
+        safeurl.replace(sid, end - sid, end - sid, 'X');
     }
     size_t authKey = safeurl.find("&n=");
     if (authKey != string::npos)
@@ -2763,9 +2545,62 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + authKey, 'X', end - authKey);
+        safeurl.replace(authKey, end - authKey, end - authKey, 'X');
     }
     return safeurl;
+}
+
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
 }
 
 bool wildcardMatch(const string& text, const string& pattern)
@@ -2997,6 +2832,18 @@ void debugLogHeapUsage()
 #endif
 }
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
+}
+
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
     mCompleted -= rhs.mCompleted;
@@ -3039,14 +2886,13 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
-        return 1.0;
+        return 1.0; // 100%
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
 
     return std::min(1.0, progress);
 }
-
 
 } // namespace mega
 

@@ -67,31 +67,52 @@ namespace UserAlert
     static const nameid type_c = 'c';                                               // contact change
     static const nameid type_upci = MAKENAMEID4('u', 'p', 'c', 'i');                // updating pending contact incoming
     static const nameid type_upco = MAKENAMEID4('u', 'p', 'c', 'o');                // updating pending contact outgoing
-    static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new shared node
-    static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted shared node
+    static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new share
+    static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted share
     static const nameid type_put = MAKENAMEID3('p', 'u', 't');                      // new shared nodes
     static const nameid type_d = 'd';                                               // removed shared node
+    static const nameid type_u = 'u';                                               // updated shared node
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+#ifdef ENABLE_CHAT
+    static const nameid type_nusm = MAKENAMEID5('m', 'c', 's', 'm', 'p');           // new or updated scheduled meeting
+    static const nameid type_dsm = MAKENAMEID5('m', 'c', 's', 'm', 'r');            // deleted scheduled meeting
+#endif
 
-    struct Base
+    enum userAlertsSubtype
+    {
+        subtype_invalid   = 0,
+        subtype_new_Sched = 1,
+        subtype_upd_Sched = 2,
+    };
+
+    struct Base;
+    static Base* unserializeNewUpdSched(string*, unsigned id);
+    using handle_alerttype_map_t = map<handle, nameid>;
+
+    struct Base : public Cacheable
     {
         // shared fields from the notification or action
         nameid type;
-        m_time_t timestamp;
-        handle userHandle;
-        string userEmail;
+
+        const m_time_t& ts() const { return pst.timestamp; }
+        const handle& user() const { return pst.userHandle; }
+        const string& email() const { return pst.userEmail; }
+        void setEmail(const string& eml) { pst.userEmail = eml; }
+
+        // if false, not worth showing, eg obsolete payment reminder
+        bool relevant() const { return pst.relevant; }
+        void setRelevant(bool r) { pst.relevant = r; }
+
+        // user already saw it (based on 'last notified' time)
+        bool seen() const { return pst.seen; }
+        void setSeen(bool s) { pst.seen = s; }
+
         int tag;
 
         // incremented for each new one.  There will be gaps sometimes due to merging.
         unsigned int id;
-
-        // user already saw it (based on 'last notified' time)
-        bool seen;
-
-        // if false, not worth showing, eg obsolete payment reminder
-        bool relevant;
 
         Base(UserAlertRaw& un, unsigned int id);
         Base(nameid t, handle uh, const string& email, m_time_t timestamp, unsigned int id);
@@ -104,28 +125,58 @@ namespace UserAlert
         virtual void updateEmail(MegaClient* mc);
 
         virtual bool checkprovisional(handle ou, MegaClient* mc);
+
+        void setRemoved() { mRemoved = true; }
+        bool removed() const { return mRemoved; }
+
+    protected:
+        struct Persistent // variables to be persisted
+        {
+            m_time_t timestamp = 0;
+            handle userHandle = 0;
+            string userEmail;
+            bool relevant = true;
+            bool seen = false;
+        } pst;
+
+        bool serialize(string*) override;
+        static unique_ptr<Persistent> readBase(CacheableReader& r);
+        static unique_ptr<Persistent> unserialize(string*);
+        friend Base* unserializeNewUpdSched(string*, unsigned id);
+
+    private:
+        bool mRemoved = false; // useful to know when to remove from persist db
     };
 
     struct IncomingPendingContact : public Base
     {
+        handle mPcrHandle = UNDEF;
+
         bool requestWasDeleted;
         bool requestWasReminded;
 
         IncomingPendingContact(UserAlertRaw& un, unsigned int id);
-        IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id);
+        IncomingPendingContact(m_time_t dts, m_time_t rts, handle p, const string& email, m_time_t timestamp, unsigned int id);
+
+        void initTs(m_time_t dts, m_time_t rts);
 
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static IncomingPendingContact* unserialize(string*, unsigned id);
     };
 
     struct ContactChange : public Base
     {
         int action;
-        handle otherUserHandle;
 
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         virtual bool checkprovisional(handle ou, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static ContactChange* unserialize(string*, unsigned id);
     };
 
     struct UpdatedPendingContactIncoming : public Base
@@ -135,6 +186,9 @@ namespace UserAlert
         UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedPendingContactIncoming* unserialize(string*, unsigned id);
     };
 
     struct UpdatedPendingContactOutgoing : public Base
@@ -144,6 +198,9 @@ namespace UserAlert
         UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedPendingContactOutgoing* unserialize(string*, unsigned id);
     };
 
     struct NewShare : public Base
@@ -153,6 +210,9 @@ namespace UserAlert
         NewShare(UserAlertRaw& un, unsigned int id);
         NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static NewShare* unserialize(string*, unsigned id);
     };
 
     struct DeletedShare : public Base
@@ -166,25 +226,52 @@ namespace UserAlert
         DeletedShare(handle uh, const string& email, handle removerhandle, handle folderhandle, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         virtual void updateEmail(MegaClient* mc);
+
+        bool serialize(string*) override;
+        static DeletedShare* unserialize(string*, unsigned id);
     };
 
     struct NewSharedNodes : public Base
     {
-        unsigned fileCount, folderCount;
         handle parentHandle;
+        vector<handle> fileNodeHandles;
+        vector<handle> folderNodeHandles;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id);
+        NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
+                       vector<handle>&& fileHandles, vector<handle>&& folderHandles);
+
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static NewSharedNodes* unserialize(string*, unsigned id);
     };
 
     struct RemovedSharedNode : public Base
     {
-        size_t itemsNumber;
+        vector<handle> nodeHandles;
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
-        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id);
+        RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                          vector<handle>&& handles);
+
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static RemovedSharedNode* unserialize(string*, unsigned id);
+    };
+
+    struct UpdatedSharedNode : public Base
+    {
+        vector<handle> nodeHandles;
+
+        UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
+        UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                          vector<handle>&& handles);
+        virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedSharedNode* unserialize(string*, unsigned id);
     };
 
     struct Payment : public Base
@@ -196,6 +283,9 @@ namespace UserAlert
         Payment(bool s, int plan, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         string getProPlanName();
+
+        bool serialize(string*) override;
+        static Payment* unserialize(string*, unsigned id);
     };
 
     struct PaymentReminder : public Base
@@ -204,19 +294,173 @@ namespace UserAlert
         PaymentReminder(UserAlertRaw& un, unsigned int id);
         PaymentReminder(m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static PaymentReminder* unserialize(string*, unsigned id);
     };
 
     struct Takedown : public Base
     {
         bool isTakedown;
         bool isReinstate;
-        int type;
         handle nodeHandle;
 
         Takedown(UserAlertRaw& un, unsigned int id);
         Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static Takedown* unserialize(string*, unsigned id);
     };
+
+#ifdef ENABLE_CHAT
+    struct NewScheduledMeeting : public Base
+    {
+        handle mChatid = UNDEF;
+        handle mSchedMeetingHandle = UNDEF;
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
+            : Base(UserAlert::type_nusm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
+            , mSchedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string* d) override;
+        static NewScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct UpdatedScheduledMeeting : public Base
+    {
+        class Changeset
+        {
+        public:
+            enum
+            {
+                CHANGE_TYPE_TITLE,
+                CHANGE_TYPE_DESCRIPTION,
+                CHANGE_TYPE_CANCELLED,
+                CHANGE_TYPE_TIMEZONE,
+                CHANGE_TYPE_STARTDATE,
+                CHANGE_TYPE_ENDDATE,
+                CHANGE_TYPE_RULES,
+
+                CHANGE_TYPE_SIZE
+            };
+            struct StrChangeset { string oldValue, newValue; };
+            struct TsChangeset  { m_time_t oldValue, newValue; };
+
+            const StrChangeset* getUpdatedTitle() const         { return mUpdatedTitle.get(); }
+            const StrChangeset* getUpdatedTimeZone() const      { return mUpdatedTimeZone.get(); }
+            const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
+            const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
+            unsigned long getChanges() const                    { return mUpdatedFields.to_ulong(); }
+            bool hasChanged(int changeType) const
+            {
+                return isValidChange(changeType)
+                        ? mUpdatedFields[changeType]
+                        : false;
+            }
+
+            string changeToString(int changeType) const;
+            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
+            Changeset() = default;
+            Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
+                      unique_ptr<StrChangeset>& _titleCS,
+                      unique_ptr<StrChangeset>& _tzCS,
+                      unique_ptr<TsChangeset>& _sdCS,
+                      unique_ptr<TsChangeset>& _edCS);
+
+            Changeset(const Changeset& src) { replaceCurrent(src); }
+            Changeset& operator=(const Changeset& src) { replaceCurrent(src); return *this; }
+            Changeset(Changeset&&) = default;
+            Changeset& operator=(Changeset&&) = default;
+            ~Changeset() = default;
+
+        private:
+            /*
+             * invariant:
+             * - bitset size must be the maximum types of changes allowed
+             * - if title changed, there must be previous and new title string
+             * - if timezone changed, there must be previous and new timezone
+             * - if StartDateTime changed, there must be previous and new StartDateTime
+             * - if EndDateTime changed, there must be previous and new EndDateTime
+             */
+            bool invariant() const
+            {
+                return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
+                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]     || !!mUpdatedTitle)
+                        && (!mUpdatedFields[CHANGE_TYPE_TIMEZONE]  || !!mUpdatedTimeZone)
+                        && (!mUpdatedFields[CHANGE_TYPE_STARTDATE] || !!mUpdatedStartDateTime)
+                        && (!mUpdatedFields[CHANGE_TYPE_ENDDATE]   || !!mUpdatedEndDateTime));
+            }
+
+            bool isValidChange(int changeType) const
+            {
+                return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE);
+            }
+
+            void replaceCurrent(const Changeset& src)
+            {
+                mUpdatedFields = src.mUpdatedFields;
+                if (src.mUpdatedTitle)
+                {
+                    mUpdatedTitle.reset(new StrChangeset{src.mUpdatedTitle->oldValue, src.mUpdatedTitle->newValue});
+                }
+                if (src.mUpdatedTimeZone)
+                {
+                    mUpdatedTimeZone.reset(new StrChangeset{src.mUpdatedTimeZone->oldValue, src.mUpdatedTimeZone->newValue});
+                }
+                if (src.mUpdatedStartDateTime)
+                {
+                    mUpdatedStartDateTime.reset(new TsChangeset{src.mUpdatedStartDateTime->oldValue, src.mUpdatedStartDateTime->newValue});
+                }
+                if (src.mUpdatedEndDateTime)
+                {
+                    mUpdatedEndDateTime.reset(new TsChangeset{src.mUpdatedEndDateTime->oldValue, src.mUpdatedEndDateTime->newValue});
+                }
+            }
+
+            std::bitset<CHANGE_TYPE_SIZE> mUpdatedFields;
+            unique_ptr<StrChangeset> mUpdatedTitle;
+            unique_ptr<StrChangeset> mUpdatedTimeZone;
+            unique_ptr<TsChangeset> mUpdatedStartDateTime;
+            unique_ptr<TsChangeset> mUpdatedEndDateTime;
+        };
+
+        handle mChatid = UNDEF;
+        handle mSchedMeetingHandle = UNDEF;
+        Changeset mUpdatedChangeset;
+
+        UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, Changeset&& _cs)
+            : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
+            , mChatid(_chatid)
+            , mSchedMeetingHandle(_sm)
+            , mUpdatedChangeset(_cs)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string*) override;
+        static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+
+    struct DeletedScheduledMeeting : public Base
+    {
+        handle mChatid = UNDEF;
+        handle mSchedMeetingHandle = UNDEF;
+        DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
+            : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
+            , mSchedMeetingHandle(_sm)
+            {}
+
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        bool serialize(string* d) override;
+        static DeletedScheduledMeeting* unserialize(string*, unsigned id);
+    };
+#endif
 };
 
 struct UserAlertFlags
@@ -242,10 +486,10 @@ private:
 
 public:
     typedef deque<UserAlert::Base*> Alerts;
-    Alerts alerts;
+    Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50; newest go at the end
 
-    // collect new/updated alerts to notify the app with
-    useralert_vector useralertnotify;
+    // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
+    useralert_vector useralertnotify; // alerts to be notified to the app (new/updated/removed)
 
     // set true after our initial query to MEGA to get the last 50 alerts on startup
     bool begincatchup;
@@ -261,17 +505,52 @@ private:
     std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
-        int files;
-        int folders;
-        m_time_t timestamp;
-        ff() : files(0), folders(0), timestamp(0) {}
+        m_time_t timestamp = 0;
+        UserAlert::handle_alerttype_map_t alertTypePerFileNode;
+        UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
+
+        vector<handle> fileHandles() const
+        {
+            vector<handle> v;
+            std::transform(alertTypePerFileNode.begin(), alertTypePerFileNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
+            return v;
+        }
+
+        vector<handle> folderHandles() const
+        {
+            vector<handle> v;
+            std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
+            return v;
+        }
     };
-    map<pair<handle, handle>, ff> notedSharedNodes;
+    using notedShNodesMap = map<pair<handle, handle>, ff>;
+    notedShNodesMap notedSharedNodes;
+    notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;
     handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
+    bool isConvertReadyToAdd(handle originatinguser) const;
+    void convertNotedSharedNodes(bool added);
+    void clearNotedSharedMembers();
 
+    void trimAlertsToMaxCount(); // mark as removed the excess from 200
+    void notifyAlert(UserAlert::Base* alert, bool seen, int tag);
+
+    UserAlert::Base* findAlertToCombineWith(const UserAlert::Base* a, nameid t) const;
+
+    bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
+    // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise
+    UserAlert::NewSharedNodes* eraseNodeHandleFromNewShareNodeAlert(handle nh, UserAlert::Base* a);
+    // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise
+    UserAlert::RemovedSharedNode* eraseNodeHandleFromRemovedSharedNode(handle nh, UserAlert::Base* a);
+    pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
+        findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const;
+    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
+    bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, const notedShNodesMap& notedSharedNodesMap) const;
+    bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
+    bool removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap);
+    bool setNotedSharedNodeToUpdate(Node* n);
 public:
 
     // This is a separate class to encapsulate some MegaClient functionality
@@ -282,24 +561,50 @@ public:
     unsigned int nextId();
 
     // process notification response from MEGA
-    bool procsc_useralert(JSON& jsonsc);
+    bool procsc_useralert(JSON& jsonsc); // sc50
 
     // add an alert - from alert reply or constructed from actionpackets
-    void add(UserAlertRaw& un);
-    void add(UserAlert::Base*);
+    void add(UserAlertRaw& un); // from sc50
+    void add(UserAlert::Base*); // from action packet or persistence
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
-    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
+    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, nameid alertType = UserAlert::type_d);
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
+
 
     // enter provisional mode, added items will be checked for suitability before actually adding
     void startprovisional();
     void evalprovisional(handle originatinguser);
 
-    // marks all as seen, and notifies the API also
+    // update node alerts management
+    bool isHandleInAlertsAsRemoved(handle nodeHandleToFind) const;
+    template <typename T>
+    void eraseAlertsFromContainer(T& container, const set<UserAlert::Base*>& toErase)
+    {
+        container.erase(
+            remove_if(begin(container), end(container),
+                      [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase); })
+            , end(container));
+    }
+    void removeNodeAlerts(Node* n);
+    void setNewNodeAlertToUpdateNodeAlert(Node* n);
+
+    void initscalerts(); // persist alerts received from sc50
+    void purgescalerts(); // persist alerts from action packets
+    bool unserializeAlert(string* d, uint32_t dbid);
+
+    // stash removal-alert noted nodes
+    void convertStashedDeletedSharedNodes();
+    bool isDeletedSharedNodesStashEmpty() const;
+    void stashDeletedNotedSharedNodes(handle originatingUser);
+
+    // request from API to acknowledge all alerts
     void acknowledgeAll();
+
+    // marks all as seen, after API request has succeeded
+    void acknowledgeAllSucceeded();
 
     // the API notified us another client updated the last acknowleged
     void onAcknowledgeReceived();

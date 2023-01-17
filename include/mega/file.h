@@ -44,7 +44,8 @@ struct MEGA_API File: public FileFingerprint
     // transfer terminated before completion (cancelled, failed too many times)
     virtual void terminated(error e);
 
-    // transfer failed
+    // return true if the transfer should keep trying (limited to 16)
+    // return false to delete the transfer
     virtual bool failed(error, MegaClient*);
 
     // update localname
@@ -52,7 +53,8 @@ struct MEGA_API File: public FileFingerprint
 
     void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                       const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion, LocalNode* l);
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                      LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault);
 
     // generic filename for this transfer
     void displayname(string*);
@@ -62,7 +64,11 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    LocalPath localname;
+    // now able to be updated from the syncs thread, should the nodes move during upload/download
+    static mutex localname_mutex;
+    LocalPath localname_multithreaded;
+    LocalPath getLocalname() const;
+    void setLocalname(const LocalPath&);
 
     // source/target node handle
     NodeHandle h;
@@ -84,6 +90,8 @@ struct MEGA_API File: public FileFingerprint
         // is the source file temporary?
         bool temporaryfile : 1;
 
+        // remember if the sync is from an inshare
+        bool fromInsycShare : 1;
     };
 
     VersioningOption mVersioningOption = NoVersioning;
@@ -115,8 +123,11 @@ struct MEGA_API File: public FileFingerprint
 
     static File* unserialize(string*);
 
-    // tag of the file
+    // tag of the file transfer
     int tag;
+
+    // set the token true to cause cancellation of this transfer (this file of the transfer)
+    CancelToken cancelToken;
 };
 
 struct MEGA_API SyncFileGet: public File
@@ -137,7 +148,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated(error e) override;
 
-    SyncFileGet(Sync*, Node*, const LocalPath&);
+    SyncFileGet(Sync*, Node*, const LocalPath&, bool fromInshare);
     ~SyncFileGet();
 };
 

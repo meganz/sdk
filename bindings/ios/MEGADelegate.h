@@ -111,10 +111,20 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called to inform about the progress of a transfer.
  *
+ * In case this transfer represents a recursive operation (folder upload/download) SDK will
+ * notify apps about the stages transition.
+ *
+ * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+ * This method returns the following values:
+ *  - MEGATransferStageScan                      = 1
+ *  - MEGATransferStageCreateTreee               = 2
+ *  - MEGATransferStageTransferringFiles         = 3
+ * For more information about stages refer to [MEGATransfer stage]
+ *
  * @param api MEGASdk object that started the transfer.
  * @param transfer Information about the transfer.
  *
- * @see [MEGATransfer transferredBytes], [MEGATransfer speed].
+ * @see [MEGATransfer transferredBytes], [MEGATransfer speed], [MEGATransfer stage].
  */
 - (void)onTransferUpdate:(MEGASdk *)api transfer:(MEGATransfer *)transfer;
 
@@ -162,6 +172,22 @@ NS_ASSUME_NONNULL_BEGIN
  * @param nodeList List that contains the new or updated nodes.
  */
 - (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
+
+/**
+ * @brief This function is called when a Set has been updated (created / updated / removed)
+ *
+ * @param api MEGASdk object connected to the account
+ * @param sets Array that contains the new or updated Sets
+ */
+- (void)onSetsUpdate:(MEGASdk *)api sets:(NSArray<MEGASet *> *)sets;
+
+/**
+ * @brief This function is called when a SetElement has been updated (created / updated / removed)
+ *
+ * @param api MEGASdk object connected to the account
+ * @param setElements Array that contains the new or updated Set-Elements
+ */
+- (void)onSetElementsUpdate:(MEGASdk *)api setElements:(NSArray<MEGASetElement *> *)setElements;
 
 /**
  * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
@@ -245,9 +271,9 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * - EventStorage: when the status of the storage changes.
  *
- * For this event type, MegaEvent::getNumber provides the current status of the storage
+ * For this event type, [MEGAEvent number] provides the current status of the storage
  *
- * There are three possible storage states:
+ * There are four possible storage states:
  *     - StorageStateGreen = 0
  *     There are no storage problems
  *
@@ -263,20 +289,44 @@ NS_ASSUME_NONNULL_BEGIN
  *     After calling it, this callback will be called again with the corresponding
  *     state if there is really a change.
  *
+ *     - StorageStatePaywall = 4
+ *     The account has been full for a long time. Now most of actions are disallowed.
+ *     You will need to call [MEGASdk getUserData] before retrieving the overquota deadline/warnings
+ *     timestamps.
+ *
  * - EventNodesCurrent: when all external changes have been received
  *
  * - EventMediaInfoReady: when codec-mappings have been received
  *
  * - EventBusinessStatus: when the status of a business account has changed.
+ *
+ * For this event type, [MEGAEvent number] provides the new business status.
+ *
  * The posible values are:
  *   - BusinessStatusExpired = -1
  *   - BusinessStatusInactive = 0
  *   - BusinessStatusActive = 1
  *   - BusinessStatusGracePeriod = 2
  *
- *  Valid data in the MEGAEvent object received in the callback:
- *    - [MEGAEvent number] returns the new business status.
+ * - EventKeyModified: when the key of a user has changed.
  *
+ * For this event type, [MEGAEvent handle] provides the handle of the user whose key has been modified.
+ * For this event type, [MEGAEvent number] provides type of key that has been modified.
+ *
+ * The posible values are:
+ *  - Public chat key (Cu25519)     = 0
+ *  - Public signing key (Ed25519)  = 1
+ *  - Public RSA key                = 2
+ *  - Signature of chat key         = 3
+ *  - Signature of RSA key          = 4
+ *
+ * - EventMiscFlagsReady: when the miscellaneous flags are available/updated.
+ *
+ * - EventReqStatProgress: Provides the per mil progress of a long-running API operation
+ *  in [MEGAEvent number], or -1 if there isn't any operation in progress.
+ *
+ * - EventReloading: when the API server has forced a full reload. The app should show a
+ * similar UI to the one displayed during the initial load (fetchnodes).
  *
  * @param api MEGASdk object connected to the account
  * @param event Details about the event

@@ -1,6 +1,7 @@
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
+    CONFIG += ENABLE_WERROR_COMPILATION
 }
 CONFIG(release, debug|release) {
     CONFIG -= debug release
@@ -18,17 +19,29 @@ CONFIG += USE_FFMPEG
 CONFIG -= qt
 CONFIG += object_parallel_to_source
 
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
+
 win32 {
     CONFIG += USE_AUTOCOMPLETE
     CONFIG += console
+}
+
+include(../../../../bindings/qt/sdk.pri)
+
+vcpkg {
     debug:LIBS += -lgmockd -lgtestd
     !debug:LIBS += -lgmock -lgtest
 }
 else {
     LIBS += -lgmock -lgtest
 }
-
-include(../../../../bindings/qt/sdk.pri)
 
 SOURCES += \
 ../../../../tests/unit/AttrMap_test.cpp \
@@ -62,3 +75,7 @@ HEADERS += \
 ../../../../tests/unit/FsNode.h \
 ../../../../tests/unit/NotImplemented.h \
 ../../../../tests/unit/utils.h
+
+macx {
+    LIBS += -framework Cocoa
+}

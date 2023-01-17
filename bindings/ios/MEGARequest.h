@@ -30,6 +30,9 @@
 #import "MEGABannerList.h"
 #import "MEGAHandleList.h"
 #import "MEGACurrency.h"
+#import "MEGARecentActionBucket.h"
+#import "MEGASet.h"
+#import "MEGASetElement.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -171,6 +174,16 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeFetchGoogleAds,
     MEGARequestTypeQueryGoogleAds,
     MEGARequestTypeGetAttrNode,
+    MEGARequestTypeLoadExternalDriveBackups,
+    MEGARequestTypeCloseExternalDriveBackups,
+    MEGARequestTypeGetDownloadUrls,
+    MEGARequestTypeExecuteOnThread,
+    MEGARequestTypeGetRecentActions,
+    MEGARequestTypePutSet,
+    MEGARequestTypeRemoveSet,
+    MEGARequestTypeFetchSet,
+    MEGARequestTypePutSetElement,
+    MEGARequestTypeRemoveSetElement,
     TotalOfRequestTypes
 };
 
@@ -558,6 +571,36 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) NSArray<NSNumber *> *megaHandleArray;
+
+/// Array of recent actions buckets
+/// 
+/// This value is valid for these requests:
+///
+/// - [MEGASdk getRecentActionsAsyncSinceDays:maxNodes:delegate:]
+/// 
+/// - [MEGASdk getRecentActionsAsyncSinceDays:maxNodes:]
+/// 
+@property (readonly, nonatomic) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
+
+/**
+ * @brief Returns a MEGASet explicitly fetched from online API (typically using 'aft' command)
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk fetchSet:delegate:]
+ *
+ * @return requested MEGASet or nil if not found
+ */
+@property (readonly, nonatomic) MEGASet *set;
+
+/**
+ * @brief Returns the list of elements, part of the MEGASetElement explicitly fetched from online API (typically using 'aft' command)
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk fetchSet:delegate:]
+ *
+ * @return list of elements in the requested MEGASet, or nil if Set not found
+ */
+@property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
 
 /**
  * @brief Creates a copy of this MEGARequest object

@@ -162,6 +162,10 @@ using namespace mega;
             result = @"Business";
             break;
             
+        case MEGAAccountTypeProFlexi:
+            result = @"Pro Flexi";
+            break;
+            
         default:
             result = @"Unknown";
             break;

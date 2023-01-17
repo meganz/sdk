@@ -26,11 +26,5 @@ namespace mega
 {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     MegaTestHooks globalMegaTestHooks;
-
-    MegaTestHooks::MegaTestHooks()
-        : onHttpReqPost(NULL)
-        , onSetIsRaid(NULL)
-    {
-    }
 #endif
 }
