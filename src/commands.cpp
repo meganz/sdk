@@ -3984,7 +3984,6 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
-    string driveNames;
     string versionDriveNames;
     string myBackupsFolder;
     string versionMyBackupsFolder;
@@ -4121,10 +4120,6 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
-            break;
-
-        case MAKENAMEID5('*', '!', 'd', 'r', 'n'):
-            parseUserAttribute(driveNames, versionDriveNames);
             break;
 
         case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
@@ -4528,21 +4523,6 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-
-                if (!driveNames.empty())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&driveNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DRIVE_NAMES, tlvString.get(), &versionDriveNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DRIVE_NAMES";
                     }
                 }
 
@@ -9439,7 +9419,11 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    //TODO: add support for sfuId
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
     if (schedId != UNDEF)
     {
         // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
@@ -9529,8 +9513,8 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     // required params
     arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
     arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-    arg("s", schedMeeting->startDateTime().c_str());
-    arg("e", schedMeeting->endDateTime().c_str());
+    arg("s", schedMeeting->startDateTime());
+    arg("e", schedMeeting->endDateTime());
     arg("t", Base64::btoa(schedMeeting->title()).c_str());
     arg("d", Base64::btoa(schedMeeting->description()).c_str());
 
@@ -9538,8 +9522,12 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
     if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
     if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-    if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
     if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
+
+    if (MegaClient::isValidMegaTimeStamp(schedMeeting->overrides()))
+    {
+        arg("o", schedMeeting->overrides());
+    }
 
     if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
     {
@@ -9562,9 +9550,9 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
             arg("i", rules->interval());
         }
 
-        if (!rules->until().empty())
+        if (rules->isValidUntil(rules->until()))
         {
-            arg("u", rules->until().c_str());
+            arg("u", rules->until());
         }
 
         if (rules->byWeekDay() && !rules->byWeekDay()->empty())
@@ -9697,7 +9685,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, 0, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
         }
     }
 
@@ -9742,15 +9730,15 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     return true;
 }
 
-CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
+CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, m_time_t since, m_time_t until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
    mCompletion(completion ? completion : [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){})
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since)      { arg("cf", since); }
-    if (until)      { arg("ct", until); }
-    if (count)      { arg("cc", count); }
+    if (since != mega_invalid_timestamp)      { arg("cf", since); }
+    if (until != mega_invalid_timestamp)      { arg("ct", until); }
+    if (count)                                { arg("cc", count); }
     tag = client->reqtag;
 }
 

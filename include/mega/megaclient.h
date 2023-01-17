@@ -306,7 +306,11 @@ public:
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
     // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags exclusiveRecursiveFlags, CancelToken cancelFlag);
+    node_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
+
+    node_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
+    node_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
+
 
     node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -590,6 +594,9 @@ public:
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
+
+    // method to check if a timestamp (m_time_t) is valid or not
+    static bool isValidMegaTimeStamp(m_time_t val) { return val > mega_invalid_timestamp; }
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -1482,9 +1489,9 @@ public:
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
 
-    void createNewSMAlert(const handle&, handle schedId);
-    void createDeletedSMAlert(const handle&, handle schedId);
-    void createUpdatedSMAlert(const handle&, handle schedId,
+    void createNewSMAlert(const handle&, handle chatid, handle schedId);
+    void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle chatid, handle schedId,
                               UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
@@ -1982,6 +1989,11 @@ public:
     dstime disconnecttimestamp;
     dstime nextDispatchTransfersDs = 0;
 
+#ifdef ENABLE_CHAT
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+#endif
+
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
@@ -2335,6 +2347,9 @@ private:
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
 
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
+
 
 //
 // Sets and Elements
@@ -2376,6 +2391,9 @@ public:
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
+
+    // return Element count for Set sid, or 0 if not found
+    unsigned getSetElementCount(handle sid) const;
 
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;

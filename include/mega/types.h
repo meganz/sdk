@@ -152,6 +152,7 @@ class AuthRing;
 // Our own version of time_t which we can be sure is 64 bit.
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
+constexpr m_time_t mega_invalid_timestamp = 0;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -739,7 +740,7 @@ typedef enum {
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
@@ -1181,6 +1182,9 @@ public:
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \
