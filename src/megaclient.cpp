@@ -14142,17 +14142,15 @@ void MegaClient::initializekeys()
             buf = mKeyManager.toKeysContainer();
             attrs[ATTR_KEYS] = buf;
 
-            if (!mKeyManager.isSecure())
-            {
-                // save private keys into the *!keyring attribute
-                TLVstore tlvRecords;
-                tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-                tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-                unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
+            // save private keys into the *!keyring attribute (for backwards compatibility, so legacy
+            // clients can retrieve chat and signing key for accounts created with ^!keys support)
+            TLVstore tlvRecords;
+            tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
 
-                buf.assign(tlvContainer->data(), tlvContainer->size());
-                attrs[ATTR_KEYRING] = buf;
-            }
+            buf.assign(tlvContainer->data(), tlvContainer->size());
+            attrs[ATTR_KEYRING] = buf;
 
             // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
