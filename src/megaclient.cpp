@@ -14418,24 +14418,20 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                     {
                         // Changes to apply in the commit
                         mKeyManager.setAuthRing(serializedAuthring);
-                    },
-                    [this]()
-                    {
-                        if (mKeyManager.promotePendingShares())
-                        {
-                            mKeyManager.commit(
-                            [this]()
-                            {
-                                // Changes to apply in the commit
-                                mKeyManager.promotePendingShares();
-                            }); // No completion callback in this case
-                        }
                     });
                 }
                 else
                 {
-                    std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-                    putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
                 }
             }
 
@@ -14594,25 +14590,21 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                         {
                             // Changes to apply in the commit
                             mKeyManager.setAuthCU255(serializedAuthring);
-                        },
-                        [this]()
-                        {
-                            if (mKeyManager.promotePendingShares())
-                            {
-                                mKeyManager.commit(
-                                [this]()
-                                {
-                                    // Changes to apply in the commit
-                                    mKeyManager.promotePendingShares();
-                                }); // No completion callback in this case
-                            }
                         });
                     }
                 }
                 else
                 {
-                    std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-                    putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
                 }
             }
 
@@ -14634,6 +14626,12 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 
 error MegaClient::verifyCredentials(handle uh)
 {
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
     Base64Str<MegaClient::USERHANDLE> uid(uh);
     auto itEd = mAuthRings.find(ATTR_AUTHRING);
     bool hasEdAuthring = itEd != mAuthRings.end();
@@ -14700,41 +14698,29 @@ error MegaClient::verifyCredentials(handle uh)
 
     int tag = reqtag;
     std::string serializedAuthring = authring.serializeForJS();
-    if (mKeyManager.generation())
+    mKeyManager.commit(
+    [this, serializedAuthring]()
     {
-        mKeyManager.commit(
-        [this, serializedAuthring]()
-        {
-            // Changes to apply in the commit
-            mKeyManager.setAuthRing(serializedAuthring);
-        },
-        [this, tag]()
-        {
-            restag = tag;
-            app->putua_result(API_OK);
-
-            if (mKeyManager.promotePendingShares())
-            {
-                mKeyManager.commit(
-                [this]()
-                {
-                    // Changes to apply in the commit
-                    mKeyManager.promotePendingShares();
-                }); // No completion callback in this case
-            }
-        });
-    }
-    else
+        // Changes to apply in the commit
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
     {
-        std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-        putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), tag);
-    }
+        restag = tag;
+        app->putua_result(API_OK);
+    });
 
     return API_OK;
 }
 
 error MegaClient::resetCredentials(handle uh)
 {
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
     Base64Str<MegaClient::USERHANDLE> uid(uh);
     auto it = mAuthRings.find(ATTR_AUTHRING);
     if (it == mAuthRings.end())
@@ -14762,26 +14748,18 @@ error MegaClient::resetCredentials(handle uh)
 
     int tag = reqtag;
     string serializedAuthring = authring.serializeForJS();
-    if (mKeyManager.generation())
+    mKeyManager.commit(
+    [this, serializedAuthring]()
     {
-        mKeyManager.commit(
-        [this, serializedAuthring]()
-        {
-            // Changes to apply in the commit
-            mKeyManager.setAuthRing(serializedAuthring);
-        },
-        [this, tag]()
-        {
-            restag = tag;
-            app->putua_result(API_OK);
-            return;
-        });
-    }
-    else
+        // Changes to apply in the commit
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
     {
-        unique_ptr<string> buf(authring.serialize(rng, key));
-        putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag);
-    }
+        restag = tag;
+        app->putua_result(API_OK);
+        return;
+    });
 
     return API_OK;
 }
@@ -22164,6 +22142,15 @@ void KeyManager::updateValues(KeyManager &km)
     mBackups            = move(km.mBackups);
     mWarnings           = move(km.mWarnings);
     mOther              = move(km.mOther);
+
+    if (promotePendingShares())
+    {
+        commit([this]()
+        {
+            // Changes to apply in the commit
+            promotePendingShares();
+        }); // No completion callback in this case
+    }
 }
 
 string KeyManager::toKeysContainer()

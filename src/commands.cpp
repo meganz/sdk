@@ -3169,22 +3169,6 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                         LOG_warn << "Failed to decrypt keyring after putua";
                     }
                 }
-                else if (User::isAuthring(type))
-                {
-                    if (!client->mKeyManager.generation())
-                    {
-                        client->mAuthRings.erase(type);
-                        const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
-                        if (tlvRecords)
-                        {
-                            client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
-                        }
-                        else
-                        {
-                            LOG_err << "Failed to decrypt keyring after putua";
-                        }
-                    }
-                }
             }
         }
     }
@@ -3300,23 +3284,7 @@ bool CommandPutUAVer::procresult(Result r)
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
 
-            if (User::isAuthring(at))
-            {
-                if (!client->mKeyManager.generation())
-                {
-                    client->mAuthRings.erase(at);
-                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
-                    if (tlvRecords)
-                    {
-                        client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                    }
-                    else
-                    {
-                        LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('upv')";
-                    }
-                }
-            }
-            else if (at == ATTR_UNSHAREABLE_KEY)
+            if (at == ATTR_UNSHAREABLE_KEY)
             {
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
