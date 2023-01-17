@@ -3169,6 +3169,15 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                         LOG_warn << "Failed to decrypt keyring after putua";
                     }
                 }
+                else if (type == ATTR_KEYS)
+                {
+                    if (!client->mKeyManager.fromKeysContainer(it->second))
+                    {
+                        LOG_err << "Error processing new established value for the Key Manager (CommandPutMultipleUAVer)";
+                        // We can't use a previous value here because CommandPutMultipleUAVer is only used to update ^!keys
+                        // during initialization
+                    }
+                }
             }
         }
     }
