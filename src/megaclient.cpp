@@ -6642,6 +6642,7 @@ void MegaClient::sc_userattr()
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
                                         {
                                             // legacy authrings not useful anymore
+                                            LOG_warn << "Ignoring update of : " << User::attr2string(type);
                                             break;
                                         }
 
@@ -13898,7 +13899,8 @@ void MegaClient::fetchkeys()
     fetchingkeys = true;
 
     resetKeyring();
-    User *u = finduser(me, 1);
+    User *u = finduser(me);
+    assert(u);
 
     // RSA public key is retrieved by getuserdata
 

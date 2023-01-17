@@ -3813,14 +3813,6 @@ bool CommandDelUA::procresult(Result r)
         {
             client->resetKeyring();
         }
-        else if (User::isAuthring(at))
-        {
-            if (!client->mKeyManager.generation())
-            {
-                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-                client->getua(u, at, 0);
-            }
-        }
 
         client->notifyuser(u);
         client->app->delua_result(API_OK);
