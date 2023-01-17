@@ -14133,6 +14133,10 @@ void MegaClient::initializekeys()
             mKeyManager.setKey(key);
             mKeyManager.init(prEd255, prCu255, mPrivKey);
 
+            // We are initializing the keys, so it's safe to assume that authrings are empty
+            mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING, TLVstore()));
+            mAuthRings.emplace(ATTR_AUTHCU255, AuthRing(ATTR_AUTHCU255, TLVstore()));
+
             // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
             // Since the account is being initialized, putua should not fail.
             buf = mKeyManager.toKeysContainer();
