@@ -6959,7 +6959,7 @@ bool CommandChatCreate::procresult(Result r)
                             chat->unifiedKey = mUnifiedKey;
                         }
 
-                        if (schedId != UNDEF)
+                        if (schedId != UNDEF && mSchedMeeting)
                         {
                             assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
                             mSchedMeeting->setSchedId(schedId);
