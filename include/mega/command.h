@@ -152,6 +152,9 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
+    // create json structure for scheduled meetings (mcsmp command)
+    void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
 

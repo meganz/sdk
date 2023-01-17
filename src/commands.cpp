@@ -6782,84 +6782,9 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     if (schedMeeting)
     {
         mSchedMeeting.reset(schedMeeting->copy()); // can avoid copy by mooving check from where we are calling
-        handle schedId = schedMeeting->schedId();
-        handle parentSchedId = schedMeeting->parentSchedId();
         beginobject("sm");
         arg("a", "mcsmp");
-
-        // required params
-        arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-        arg("s", schedMeeting->startDateTime());
-        arg("e", schedMeeting->endDateTime());
-        arg("t", Base64::btoa(schedMeeting->title()).c_str());
-        arg("d", Base64::btoa(schedMeeting->description()).c_str());
-
-        // optional params
-        if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
-        if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
-        if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-        if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
-
-        if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
-        {
-            arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
-        }
-
-        // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
-        if (schedMeeting->rules())
-        {
-            const ScheduledRules* rules = schedMeeting->rules();
-            beginobject("r");
-
-            if (rules->isValidFreq(rules->freq()))
-            {
-                arg("f", rules->freqToString()); // required
-            }
-
-            if (rules->isValidInterval(rules->interval()))
-            {
-                arg("i", rules->interval());
-            }
-
-            if (MegaClient::isValidMegaTimeStamp(rules->until()))
-            {
-                arg("u", rules->until());
-            }
-
-            if (rules->byWeekDay() && !rules->byWeekDay()->empty())
-            {
-                beginarray("wd");
-                for (auto i: *rules->byWeekDay())
-                {
-                    element(static_cast<int>(i));
-                }
-                endarray();
-            }
-
-            if (rules->byMonthDay() && !rules->byMonthDay()->empty())
-            {
-                beginarray("md");
-                for (auto i: *rules->byMonthDay())
-                {
-                    element(static_cast<int>(i));
-                }
-                endarray();
-            }
-
-            if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
-            {
-                beginarray("mwd");
-                for (auto i: *rules->byMonthWeekDay())
-                {
-                    beginarray();
-                    element(static_cast<int>(i.first));
-                    element(static_cast<int>(i.second));
-                    endarray();
-                }
-                endarray();
-            }
-            endobject();
-        }
+        createSchedMeetingJson(mSchedMeeting.get());
         endobject();
     }
 
@@ -9636,92 +9561,8 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
     assert(schedMeeting);
-    handle chatid = schedMeeting->chatid();
-    handle schedId = schedMeeting->schedId();
-    handle parentSchedId = schedMeeting->parentSchedId();
-
-    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)
     cmd("mcsmp");
-
-    // required params
-    arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
-    arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-    arg("s", schedMeeting->startDateTime());
-    arg("e", schedMeeting->endDateTime());
-    arg("t", Base64::btoa(schedMeeting->title()).c_str());
-    arg("d", Base64::btoa(schedMeeting->description()).c_str());
-
-    // optional params
-    if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
-    if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
-    if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-    if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
-
-    if (MegaClient::isValidMegaTimeStamp(schedMeeting->overrides()))
-    {
-        arg("o", schedMeeting->overrides());
-    }
-
-    if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
-    {
-        arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
-    }
-
-    // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
-    if (schedMeeting->rules())
-    {
-        const ScheduledRules* rules = schedMeeting->rules();
-        beginobject("r");
-
-        if (rules->isValidFreq(rules->freq()))
-        {
-            arg("f", rules->freqToString()); // required
-        }
-
-        if (rules->isValidInterval(rules->interval()))
-        {
-            arg("i", rules->interval());
-        }
-
-        if (rules->isValidUntil(rules->until()))
-        {
-            arg("u", rules->until());
-        }
-
-        if (rules->byWeekDay() && !rules->byWeekDay()->empty())
-        {
-            beginarray("wd");
-            for (auto i: *rules->byWeekDay())
-            {
-                element(static_cast<int>(i));
-            }
-            endarray();
-        }
-
-        if (rules->byMonthDay() && !rules->byMonthDay()->empty())
-        {
-            beginarray("md");
-            for (auto i: *rules->byMonthDay())
-            {
-                element(static_cast<int>(i));
-            }
-            endarray();
-        }
-
-        if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
-        {
-            beginarray("mwd");
-            for (auto i: *rules->byMonthWeekDay())
-            {
-                beginarray();
-                element(static_cast<int>(i.first));
-                element(static_cast<int>(i.second));
-                endarray();
-            }
-            endarray();
-        }
-        endobject();
-    }
+    createSchedMeetingJson(mScheduledMeeting.get());
     notself(client); // set i param to ignore action packet generated by our own action
     tag = client->reqtag;
 }
