@@ -1314,10 +1314,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
         {
             const string& key = it->empty() ? "(no key)" : *it;
 
-            // drive names can be filtered
-            if (type == ATTR_DRIVE_NAMES)
+            // external drive names can be filtered
+            if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == b64driveid;
+                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
                 if (!printDriveId)
                 {
                     continue;
@@ -1333,10 +1333,15 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             else
             {
                 cout << "\t" << key << "\t";
-                if (type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES || type == ATTR_ALIAS)
+                if (type == ATTR_DEVICE_NAMES || type == ATTR_ALIAS)
                 {
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
+
+                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
+                    {
+                        cout << " (external drive)";
+                    }
                 }
                 else
                 {
@@ -1788,6 +1793,24 @@ static void listnodeshares(Node* n)
             {
                 cout << ", shared as exported folder link" << endl;
             }
+        }
+    }
+}
+
+static void listnodependingshares(Node* n)
+{
+    if(n->pendingshares)
+    {
+        for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
+
+            if (it->first)
+            {
+                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
+            }
+
+            cout << endl;
         }
     }
 }
@@ -3560,7 +3583,8 @@ void exec_setextdrivename(autocomplete::ACState& s)
         return;
     }
 
-    putua_map(string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)), Base64::btoa(drivename), ATTR_DRIVE_NAMES);
+    putua_map(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)),
+              Base64::btoa(drivename), ATTR_DEVICE_NAMES);
 }
 
 void exec_getextdrivename(autocomplete::ACState& s)
@@ -3600,7 +3624,7 @@ void exec_getextdrivename(autocomplete::ACState& s)
         }
     }
 
-    client->getua(u, ATTR_DRIVE_NAMES);
+    client->getua(u, ATTR_DEVICE_NAMES);
 }
 
 void exec_setmybackups(autocomplete::ACState& s)
@@ -4054,6 +4078,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -5861,16 +5886,18 @@ void exec_share(autocomplete::ACState& s)
 
     switch (s.words.size())
     {
-    case 1:		// list all shares (incoming and outgoing)
+    case 1:		// list all shares (incoming, outgoing and pending outgoing)
     {
         cout << "Shared folders:" << endl;
 
+        // outgoing
         node_vector outshares = client->mNodeManager.getNodesWithOutShares();
         for (auto& share : outshares)
         {
             listnodeshares(share);
         }
 
+        // incoming
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
         {
@@ -5891,6 +5918,15 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
             }
+        }
+
+        cout << "Pending shared folders:" << endl;
+
+        // pending outgoing
+        node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+        for (auto& share : pendingoutshares)
+        {
+            listnodependingshares(share);
         }
     }
     break;
@@ -6232,8 +6268,7 @@ void exec_putua(autocomplete::ACState& s)
         {
             // received <attrKey> will be B64 encoded
             // received <attrValue> will have the real text value
-            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name }
-                    || attrtype == ATTR_DRIVE_NAMES // TLV: { B64enc DriveId, drive name}
+            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name } or { ext:B64enc DriveId, drive name }
                     || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
             {
                 putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
@@ -9813,7 +9848,15 @@ int main(int argc, char* argv[])
     startDir.reset();
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    delete CurlHttpIO::sslMutexes;
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
 #endif
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -10846,4 +10889,35 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
+}
+
+void exec_searchbyname(autocomplete::ACState &s)
+{
+    if (s.words.size() >= 2)
+    {
+        bool recursive = !s.extractflag("-norecursive");
+
+        NodeHandle nodeHandle;
+        if (s.words.size() == 3)
+        {
+            handle h;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+            nodeHandle.set6byte(h);
+        }
+
+        if (!recursive && nodeHandle.isUndef())
+        {
+            cout << "Search no recursive need node handle" << endl;
+            return;
+        }
+
+
+        std::string searchString = s.words[1].s;
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+
+        for (const auto& node : nodes)
+        {
+            cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
+        }
+    }
 }

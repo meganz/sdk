@@ -809,6 +809,27 @@ bool MegaUserAlert::hasSchedMeetingChanged(int) const
 {
     return false;
 }
+
+MegaStringList* MegaUserAlert::getUpdatedTitle() const
+{
+    return NULL;
+}
+
+MegaStringList* MegaUserAlert::getUpdatedTimeZone() const
+{
+    return NULL;
+}
+
+MegaIntegerList* MegaUserAlert::getUpdatedStartDate() const
+{
+    return NULL;
+}
+
+MegaIntegerList* MegaUserAlert::getUpdatedEndDate() const
+{
+    return NULL;
+}
+
 #endif
 MegaHandle MegaUserAlert::getHandle(unsigned) const
 {
@@ -2990,7 +3011,7 @@ MegaScheduledRules::~MegaScheduledRules()                               {}
 MegaScheduledRules* MegaScheduledRules::copy() const                    { return NULL; }
 int MegaScheduledRules::freq() const                                    { return 0; }
 int MegaScheduledRules::interval() const                                { return 0; }
-MegaTimeStamp MegaScheduledRules::until() const                         { return UNTIL_INVALID; }
+MegaTimeStamp MegaScheduledRules::until() const                         { return MEGA_INVALID_TIMESTAMP; }
 const mega::MegaIntegerList* MegaScheduledRules::byWeekDay() const      { return nullptr; }
 const mega::MegaIntegerList* MegaScheduledRules::byMonthDay() const     { return nullptr; }
 const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay() const  { return nullptr; }
@@ -5470,6 +5491,10 @@ void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, Mega
     pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
+void MegaApi::setSFUid(int sfuid)
+{
+    pImpl->setSFUid(sfuid);
+}
 #endif
 
 bool MegaApi::isSharesNotifiable()
@@ -5749,6 +5774,11 @@ MegaSet* MegaApi::getSet(MegaHandle sid)
 MegaHandle MegaApi::getSetCover(MegaHandle sid)
 {
     return pImpl->getSetCover(sid);
+}
+
+unsigned MegaApi::getSetElementCount(MegaHandle sid)
+{
+    return pImpl->getSetElementCount(sid);
 }
 
 MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
