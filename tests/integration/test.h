@@ -84,6 +84,7 @@ extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern bool gScanOnly;
+extern bool gSecureFlag;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
