@@ -183,12 +183,32 @@ void CacheableWriter::serializecompressedu64(uint64_t field)
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
 }
 
+void CacheableWriter::serializei8(int8_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializei32(int32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializei64(int64_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu64(uint64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu8(uint8_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -683,6 +703,30 @@ bool CacheableReader::unserializecompressedu64(uint64_t& field)
     return true;
 }
 
+bool CacheableReader::unserializei8(int8_t& field)
+{
+    if (ptr + sizeof(int8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int8_t>(ptr);
+    ptr += sizeof(int8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializei32(int32_t& field)
+{
+    if (ptr + sizeof(int32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int32_t>(ptr);
+    ptr += sizeof(int32_t);
+    fieldnum += 1;
+    return true;
+}
+
 bool CacheableReader::unserializei64(int64_t& field)
 {
     if (ptr + sizeof(int64_t) > end)
@@ -703,6 +747,30 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu8(uint8_t& field)
+{
+    if (ptr + sizeof(uint8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu64(uint64_t& field)
+{
+    if (ptr + sizeof(uint64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
@@ -1776,7 +1844,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
     return dt;
 }
 
-m_time_t m_time(m_time_t* tt)
+m_time_t m_time(m_time_t* tt )
 {
     // works for 32 or 64 bit time_t
     time_t t = time(NULL);
@@ -1837,6 +1905,57 @@ m_time_t m_mktime_UTC(const struct tm *src)
     t += dst.tm_gmtoff - dst.tm_isdst * 3600;
 #endif
     return t;
+}
+
+extern time_t stringToTimestamp(string stime, date_time_format_t format)
+{
+    if ((format == FORMAT_SCHEDULED_COPY && stime.size() != 14)
+       || (format == FORMAT_ISO8601 && stime.size() != 15))
+    {
+        return 0;
+    }
+
+    if (format == FORMAT_ISO8601)
+    {
+        stime.erase(8, 1); // remove T from stime (20220726T133000)
+    }
+
+    struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
+#ifdef _WIN32
+    for (int i = 0; i < stime.size(); i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
+
+    if (format == FORMAT_SCHEDULED_COPY)
+    {
+        // let mktime interprete if time has Daylight Saving Time flag correction
+        // TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+        dt.tm_isdst = -1;
+        return (mktime(&dt))*10;  // deciseconds
+    }
+    else
+    {
+        // user manually selects a date and a time to start the scheduled meeting in a specific time zone (independent fields on API)
+        // so users should take into account daylight saving for the time zone they specified
+        // this method should convert the specified string dateTime into Unix timestamp (UTC)
+        dt.tm_isdst = 0;
+        return mktime(&dt); // seconds
+    }
 }
 
 std::string rfc1123_datetime( time_t time )
@@ -2190,25 +2309,6 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    versionStorage += o.versionStorage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    versionStorage -= o.versionStorage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-}
-
-
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
     , mValue(value)
@@ -2448,6 +2548,59 @@ std::string getSafeUrl(const std::string &posturl)
         safeurl.replace(authKey, end - authKey, end - authKey, 'X');
     }
     return safeurl;
+}
+
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    const auto length = static_cast<unsigned int>(isAccess.size());
+
+    std::string input(length, '\0');
+
+    return isAccess.read((byte*)input.data(), length)
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
 }
 
 bool wildcardMatch(const string& text, const string& pattern)
@@ -2740,7 +2893,6 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
 
     return std::min(1.0, progress);
 }
-
 
 } // namespace mega
 

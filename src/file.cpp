@@ -29,6 +29,9 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
+
+mutex File::localname_mutex;
+
 File::File()
 {
     transfer = NULL;
@@ -36,6 +39,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fromInsycShare = false;
     temporaryfile = false;
     tag = 0;
 }
@@ -48,6 +52,18 @@ File::~File()
         transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
+}
+
+LocalPath File::getLocalname() const
+{
+    lock_guard<mutex> g(localname_mutex);
+    return localname_multithreaded;
+}
+
+void File::setLocalname(const LocalPath& ln)
+{
+    lock_guard<mutex> g(localname_mutex);
+    localname_multithreaded = ln;
 }
 
 bool File::serialize(string *d)
@@ -68,7 +84,7 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    auto tmpstr = localname.platformEncoded();
+    auto tmpstr = getLocalname().platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -207,7 +223,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen));
+    file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -274,7 +290,8 @@ File *File::unserialize(string *d)
 
 void File::prepare(FileSystemAccess&)
 {
-    transfer->localfilename = localname;
+    transfer->localfilename = getLocalname();
+    assert(transfer->localfilename.isAbsolute());
 }
 
 void File::start()
@@ -454,17 +471,19 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname, bool fromInshare)
 {
     sync = csync;
 
     n = cn;
     h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
-    localname = clocalname;
 
     syncxfer = true;
+    fromInsycShare = fromInshare;
     n->syncget = this;
+
+    setLocalname(clocalname);
 
     sync->threadSafeState->transferBegin(GET, size);
 }
@@ -523,7 +542,7 @@ void SyncFileGet::prepare(FileSystemAccess&)
         }
         else
         {
-            transfer->localfilename = sync->localroot->localname;
+            transfer->localfilename = sync->localroot->getLocalname();
         }
 
         LocalPath tmpfilename = LocalPath::tmpNameLocal();
@@ -554,7 +573,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare, n->parent->localnode->sync->isBackup());
+            n->parent->client->movetosyncdebris(n, fromInsycShare, n->parent->localnode->sync->isBackup());
         }
     }
 
@@ -579,8 +598,9 @@ void SyncFileGet::updatelocalname()
     {
         if (n->parent && n->parent->localnode)
         {
-            localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            LocalPath ln = n->parent->localnode->getLocalPath();
+            ln.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            setLocalname(ln);
         }
     }
 }
@@ -590,7 +610,8 @@ void SyncFileGet::completed(Transfer*, putsource_t source)
 {
     sync->threadSafeState->transferComplete(GET, size);
 
-    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
+    LocalPath ln = getLocalname();
+    LocalNode *ll = sync->checkpath(NULL, &ln, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {

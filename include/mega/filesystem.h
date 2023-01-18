@@ -252,6 +252,94 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
+class RemotePath
+{
+public:
+    // Create an empty path.
+    RemotePath() = default;
+
+    // Create a remote path from a string.
+    RemotePath(const string& path);
+
+    MEGA_DEFAULT_COPY_MOVE(RemotePath);
+
+    // For convenience.
+    RemotePath& operator=(const string& rhs);
+
+    // Compare this path against another.
+    bool operator==(const RemotePath& rhs) const;
+    bool operator==(const string& rhs) const;
+
+    // Return a string representing this path.
+    operator const string&() const;
+
+    // Add a component to the end of this path.
+    void appendWithSeparator(const RemotePath& component, bool always);
+    void appendWithSeparator(const string& component, bool always);
+
+    // Query whether the path begins with a separator.
+    bool beginsWithSeparator() const;
+
+    // Clear the path.
+    void clear();
+
+    // Query whether the path is empty.
+    bool empty() const;
+
+    // Query whether the path ends with a separator.
+    bool endsInSeparator() const;
+
+    // Locate the next path separator.
+    bool findNextSeparator(size_t& index) const;
+
+    // Query whether the path has any further components.
+    bool hasNextPathComponent(size_t index) const;
+
+    // Retrieve the next path component.
+    bool nextPathComponent(size_t& index, RemotePath& component) const;
+
+    // Add a path component to the start of this path.
+    void prependWithSeparator(const RemotePath& component);
+
+    // Return a string representing this path.
+    const string& str() const;
+
+    // Create a new path based on a portion of another.
+    RemotePath subpathFrom(size_t index) const;
+    RemotePath subpathTo(size_t index) const;
+
+    // For compatibility with LocalPath.
+    //
+    // Useful when we're metaprogramming and don't knwo whether the type
+    // provided by the caller is a local or remote path.
+    const string &toName(const FileSystemAccess&) const;
+
+private:
+    string mPath;
+}; // RemotePath
+
+// For convenience.  first = leaf name only   second = relative path
+using RemotePathPair = pair<RemotePath, RemotePath>;
+
+// For metaprogramming.
+template<typename T>
+struct IsPath
+  : public std::false_type
+{
+}; // IsPath<T>
+
+template<>
+struct IsPath<LocalPath>
+    : public std::true_type
+{
+}; // IsPath<LocalPath>
+
+template<>
+struct IsPath<RemotePath>
+  : public std::true_type
+{
+}; // IsPath<RemotePath>
+
 struct NameConflict {
     string cloudPath;
     vector<string> clashingCloudNames;
@@ -678,7 +766,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
-    handle fsidOf(const LocalPath& path, bool follow);
+    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck);
 
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
@@ -711,8 +799,6 @@ public:
 
     virtual void anomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath) = 0;
 }; // FilenameAnomalyReporter
-
-bool isCaseInsensitive(const FileSystemType type);
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
@@ -748,9 +834,6 @@ bool isReservedName(const string& name, nodetype_t type = FILENODE);
 // - If no anomalies were detected.
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
-#endif
 
 struct MEGA_API FSNode
 {

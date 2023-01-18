@@ -273,7 +273,13 @@ CurlHttpIO::CurlHttpIO()
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
-    if (!CRYPTO_get_locking_callback()
+    // It's needed to check if sslMutexes have been already initialized because
+    // in OpenSSL versions >= 1.1.0 these mutexes are not needed anymore and
+    // CRYPTO_get_locking_callback() always returns NULL.
+    // OPENSSL_VERSION_NUMBER could be used to skip this initialization, but
+    // since there are so many implementations of OpenSSL, I think that it's
+    // safer to provide the mutexes even if they are not really needed.
+    if (!CRYPTO_get_locking_callback() && !sslMutexes
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         && !CRYPTO_THREADID_get_callback())
 #else

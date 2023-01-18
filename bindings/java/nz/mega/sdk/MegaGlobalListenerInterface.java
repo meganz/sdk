@@ -218,4 +218,30 @@ public interface MegaGlobalListenerInterface {
      * @param event Details about the event
      */
     public void onEvent(MegaApiJava api, MegaEvent event);
+
+    /**
+     * This function is called when a Set has been updated (created / updated / removed)
+     *
+     * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
+     * MegaSet objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
+     * for them.
+     *
+     * @param api MegaApi object connected to the account
+     * @param sets List that contains the new or updated Sets
+     */
+    public void onSetsUpdate(MegaApiJava api, ArrayList<MegaSet> sets);
+
+    /**
+     * This function is called when a Set-Element has been updated (created / updated / removed)
+     *
+     * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
+     * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
+     * MegaSetElement::copy for them.
+     *
+     * @param api MegaApi object connected to the account
+     * @param elements List that contains the new or updated Set-Elements
+     */
+    public void onSetElementsUpdate(MegaApiJava api, ArrayList<MegaSetElement> elements);
 }
