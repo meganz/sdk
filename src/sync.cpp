@@ -8385,6 +8385,13 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
                 }
             }
 
+            if (parentRow.cloudNode &&
+                existingUpload->h != parentRow.cloudNode->handle)
+            {
+                LOG_verbose << "Adjusting the target folder for moved upload, was " << existingUpload->h << " now " << parentRow.cloudNode->handle;
+                existingUpload->h = parentRow.cloudNode->handle;
+            }
+
             bool canChangeVault = threadSafeState->mCanChangeVault;
             syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
@@ -8417,6 +8424,12 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
 
                     existingUpload->sendPutnodesOfUpload(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
+        }
+        else if (existingUpload->wasPutnodesCompleted)
+        {
+            SYNC_verbose << syncname << "Putnodes complete. Detaching upload in resolve_upsync." << logTriplet(row, fullPath);
+            row.syncNode->resetTransfer(nullptr);
+            return false; // revisit in case of further changes
         }
         else if (existingUpload->putnodesStarted)
         {
