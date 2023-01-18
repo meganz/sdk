@@ -197,12 +197,12 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     bool putnodesStarted = false;
 
     // Valid when wasPutnodesCompleted is true. (putnodes might be from upload, or shortcut node clone)
-    handle putnodesResultHandle;
+    handle putnodesResultHandle = UNDEF;
     bool putnodesFailed = false;
 
     std::atomic<bool> wasPutnodesCompleted{false};
 
-    handle sourceFsid;
+    handle sourceFsid = UNDEF;
     LocalPath sourceLocalname;
 
     // once the upload completes these are set.  todo: should we dynamically allocate space for these, save RAM for mass transfer cases?
