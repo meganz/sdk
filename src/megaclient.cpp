@@ -13866,9 +13866,8 @@ void MegaClient::fetchnodes(bool nocache)
                 }
 
                 if (loggedin() == FULLACCOUNT
-                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
+                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
                 {
-                    fetchkeys();
                     loadAuthrings();
                 }
 
@@ -13878,11 +13877,9 @@ void MegaClient::fetchnodes(bool nocache)
             });
 
             if (loggedin() == FULLACCOUNT
-                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS) // need to create early the chat and sign keys
             {
-                // create a fresh user
-                discarduser(me);
-                finduser(me, 1);
+                fetchkeys();
             }
 
             fetchtimezone();
@@ -13899,15 +13896,14 @@ void MegaClient::fetchkeys()
     fetchingkeys = true;
 
     resetKeyring();
-    User *u = finduser(me);
-    assert(u);
+    discarduser(me);
+    User *u = finduser(me, 1);
 
     // RSA public key is retrieved by getuserdata
 
-    if (!mKeyManager.generation())
-    {
-        getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
-    }
+    // This attribute won't be used for migrated accounts
+    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+
     getua(u, ATTR_ED25519_PUBK, 0);
     getua(u, ATTR_CU25519_PUBK, 0);
     getua(u, ATTR_SIG_CU255_PUBK, 0);
