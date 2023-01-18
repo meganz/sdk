@@ -16209,7 +16209,7 @@ class MegaApi
          * @param order Sorting order to use
          * @return List of MegaShare objects
          */
-        MegaShareList *getUnverifiedOutShares(int order);
+        MegaShareList *getUnverifiedOutShares(int order = ORDER_NONE);
 
         /**
          * @brief Check if a node belongs to your own cloud
