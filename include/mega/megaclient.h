@@ -675,9 +675,6 @@ public:
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
 
-    // check if logged in a folder link
-    bool loggedinfolderlink();
-
     // check the reason of being blocked
     void whyamiblocked();
 

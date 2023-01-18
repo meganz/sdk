@@ -5057,7 +5057,7 @@ bool CommandGetUserQuota::procresult(Result r)
                 break;
 
             case EOO:
-                assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
+                assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
                 if (mStorage)
                 {
