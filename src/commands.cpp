@@ -6809,7 +6809,6 @@ bool CommandChatCreate::procresult(Result r)
         int shard = -1;
         bool group = false;
         m_time_t ts = -1;
-        handle ou = UNDEF;
         std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         UserAlert::UpdatedScheduledMeeting::Changeset cs;
 
