@@ -16265,7 +16265,7 @@ void MegaClient::syncupdate(localnode_vector& synccreate, bool canChangeVault)
             {
                 makeNewFolderOrCloneFile = true;
             }
-            else if (n = nodebyfingerprint(l))
+            else if ((n = nodebyfingerprint(l)))
             {
 
                 string ext1, ext2;
