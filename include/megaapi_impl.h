@@ -3270,7 +3270,7 @@ class MegaApiImpl : public MegaApp
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -4425,7 +4425,7 @@ class MegaScheduledRulesPrivate : public MegaScheduledRules
 public:
     MegaScheduledRulesPrivate(int freq,
                                   int interval = INTERVAL_INVALID,
-                                  const char* until = nullptr,
+                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                   const mega::MegaIntegerList* byWeekDay = nullptr,
                                   const mega::MegaIntegerList* byMonthDay = nullptr,
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -4437,12 +4437,13 @@ public:
     MegaScheduledRulesPrivate* copy() const override;
     int freq() const override;
     int interval() const override;
-    const char* until() const override;
+    MegaTimeStamp until() const override;
     const mega::MegaIntegerList* byWeekDay() const override;
     const mega::MegaIntegerList* byMonthDay() const override;
     const mega::MegaIntegerMap* byMonthWeekDay() const override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+    static bool isValidUntil(m_time_t until) { return until > static_cast<m_time_t>(MEGA_INVALID_TIMESTAMP); }
     ScheduledRules* getSdkScheduledRules() const;
 
 private:
@@ -4453,7 +4454,7 @@ private:
     int mInterval = INTERVAL_INVALID;
 
     // specifies when the repetitions should end
-    std::string mUntil;
+    m_time_t mUntil;
 
     // allows us to specify that an event will only occur on given week day/s
     std::unique_ptr<mega::MegaIntegerList> mByWeekDay;
@@ -4470,8 +4471,8 @@ class MegaScheduledMeetingPrivate: public MegaScheduledMeeting
 public:
     MegaScheduledMeetingPrivate(MegaHandle chatid,
                                     const char* timezone,
-                                    const char* startDateTime,
-                                    const char* endDateTime,
+                                    MegaTimeStamp startDateTime,
+                                    MegaTimeStamp endDateTime,
                                     const char* title,
                                     const char* description,
                                     MegaHandle schedId = INVALID_HANDLE,
@@ -4479,7 +4480,7 @@ public:
                                     MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
-                                    const char* overrides = nullptr,
+                                    MegaTimeStamp overrides = MEGA_INVALID_TIMESTAMP,
                                     MegaScheduledFlags* flags = nullptr,
                                     MegaScheduledRules* rules = nullptr);
 
@@ -4494,12 +4495,12 @@ public:
     MegaHandle parentSchedId() const override;
     MegaHandle organizerUserid() const override;
     const char* timezone() const override;
-    const char* startDateTime() const override;
-    const char* endDateTime() const override;
+    MegaTimeStamp startDateTime() const override;
+    MegaTimeStamp endDateTime() const override;
     const char* title() const override;
     const char* description() const override;
     const char* attributes() const override;
-    const char* overrides() const override;
+    MegaTimeStamp overrides() const override;
     int cancelled() const override;
     MegaScheduledFlags* flags() const override;
     MegaScheduledRules* rules() const override;

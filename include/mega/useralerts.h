@@ -316,10 +316,12 @@ namespace UserAlert
 #ifdef ENABLE_CHAT
     struct NewScheduledMeeting : public Base
     {
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+        NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
             : Base(UserAlert::type_nusm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             {}
 
@@ -426,12 +428,14 @@ namespace UserAlert
             unique_ptr<TsChangeset> mUpdatedEndDateTime;
         };
 
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         Changeset mUpdatedChangeset;
 
         UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm, Changeset&& _cs)
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, Changeset&& _cs)
             : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             , mUpdatedChangeset(_cs)
             {}
@@ -443,10 +447,12 @@ namespace UserAlert
 
     struct DeletedScheduledMeeting : public Base
     {
+        handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         DeletedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _sm)
+        DeletedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm)
             : Base(UserAlert::type_dsm, _ou, string(), _ts, _id)
+            , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
             {}
 
