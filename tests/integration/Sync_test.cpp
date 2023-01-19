@@ -4571,7 +4571,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 #ifdef SRW_NEEDED_FOR_THIS_ONE
     addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
 #else
-    addModelFile(model1, "d/d_1", "a", data0);
+    addModelFile(model1, "d/d_1", "a", data1); // with treatAsIfFileDataEqual we can get this one right
 #endif
     model1.ensureLocalDebrisTmpLock("d");
 
