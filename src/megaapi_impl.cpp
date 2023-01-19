@@ -10337,9 +10337,12 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
     request->setParamType(chatOptions);
-    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-    l->insert(scheduledMeeting->copy());
-    request->setMegaScheduledMeetingList(l.get());
+    if (scheduledMeeting)
+    {
+        std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+        l->insert(scheduledMeeting->copy());
+        request->setMegaScheduledMeetingList(l.get());
+    }
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10726,9 +10729,12 @@ void MegaApiImpl::setSFUid(int sfuid)
 void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
-    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-    l->insert(scheduledMeeting->copy());
-    request->setMegaScheduledMeetingList(l.get());
+    if (scheduledMeeting)
+    {
+        std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+        l->insert(scheduledMeeting->copy());
+        request->setMegaScheduledMeetingList(l.get());
+    }
     requestQueue.push(request);
     waiter->notify();
 }
