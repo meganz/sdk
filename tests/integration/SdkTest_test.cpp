@@ -8980,6 +8980,39 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     string folder2 = "EnhancedSecurityShares-2";
     string folder3 = "EnhancedSecurityShares-3";
 
+    // Auxiliar function to create a share ensuring node changes are notified.
+    auto createShareAtoB = [this](MegaNode* node)
+    {
+        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
+        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
+        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
+        ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
+        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    };
+
+    // Auxiliar function to remove a share ensuring node changes are notified.
+    auto removeShareAtoB = [this](MegaNode* node)
+    {
+        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
+        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
+        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
+        ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
+        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    };
+
+    // Auxiliar function to reset both accounts credentials verification
+    auto resetAllCredentials = [this]()
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
+        ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
+        ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    };
+
     // Make accounts contacts
     LOG_verbose << "EnhancedSecurityShares :  Make account contacts";
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
@@ -9030,13 +9063,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     // Create share.
     // B should end with a new inshare and able to decrypt the new node.
     LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
@@ -9047,24 +9074,17 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Remove share
     LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE( shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials
     LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-    ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
 
     //
@@ -9087,15 +9107,10 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     // Create share
     // B should end with an unverified inshare and be unable to decrypt the node.
     LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    WaitMillisec(3000);
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
@@ -9105,7 +9120,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     // Verify A credentials in B account
     // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
     LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated); // file name is set when decrypted.
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
     ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
@@ -9119,24 +9134,18 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Remove share
     LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE( shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials:
     LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-    ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+
 
     //
     // 3: None are verified. Then A verifies B and later B verifies A.
@@ -9152,13 +9161,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     // Create share.
     // A should end with an unverified outshare and B should have an unverified inshare and unable to decrypt the new node.
     LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
@@ -9168,14 +9171,14 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
 
     // Verify B credentials in A account
-    // Unverified outshare in A should be promoted to an outshare. No changes expected in B, the share should still be unverified.
-    // TODO: Como se enteran las apps?
+    // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
     LOG_verbose << "EnhancedSecurityShares :  Verify B credentials";
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
     ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    WaitMillisec(3000);
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
@@ -9198,24 +9201,17 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Remove share
     LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE( shareFolder(remoteBaseNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
-    resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials
     LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-    ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-    ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
-    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
     // Delete contacts
     LOG_verbose << "EnhancedSecurityShares :  Remove Contact";
