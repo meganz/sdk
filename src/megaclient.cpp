@@ -18876,6 +18876,27 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
     return false;
 }
 
+set<handle> MegaClient::getSetElementIdsInRubbish(handle sid)
+{
+    set<handle> inRubbish;
+    auto itS = mSetElements.find(sid);
+
+    if (itS != mSetElements.end())
+    {
+        const auto& s = itS->second;
+        for (const auto& e : s)
+        {
+            Node* n = nodebyhandle(e.second.node());
+            if (n && n->firstancestor()->nodeHandle() == mNodeManager.getRootNodeRubbish())//RUBBISHNODE)
+            {
+                inRubbish.insert(e.first);
+            }
+        }
+    }
+
+    return inRubbish;
+}
+
 const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
 {
     handle sid = el.set();

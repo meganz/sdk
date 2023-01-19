@@ -2407,6 +2407,8 @@ public:
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
+    set<handle> getSetElementIdsInRubbish(handle sid);
+
 private:
 
     error readSets(JSON& j, map<handle, Set>& sets);

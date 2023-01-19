@@ -23860,21 +23860,38 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
-unsigned MegaApiImpl::getSetElementCount(MegaHandle sid)
+unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
-    return client->getSetElementCount(sid);
+    unsigned count = client->getSetElementCount(sid);
+
+    if (!includeElementsInRubbishBin)
+    {
+        std::set<handle> ids = client->getSetElementIdsInRubbish(sid);
+        count -= unsigned(ids.size());
+    }
+
+    return count;
 }
 
-MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
     auto* elements = client->getSetElements(sid);
-    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
 
-    return eList;
+    if (includeElementsInRubbishBin)
+    {
+        MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
+        return eList;
+    }
+    else
+    {
+        std::set<handle> ids = client->getSetElementIdsInRubbish(sid);
+        MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, &ids);
+        return eList;
+    }
 }
 
 MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
@@ -23930,15 +23947,20 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::set<handle>* filterOut)
 {
     if (elements)
     {
-        mElements.reserve(elements->size());
+        auto filterOutSize = filterOut ? filterOut->size() : 0;
+
+        mElements.reserve(elements->size() - filterOutSize);
         for (const auto& e : *elements)
         {
-            const SetElement& el = e.second;
-            add(MegaSetElementPrivate(el));
+            if (!filterOutSize || filterOut->find(e.first) == filterOut->end())
+            {
+                const SetElement& el = e.second;
+                add(MegaSetElementPrivate(el));
+            }
         }
     }
 }
