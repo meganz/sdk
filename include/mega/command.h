@@ -1658,7 +1658,7 @@ class MEGA_API CommandScheduledMeetingFetchEvents : public Command
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 
