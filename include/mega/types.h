@@ -124,6 +124,7 @@ struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
+class NodeManager;
 struct NewNode;
 struct Node;
 struct NodeCore;
@@ -351,6 +352,7 @@ typedef enum {
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
+typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
 // MimeType_t maps to file extensionse declared at Node
 typedef enum { MIME_TYPE_UNKNOWN    = 0,
@@ -359,7 +361,6 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_VIDEO      = 3,    // videoExtensions
                MIME_TYPE_DOCUMENT   = 4     // documentExtensions
              } MimeType_t;
-
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -429,6 +430,9 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
+
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
@@ -457,6 +461,8 @@ enum ScanResult
 }; // ScanResult
 
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
@@ -500,6 +506,7 @@ enum SyncError {
     UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
     UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
     INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
+    FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
 };
 
 enum SyncWarning {
@@ -518,7 +525,7 @@ typedef map<handle, LocalNode*> handlelocalnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
-typedef multimap<int32_t, LocalNode*> idlocalnode_map;
+typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
 struct UnlinkOrDebris {
     bool unlink = false;
@@ -628,20 +635,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<NodeHandle, Node*> node_map;
-
-struct NodeCounter
-{
-    m_off_t storage = 0;
-    m_off_t versionStorage = 0;
-    size_t files = 0;
-    size_t folders = 0;
-    size_t versions = 0;
-    void operator += (const NodeCounter&);
-    void operator -= (const NodeCounter&);
-};
-
-typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
+typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -704,8 +698,8 @@ typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
+typedef multimap<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
-
 
 // user attribute types
 typedef enum {
@@ -745,7 +739,7 @@ typedef enum {
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
@@ -840,6 +834,13 @@ typedef enum {
 } AuthMethod;
 
 typedef std::map<attr_t, AuthRing> AuthRingsMap;
+
+typedef enum {
+    REASON_ERROR_UNSERIALIZE_NODE = 0,
+    REASON_ERROR_WRITE_DB = 1,
+    REASON_ERROR_NODE_INCONSISTENCY = 2,
+    REASON_ERROR_UNKNOWN = 3,
+} ReasonsToReload;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
@@ -1043,7 +1044,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
+    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:
@@ -1142,6 +1143,7 @@ public:
         }
     }
 
+    // cancel() can be invoked from any thread
     void cancel()
     {
         if (flag)
@@ -1177,6 +1179,11 @@ public:
     }
 };
 
+typedef std::map<NodeHandle, Node*> nodePtr_map;
+
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

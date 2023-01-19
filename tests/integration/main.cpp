@@ -16,6 +16,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
+bool gScanOnly = false; // will be used in SRW
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 
@@ -454,6 +455,11 @@ int main (int argc, char *argv[])
             gOutputToCout = true;
             argc -= 1;
         }
+        else if (std::string(*it) == "--SCANONLY")
+        {
+            gScanOnly = true;
+            argc -= 1;
+        }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
@@ -528,6 +534,18 @@ int main (int argc, char *argv[])
     if (startOneSecLogger) one_sec_logger.join();
 
     //SimpleLogger::setOutputClass(nullptr);
+
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
+#endif
 
     return ret;
 }
@@ -651,14 +669,9 @@ fs::path makeNewTestRoot()
 
     std::error_code e;
     bool b = fs::create_directories(p, e);
-    if (!b) { out() << "Failed to create base directory for test at: " << p << ", error: " << e.message(); }
+    if (!b) { out() << "Failed to create base directory for test at: " << p.u8string() << ", error: " << e.message(); }
     assert(b);
     return p;
-}
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
-{
-    return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
 fs::path makeReusableClientFolder(const string& subfolder)
