@@ -3556,11 +3556,6 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
-}
-
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeSyncById(backupId, listener);
@@ -3666,6 +3661,11 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 }
 #endif
 
+
+void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
+{
+    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
+}
 
 MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {

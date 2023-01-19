@@ -14982,30 +14982,6 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Move or Remove the nodes that used to be part of backup.
-         *
-         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
-         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
-         * To move the nodes instead, specify the destination folder in backupDestination.
-         *
-         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
-         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
-         *                          or backupDestination was not in Files or Rubbish
-         *
-         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
@@ -15240,6 +15216,30 @@ class MegaApi
         char *getBlockedPath();
 
 #endif
+
+        /**
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the backup identified with a tag
