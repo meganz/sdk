@@ -1392,13 +1392,13 @@ bool DirectReadSlot::processAnyOutputPieces()
 bool DirectReadSlot::waitForPartsInFlight() const
 {
     return DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT &&
-            (mDr->drbuf.isRaid() || (mReqs.size() > 1)) &&
+            mDr->drbuf.isRaid() &&
             mWaitForParts;
 }
 
 unsigned DirectReadSlot::usedConnections() const
 {
-    assert(mDr->drbuf.isRaid() || (mReqs.size() > 1));
+    assert(mDr->drbuf.isRaid());
     if (!mDr->drbuf.isRaid() || mReqs.empty())
     {
         LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't";
@@ -1657,24 +1657,8 @@ bool DirectReadSlot::doio()
         }
 
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-        bool submitCondition = req && (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
-        if (submitCondition)
-        {
-            if (isRaid)
-            {
-                submitCondition = static_cast<unsigned>(connectionNum) != mUnusedRaidConnection;
-            }
-            else
-            {
-                unsigned previousConnectionNum = static_cast<unsigned>((connectionNum + 1)) % static_cast<unsigned>(mReqs.size());
-                bool nonraidSubmitCondition = (previousConnectionNum == static_cast<unsigned>(connectionNum)) ||
-                                                    !mReqs[previousConnectionNum] ||
-                                                    mReqs[previousConnectionNum]->status == REQ_READY ||
-                                                    mReqs[previousConnectionNum]->status == REQ_DONE ||
-                                                    req->pos < mReqs[previousConnectionNum]->pos;
-                submitCondition = nonraidSubmitCondition;
-            }
-        }
+        bool isNotUnusedConnection = !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedRaidConnection);
+        bool submitCondition = req && isNotUnusedConnection && (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
 
         if (submitCondition)
         {
@@ -1776,19 +1760,7 @@ bool DirectReadSlot::doio()
 
         if (!req || req->status == REQ_READY)
         {
-            bool waitForOthers = false;
-            if (isRaid)
-            {
-                waitForOthers = waitForPartsInFlight();
-            }
-            else
-            {
-                unsigned previousConnectionNum = static_cast<unsigned>((connectionNum + 1)) % static_cast<unsigned>(mReqs.size());
-                bool nonraidWaitCondition = (previousConnectionNum == static_cast<unsigned>(connectionNum)) &&                               // Not the same connection (true when mReqs.size() > 1)
-                                            mReqs[previousConnectionNum] && (mReqs[previousConnectionNum]->status == REQ_INFLIGHT) &&       // Previous request is still inflight
-                                            (mThroughput[previousConnectionNum].first < (mMaxChunkSize / 2));                               // Previous request hasn't reached half mMaxChunkSize
-                waitForOthers = nonraidWaitCondition;
-            }
+            bool waitForOthers = isRaid ? waitForPartsInFlight() : false;
             if (!waitForOthers)
             {
                 if (searchAndDisconnectSlowestConnection(connectionNum))
@@ -1840,11 +1812,6 @@ bool DirectReadSlot::doio()
                         if (!req)
                         {
                             mReqs[connectionNum] = make_unique<HttpReq>(true);
-                        }
-
-                        if (!isRaid)
-                        {
-                            posrange.second = std::min(posrange.second, posrange.first + mMaxChunkSize);
                         }
 
                         char buf[128];
@@ -2004,8 +1971,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     mSpeed = mMeanSpeed = 0;
 
     assert(mReqs.empty());
-    size_t numReqs = mDr->drbuf.isRaid() ? mDr->drbuf.tempUrlVector().size() : MAX_CONNECTIONS_FOR_NON_RAID;
-    assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : (numReqs <= MAX_CONNECTIONS_FOR_NON_RAID));
+    size_t numReqs = mDr->drbuf.isRaid() ? mDr->drbuf.tempUrlVector().size() : 1;
+    assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : 1);
     for (size_t i = numReqs; i--; )
     {
         mReqs.push_back(make_unique<HttpReq>(true));
