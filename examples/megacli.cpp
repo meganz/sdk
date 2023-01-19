@@ -3069,7 +3069,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 t->serialize(&serialized);
 
                 // put the transfer in cachedtransfers so we can resume it
-                Transfer::unserialize(client, &serialized, client->cachedtransfers);
+                Transfer::unserialize(client, &serialized, client->multi_cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
                 auto fpstr = t->files.front()->getLocalname().toPath(false);
@@ -4075,7 +4075,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
@@ -5030,6 +5030,8 @@ void exec_cp(autocomplete::ACState& s)
 
 void exec_du(autocomplete::ACState &s)
 {
+    bool listfolders = s.extractflag("-listfolders");
+
     Node *n;
 
     if (s.words.size() > 1)
@@ -5043,16 +5045,40 @@ void exec_du(autocomplete::ACState &s)
     else
     {
         n = client->nodeByHandle(cwd);
+        if (!n)
+        {
+            cout << "cwd not set" << endl;
+            return;
+        }
     }
 
-    NodeCounter nc = n->getCounter();
+    if (listfolders)
+    {
+        auto list = client->getChildren(n);
+        vector<Node*> vec(list.begin(), list.end());
+        std::sort(vec.begin(), vec.end(), [](Node* a, Node* b){
+            return a->getCounter().files + a->getCounter().folders <
+                   b->getCounter().files + b->getCounter().folders; });
+        for (Node* f : vec)
+        {
+            if (f->type == FOLDERNODE)
+            {
+                NodeCounter nc = f->getCounter();
+                cout << "folders:" << nc.folders << " files: " << nc.files << " versions: " << nc.versions << " storage: " << (nc.storage + nc.versionStorage) << " " << f->displayname() << endl;
+            }
+        }
+    }
+    else
+    {
+        NodeCounter nc = n->getCounter();
 
-    cout << "Total storage used: " << nc.storage << endl;
-    cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
+        cout << "Total storage used: " << nc.storage << endl;
+        cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
 
-    cout << "Total # of files: " << nc.files << endl;
-    cout << "Total # of folders: " << nc.folders << endl;
-    cout << "Total # of versions: " << nc.versions << endl;
+        cout << "Total # of files: " << nc.files << endl;
+        cout << "Total # of folders: " << nc.folders << endl;
+        cout << "Total # of versions: " << nc.versions << endl;
+    }
 }
 
 void exec_get(autocomplete::ACState& s)
@@ -5369,8 +5395,8 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
         return;
     }
 
-    ScanService s(*client->waiter);
-    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+    ScanService s;
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {}, client->waiter);
 
     while (!r->completed())
     {
@@ -9798,9 +9824,9 @@ int main(int argc, char* argv[])
     auto httpIO = new HTTPIO_CLASS;
 
 #ifdef WIN32
-    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
 #else
-    auto waiter = new CONSOLE_WAIT_CLASS;
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>();
 #endif
 
     auto demoApp = new DemoApp;
@@ -9838,7 +9864,6 @@ int main(int argc, char* argv[])
     megacli();
 
     delete client;
-    delete waiter;
     delete httpIO;
     delete gfx;
     delete demoApp;
