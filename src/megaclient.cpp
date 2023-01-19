@@ -17936,7 +17936,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         error e = API_OK;
         cs.oldValue = j->getint();
         cs.newValue = j->getint();
-        bool updated = static_cast<bool>(cs.newValue);
+        bool updated = cs.newValue > 0;
         if (!updated)
         {
             e = API_ENOENT;
