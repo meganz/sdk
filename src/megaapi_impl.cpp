@@ -12037,20 +12037,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelT
 
 MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
 {
-
-
-    if (cancelToken.isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken.isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
     if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_DOCUMENT))
     {
         // If node is not valid, and no search string, and mimeType is not valid
@@ -12064,6 +12050,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
 
     if (mimeType != MegaApi::FILE_TYPE_DEFAULT
             && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (cancelToken.isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
@@ -12099,7 +12097,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         if (target == MegaApi::SEARCH_TARGET_ALL)
         {
             result = searchInNodeManager(UNDEF, searchString, mimeType, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-
         }
         else if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
@@ -12163,7 +12160,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
             }
             else
             {
-                // ignores mimTytpe, requiredFlags, excludeFlags, excludeRecursiveFlags
+                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
                 node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
@@ -12175,7 +12172,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
             {
                 // Search on outshares
                 std::set<MegaHandle> outsharesHandles;
-                unique_ptr<MegaShareList>shares(getOutShares(MegaApi::ORDER_NONE));
+                unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
                 for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
                     handle h = shares->get(i)->getNodeHandle();
@@ -12196,7 +12193,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
             }
             else
             {
-                // ignores mimTytpe, requiredFlags, excludeFlags, excludeRecursiveFlags
+                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
                 node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
