@@ -64,5 +64,5 @@ take care of these issues for you.
 ## How to build and run the project:
 
 To build and run the project with Python bindings, please refer to this section: 
-[Build/Install Python Bindings](https://github.com/meganz/sdk/tree/develop/bindings/python)
+[Build/Install Python Bindings](https://github.com/meganz/sdk/tree/master/bindings/python)
 

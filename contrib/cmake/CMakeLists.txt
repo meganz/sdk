@@ -1036,14 +1036,6 @@ add_executable(test_integration
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
 
-if(APPLE)
-    add_executable(test_integration_fsevents_loader
-        ${MegaDir}/tests/integration/fsevents_loader_main.cpp
-    )
-
-    add_dependencies(test_integration_fsevents_loader test_integration)
-endif()
-
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )
@@ -1090,9 +1082,6 @@ configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-if (APPLE)
-    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
-endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
