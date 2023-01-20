@@ -1092,7 +1092,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        if (client->loggedinfolderlink())
+        if (client->loggedIntoFolder())
         {
             if (client->isValidFolderLink())
             {
@@ -10880,7 +10880,7 @@ void exec_numberofnodes(autocomplete::ACState &s)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish
-    if (!client->loggedinfolderlink())
+    if (!client->loggedIntoFolder())
     {
         numberOfNodes += 3;
     }

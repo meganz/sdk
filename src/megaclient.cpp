@@ -4885,7 +4885,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
 
-                            if (!loggedinfolderlink())
+                            if (!loggedIntoFolder())
                             {
                                 // historic user alerts are not supported for public folders
                                 // now that we have fetched everything and caught up actionpackets since that state,
@@ -10230,7 +10230,7 @@ int MegaClient::dumpsession(string& session)
 {
     session.clear();
 
-    if (!loggedinfolderlink())
+    if (!loggedIntoFolder())
     {
         if (loggedin() == NOTLOGGEDIN)
         {
@@ -10366,7 +10366,7 @@ void MegaClient::opensctable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -10410,7 +10410,7 @@ void MegaClient::doOpenStatusTable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -12423,11 +12423,6 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     return e;
 }
 
-bool MegaClient::loggedinfolderlink()
-{
-    return !ISUNDEF(mFolderLink.mPublicHandle);
-}
-
 sessiontype_t MegaClient::loggedin()
 {
     if (ISUNDEF(me))
@@ -13000,7 +12995,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         tckey = key;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -13071,7 +13066,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
-    if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
+    if ((!sid.size() && !loggedIntoFolder()) || statecurrent)
     {
         TransferDbCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
@@ -13111,7 +13106,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -13145,7 +13140,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         fnstats.type = FetchNodesStats::TYPE_ACCOUNT;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         fnstats.type = FetchNodesStats::TYPE_FOLDER;
     }
@@ -13265,7 +13260,7 @@ void MegaClient::fetchnodes(bool nocache)
         syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
     #endif
 
-        if (!loggedinfolderlink())
+        if (!loggedIntoFolder())
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
