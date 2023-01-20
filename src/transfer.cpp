@@ -1070,7 +1070,6 @@ void Transfer::complete(TransferDbCommitter& committer)
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this, true);
-        return;
     }
 }
 
@@ -1079,6 +1078,7 @@ void Transfer::completefiles()
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;
+    bool wakeSyncs = false;
 
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
@@ -1105,6 +1105,7 @@ void Transfer::completefiles()
                 // operation turns out to be invalidated (eg. uploaded file deleted before putnodes)
                 // then we must inform the app of the final transfer outcome.
                 client->transferBackstop.remember(put->tag, put->selfKeepAlive);
+                wakeSyncs = true;
             }
         }
 #endif // ENABLE_SYNC
@@ -1114,6 +1115,12 @@ void Transfer::completefiles()
         files.erase(it++);
     }
     ids.push_back(dbid);
+    if (wakeSyncs)
+    {
+        // for a sync that is only uploading, there's no other mechansim to wake it up early between tree recursions
+        client->syncs.skipWait = true;
+        client->syncs.waiter->notify();
+    }
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)

@@ -52,6 +52,7 @@ public:
     MegaClient* client; // non-owning
 
     int tag;
+    string commandStr;
 
     bool persistent;
 

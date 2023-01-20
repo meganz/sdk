@@ -10651,9 +10651,16 @@ void Syncs::syncLoop()
         // If traversals are very long, have a fair wait between (up to 5 seconds)
         // If something happens that means the sync needs attention, the waiter
         // should be woken up by a waiter->notify() call, and we break out of this wait
-        waiter->init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
-        waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
-        waiter->wait();
+        if (!skipWait)
+        {
+            LOG_verbose << "starting sync wait, delay " << 10 + std::min<unsigned>(lastRecurseMs, 10000)/200;
+            waiter->init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
+            waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
+            waiter->wait();
+            LOG_verbose << "sync wait complete";
+        }
+        skipWait = false;
+        lastRecurseMs = 0;
 
         fsaccess->checkevents(waiter.get());
 
@@ -10701,7 +10708,10 @@ void Syncs::syncLoop()
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
         // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
         if (!mClient.actionpacketsCurrent)
+        {
+            LOG_verbose << "not ready to sync recurse, actionpackets are changing nodes";
             continue;
+        }
 
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
