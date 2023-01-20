@@ -7492,6 +7492,8 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
+        handle parentSchedId = sm->parentSchedId();
+        m_time_t overrides = sm->overrides();
         handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
 
         // remove all child scheduled meeting occurrences
@@ -7518,7 +7520,7 @@ void MegaClient::sc_scheduledmeetings()
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
                 else createUpdatedSMAlert(ou, chat->id, schedId, std::move(cs));
             }
         }
@@ -7526,7 +7528,7 @@ void MegaClient::sc_scheduledmeetings()
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm, handle parentSchedId, m_time_t override)
 {
     if (ou == me)
     {
@@ -7534,7 +7536,7 @@ void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, parentSchedId, override));
 }
 
 void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm)

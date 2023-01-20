@@ -1488,8 +1488,7 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
-
-    void createNewSMAlert(const handle&, handle chatid, handle schedId);
+    void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t override);
     void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
     void createUpdatedSMAlert(const handle&, handle chatid, handle schedId,
                               UserAlert::UpdatedScheduledMeeting::Changeset&& cs);

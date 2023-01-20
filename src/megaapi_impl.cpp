@@ -2007,6 +2007,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              email = p->email();
              nodeHandle = p->mChatid;
              schedMeetingId = p->mSchedMeetingHandle;
+             mPcrHandle = p->mParentSchedId;
+             numbers.push_back(p->mStartDateTime);
          }
          else
          {
