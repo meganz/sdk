@@ -23860,19 +23860,44 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
+std::function<bool(handle)> MegaApiImpl::nodeInRubbishCheck() const
+{
+    auto f = [this](handle h) -> bool
+    {
+        Node* n = client->nodebyhandle(h);
+        bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
+        return inRubbish;
+    };
+
+    return f;
+}
+
 unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
-    unsigned count = client->getSetElementCount(sid);
-
-    if (!includeElementsInRubbishBin)
+    if (includeElementsInRubbishBin)
     {
-        std::set<handle> ids = client->getSetElementIdsInRubbish(sid);
-        count -= unsigned(ids.size());
+        return client->getSetElementCount(sid);
     }
+    else
+    {
+        unsigned count = 0;
+        auto* elements = client->getSetElements(sid);
+        if (elements)
+        {
+            std::function<bool(handle)> filterOut = nodeInRubbishCheck();
+            for (const auto& e : *elements)
+            {
+                if (!filterOut(e.second.node()))
+                {
+                    ++count;
+                }
+            }
+        }
 
-    return count;
+        return count;
+    }
 }
 
 MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
@@ -23880,18 +23905,10 @@ MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElem
     SdkMutexGuard g(sdkMutex);
 
     auto* elements = client->getSetElements(sid);
+    std::function<bool(handle)> filterOut = includeElementsInRubbishBin ? nullptr : nodeInRubbishCheck();
 
-    if (includeElementsInRubbishBin)
-    {
-        MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
-        return eList;
-    }
-    else
-    {
-        std::set<handle> ids = client->getSetElementIdsInRubbish(sid);
-        MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, &ids);
-        return eList;
-    }
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, filterOut);
+    return eList;
 }
 
 MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
@@ -23947,21 +23964,20 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::set<handle>* filterOut)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut)
 {
     if (elements)
     {
-        auto filterOutSize = filterOut ? filterOut->size() : 0;
-
-        mElements.reserve(elements->size() - filterOutSize);
+        mElements.reserve(elements->size());
         for (const auto& e : *elements)
         {
-            if (!filterOutSize || filterOut->find(e.first) == filterOut->end())
+            if (!filterOut || !filterOut(e.second.node()))
             {
                 const SetElement& el = e.second;
                 add(MegaSetElementPrivate(el));
             }
         }
+        mElements.shrink_to_fit();
     }
 }
 

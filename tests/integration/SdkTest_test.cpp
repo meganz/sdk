@@ -9784,6 +9784,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->user(), s1up->user());
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u) << "Wrong Element count after resumeSession";
 
     unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(ellp, nullptr);

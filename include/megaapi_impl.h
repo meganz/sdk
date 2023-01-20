@@ -783,7 +783,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::set<handle>* filterOut = nullptr);
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
@@ -2658,7 +2658,10 @@ class MegaApiImpl : public MegaApp
         unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+    private:
+        std::function<bool(handle)> nodeInRubbishCheck() const;
 
+    public:
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
