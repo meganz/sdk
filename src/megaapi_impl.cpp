@@ -10729,6 +10729,7 @@ void MegaApiImpl::setSFUid(int sfuid)
 void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
+    assert(scheduledMeeting);
     if (scheduledMeeting)
     {
         std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
