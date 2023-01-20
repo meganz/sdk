@@ -3144,7 +3144,7 @@ protected:
         std::thread::id threadId;
         MegaClient *client;
         MegaHttpIO *httpio;
-        MegaWaiter *waiter;
+        shared_ptr<MegaWaiter> waiter;
         unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
