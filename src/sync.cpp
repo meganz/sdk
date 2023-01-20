@@ -3147,7 +3147,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
         }
     }
 
-    LOG_debug << "Couldn't load internal sync configs from disk: "
+    LOG_err << "Couldn't load internal sync configs from disk: "
             << result;
 
     return result;
