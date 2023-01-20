@@ -294,8 +294,7 @@ TransferSlot::~TransferSlot()
 
     if (transfer->asyncopencontext)
     {
-        delete transfer->asyncopencontext;
-        transfer->asyncopencontext = NULL;
+        transfer->asyncopencontext.reset();
         transfer->client->asyncfopens--;
     }
 

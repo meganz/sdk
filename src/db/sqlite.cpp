@@ -900,6 +900,12 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNodeByName);
     mStmtNodeByName = nullptr;
 
+    sqlite3_finalize(mStmtNodeByNameNoRecursive);
+    mStmtNodeByNameNoRecursive = nullptr;
+
+    sqlite3_finalize(mStmtInShareOutShareByName);
+    mStmtInShareOutShareByName = nullptr;
+
     sqlite3_finalize(mStmtNodeByMimeType);
     mStmtNodeByMimeType = nullptr;
 
@@ -1295,10 +1301,10 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
         uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION);
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND n1.name LIKE ?";
-        // %% is added to the argument ? so we are lokoing for a substring of name
-        // like is case insenstive
-        // 
+                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND LOWER(n1.name) GLOB LOWER(?)";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // GLOB is case sensitive
+        //
         // If we want to add support to names in UTF-8, a new
         // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
 
@@ -1308,7 +1314,7 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     bool result = false;
     if (sqlResult == SQLITE_OK)
     {
-        string wildCardName = "%" + name + "%";
+        string wildCardName = "*" + name + "*";
         if ((sqlResult = sqlite3_bind_text(mStmtNodeByName, 1, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtNodeByName, nodes);
@@ -1326,6 +1332,120 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     }
 
     sqlite3_reset(mStmtNodeByName);
+
+    return result;
+}
+
+bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized> >& nodes, NodeHandle parentHandle, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    assert(!name.empty());
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    int sqlResult = SQLITE_OK;
+    if (!mStmtNodeByNameNoRecursive)
+    {
+        std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                               "FROM nodes n1 "
+                               "WHERE n1.parenthandle = ? AND LOWER(n1.name) GLOB LOWER(?)";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // GLOB is case sensitive
+        //
+        // If we want to add support to names in UTF-8, a new
+        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByNameNoRecursive, NULL);
+    }
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(mStmtNodeByNameNoRecursive, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            string wildCardName = "*" + name + "*";
+            if ((sqlResult = sqlite3_bind_text(mStmtNodeByNameNoRecursive, 2, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+            {
+                result = processSqlQueryNodes(mStmtNodeByNameNoRecursive, nodes);
+            }
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get nodes by name from database without recursion: " << dbfile << err;
+        assert(!"Unable to get nodes by name from database without recursion.");
+    }
+
+    sqlite3_reset(mStmtNodeByNameNoRecursive);
+
+    return result;
+}
+
+bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized> >& nodes, ShareType_t shareType, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    assert(!name.empty());
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    int sqlResult = SQLITE_OK;
+    if (!mStmtInShareOutShareByName)
+    {
+        std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                               "FROM nodes n1 "
+                               "WHERE n1.share = ? AND LOWER(n1.name) GLOB LOWER(?)";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // GLOB is case sensitive
+        //
+        // If we want to add support to names in UTF-8, a new
+        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtInShareOutShareByName, NULL);
+    }
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(mStmtInShareOutShareByName, 1, static_cast<int>(shareType))) == SQLITE_OK)
+        {
+            string wildCardName = "*" + name + "*";
+            if ((sqlResult = sqlite3_bind_text(mStmtInShareOutShareByName, 2, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+            {
+                result = processSqlQueryNodes(mStmtInShareOutShareByName, nodes);
+            }
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get in-shares/out-shares by name from database: " << dbfile << err;
+        assert(!"Unable to get in-shares/out-shares by name from database: ");
+    }
+
+    sqlite3_reset(mStmtInShareOutShareByName);
 
     return result;
 }
