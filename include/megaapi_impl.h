@@ -1477,8 +1477,6 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
         MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
-        MegaScheduledMeeting *getScheduledMeeting() const override;
-        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
@@ -1549,7 +1547,6 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
-        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
         unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
@@ -2975,7 +2972,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = nullptr, MegaRequestListener* listener = NULL);
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
