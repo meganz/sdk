@@ -172,34 +172,53 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
             std::string encryptedKey = client->mKeyManager.encryptShareKeyTo(userhandle, shareKey);
             if (encryptedKey.empty())
             {
-                LOG_debug << "Unable to encrypt share key (contact not verified?)";
+                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
                 completionCallback(e, writable);
                 return;
             }
 
             client->reqs.add(new CommandPendingKeys(client, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [writable, completionCallback](Error err)
+            [client, uid, nodehandle, writable, completionCallback](Error err)
             {
                 if (err)
                 {
                     LOG_err << "Error sending share key: " << err;
+                    completionCallback(API_OK, writable);
                 }
                 else
                 {
                     LOG_debug << "Share key correctly sent";
+                    client->mKeyManager.commit(
+                    [client, nodehandle, uid]()
+                    {
+                        // Changes to apply in the commit
+                        client->mKeyManager.removePendingOutShare(nodehandle, uid);
+                    },
+                    [completionCallback, writable]()
+                    {
+                        completionCallback(API_OK, writable);
+                    });
                 }
-                completionCallback(API_OK, writable);
             }));
         }));
     };
 
-    if (newshare)
+    if (newshare || uid.size())
     {
         client->mKeyManager.commit(
-        [client, nodehandle, shareKey]()
+        [client, newshare, nodehandle, shareKey, uid]()
         {
             // Changes to apply in the commit
-            client->mKeyManager.addOutShareKey(nodehandle, shareKey);
+            if (newshare)
+            {
+                client->mKeyManager.addOutShareKey(nodehandle, shareKey);
+            }
+
+            if (uid.size()) // not a folder link, but a share with a user
+            {
+                // Add pending outshare;
+                client->mKeyManager.addPendingOutShare(nodehandle, uid);
+            }
         },
         [completeShare]()
         {
