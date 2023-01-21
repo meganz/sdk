@@ -1132,6 +1132,7 @@ public:
 
     // waiter for sync loop on thread
     shared_ptr<Waiter> waiter;
+    bool skipWait = false;
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;

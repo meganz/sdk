@@ -158,6 +158,7 @@ bool Command::loadIpsFromJson(std::vector<string>& ips)
 void Command::cmd(const char* cmd)
 {
     jsonWriter.cmd(cmd);
+    commandStr = cmd;
 }
 
 void Command::notself(MegaClient *client)

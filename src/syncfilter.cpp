@@ -34,6 +34,8 @@ public:
 
     // Upper bound of filter.
     std::uint64_t upper;
+
+    string debugDescription() const;
 }; // SizeFilter
 
 class StringFilter
@@ -56,6 +58,8 @@ public:
     // True if this filter matches the string pair p.
     virtual bool match(const RemotePathPair& p) const = 0;
 
+    virtual string debugDescription() const = 0;
+
 protected:
     StringFilter(MatcherPtr matcher,
                  const Target& target,
@@ -65,7 +69,7 @@ protected:
     // True if this filter matches the string s.
     bool match(const string& s) const;
 
-private:
+protected:
     MatcherPtr mMatcher;
     const Target& mTarget;
     const bool mInclusion;
@@ -82,6 +86,8 @@ public:
                const bool inheritable);
 
     bool match(const RemotePathPair& p) const;
+
+    string debugDescription() const override;
 }; /* NameFilter */
 
 class PathFilter
@@ -94,6 +100,8 @@ public:
                const bool inheritable);
 
     bool match(const RemotePathPair& p) const;
+
+    string debugDescription() const override;
 }; /* PathFilter */
 
 class Matcher
@@ -104,6 +112,8 @@ public:
     // True if this matcher matches the string s.
     virtual bool match(const string& s) const = 0;
 
+    virtual string debugDescription() const = 0;
+
 protected:
     Matcher() = default;
 }; /* Matcher */
@@ -112,10 +122,12 @@ class GlobMatcher
   : public Matcher
 {
 public:
-    GlobMatcher(const string& pattern, const bool caseSensitive);
+    GlobMatcher(const string& pattern, bool caseSensitive);
 
     // True if the wildcard pattern matches the string s.
     bool match(const string& s) const override;
+
+    string debugDescription() const override;
 
 private:
     const string mPattern;
@@ -126,13 +138,17 @@ class RegexMatcher
   : public Matcher
 {
 public:
-    RegexMatcher(const string& pattern, const bool caseSensitive);
+    RegexMatcher(const string& pattern, bool caseSensitive);
 
     // True if the regex pattern matches the string s.
     bool match(const string& s) const override;
 
+    string debugDescription() const override;
+
 private:
     std::regex mRegexp;
+    string mPattern;
+    bool mCaseSensitive;
 }; /* RegexMatcher */
 
 class Target
@@ -482,11 +498,23 @@ FilterLoadResult FilterChain::load(FileSystemAccess& fsAccess, const LocalPath& 
         || fileAccess->type != FILENODE)
     {
         // Couldn't open the file. Assume it's been deleted.
+        LOG_info << "Could not load exclusions, file open failed at " << path;
         return FLR_DELETED;
     }
 
     // Ignore file exists so try and load it.
-    return load(*fileAccess);
+    auto result = load(*fileAccess);
+
+    if (result != FLR_SUCCESS)
+    {
+        LOG_info << "Could not read or rule failure at " << path << " error " << (int)result;
+    }
+    else
+    {
+        LOG_info << "Loaded new/updated exclusion rules from: " << path;
+    }
+
+    return result;
 }
 
 FilterLoadResult FilterChain::load(FileAccess& fileAccess)
@@ -497,6 +525,7 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
     // Empty lines are omitted by readLines(...).
     if (!readLines(fileAccess, lines))
     {
+        LOG_info << "Could not load exclusions, readLines failed";
         return FLR_FAILED;
     }
 
@@ -531,12 +560,14 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
         {
             if (!add(l, sizeFilter))
             {
+                LOG_info << "Could not load exclusions, size filter add failed";
                 // Changes are not committed.
                 return FLR_FAILED;
             }
         }
         else if (!add(l, stringFilters))
         {
+            LOG_info << "Could not load exclusions, string filter add failed";
             return FLR_FAILED;
         }
     }
@@ -544,6 +575,17 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
     // Move new filters into place.
     mStringFilters = std::move(stringFilters);
     mSizeFilter = std::move(sizeFilter);
+
+    LOG_info << "New exclusion rules from file are as follows";
+    for (auto &e : mStringFilters)
+    {
+        LOG_info << "string filter: " << e->debugDescription();
+    }
+    if (mSizeFilter)
+    {
+        LOG_info << "size filter: " << mSizeFilter->debugDescription();
+    }
+
 
     // Changes are committed.
     return FLR_SUCCESS;
@@ -645,6 +687,11 @@ bool SizeFilter::match(const std::uint64_t s) const
     return s >= lower && s <= upper;
 }
 
+string SizeFilter::debugDescription() const
+{
+    return std::to_string(lower) + " " + std::to_string(upper);
+}
+
 bool StringFilter::applicable(const nodetype_t type) const
 {
     return mTarget.applicable(type);
@@ -692,6 +739,14 @@ bool NameFilter::match(const RemotePathPair& p) const
     return StringFilter::match(p.first);
 }
 
+string NameFilter::debugDescription() const
+{
+    string s = "name: " + mMatcher->debugDescription();
+    if (mInclusion) s += " (inclusion)";
+    if (!mInheritable) s += " (this folder only)";
+    return s;
+}
+
 PathFilter::PathFilter(MatcherPtr matcher,
                        const Target& target,
                        const bool inclusion,
@@ -706,6 +761,14 @@ PathFilter::PathFilter(MatcherPtr matcher,
 bool PathFilter::match(const RemotePathPair& p) const
 {
     return StringFilter::match(p.second);
+}
+
+string PathFilter::debugDescription() const
+{
+    string s = "path: " + mMatcher->debugDescription();
+    if (mInclusion) s += " (inclusion)";
+    if (!mInheritable) s += " (this folder only)";
+    return s;
 }
 
 GlobMatcher::GlobMatcher(const string &pattern, const bool caseSensitive)
@@ -724,14 +787,36 @@ bool GlobMatcher::match(const string& s) const
     return wildcardMatch(toUpper(s), mPattern);
 }
 
+string GlobMatcher::debugDescription() const
+{
+    string s = mPattern;
+    if (mCaseSensitive)
+    {
+        s += " (case sensitive)";
+    }
+    return s;
+}
+
 RegexMatcher::RegexMatcher(const string& pattern, const bool caseSensitive)
   : mRegexp(pattern, regexFlags(caseSensitive))
+  , mPattern(pattern)
+  , mCaseSensitive(caseSensitive)
 {
 }
 
 bool RegexMatcher::match(const string& s) const
 {
     return std::regex_match(s, mRegexp);
+}
+
+string RegexMatcher::debugDescription() const
+{
+    string s = "regex: " + mPattern;
+    if (mCaseSensitive)
+    {
+        s += " (case sensitive)";
+    }
+    return s;
 }
 
 bool AllTarget::applicable(const nodetype_t) const

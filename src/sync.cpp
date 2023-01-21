@@ -1413,6 +1413,22 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         return false;
     }
 
+    if (row.syncNode)
+    {
+        if (row.syncNode->exclusionState() == ES_EXCLUDED)
+        {
+            return rowResult = false, false;
+        }
+    }
+    else if (parentRow.syncNode &&
+             parentRow.syncNode->exclusionState(row.fsNode->toName_of_localname(*syncs.fsaccess),
+                                                row.fsNode->type,
+                                                row.fsNode->fingerprint.size)
+             == ES_EXCLUDED)
+    {
+        return rowResult = false, false;
+    }
+
     if (row.fsNode->type == TYPE_SPECIAL)
     {
         auto message = "special file";
@@ -1431,7 +1447,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {},
             {fullPath.localPath, problem},
             {}));
-
 
         LOG_debug << syncname
                   << "Checked path is a "
@@ -2907,7 +2922,7 @@ dstime Sync::procscanq()
                 {
                     // no need to rescan anything when the change was in an excluded folder
                     SYNC_verbose << "Ignoring notification under excluded/do-not-sync node:"
-                                 << node->getLocalPath() << string(LocalPath::localPathSeparator_utf8, 1) << notification.path;;
+                                 << node->getLocalPath() << string(1, LocalPath::localPathSeparator_utf8) << notification.path;;
                     continue;
                 }
             }
@@ -10651,9 +10666,23 @@ void Syncs::syncLoop()
         // If traversals are very long, have a fair wait between (up to 5 seconds)
         // If something happens that means the sync needs attention, the waiter
         // should be woken up by a waiter->notify() call, and we break out of this wait
-        waiter->init(10 + std::min<unsigned>(lastRecurseMs, 10000)/200);
-        waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
-        waiter->wait();
+        if (!skipWait)
+        {
+            auto waitDs = 10 + std::min<unsigned>(lastRecurseMs, 10000)/200;
+            if (mClient.statecurrent && waitDs != 10)
+            {
+                LOG_verbose << "starting sync wait, delay " << waitDs;
+            }
+            waiter->init(waitDs);
+            waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
+            waiter->wait();
+            if (mClient.statecurrent && waitDs != 10)
+            {
+                LOG_verbose << "sync wait complete";
+            }
+        }
+        skipWait = false;
+        lastRecurseMs = 0;
 
         fsaccess->checkevents(waiter.get());
 
@@ -10701,7 +10730,13 @@ void Syncs::syncLoop()
         // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
         // check this before we check if the sync root nodes exist etc, in case a mid-session fetchnodes is going on
         if (!mClient.actionpacketsCurrent)
+        {
+            if (mClient.statecurrent)
+            {
+                LOG_verbose << "not ready to sync recurse, actionpackets are changing nodes";
+            }
             continue;
+        }
 
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
@@ -11159,13 +11194,30 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.cloud.clear();
                 mSyncFlags->stall.local.clear();
 
+                bool immediateStall = stallReport.hasImmediateStallReason();
+                bool progressLackStall = mSyncFlags->noProgressCount > 10
+                                      && mSyncFlags->reachableNodesAllScannedThisPass;
+
                 stalled = !stallReport.empty()
-                          && (stallReport.hasImmediateStallReason()
-                              || (mSyncFlags->noProgressCount > 10
-                                  && mSyncFlags->reachableNodesAllScannedThisPass));
+                          && (immediateStall || progressLackStall);
 
                 if (stalled)
                 {
+                    if (immediateStall && !progressLackStall)
+                    {
+                        // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
+                        for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
+                        {
+                            if (it->second.alertUserImmediately) ++it;
+                            else it = stallReport.cloud.erase(it);
+                        }
+                        for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
+                        {
+                            if (it->second.alertUserImmediately) ++it;
+                            else it = stallReport.local.erase(it);
+                        }
+                    }
+
                     LOG_warn << mClient.clientname << "Stall detected!";
                     for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
                     for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;

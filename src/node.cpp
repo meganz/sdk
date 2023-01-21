@@ -1354,7 +1354,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
     ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 
     // Make sure our exclusion state is recomputed.
-    ln->setRecomputeExclusionState(true);
+    ln->setRecomputeExclusionState(true, false);
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -2830,7 +2830,7 @@ void LocalNode::clearFilters()
     }
 
     // Reset ignore file state.
-    setRecomputeExclusionState(false);
+    setRecomputeExclusionState(false, false);
 
     // Re-examine this subtree.
     setScanAgain(false, true, true, 0);
@@ -2870,7 +2870,7 @@ bool LocalNode::loadFiltersIfChanged(const FileFingerprint& fingerprint, const L
 
     // bear in mind that we may fail to read the file due to exclusive editing
     // then we come back on some later iteration and read it successfully
-    setRecomputeExclusionState(false);
+    setRecomputeExclusionState(false, true);
 
     return fc->mLoadSucceeded;
 }
@@ -2936,11 +2936,25 @@ ExclusionState LocalNode::calcExcluded(const RemotePathPair&, m_off_t size) cons
     return ES_INCLUDED;
 }
 
-void LocalNode::setRecomputeExclusionState(bool includingThisOne)
+void LocalNode::setRecomputeExclusionState(bool includingThisOne, bool scan)
 {
+    LOG_debug << "Clearing all LocalNode exclusion state from " << getLocalPath() << (includingThisOne ? " inclusive" : "");
+
     if (includingThisOne)
     {
         mExclusionState = ES_UNKNOWN;
+    }
+
+    if (scan)
+    {
+        // test this one by using "Ignore" button to exclude special symlink "My Pictures"
+        // and then manually remove the exclusion and see if the stall returns
+        // (same folder as .megaignore, and separately a subfolder)
+        setScanAgain(false, true, true, 0);
+    }
+    else
+    {
+        setSyncAgain(false, true, true);
     }
 
     if (type == FILENODE)
@@ -3116,7 +3130,7 @@ void LocalNode::ignoreFilterPresenceChanged(bool present, FSNode* fsNode)
     {
         rare().filterChain.reset();
     }
-    setRecomputeExclusionState(false);
+    setRecomputeExclusionState(false, false);
 }
 
 #endif // ENABLE_SYNC

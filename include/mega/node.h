@@ -812,7 +812,7 @@ private:
     ExclusionState calcExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
     // Signal that LocalNodes in this subtree must recompute their exclusion state.
-    void setRecomputeExclusionState(bool includingThisOne);
+    void setRecomputeExclusionState(bool includingThisOne, bool scan);
 
 public:
     // Clears the filters defined by this node.

@@ -48,15 +48,26 @@ void Request::get(string* req, bool& suppressSID, MegaClient* client) const
 
     suppressSID = true; // only if all commands in batch are suppressSID
 
+    map<string, int> counts;
+
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");
         req->append(cmds[i]->getJSON(client));
         req->append("}");
         suppressSID = suppressSID && cmds[i]->suppressSID;
+        ++counts[cmds[i]->commandStr];
     }
 
     req->append("]");
+
+    string commandCounts;
+    for (auto& e : counts)
+    {
+        if (!commandCounts.empty()) commandCounts += " ";
+        commandCounts += e.first + ":" + std::to_string(e.second);
+    }
+    LOG_debug << "Req command counts: " << commandCounts;
 }
 
 bool Request::processCmdJSON(Command* cmd, bool couldBeError)
