@@ -2922,7 +2922,7 @@ dstime Sync::procscanq()
                 {
                     // no need to rescan anything when the change was in an excluded folder
                     SYNC_verbose << "Ignoring notification under excluded/do-not-sync node:"
-                                 << node->getLocalPath() << string(LocalPath::localPathSeparator_utf8, 1) << notification.path;;
+                                 << node->getLocalPath() << string(1, LocalPath::localPathSeparator_utf8) << notification.path;;
                     continue;
                 }
             }
