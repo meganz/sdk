@@ -4099,12 +4099,12 @@ MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelT
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(nullptr, searchString, CancelToken(), order);
+    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), order);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
