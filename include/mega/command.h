@@ -152,8 +152,10 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
+#ifdef ENABLE_CHAT
     // create json structure for scheduled meetings (mcsmp command)
     void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
