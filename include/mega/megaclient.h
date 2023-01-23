@@ -306,7 +306,11 @@ public:
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
     // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
+    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive);
+
+    node_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
+    node_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
+
 
     node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -590,6 +594,9 @@ public:
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
+
+    // method to check if a timestamp (m_time_t) is valid or not
+    static bool isValidMegaTimeStamp(m_time_t val) { return val > mega_invalid_timestamp; }
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -1121,7 +1128,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -1482,9 +1489,9 @@ public:
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
 
-    void createNewSMAlert(const handle&, handle schedId);
-    void createDeletedSMAlert(const handle&, handle schedId);
-    void createUpdatedSMAlert(const handle&, handle schedId,
+    void createNewSMAlert(const handle&, handle chatid, handle schedId);
+    void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle chatid, handle schedId,
                               UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
@@ -1544,7 +1551,7 @@ public:
     struct MegaApp* app;
 
     // event waiter
-    Waiter* waiter;
+    shared_ptr<Waiter> waiter;
 
     // HTTP access
     HttpIO* httpio;
@@ -1699,7 +1706,7 @@ public:
     node_vector getInShares();
 
     // transfer queues (PUT/GET)
-    transfer_map transfers[2];
+    transfer_multimap multi_transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
     uint32_t lastKnownCancelCount = 0;
 
@@ -1707,7 +1714,7 @@ public:
     TransferList transferlist;
 
     // cached transfers (PUT/GET)
-    transfer_map cachedtransfers[2];
+    transfer_multimap multi_cachedtransfers[2];
 
     // cached files and their dbids
     vector<string> cachedfiles;
@@ -1820,6 +1827,12 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
+
+    // functions for determining whether we can clone a node instead of upload
+    // or whether two files are the same so we can just upload/download the data once
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
 
 #ifdef ENABLE_SYNC
 
@@ -1981,6 +1994,11 @@ public:
     bool requestLock;
     dstime disconnecttimestamp;
     dstime nextDispatchTransfersDs = 0;
+
+#ifdef ENABLE_CHAT
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+#endif
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
@@ -2304,7 +2322,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
@@ -2334,6 +2352,9 @@ private:
 
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
+
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
 
 
 //
@@ -2376,6 +2397,9 @@ public:
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
+
+    // return Element count for Set sid, or 0 if not found
+    unsigned getSetElementCount(handle sid) const;
 
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;
