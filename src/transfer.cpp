@@ -1078,7 +1078,9 @@ void Transfer::completefiles()
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;
+#ifdef ENABLE_SYNC
     bool wakeSyncs = false;
+#endif // ENABLE_SYNC
 
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
@@ -1115,12 +1117,15 @@ void Transfer::completefiles()
         files.erase(it++);
     }
     ids.push_back(dbid);
+
+#ifdef ENABLE_SYNC
     if (wakeSyncs)
     {
         // for a sync that is only uploading, there's no other mechansim to wake it up early between tree recursions
         client->syncs.skipWait = true;
         client->syncs.waiter->notify();
     }
+#endif // ENABLE_SYNC
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
