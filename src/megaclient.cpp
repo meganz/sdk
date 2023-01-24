@@ -4206,7 +4206,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
 
-                            if (!loggedinfolderlink())
+                            if (!loggedIntoFolder())
                             {
                                 // historic user alerts are not supported for public folders
                                 // now that we have fetched everything and caught up actionpackets since that state,
@@ -9652,7 +9652,7 @@ int MegaClient::dumpsession(string& session)
 {
     session.clear();
 
-    if (!loggedinfolderlink())
+    if (!loggedIntoFolder())
     {
         if (loggedin() == NOTLOGGEDIN)
         {
@@ -9788,7 +9788,7 @@ void MegaClient::opensctable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -9832,7 +9832,7 @@ void MegaClient::doOpenStatusTable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -11779,11 +11779,6 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     return e;
 }
 
-bool MegaClient::loggedinfolderlink()
-{
-    return !ISUNDEF(mFolderLink.mPublicHandle);
-}
-
 sessiontype_t MegaClient::loggedin()
 {
     if (ISUNDEF(me))
@@ -12369,7 +12364,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         tckey = key;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -12440,7 +12435,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
-    if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
+    if ((!sid.size() && !loggedIntoFolder()) || statecurrent)
     {
         TransferDbCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
@@ -12480,7 +12475,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -12514,7 +12509,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
     {
         fnstats.type = FetchNodesStats::TYPE_ACCOUNT;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         fnstats.type = FetchNodesStats::TYPE_FOLDER;
     }
@@ -12627,7 +12622,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // don't allow to start new sc requests yet
         scsn.clear();
 
-        if (!loggedinfolderlink())
+        if (!loggedIntoFolder())
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
@@ -15289,9 +15284,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions, schedMeeting));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
