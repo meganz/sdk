@@ -23874,16 +23874,11 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
-std::function<bool(handle)> MegaApiImpl::nodeInRubbishCheck() const
+bool MegaApiImpl::nodeInRubbishCheck(handle h) const
 {
-    auto f = [this](handle h) -> bool
-    {
-        Node* n = client->nodebyhandle(h);
-        bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
-        return inRubbish;
-    };
-
-    return f;
+    Node* n = client->nodebyhandle(h);
+    bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
+    return inRubbish;
 }
 
 unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
@@ -23896,21 +23891,10 @@ unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInR
     }
     else
     {
-        unsigned count = 0;
-        auto* elements = client->getSetElements(sid);
-        if (elements)
-        {
-            std::function<bool(handle)> filterOut = nodeInRubbishCheck();
-            for (const auto& e : *elements)
-            {
-                if (!filterOut(e.second.node()))
-                {
-                    ++count;
-                }
-            }
-        }
-
-        return count;
+        auto els = client->getSetElements(sid);
+        auto ret = count_if(begin(*els), end(*els), [this](const pair<const handle, SetElement>& e)
+                            { return !nodeInRubbishCheck(e.second.node()); });
+        return static_cast<unsigned>(ret);
     }
 }
 
@@ -23919,7 +23903,11 @@ MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElem
     SdkMutexGuard g(sdkMutex);
 
     auto* elements = client->getSetElements(sid);
-    std::function<bool(handle)> filterOut = includeElementsInRubbishBin ? nullptr : nodeInRubbishCheck();
+    std::function<bool(handle)> filterOut;
+    if (!includeElementsInRubbishBin)
+    {
+        filterOut = std::bind(&MegaApiImpl::nodeInRubbishCheck, this, std::placeholders::_1);
+    }
 
     MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, filterOut);
     return eList;

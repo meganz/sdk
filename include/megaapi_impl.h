@@ -2656,7 +2656,7 @@ class MegaApiImpl : public MegaApp
         MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
     private:
-        std::function<bool(handle)> nodeInRubbishCheck() const;
+        bool nodeInRubbishCheck(handle) const;
 
     public:
 #ifdef ENABLE_SYNC
