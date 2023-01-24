@@ -116,7 +116,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     std::string uid;
     if (u)
     {
-        uid = u->uid;
+        uid = u->email;
     }
 
     bool newshare = !n->isShared();
@@ -146,9 +146,19 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     accesslevel_t accessLevel = a;
     std::function<void(Error, bool writable)> completionCallback = std::move(completion);
     int reqtag = tag;
+    User *user = nullptr;
+    if (u)
+    {
+        user = new User(u->email.c_str());
+        user->set(u->show, u->ctime);
+        user->uid = u->uid;
+        user->userhandle = u->userhandle;
+        user->pubk = u->pubk;
+        user->isTemporary = true;
+    }
 
     std::function<void()> completeShare =
-    [client, uid, nodehandle, accessLevel, newshare, msg, reqtag, shareKey, writable, completionCallback]()
+    [client, user, uid, nodehandle, accessLevel, newshare, msg, reqtag, shareKey, writable, completionCallback]()
     {
         Node *n = client->nodebyhandle(nodehandle);
         // node vanished: bail
@@ -158,9 +168,8 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
             return;
         }
 
-        User *u = client->getUserForSharing(uid.c_str());
-        handle userhandle = u ? u->userhandle : UNDEF;
-        client->reqs.add(new CommandSetShare(client, n, u, accessLevel, newshare, NULL, writable, msg.c_str(), reqtag,
+        handle userhandle = user ? user->userhandle : UNDEF;
+        client->reqs.add(new CommandSetShare(client, n, user, accessLevel, newshare, NULL, writable, msg.c_str(), reqtag,
         [client, uid, userhandle, nodehandle, shareKey, completionCallback](Error e, bool writable)
         {
             if (e || ISUNDEF(userhandle))
