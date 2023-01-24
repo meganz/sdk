@@ -319,7 +319,7 @@ namespace UserAlert
         handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         handle mParentSchedId = UNDEF;
-        m_time_t mStartDateTime = mega_invalid_timestamp;
+        m_time_t mStartDateTime = mega_invalid_timestamp; // overrides param
 
         NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
         NewScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, handle _parentSchedId, m_time_t _startDateTime)
@@ -435,13 +435,17 @@ namespace UserAlert
 
         handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
+        handle mParentSchedId = UNDEF;
+        m_time_t mStartDateTime = mega_invalid_timestamp; // overrides param
         Changeset mUpdatedChangeset;
 
         UpdatedScheduledMeeting(UserAlertRaw& un, unsigned int id);
-        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, Changeset&& _cs)
+        UpdatedScheduledMeeting(handle _ou, m_time_t _ts, unsigned int _id, handle _chatid, handle _sm, handle _parentSchedId, m_time_t _startDateTime, Changeset&& _cs)
             : Base(UserAlert::type_nusm, _ou, string(),  _ts, _id)
             , mChatid(_chatid)
             , mSchedMeetingHandle(_sm)
+            , mParentSchedId(_parentSchedId)
+            , mStartDateTime(_startDateTime)
             , mUpdatedChangeset(_cs)
             {}
 

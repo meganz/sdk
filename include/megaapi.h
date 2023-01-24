@@ -1960,11 +1960,12 @@ public:
     * @brief Returns the handle of a Pending Contact Request related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST (PCR handle for all of these user alert types)
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST (PCR handle for all of these user alert types)
     *
     * This value is also valid for the following alerts:
-    * TYPE_SCHEDULEDMEETING_NEW (parent scheduledMeetingId)
+    *   TYPE_SCHEDULEDMEETING_NEW (parent scheduledMeetingId),
+    *   TYPE_SCHEDULEDMEETING_UPDATED (parent scheduledMeetingId)
     *
     * @return the relevant handle, or UNDEF if this alert does not have one.
     */
@@ -2060,7 +2061,10 @@ public:
     *   TYPE_UPDATEDSHAREDNODES (index 0: item count)
     *
     * This value is also valid for the following alerts:
-    * TYPE_SCHEDULEDMEETING_NEW (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *   TYPE_SCHEDULEDMEETING_NEW (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    *   TYPE_SCHEDULEDMEETING_UPDATED (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
     *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
     *
     * @return Number related to this user alert, or -1 if the index is invalid

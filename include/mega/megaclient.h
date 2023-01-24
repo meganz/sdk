@@ -1485,10 +1485,10 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
-    void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t override);
+    void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t startDateTime);
     void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
-    void createUpdatedSMAlert(const handle&, handle chatid, handle schedId,
-                              UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
+    void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
+                               m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
