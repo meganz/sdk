@@ -981,9 +981,9 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
         LOG_warn << "Bandwidth overquota for " << timeleft << " seconds";
         overquotauntil = Waiter::ds + timeleft;
 
-        for (transfer_map::iterator it = transfers[GET].begin(); it != transfers[GET].end(); it++)
+        for (auto& it : multi_transfers[GET])
         {
-            Transfer *t = it->second;
+            Transfer *t = it.second;
             t->bt.backoff(timeleft);
             if (t->slot && (t->state != TRANSFERSTATE_RETRYING
                             || !t->slot->retrying
@@ -1003,9 +1003,9 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
         int start = (isPaywall) ? GET : PUT;  // in Paywall state, none DLs/UPs can progress
         for (int d = start; d <= PUT; d += PUT - GET)
         {
-            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+            for (auto& it : multi_transfers[d])
             {
-                Transfer *t = it->second;
+                Transfer *t = it.second;
                 t->bt.backoff(NEVER);
                 if (t->slot)
                 {
@@ -1258,7 +1258,7 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1355,7 +1355,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     init();
 
     fsaccess->client = this;
-    fsaccess->waiter = w;
+    fsaccess->waiter = w.get();
     transferlist.client = this;
 
     if ((app = a))
@@ -2591,7 +2591,7 @@ void MegaClient::exec()
         if (nextDispatchTransfersDs <= Waiter::ds)
         {
             size_t lastCount = 0;
-            size_t transferCount = transfers[GET].size() + transfers[PUT].size();
+            size_t transferCount = multi_transfers[GET].size() + multi_transfers[PUT].size();
             do
             {
                 lastCount = transferCount;
@@ -2600,7 +2600,7 @@ void MegaClient::exec()
                 dispatchTransfers();
 
                 // if we are cancelling a lot of transfers (eg. nodes to download were deleted), keep going. Avoid stalling when no transfers are active and all queued fail
-                transferCount = transfers[GET].size() + transfers[PUT].size();
+                transferCount = multi_transfers[GET].size() + multi_transfers[PUT].size();
             } while (transferCount < lastCount);
 
             // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
@@ -3336,11 +3336,11 @@ void MegaClient::exec()
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    static unsigned reportFreqDs = 200;
+    static unsigned reportFreqDs = 6000;
     if (Waiter::ds > lasttime + reportFreqDs)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+        LOG_info << performanceStats.report(false, httpio, waiter.get(), reqs);
 
         debugLogHeapUsage();
     }
@@ -3683,11 +3683,11 @@ int MegaClient::checkevents()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
 
-    int r =  httpio->checkevents(waiter);
-    r |= fsaccess->checkevents(waiter);
+    int r =  httpio->checkevents(waiter.get());
+    r |= fsaccess->checkevents(waiter.get());
     if (gfx)
     {
-        r |= gfx->checkevents(waiter);
+        r |= gfx->checkevents(waiter.get());
     }
     return r;
 }
@@ -3708,16 +3708,16 @@ bool MegaClient::abortbackoff(bool includexfers)
             int end = (ststatus != STORAGE_RED) ? PUT : GET;
             for (int d = GET; d <= end; d += PUT - GET)
             {
-                for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+                for (auto& it : multi_transfers[d])
                 {
-                    if (it->second->bt.arm())
+                    if (it.second->bt.arm())
                     {
                         r = true;
                     }
 
-                    if (it->second->slot && it->second->slot->retrying)
+                    if (it.second->slot && it.second->slot->retrying)
                     {
-                        if (it->second->slot->retrybt.arm())
+                        if (it.second->slot->retrybt.arm())
                         {
                             r = true;
                         }
@@ -3788,7 +3788,7 @@ void MegaClient::dispatchTransfers()
         for (direction_t direction : putget)
         {
             TransferDbCommitter committer(tctable);
-            auto& directionList = transfers[direction];
+            auto& directionList = multi_transfers[direction];
             for (auto i = directionList.begin(); i != directionList.end(); )
             {
                 auto it = i++;  // in case this entry is removed
@@ -4022,9 +4022,9 @@ void MegaClient::dispatchTransfers()
                                   << nexttransfer->localfilename;
 
                         // try to open file (PUT transfers: open in nonblocking mode)
-                        nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
+                        nexttransfer->asyncopencontext.reset( (nexttransfer->type == PUT)
                             ? ts->fa->asyncfopen(nexttransfer->localfilename)
-                            : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size);
+                            : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size));
                         asyncfopens++;
                     }
 
@@ -4035,8 +4035,7 @@ void MegaClient::dispatchTransfers()
 
                         openok = !nexttransfer->asyncopencontext->failed;
                         openfinished = true;
-                        delete nexttransfer->asyncopencontext;
-                        nexttransfer->asyncopencontext = NULL;
+                        nexttransfer->asyncopencontext.reset();
                         asyncfopens--;
                     }
 
@@ -4295,8 +4294,8 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadComp
         {
             uploadFAPtr->uploadCompleted = true;
 
-            transfers[t->type].erase(t->transfers_it);
-            t->transfers_it = transfers[t->type].end();
+            multi_transfers[t->type].erase(t->transfers_it);
+            t->transfers_it = multi_transfers[t->type].end();
 
             delete t->slot;
             t->slot = NULL;
@@ -4339,13 +4338,13 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadComp
 void MegaClient::freeq(direction_t d)
 {
     TransferDbCommitter committer(tctable);
-    for (auto transferPtr : transfers[d])
+    for (auto transferPtr : multi_transfers[d])
     {
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
         app->transfer_removed(transferPtr.second);
         delete transferPtr.second;
     }
-    transfers[d].clear();
+    multi_transfers[d].clear();
     transferlist.transfers[GET].clear();
     transferlist.transfers[PUT].clear();
 }
@@ -4886,7 +4885,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
 
-                            if (!loggedinfolderlink())
+                            if (!loggedIntoFolder())
                             {
                                 // historic user alerts are not supported for public folders
                                 // now that we have fetched everything and caught up actionpackets since that state,
@@ -10233,7 +10232,7 @@ int MegaClient::dumpsession(string& session)
 {
     session.clear();
 
-    if (!loggedinfolderlink())
+    if (!loggedIntoFolder())
     {
         if (loggedin() == NOTLOGGEDIN)
         {
@@ -10369,7 +10368,7 @@ void MegaClient::opensctable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -10413,7 +10412,7 @@ void MegaClient::doOpenStatusTable()
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         }
-        else if (loggedinfolderlink())
+        else if (loggedIntoFolder())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -12426,11 +12425,6 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     return e;
 }
 
-bool MegaClient::loggedinfolderlink()
-{
-    return !ISUNDEF(mFolderLink.mPublicHandle);
-}
-
 sessiontype_t MegaClient::loggedin()
 {
     if (ISUNDEF(me))
@@ -12943,9 +12937,9 @@ void MegaClient::purgeOrphanTransfers(bool remove)
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
         TransferDbCommitter committer(tctable);
-        while (cachedtransfers[d].size())
+        while (multi_cachedtransfers[d].size())
         {
-            transfer_map::iterator it = cachedtransfers[d].begin();
+            transfer_multimap::iterator it = multi_cachedtransfers[d].begin();
             Transfer *transfer = it->second;
             if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
             {
@@ -12966,7 +12960,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
             //app->transfer_removed(transfer);
 
             delete transfer;
-            cachedtransfers[d].erase(it);
+            multi_cachedtransfers[d].erase(it);
         }
     }
 
@@ -13003,7 +12997,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
         tckey = key;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -13043,7 +13037,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             switch (id & 15)
             {
                 case CACHEDTRANSFER:
-                    if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
+                    if ((t = Transfer::unserialize(this, &data, multi_cachedtransfers)))
                     {
                         t->dbid = id;
                         if (t->priority > transferlist.currentpriority)
@@ -13069,12 +13063,12 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
     LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
 
-    LOG_debug << "Cached transfer PUT count: " << cachedtransfers[PUT].size();
-    LOG_debug << "Cached transfer GET count: " << cachedtransfers[GET].size();
+    LOG_debug << "Cached transfer PUT count: " << multi_cachedtransfers[PUT].size();
+    LOG_debug << "Cached transfer GET count: " << multi_cachedtransfers[GET].size();
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
-    if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
+    if ((!sid.size() && !loggedIntoFolder()) || statecurrent)
     {
         TransferDbCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
@@ -13114,7 +13108,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
@@ -13148,7 +13142,7 @@ void MegaClient::fetchnodes(bool nocache)
     {
         fnstats.type = FetchNodesStats::TYPE_ACCOUNT;
     }
-    else if (loggedinfolderlink())
+    else if (loggedIntoFolder())
     {
         fnstats.type = FetchNodesStats::TYPE_FOLDER;
     }
@@ -13268,7 +13262,7 @@ void MegaClient::fetchnodes(bool nocache)
         syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
     #endif
 
-        if (!loggedinfolderlink())
+        if (!loggedIntoFolder())
         {
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
@@ -16262,7 +16256,30 @@ void MegaClient::syncupdate(localnode_vector& synccreate, bool canChangeVault)
                 l->previousNode = l->node;
             }
 
-            if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
+            bool makeNewFolderOrCloneFile = false;
+
+            if (l->type == FOLDERNODE)
+            {
+                makeNewFolderOrCloneFile = true;
+            }
+            else if ((n = nodebyfingerprint(l)))
+            {
+
+                string ext1, ext2;
+                if (fsaccess->getextension(LocalPath::fromRelativePath(n->displayname()), ext1) &&
+                    fsaccess->getextension(l->getLocalname(), ext2))
+                {
+
+                    if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                    if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                    makeNewFolderOrCloneFile = treatAsIfFileDataEqual(
+                                                 *n, ext1,
+                                                 *l, ext2);
+                }
+            }
+
+            if (makeNewFolderOrCloneFile)
             {
                 nn.resize(nn.size() + 1);
                 auto nnp = &nn.back();
@@ -16809,11 +16826,31 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
 
         Transfer* t = NULL;
-        transfer_map::iterator it = transfers[d].find(f);
-
-        if (it != transfers[d].end())
+        auto range = multi_transfers[d].equal_range(f);
+        for (auto it = range.first; it != range.second; ++it)
         {
-            t = it->second;
+            if (it->second->files.empty()) continue;
+            File* f2 = it->second->files.front();
+
+            string ext1, ext2;
+            if (fsaccess->getextension(f->getLocalname(), ext1) &&
+                fsaccess->getextension(f2->getLocalname(), ext2))
+            {
+                if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                if (treatAsIfFileDataEqual(*f, ext1,
+                                           *f2, ext2))
+                {
+                    // Upload data for both these Files just once overall - two Files in one Transfer
+                    t = it->second;
+                    break;
+                }
+            }
+        }
+
+        if (t)
+        {
             if (skipdupes)
             {
                 for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
@@ -16863,10 +16900,31 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
         else
         {
-            it = cachedtransfers[d].find(f);
-            if (it != cachedtransfers[d].end() && !it->second->localfilename.empty())
+            auto range = multi_cachedtransfers[d].equal_range(f);
+            for (auto it = range.first; it != range.second; ++it)
             {
-                t = it->second;
+                if (it->second->files.empty()) continue;
+                File* f2 = it->second->files.front();
+
+                string ext1, ext2;
+                if (fsaccess->getextension(f->getLocalname(), ext1) &&
+                    fsaccess->getextension(f2->getLocalname(), ext2))
+                {
+                    if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                    if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                    if (treatAsIfFileDataEqual(*f, ext1,
+                                               *f2, ext2))
+                    {
+                        t = it->second;
+                        range.first = it;
+                        break;
+                    }
+                }
+            }
+
+            if (t)
+            {
                 bool hadAnyData = t->pos > 0;
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
@@ -16933,7 +16991,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                     }
                 }
-                cachedtransfers[d].erase(it);
+                multi_cachedtransfers[d].erase(range.first);
                 LOG_debug << "Transfer resumed";
             }
 
@@ -16948,7 +17006,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             t->lastaccesstime = m_time();
             t->tag = tag;
             f->tag = tag;
-            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+            t->transfers_it = multi_transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
@@ -17223,6 +17281,51 @@ bool MegaClient::nodeIsDocument(const Node *n) const
     return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
 }
 
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
+{
+    // if equal, upload or download could be skipped
+    if (filenameExtensionLowercaseNoDot.empty()) return false;
+    assert(filenameExtensionLowercaseNoDot[0] != '.');
+
+    FileFingerprint fp;
+    auto fa = fsaccess->newfileaccess();
+    if (fa->fopen(file2, true, false))
+    {
+
+        if (!fp.genfingerprint(fa.get())) return false;
+        if (fp != node1) return false;
+        if (!fp.isvalid || !node1.isvalid) return false;
+
+        // In future (for non-media files) we might recalculate the MAC
+        // of the on-disk file to see if it matches the Node's MAC.
+        // That would be much, much more accurate
+
+        return fp.size > 128 * 1024 &&
+               isPhotoVideoAudioByName(filenameExtensionLowercaseNoDot);
+    }
+    return false;
+}
+
+bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
+                                        const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2)
+{
+    // if equal, upload or download could be skipped or combined
+    assert(filenameExtensionLowercaseNoDot1.empty() || filenameExtensionLowercaseNoDot1[0] != '.');
+    assert(filenameExtensionLowercaseNoDot2.empty() || filenameExtensionLowercaseNoDot2[0] != '.');
+
+    if (filenameExtensionLowercaseNoDot1.empty() || filenameExtensionLowercaseNoDot2.empty()) return false;
+    if (filenameExtensionLowercaseNoDot1 != filenameExtensionLowercaseNoDot2) return false;
+    if (!fp1.isvalid || !fp2.isvalid) return false;
+    if (fp1 != fp2) return false;
+
+    // In future (for non-media files) we might recalculate the MAC
+    // of the on-disk file to see if it matches the Node's MAC.
+    // That would be much, much more accurate.  (more parameters will be needed)
+
+    return fp1.size > 128 * 1024 &&
+            isPhotoVideoAudioByName(filenameExtensionLowercaseNoDot1);
+}
+
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
@@ -17429,9 +17532,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions, schedMeeting));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
@@ -17932,7 +18035,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
-            return API_EINTERNAL; 
+            return API_EINTERNAL;
         }
 
         error e = API_OK;

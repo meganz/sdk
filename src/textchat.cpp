@@ -394,6 +394,7 @@ ScheduledMeeting::~ScheduledMeeting()
 }
 
 void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
+void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
 
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
@@ -1140,6 +1141,11 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
         return it->second.get();
     }
     return nullptr;
+}
+
+const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSchedMeetings()
+{
+    return mScheduledMeetings;
 }
 
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)

@@ -675,9 +675,6 @@ public:
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
 
-    // check if logged in a folder link
-    bool loggedinfolderlink();
-
     // check the reason of being blocked
     void whyamiblocked();
 
@@ -1128,7 +1125,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -1550,7 +1547,7 @@ public:
     struct MegaApp* app;
 
     // event waiter
-    Waiter* waiter;
+    shared_ptr<Waiter> waiter;
 
     // HTTP access
     HttpIO* httpio;
@@ -1705,7 +1702,7 @@ public:
     node_vector getInShares();
 
     // transfer queues (PUT/GET)
-    transfer_map transfers[2];
+    transfer_multimap multi_transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
     uint32_t lastKnownCancelCount = 0;
 
@@ -1713,7 +1710,7 @@ public:
     TransferList transferlist;
 
     // cached transfers (PUT/GET)
-    transfer_map cachedtransfers[2];
+    transfer_multimap multi_cachedtransfers[2];
 
     // cached files and their dbids
     vector<string> cachedfiles;
@@ -1826,6 +1823,12 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
+
+    // functions for determining whether we can clone a node instead of upload
+    // or whether two files are the same so we can just upload/download the data once
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
 
 #ifdef ENABLE_SYNC
 
@@ -2315,7 +2318,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);

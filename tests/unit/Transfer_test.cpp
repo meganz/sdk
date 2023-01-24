@@ -81,7 +81,7 @@ TEST(Transfer, serialize_unserialize)
     std::string d;
     ASSERT_TRUE(tf.serialize(&d));
 
-    mega::transfer_map tfMap;
+    mega::transfer_multimap tfMap;
     auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
     checkTransfers(tf, *newTf);
 }
