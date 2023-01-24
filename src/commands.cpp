@@ -3169,17 +3169,13 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                         LOG_warn << "Failed to decrypt keyring after putua";
                     }
                 }
-                else if (User::isAuthring(type))
+                else if (type == ATTR_KEYS)
                 {
-                    client->mAuthRings.erase(type);
-                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
-                    if (tlvRecords)
+                    if (!client->mKeyManager.fromKeysContainer(it->second))
                     {
-                        client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
-                    }
-                    else
-                    {
-                        LOG_err << "Failed to decrypt keyring after putua";
+                        LOG_err << "Error processing new established value for the Key Manager (CommandPutMultipleUAVer)";
+                        // We can't use a previous value here because CommandPutMultipleUAVer is only used to update ^!keys
+                        // during initialization
                     }
                 }
             }
@@ -3297,20 +3293,7 @@ bool CommandPutUAVer::procresult(Result r)
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
 
-            if (User::isAuthring(at))
-            {
-                client->mAuthRings.erase(at);
-                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
-                if (tlvRecords)
-                {
-                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                }
-                else
-                {
-                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua ('upv')";
-                }
-            }
-            else if (at == ATTR_UNSHAREABLE_KEY)
+            if (at == ATTR_UNSHAREABLE_KEY)
             {
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
@@ -3497,9 +3480,12 @@ bool CommandGetUA::procresult(Result r)
 
             if (r.wasError(API_ENOENT) && User::isAuthring(at))
             {
-                // authring not created yet, will do it upon retrieval of public keys
-                client->mAuthRings.erase(at);
-                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+                if (!client->mKeyManager.generation())
+                {
+                    // authring not created yet, will do it upon retrieval of public keys
+                    client->mAuthRings.erase(at);
+                    client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+                }
 
                 if (--client->mFetchingAuthrings == 0)
                 {
@@ -3635,8 +3621,11 @@ bool CommandGetUA::procresult(Result r)
 
                             if (User::isAuthring(at))
                             {
-                                client->mAuthRings.erase(at);
-                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
+                                if (!client->mKeyManager.generation())
+                                {
+                                    client->mAuthRings.erase(at);
+                                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
+                                }
 
                                 if (--client->mFetchingAuthrings == 0)
                                 {
@@ -3800,11 +3789,6 @@ bool CommandDelUA::procresult(Result r)
         if (at == ATTR_KEYRING)
         {
             client->resetKeyring();
-        }
-        else if (User::isAuthring(at))
-        {
-            client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-            client->getua(u, at, 0);
         }
 
         client->notifyuser(u);

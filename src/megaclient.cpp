@@ -6636,10 +6636,16 @@ void MegaClient::sc_userattr()
                                     case ATTR_KEYS:                  // fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
-                                    case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
+                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
+                                        {
+                                            // legacy authrings not useful anymore
+                                            LOG_warn << "Ignoring update of : " << User::attr2string(type);
+                                            break;
+                                        }
+
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (type == ATTR_JSON_SYNC_CONFIG_DATA)
                                         {
@@ -6649,6 +6655,7 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
+
                                         getua(u, type, 0);
                                         break;
                                     }
@@ -11169,12 +11176,14 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     LOG_debug << "Migrated outshares: " << migratedOutShares << " of " << totalOutShares;
 
     auto it = mAuthRings.find(ATTR_AUTHRING);
+    assert(it != mAuthRings.end());
     if (it != mAuthRings.end())
     {
         mKeyManager.setAuthRing(it->second.serializeForJS());
     }
 
     it = mAuthRings.find(ATTR_AUTHCU255);
+    assert(it != mAuthRings.end());
     if (it != mAuthRings.end())
     {
         mKeyManager.setAuthCU255(it->second.serializeForJS());
@@ -13849,8 +13858,8 @@ void MegaClient::fetchnodes(bool nocache)
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
-            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
-
+            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e)
+            {
                 if (e != API_OK)
                 {
                     LOG_err << "Pre-failing fetching nodes: unable not get user data";
@@ -13859,16 +13868,21 @@ void MegaClient::fetchnodes(bool nocache)
                     return;
                 }
 
+                if (loggedin() == FULLACCOUNT
+                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    loadAuthrings();
+                }
+
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
             });
 
             if (loggedin() == FULLACCOUNT
-                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
+                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS) // need to create early the chat and sign keys
             {
                 fetchkeys();
-                loadAuthrings();
             }
 
             fetchtimezone();
@@ -13890,10 +13904,9 @@ void MegaClient::fetchkeys()
 
     // RSA public key is retrieved by getuserdata
 
-    if (!mKeyManager.generation())
-    {
-        getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
-    }
+    // This attribute won't be used for migrated accounts
+    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+
     getua(u, ATTR_ED25519_PUBK, 0);
     getua(u, ATTR_CU25519_PUBK, 0);
     getua(u, ATTR_SIG_CU255_PUBK, 0);
@@ -14119,6 +14132,10 @@ void MegaClient::initializekeys()
             mKeyManager.setKey(key);
             mKeyManager.init(prEd255, prCu255, mPrivKey);
 
+            // We are initializing the keys, so it's safe to assume that authrings are empty
+            mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING, TLVstore()));
+            mAuthRings.emplace(ATTR_AUTHCU255, AuthRing(ATTR_AUTHCU255, TLVstore()));
+
             // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
             // Since the account is being initialized, putua should not fail.
             buf = mKeyManager.toKeysContainer();
@@ -14193,9 +14210,9 @@ void MegaClient::loadAuthrings()
     if (User* ownUser = finduser(me))
     {
         // if KeyManager is ready, authrings are already retrieved by getuserdata (from ^!keys attribute)
-        if (!mKeyManager.generation() || !mKeyManager.isSecure())
+        if (!mKeyManager.generation())
         {
-            std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
+            std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255 };
             for (auto at : attrs)
             {
                 const string *av = ownUser->getattr(at);
@@ -14394,32 +14411,29 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         {
             if (authring->needsUpdate())
             {
-                userattr_map attrs;
-
                 std::string serializedAuthring = authring->serializeForJS();
-                std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-                attrs[authringType] = *newAuthring;
-
-                // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
-                // if found in the temporal ones.
-                putua(&attrs, 0,
-                [this, serializedAuthring](Error e)
+                if (mKeyManager.generation())
                 {
-                    if (e || !mKeyManager.generation())
-                    {
-                        // We have failed (or the account has not been upgraded),
-                        // so we don't propagate the changes to mKeyManager
-                        return;
-                    }
-
                     mKeyManager.commit(
                     [this, serializedAuthring]()
                     {
                         // Changes to apply in the commit
                         mKeyManager.setAuthRing(serializedAuthring);
-                        mKeyManager.promotePendingShares();
-                    }); // No completion callback in this case
-                });
+                    });
+                }
+                else
+                {
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
+                }
             }
 
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
@@ -14567,24 +14581,9 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         {
             if (authring->needsUpdate())
             {
-                userattr_map attrs;
-
                 std::string serializedAuthring = authring->serializeForJS();
-                std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-                attrs[authringType] = *newAuthring;
-
-                // CAUTION: we can be updating the mAuthRingsTemp, so serialize() should include those, and not the regular mAuthRing,
-                // if found in the temporal ones.
-                putua(&attrs, 0,
-                [this, authringType, serializedAuthring](Error e)
+                if (mKeyManager.generation())
                 {
-                    if (e || !mKeyManager.generation())
-                    {
-                        // We have failed (or the account has not been upgraded),
-                        // so we don't propagate the changes to mKeyManager
-                        return;
-                    }
-
                     if (authringType == ATTR_AUTHCU255)
                     {
                         mKeyManager.commit(
@@ -14592,10 +14591,22 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                         {
                             // Changes to apply in the commit
                             mKeyManager.setAuthCU255(serializedAuthring);
-                            mKeyManager.promotePendingShares();
-                        }); // No completion callback in this case
+                        });
                     }
-                });
+                }
+                else
+                {
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
+                }
             }
 
             mAuthRingsTemp.erase(authringType);
@@ -14616,6 +14627,12 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 
 error MegaClient::verifyCredentials(handle uh)
 {
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
     Base64Str<MegaClient::USERHANDLE> uid(uh);
     auto itEd = mAuthRings.find(ATTR_AUTHRING);
     bool hasEdAuthring = itEd != mAuthRings.end();
@@ -14681,36 +14698,17 @@ error MegaClient::verifyCredentials(handle uh)
     }
 
     int tag = reqtag;
-    std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
     std::string serializedAuthring = authring.serializeForJS();
-    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0, UNDEF, 0, 0,
-    [this, tag, serializedAuthring](Error e)
+    mKeyManager.commit(
+    [this, serializedAuthring]()
     {
-        if (e || !mKeyManager.generation())
-        {
-            // We have failed (or the account has not been upgraded),
-            // so we don't propagate the changes to mKeyManager
-            restag = tag;
-            app->putua_result(e);
-            return;
-        }
-
-        // Here, the modified authring should be already active,
-        // so promotePendingShares should succeed for any pending
-        // share with the verified user.
-        mKeyManager.commit(
-        [this, serializedAuthring]()
-        {
-            // Changes to apply in the commit
-            mKeyManager.setAuthRing(serializedAuthring);
-            mKeyManager.promotePendingShares();
-        },
-        [this, tag]()
-        {
-            restag = tag;
-            app->putua_result(API_OK);
-            return;
-        });
+        // Changes to apply in the commit
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
+    {
+        restag = tag;
+        app->putua_result(API_OK);
     });
 
     return API_OK;
@@ -14718,6 +14716,12 @@ error MegaClient::verifyCredentials(handle uh)
 
 error MegaClient::resetCredentials(handle uh)
 {
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
     Base64Str<MegaClient::USERHANDLE> uid(uh);
     auto it = mAuthRings.find(ATTR_AUTHRING);
     if (it == mAuthRings.end())
@@ -14743,33 +14747,19 @@ error MegaClient::resetCredentials(handle uh)
     LOG_debug << "Reseting credentials for user " << uid << "...";
     authring.update(uh, AUTH_METHOD_SEEN);
 
-    unique_ptr<string> buf(authring.serialize(rng, key));
-    string serializedAuthring = authring.serializeForJS();
     int tag = reqtag;
-    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(buf->data()), static_cast<unsigned>(buf->size()), tag, UNDEF, 0, 0,
-    [this, tag, serializedAuthring](Error e)
+    string serializedAuthring = authring.serializeForJS();
+    mKeyManager.commit(
+    [this, serializedAuthring]()
     {
-        if (e || !mKeyManager.generation())
-        {
-            // We have failed (or the account has not been upgraded),
-            // so we don't propagate the changes to mKeyManager
-            restag = tag;
-            app->putua_result(e);
-            return;
-        }
-
-        mKeyManager.commit(
-        [this, serializedAuthring]()
-        {
-            // Changes to apply in the commit
-            mKeyManager.setAuthRing(serializedAuthring);
-        },
-        [this, tag]()
-        {
-            restag = tag;
-            app->putua_result(API_OK);
-            return;
-        });
+        // Changes to apply in the commit
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
+    {
+        restag = tag;
+        app->putua_result(API_OK);
+        return;
     });
 
     return API_OK;
@@ -22107,7 +22097,7 @@ bool KeyManager::isValidKeysContainer(const KeyManager& km)
     // validate private RSA key
     if (mPrivRSA.empty())
     {
-        assert(km.mPrivRSA.size() >= 512);
+        assert(km.mPrivRSA.empty() || km.mPrivRSA.size() >= 512);
         if (km.mPrivRSA.empty())
         {
             LOG_warn << "Empty RSA key";
@@ -22150,6 +22140,15 @@ void KeyManager::updateValues(KeyManager &km)
     mBackups            = move(km.mBackups);
     mWarnings           = move(km.mWarnings);
     mOther              = move(km.mOther);
+
+    if (promotePendingShares())
+    {
+        commit([this]()
+        {
+            // Changes to apply in the commit
+            promotePendingShares();
+        }); // No completion callback in this case
+    }
 }
 
 string KeyManager::toKeysContainer()
@@ -22397,6 +22396,7 @@ string KeyManager::getPrivRSA()
 bool KeyManager::promotePendingShares()
 {
     bool attributeUpdated = false;
+    bool newshares = false;
     std::vector<std::string> keysToDelete;
 
     for (const auto& it : mPendingOutShares)
@@ -22469,6 +22469,7 @@ bool KeyManager::promotePendingShares()
                 mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
                 attributeUpdated = true;
+                newshares = true;
             }
             else
             {
@@ -22482,7 +22483,11 @@ bool KeyManager::promotePendingShares()
         removePendingInShare(shareHandle);
     }
     keysToDelete.clear();
-    mClient.mergenewshares(true);
+
+    if (newshares)
+    {
+        mClient.mergenewshares(true);
+    }
 
     return attributeUpdated;
 }
@@ -23232,7 +23237,14 @@ void KeyManager::updateAuthring(attr_t at, string& value)
     string& authring = (at == ATTR_AUTHRING) ? mAuthEd25519 : mAuthCu25519;
     authring = move(value);
     mClient.mAuthRings.erase(at);
-    mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+    if (authring.empty())
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+    }
+    else
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+    }
 }
 
 void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
