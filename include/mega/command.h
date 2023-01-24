@@ -164,8 +164,10 @@ public:
     void addToNodePendingCommands(Node* n);
     void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
 
+#ifdef ENABLE_CHAT
     // create json structure for scheduled meetings (mcsmp command)
     void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };

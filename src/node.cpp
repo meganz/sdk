@@ -351,7 +351,7 @@ bool Node::serialize(string* d)
         LOG_debug << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
-        applykey(true);
+        applykey();
         setattr();
 
         if (attrstring)
@@ -924,7 +924,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
-bool Node::applykey(bool notAppliedOk)
+bool Node::applykey()
 {
     if (type > FOLDERNODE)
     {
@@ -1071,10 +1071,6 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     {
         client->mNodeManager.updateCounter(*this, oldparent);
     }
-
-//#ifdef ENABLE_SYNC
-//    client->cancelSyncgetsOutsideSync(this);
-//#endif
 
     return true;
 }
