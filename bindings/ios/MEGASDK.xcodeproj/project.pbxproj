@@ -93,6 +93,7 @@
 		A87D97A21F4AD49B00A98C0E /* MEGAStringList.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D97A11F4AD49B00A98C0E /* MEGAStringList.mm */; };
 		A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */; };
 		A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */; };
+		A899465B2971589F008448C4 /* nodemanager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A899465A2971589F008448C4 /* nodemanager.cpp */; };
 		A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */; };
 		A8C45FD7237AB61A00342F36 /* testhooks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8C45FD6237AB61A00342F36 /* testhooks.cpp */; };
 		A8FD7334230ABA400070A5E8 /* MEGACancelToken.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */; };
@@ -328,6 +329,8 @@
 		A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGATreeProcessorListener.mm; sourceTree = "<group>"; };
 		A88722DA1FFE6A7100E3F443 /* mediafileattribute.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mediafileattribute.h; sourceTree = "<group>"; };
 		A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mediafileattribute.cpp; path = ../../src/mediafileattribute.cpp; sourceTree = "<group>"; };
+		A899465A2971589F008448C4 /* nodemanager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = nodemanager.cpp; path = ../../src/nodemanager.cpp; sourceTree = "<group>"; };
+		A899465C297158B4008448C4 /* nodemanager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = nodemanager.h; sourceTree = "<group>"; };
 		A8A86BD21F559C0100C214DA /* mega_utf8proc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_utf8proc.h; sourceTree = "<group>"; };
 		A8A86BD31F559C0100C214DA /* mega_zxcvbn.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_zxcvbn.h; sourceTree = "<group>"; };
 		A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_zxcvbn.cpp; path = ../../src/mega_zxcvbn.cpp; sourceTree = "<group>"; };
@@ -372,6 +375,7 @@
 		940BEF9719ED9259007E7FA2 /* sdk */ = {
 			isa = PBXGroup;
 			children = (
+				A899465A2971589F008448C4 /* nodemanager.cpp */,
 				A8FD7B651E93B4100031FC50 /* osx */,
 				940BF03919EDBCAD007E7FA2 /* include */,
 				940BEFD619ED9351007E7FA2 /* crypto */,
@@ -575,6 +579,7 @@
 		940BF03C19EDBCAD007E7FA2 /* mega */ = {
 			isa = PBXGroup;
 			children = (
+				A899465C297158B4008448C4 /* nodemanager.h */,
 				A84CE7FB28CF37DD0044CCCD /* setandelement.h */,
 				B6DAED3528AB1B2100703E28 /* textchat.h */,
 				A8FD7B621E93B3FB0031FC50 /* osx */,
@@ -735,7 +740,6 @@
 				940BEFF919ED9723007E7FA2 /* bindings */,
 				940BEF9719ED9259007E7FA2 /* sdk */,
 				9472044419ED916F00F6805F /* Products */,
-				A82751021E97A929007CD9E2 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -745,13 +749,6 @@
 				9472044319ED916F00F6805F /* libMEGASDK.a */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		A82751021E97A929007CD9E2 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A8FD7B621E93B3FB0031FC50 /* osx */ = {
@@ -891,6 +888,7 @@
 				A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */,
 				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
 				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
+				A899465B2971589F008448C4 /* nodemanager.cpp in Sources */,
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
 				A87843F5215D078700E809EB /* useralerts.cpp in Sources */,
 				B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */,
