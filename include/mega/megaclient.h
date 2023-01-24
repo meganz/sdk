@@ -1415,6 +1415,7 @@ public:
     dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried
     dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
+    void removeAppData(void* t); // remove appdata (usually a MegaTransfer*) from every DirectRead
 
     // merge newly received share into nodes
     void mergenewshares(bool notify, bool skipWriteInDb = false);

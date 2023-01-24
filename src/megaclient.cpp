@@ -14048,6 +14048,22 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     }
 }
 
+void MegaClient::removeAppData(void* t)
+{
+    for (auto it = hdrns.begin(); it != hdrns.end(); ++it)
+    {
+        dr_list& dreads = it->second->reads;
+        for(auto it2 = dreads.begin(); it2 != dreads.end(); ++it2)
+        {
+            DirectRead* dr = *it2;
+            if (dr && dr->appdata == t)
+            {
+                dr->appdata = nullptr;
+            }
+        }
+    }
+}
+
 // cancel direct read by node pointer / count / count
 void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
 {

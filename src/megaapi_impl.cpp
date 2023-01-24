@@ -13853,8 +13853,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         return;
     }
 
-    if(requestMap.find(tag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(tag);
+    auto reqIt = requestMap.find(tag);
+    MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
@@ -16348,6 +16348,10 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
     activeTransfer = NULL;
     activeError = NULL;
+    if (transfer->isStreamingTransfer())
+    {
+        client->removeAppData(transfer);
+    }
     delete transfer;
 }
 
@@ -18279,7 +18283,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
-                    f->setTransfer(transfer);
+                    f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!
                     f->cancelToken = transfer->accessCancelToken();
 
                     error result = API_OK;
@@ -18333,6 +18337,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result));
                         }
+
+                        delete f; // `started` was false, `f` wasn't stored at Transfer::files
                     }
                     currentTransfer = NULL;
                 }
@@ -18494,6 +18500,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     }
 
                     currentTransfer = transfer;
+
                     unique_ptr<MegaFileGet> f;
                     if (node)
                     {
