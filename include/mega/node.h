@@ -212,7 +212,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     unsigned depth() const;
 
     // try to resolve node key string
-    bool applykey(bool notAppliedOk = false);
+    bool applykey();
 
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
