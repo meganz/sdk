@@ -2668,7 +2668,6 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
         MegaSyncList *getSyncs();
@@ -2695,6 +2694,8 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
 #endif // ENABLE_SYNC
+
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
