@@ -111,71 +111,6 @@ void NodeManager::notifyNode(Node* n)
             delete [] buf;
         }
 
-#ifdef ENABLE_SYNC
-        // is this a synced node that was moved to a non-synced location? queue for
-        // deletion from LocalNodes.
-        if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
-        {
-            if (n->changed.removed || n->changed.parent)
-            {
-                if (n->type == FOLDERNODE)
-                {
-                    LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
-                }
-                else
-                {
-                    LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                }
-            }
-
-            n->localnode->deleted = true;
-            n->localnode.reset();
-        }
-        else
-        {
-            // is this a synced node that is not a sync root, or a new node in a
-            // synced folder?
-            // FIXME: aggregate subtrees!
-            if (n->localnode && n->localnode->parent)
-            {
-                n->localnode->deleted = n->changed.removed;
-            }
-
-            if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
-            {
-                if (n->localnode)
-                {
-                    n->localnode->deleted = n->changed.removed;
-                }
-
-                if (!n->changed.removed && (n->changed.newnode || n->changed.parent))
-                {
-                    if (!n->localnode)
-                    {
-                        if (n->type == FOLDERNODE)
-                        {
-                            LOG_debug << "Sync - remote folder addition detected " << n->displayname();
-                        }
-                        else
-                        {
-                            LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                        }
-                    }
-                    else
-                    {
-                        Node* prevparent = n->localnode->parent ? n->localnode->parent->node.get() : nullptr;
-                        LOG_debug << "Sync - remote move " << n->displayname() <<
-                            " from " << (prevparent ? prevparent->displayname() : "?") <<
-                            " to " << (n->parent ? n->parent->displayname() : "?");
-                    }
-                }
-            }
-            else if (!n->changed.removed && n->changed.name && n->localnode && n->localnode->name.compare(n->displayname()))
-            {
-                LOG_debug << "Sync - remote rename from " << n->localnode->name << " to " << n->displayname();
-            }
-        }
-#endif
     }
 
     if (!n->notified)
@@ -770,6 +705,13 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
 
     node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
 
+    // do not automatically try to reload the account if we can't unserialize.
+    // (1) we might go around in circles downloading the account over and over, DDOSing MEGA, becuase we get the same data back each time
+    // (2) this function has no idea what is going on in the rest of the program.
+    //     Reloading Nodes may be a terrible idea depending on what operations are in progress and calling this function.
+    // (3) Reloading nodes will take a long time, and in the meantime we will be operating without this node anyway.  So, the damage is alrady done (eg, with syncs) and reloading is adding extra complications to diagnosis
+    // (4) There should be an event issued here, so we can gather statistics on whether this happens or not, or how often
+    // (5) Likely, reloading from here is completely untested.
     return node;
 }
 
@@ -1302,182 +1244,6 @@ void NodeManager::notifyPurge()
             mClient.app->nodes_updated(&mNodeNotify.data()[0], static_cast<int>(mNodeNotify.size()));
         }
 
-#ifdef ENABLE_SYNC
-
-        // check for renamed/moved sync root folders
-        mClient.syncs.forEachUnifiedSync([&](UnifiedSync& us){
-            // Try and locate the sync's cloud root.
-            Node* n = getNodeByHandle(us.mConfig.mRemoteNode);
-
-            // Sync's root is no longer present in memory.
-            if (!n)
-                return;
-
-            // Has this node received any commands from the backup center?
-            auto commands = n->getSdsBackups();
-
-            // Are any of the commands applicable to this sync?
-            for (auto& command : commands)
-            {
-                // Command entry isn't applicable to us.
-                if (command.first != us.mConfig.mBackupId)
-                    continue;
-
-                // Command entry isn't telling us to remove this sync.
-                if (command.second != CommandBackupPut::DELETED)
-                    continue;
-
-                // For purposes of capture.
-                auto id = us.mConfig.mBackupId;
-                auto remoteNode = us.mConfig.mRemoteNode;
-
-                auto completion = [id, remoteNode, this](Error result) {
-                    // Had the sync already been removed?
-                    if (result == API_ENOENT)
-                    {
-                        LOG_debug << "SDS: Sync "
-                                  << toHandle(id)
-                                  << " no longer present for the node "
-                                  << remoteNode;
-                        return;
-                    }
-
-                    // Was there any error removing the sync?
-                    if (result != API_OK)
-                    {
-                        LOG_err << "SDS: Unable to remove sync "
-                                << toHandle(id)
-                                << " associated with the node "
-                                << remoteNode
-                                << " due to error "
-                                << result;
-                        return;
-                    }
-
-                    // Locate this sync's root node.
-                    auto* node = getNodeByHandle(remoteNode);
-
-                    // Is the node still present in memory?
-                    if (!node)
-                    {
-                        LOG_warn << "SDS: Unable to update attribute as "
-                                 << remoteNode
-                                 << " is no longer present in memory.";
-                        return;
-                    }
-
-                    // Is it worth updating the node's SDS attribute?
-                    if (node->changed.removed)
-                    {
-                        LOG_debug << "SDS: Skipping attribute update as "
-                                  << remoteNode
-                                  << " has been removed.";
-                        return;
-                    }
-
-                    auto commands = node->getSdsBackups();
-                    auto updated = false;
-
-                    // Update the attribute's value.
-                    for (auto i = commands.size(); i--; )
-                    {
-                        auto& command = commands[i];
-
-                        if (command.first != id
-                            || command.second != CommandBackupPut::DELETED)
-                            continue;
-
-                        commands.erase(commands.begin() + i);
-                        updated = true;
-                    }
-
-                    // Do we really need to update the attribute?
-                    if (!updated)
-                    {
-                        LOG_warn << "SDS: Skipping no-op attribute update: "
-                                 << remoteNode;
-                        return;
-                    }
-
-                    auto completion = [](NodeHandle handle, Error result) {
-                        // Were we unable to update the SDS attribute?
-                        if (result != API_OK)
-                        {
-                            LOG_warn << "SDS: Unable to update attribute on "
-                                     << handle
-                                     << " due to error "
-                                     << result;
-                            return;
-                        }
-
-                        // Update was successful.
-                        LOG_debug << "SDS: Attribute updated on "
-                                  << handle;
-                    };
-
-                    // Update the attribute.
-                    mClient.setattr(node,
-                            attr_map(Node::sdsId(), Node::toSdsString(commands)),
-                            std::move(completion),
-                            true);
-                };
-
-                // Try and remove the sync.
-                mClient.syncs.deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                                 move(completion), true);
-            }
-
-            //update sync root node location and trigger failing cases
-            NodeHandle rubbishHandle = getRootNodeRubbish();
-
-            // check if moved
-            bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
-            const string currentPath = n->displaypath(); // full remote path
-            const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
-            bool pathChanged = n->changed.parent || movedToRubbish ||
-                               // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
-                               us.mConfig.mRemoteNode != n->nodehandle ||
-                               originalPath != currentPath;
-
-            if (n->changed.attrs || pathChanged || n->changed.removed)
-            {
-                bool removed = n->changed.removed;
-
-                // update path in sync configuration
-                us.updateSyncRemoteLocation(removed ? nullptr : n, false);
-
-                auto &activeSync = us.mSync;
-                if (!activeSync) // no active sync (already failed)
-                {
-                    return;
-                }
-
-                auto syncErr = NO_SYNC_ERROR;
-
-                // fail sync if required
-                if (movedToRubbish)
-                {
-                    syncErr = REMOTE_NODE_MOVED_TO_RUBBISH;
-                }
-                else if (removed)
-                {
-                    syncErr = REMOTE_NODE_NOT_FOUND;
-                }
-                else if (pathChanged) // moved
-                {
-                    syncErr = REMOTE_PATH_HAS_CHANGED;
-                }
-
-                if (syncErr != NO_SYNC_ERROR)
-                {
-                    mClient.syncs.disableSyncByBackupId(
-                        activeSync->getConfig().mBackupId,
-                        true, syncErr, false, nullptr);
-                }
-            }
-        });
-#endif
-
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
@@ -1493,12 +1259,6 @@ void NodeManager::notifyPurge()
                 // make this just a warning to avoid auto test failure
                 // this can happen if another client adds a folder in our share and the key for us is not available yet
                 LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
-#ifdef ENABLE_SYNC
-                if (n->localnode)
-                {
-                    LOG_err << "LocalNode: " << n->localnode->name << " " << n->localnode->type << " " << n->localnode->size;
-                }
-#endif
             }
 
             if (n->changed.removed)
@@ -1737,7 +1497,7 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
         mAccountReload = true;
 
 #ifdef ENABLE_SYNC
-        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+        mClient.syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
 #endif
 
         std::string reason;
