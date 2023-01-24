@@ -1070,11 +1070,6 @@ MegaScheduledMeetingList* MegaRequest::getMegaScheduledMeetingList() const
 {
     return nullptr;
 }
-
-MegaScheduledMeeting* MegaRequest::getScheduledMeeting() const
-{
-    return nullptr;
-}
 #endif
 
 MegaHandleList* MegaRequest::getMegaHandleList() const
@@ -3556,11 +3551,6 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
-}
-
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeSyncById(backupId, listener);
@@ -3666,6 +3656,11 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 }
 #endif
 
+
+void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
+{
+    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
+}
 
 MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {
@@ -4104,12 +4099,12 @@ MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelT
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(nullptr, searchString, CancelToken(), order);
+    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), order);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
@@ -5311,14 +5306,14 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, int chatOptions, MegaRequestListener* listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, int chatOptions, const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, chatOptions, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, chatOptions, scheduledMeeting, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, MegaRequestListener* listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, scheduledMeeting, listener);
 }
 
 void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener)

@@ -1477,8 +1477,6 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
         MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
-        MegaScheduledMeeting *getScheduledMeeting() const override;
-        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
@@ -1549,7 +1547,6 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
-        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
         unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
@@ -2671,7 +2668,6 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
         MegaSyncList *getSyncs();
@@ -2698,6 +2694,8 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
 #endif // ENABLE_SYNC
+
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
@@ -2975,7 +2973,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = nullptr, MegaRequestListener* listener = NULL);
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
@@ -3144,7 +3142,7 @@ protected:
         std::thread::id threadId;
         MegaClient *client;
         MegaHttpIO *httpio;
-        MegaWaiter *waiter;
+        shared_ptr<MegaWaiter> waiter;
         unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;

@@ -149,6 +149,7 @@ public:
 
     // setters
     void setSchedId(handle schedId);
+    void setChatid(handle chatid);
 
     // getters
     handle chatid() const;
@@ -329,6 +330,9 @@ public:
 
     // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
     ScheduledMeeting* getSchedMeetingById(handle id);
+
+    // returns a map of schedId to ScheduledMeeting
+    const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& getSchedMeetings();
 };
 
 typedef vector<TextChat*> textchat_vector;
