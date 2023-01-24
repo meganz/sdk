@@ -18940,10 +18940,10 @@ bool MegaClient::deleteSet(handle sid)
     return false;
 }
 
-unsigned MegaClient::getSetElementCount(handle sid, bool includeElementsInRubbishBin)
+unsigned MegaClient::getSetElementCount(handle sid) const
 {
-    auto elements = getSetElements(sid, includeElementsInRubbishBin);
-    return static_cast<unsigned>(elements.size());
+    auto* elements = getSetElements(sid);
+    return elements ? static_cast<unsigned>(elements->size()) : 0u;
 }
 
 const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
@@ -18961,32 +18961,10 @@ const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
     return nullptr;
 }
 
-bool MegaClient::nodeInRubbishCheck(handle h)
-{
-    Node* n = nodebyhandle(h); // no const
-    bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
-    return inRubbish;
-}
-
 const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
 {
     auto itS = mSetElements.find(sid);
     return itS == mSetElements.end() ? nullptr : &itS->second;
-}
-
-map<handle, const SetElement*> MegaClient::getSetElements(handle sid, bool includeElementsInRubbishBin)
-{
-    const auto* elements = getSetElements(sid);
-    map<handle, const SetElement*> els;
-    for (const auto& e : *elements)
-    {
-        if (includeElementsInRubbishBin || !nodeInRubbishCheck(e.second.node()))
-        {
-            els.emplace(e.first, &(e.second));
-        }
-    }
-
-    return els;
 }
 
 bool MegaClient::deleteSetElement(handle sid, handle eid)
