@@ -11288,35 +11288,41 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         // TODO: update ^!keys, so the sharekey is gone
     }
 
+    if (a == ACCESS_UNKNOWN)
+    {
+        User *u = getUserForSharing(user);
+        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag, move(completion)));
+        return;
+    }
+
     if (!mKeyManager.isSecure())
     {
         queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
         return;
     }
 
+    User *u = getUserForSharing(user);
+    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion));
+}
+
+void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
+{
     std::string msg;
     if (personal_representation)
     {
         msg = personal_representation;
     }
 
-    if (a == ACCESS_UNKNOWN)
-    {
-        User *u = getUserForSharing(user);
-        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, msg.c_str(), tag, move(completion)));
-        return;
-    }
-
     std::string uid;
     if (user)
     {
-        uid = user;
+        uid = (user->show == VISIBLE) ? user->uid : user->email;
     }
 
     bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
-    if (!n->sharekey && !uid.size())
+    if (!n->sharekey && uid.empty())
     {
         assert(newshare);
 
@@ -11336,7 +11342,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
     std::function<void()> completeShare =
-    [this, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
+    [this, user, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
     {
         Node *n;
         // node vanished: bail
@@ -11346,15 +11352,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             return;
         }
 
-        User *u = getUserForSharing(uid.c_str());
-        std::string nuid = uid;
-        if (u)
-        {
-            nuid = u->uid;
-        }
-        handle userhandle = u ? u->userhandle : UNDEF;
-        reqs.add(new CommandSetShare(this, n, u, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, nuid, userhandle, nodehandle, shareKey, completion](Error e, bool writable)
+        handle userhandle = user ? user->userhandle : UNDEF;
+        reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
+        [this, uid, userhandle, nodehandle, shareKey, completion](Error e, bool writable)
         {
             if (e || ISUNDEF(userhandle))
             {
@@ -11371,21 +11371,21 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             }
 
             reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [this, nuid, nodehandle, completion, e, writable](Error err)
+            [this, uid, nodehandle, completion, writable](Error err)
             {
                 if (err)
                 {
                     LOG_err << "Error sending share key: " << err;
-                    completion(e, writable);
+                    completion(API_OK, writable);
                 }
                 else
                 {
                     LOG_debug << "Share key correctly sent";
                     mKeyManager.commit(
-                    [this, nodehandle, nuid]()
+                    [this, nodehandle, uid]()
                     {
                         // Changes to apply in the commit
-                        mKeyManager.removePendingOutShare(nodehandle, nuid);
+                        mKeyManager.removePendingOutShare(nodehandle, uid);
                     },
                     [completion, writable]()
                     {

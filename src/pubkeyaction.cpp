@@ -97,7 +97,6 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // but having the public RSA key of the target to send the
     // share key also using the old method
 
-    std::string msg = selfemail;
     Node* n;
 
     // node vanished: bail
@@ -107,45 +106,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         return;
     }
 
-    if (a == ACCESS_UNKNOWN)
-    {
-        client->reqs.add(new CommandSetShare(client, n, u, a, 0, NULL, mWritable, msg.c_str(), tag, move(completion)));
-        return;
-    }
-
-    std::string uid;
-    if (u)
-    {
-        uid = u->email;
-    }
-
-    bool newshare = !n->isShared();
-
-    // if creating a folder link and there's no sharekey already
-    if (!n->sharekey && uid.empty())
-    {
-        assert(newshare);
-
-        byte key[SymmCipher::KEYLENGTH];
-        client->rng.genblock(key, sizeof key);
-        n->sharekey = new SymmCipher(key);
-    }
-
-    if (!n->sharekey)
-    {
-        LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
-        completion(API_EKEY, mWritable);
-        return;
-    }
-
-    // We need to copy all data because "this" (the object) will be deleted
-    // when this function finishes
-    handle nodehandle = n->nodehandle;
-    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
-    bool writable = mWritable;
-    accesslevel_t accessLevel = a;
-    std::function<void(Error, bool writable)> completionCallback = std::move(completion);
-    int reqtag = tag;
+    // We need to copy the user because it can be deleted when this function finishes
     User *user = nullptr;
     if (u)
     {
@@ -157,88 +118,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         user->isTemporary = true;
     }
 
-    std::function<void()> completeShare =
-    [client, user, uid, nodehandle, accessLevel, newshare, msg, reqtag, shareKey, writable, completionCallback]()
-    {
-        Node *n = client->nodebyhandle(nodehandle);
-        // node vanished: bail
-        if (!n)
-        {
-            completionCallback(API_ENOENT, writable);
-            return;
-        }
-
-        handle userhandle = user ? user->userhandle : UNDEF;
-        client->reqs.add(new CommandSetShare(client, n, user, accessLevel, newshare, NULL, writable, msg.c_str(), reqtag,
-        [client, uid, userhandle, nodehandle, shareKey, completionCallback](Error e, bool writable)
-        {
-            if (e || ISUNDEF(userhandle))
-            {
-                completionCallback(e, writable);
-                return;
-            }
-
-            std::string encryptedKey = client->mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-            if (encryptedKey.empty())
-            {
-                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
-                completionCallback(e, writable);
-                return;
-            }
-
-            client->reqs.add(new CommandPendingKeys(client, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [client, uid, nodehandle, writable, completionCallback](Error err)
-            {
-                if (err)
-                {
-                    LOG_err << "Error sending share key: " << err;
-                    completionCallback(API_OK, writable);
-                }
-                else
-                {
-                    LOG_debug << "Share key correctly sent";
-                    client->mKeyManager.commit(
-                    [client, nodehandle, uid]()
-                    {
-                        // Changes to apply in the commit
-                        client->mKeyManager.removePendingOutShare(nodehandle, uid);
-                    },
-                    [completionCallback, writable]()
-                    {
-                        completionCallback(API_OK, writable);
-                    });
-                }
-            }));
-        }));
-    };
-
-    if (newshare || uid.size())
-    {
-        client->mKeyManager.commit(
-        [client, newshare, nodehandle, shareKey, uid]()
-        {
-            // Changes to apply in the commit
-            if (newshare)
-            {
-                client->mKeyManager.addOutShareKey(nodehandle, shareKey);
-            }
-
-            if (uid.size()) // not a folder link, but a share with a user
-            {
-                // Add pending outshare;
-                client->mKeyManager.addPendingOutShare(nodehandle, uid);
-            }
-        },
-        [completeShare]()
-        {
-            completeShare();
-        });
-        return;
-    }
-    else // folder link on an already shared folder -> no need to update ^!keys
-    {
-        completeShare();
-    }
+    client->setShareCompletion(n, user, a, mWritable, selfemail.c_str(), tag, move(completion));
 }
 
 // share node sh with access level sa
