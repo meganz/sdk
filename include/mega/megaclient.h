@@ -2398,14 +2398,16 @@ public:
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
 
-    // return Element count for Set sid, or 0 if not found
-    unsigned getSetElementCount(handle sid) const;
+    // return Element count for Set sid, or 0 if not found according to the filter option
+    unsigned getSetElementCount(handle sid, bool includeElementsInRubbishBin);
 
     // return Element with given eid from Set sid, or nullptr if not found
     const SetElement* getSetElement(handle sid, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
     const map<handle, SetElement>* getSetElements(handle sid) const;
+    // return all available Elements in a Set, indexed by eid according to the filter option
+    map<handle, const SetElement*> getSetElements(handle sid, bool includeElementsInRubbishBin);
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
@@ -2414,6 +2416,8 @@ public:
     bool deleteSetElement(handle sid, handle eid);
 
 private:
+
+    bool nodeInRubbishCheck(handle h);
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
