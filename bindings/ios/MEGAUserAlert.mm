@@ -20,6 +20,7 @@
  */
 #import "MEGAUserAlert.h"
 #import "megaapi.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -117,6 +118,10 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
 }
 
+- (int64_t)scheduledMeetingId {
+    return self.megaUserAlert ? self.megaUserAlert->getSchedId() : ::mega::INVALID_HANDLE;
+}
+
 - (instancetype)clone {
     return self.megaUserAlert ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlert->copy() cMemoryOwn:YES] : nil;
 }
@@ -133,6 +138,56 @@ using namespace mega;
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getString((unsigned int)index) ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getString((unsigned int)index)] : nil;
+}
+
+- (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType {
+    if (!self.megaUserAlert) return NO;
+    
+    return self.megaUserAlert->hasSchedMeetingChanged(changeType);
+}
+
+- (MEGAStringList *)titleList {
+    return self.megaUserAlert ? [MEGAStringList.alloc initWithMegaStringList:self.megaUserAlert->getUpdatedTitle() cMemoryOwn:YES] : nil;
+}
+
+- (NSArray<NSDate *> *)startDateList {
+    if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedStartDate()) { return nil; }
+    
+    MegaIntegerList *integerList = self.megaUserAlert->getUpdatedStartDate()->copy();
+    NSMutableArray<NSDate *> *dateArray = [NSMutableArray arrayWithCapacity:integerList->size()];
+
+    for (int i = 0; i < integerList->size(); i++) {
+        NSInteger timeInterval = integerList->get(i);
+        if (timeInterval != -1) {
+            NSDate *date = [NSDate dateWithTimeIntervalSince1970:integerList->get(i)];
+            if (date != nil) {
+                [dateArray addObject:date];
+            }
+        }
+    }
+    
+    delete integerList;
+    return dateArray;
+}
+
+- (NSArray<NSDate *> *)EndDateList {
+    if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedEndDate()) { return nil; }
+    
+    MegaIntegerList *integerList = self.megaUserAlert->getUpdatedEndDate()->copy();
+    NSMutableArray<NSDate *> *dateArray = [NSMutableArray arrayWithCapacity:integerList->size()];
+
+    for (int i = 0; i < integerList->size(); i++) {
+        NSInteger timeInterval = integerList->get(i);
+        if (timeInterval != -1) {
+            NSDate *date = [NSDate dateWithTimeIntervalSince1970:integerList->get(i)];
+            if (date != nil) {
+                [dateArray addObject:date];
+            }
+        }
+    }
+    
+    delete integerList;
+    return dateArray;
 }
 
 @end
