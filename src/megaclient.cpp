@@ -2156,8 +2156,8 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
                     pendingcs_serverBusySent = false;
 
-                    bool suppressSID = true;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
+                    bool suppressSID, v3;
+                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
 
                     pendingcs->posturl = httpio->APIURL;
 
