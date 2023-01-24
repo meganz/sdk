@@ -133,6 +133,7 @@ std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 // external drive id, used for name filtering
+static string allExtDrives = "*";
 string b64driveid;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
@@ -1092,7 +1093,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        if (client->loggedinfolderlink())
+        if (client->loggedIntoFolder())
         {
             if (client->isValidFolderLink())
             {
@@ -1307,6 +1308,13 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        if (type == ATTR_DEVICE_NAMES)
+        {
+            cout << '(' << (b64driveid.empty() ? "Printing only Device names" :
+                (b64driveid == allExtDrives ? "Printing only External-Drive names" :
+                    "Printing name of the specified External-Drive only")) << ')' << endl;
+        }
+
         bool printDriveId = false;
 
         unique_ptr<vector<string>> keys(tlv->getKeys());
@@ -1317,7 +1325,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             // external drive names can be filtered
             if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
+                bool isExtDrive = key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0; // starts with "ext:" prefix
+                // print all device names, OR all ext-drive names, OR the name of the selected ext-drive
+                printDriveId = (b64driveid.empty() && !isExtDrive) || // device name
+                               (isExtDrive && (b64driveid == allExtDrives || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid));
                 if (!printDriveId)
                 {
                     continue;
@@ -1337,11 +1348,6 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                 {
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
-
-                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
-                    {
-                        cout << " (external drive)";
-                    }
                 }
                 else
                 {
@@ -3555,6 +3561,7 @@ void exec_getdevicename(autocomplete::ACState& s)
         cout << "Must be logged in to query own attributes." << endl;
         return;
     }
+    b64driveid.clear(); // filter out all external drives
 
     client->getua(u, ATTR_DEVICE_NAMES);
 }
@@ -3598,11 +3605,10 @@ void exec_getextdrivename(autocomplete::ACState& s)
 
     bool idFlag = s.extractflag("-id");
     bool pathFlag = s.extractflag("-path");
+    b64driveid = allExtDrives; // list all external drives
 
     if (s.words.size() == 2)
     {
-        b64driveid.clear();
-
         if (idFlag)
         {
             b64driveid = s.words[1].s;
@@ -10880,7 +10886,7 @@ void exec_numberofnodes(autocomplete::ACState &s)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish
-    if (!client->loggedinfolderlink())
+    if (!client->loggedIntoFolder())
     {
         numberOfNodes += 3;
     }

@@ -114,6 +114,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
     return errorDetected;
 }
 
+#ifdef ENABLE_CHAT
 void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
 {
     if (!schedMeeting)
@@ -209,6 +210,7 @@ void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
         endobject();
     }
 }
+#endif
 
 // cache urls and ips given in response to avoid further waiting for dns resolution
 bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
