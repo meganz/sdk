@@ -553,7 +553,7 @@ typedef list<struct TransferSlot*> transferslot_list;
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_multimap;
 
 template <class T, class E>
 class deque_with_lazy_bulk_erase
@@ -631,9 +631,6 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
-
-// map an upload handle to the corresponding transfer
-typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
 typedef map<NodeHandle, unique_ptr<Node>> node_map;
@@ -1186,7 +1183,7 @@ typedef std::map<NodeHandle, Node*> nodePtr_map;
 #ifdef ENABLE_CHAT
 static constexpr int sfu_invalid_id = -1;
 #endif
-} // namespace
+} // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
     class_name(const class_name&) = delete; \

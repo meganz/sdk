@@ -262,15 +262,12 @@ std::map<size_t, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
-    gTestingInvalidArgs = false;
 }
 
 void SdkTest::TearDown()
 {
     out() << "Test done, teardown starts";
     // do some cleanup
-
-    gTestingInvalidArgs = false;
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
 
@@ -1136,9 +1133,7 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     int apiIndex = 0;
-    gTestingInvalidArgs = true;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
-    gTestingInvalidArgs = false;
     if (shareFolderErr == API_EKEY)
     {
         ASSERT_EQ(API_OK, doOpenShareDialog(apiIndex, n)) << "Creating new share key failed. " << "User: " << email << " Action: " << action;
@@ -1686,11 +1681,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid duration of a node ___
 
-    gTestingInvalidArgs = true;
-
     ASSERT_EQ(API_EARGS, synchronousSetNodeDuration(0, n1.get(), -14)) << "Unexpected error setting invalid node duration";
-
-    gTestingInvalidArgs = false;
 
 
     // ___ Set duration of a node ___
@@ -1732,8 +1723,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
-    gTestingInvalidArgs = true;
-
     ASSERT_EQ(API_EARGS, synchronousSetNodeCoordinates(0, n1.get(), -1523421.8719987255814, +6349.54)) << "Unexpected error setting invalid node coordinates";
 
 
@@ -1745,8 +1734,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ Set invalid coordinates of a node (out of range) ___
 
     ASSERT_EQ(API_EARGS, synchronousSetNodeCoordinates(0, n1.get(), MegaNode::INVALID_COORDINATE, +69.54)) << "Unexpected error trying to reset only one coordinate";
-
-    gTestingInvalidArgs = false;
 
     // ___ Set coordinates of a node ___
 
@@ -1900,10 +1887,8 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // create on existing node, with link already  (different command response)
     ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
 
-    gTestingInvalidArgs = true;
     // create on non existent node
     ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
-    gTestingInvalidArgs = false;
 }
 
 
@@ -6295,7 +6280,6 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 
 
     // --- negative test cases ---
-    gTestingInvalidArgs = true;
 
     // register the same backup twice: should work fine
     err = synchronousSetBackup(0,
@@ -6318,8 +6302,6 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     //        nullptr,
     //        backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState);
     //ASSERT_NE(API_OK, err) << "setBackup failed (error: " << err << ")";
-
-    gTestingInvalidArgs = false;
 }
 
 TEST_F(SdkTest, SdkFavouriteNodes)
@@ -6591,10 +6573,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
     if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
     {
-        bool oldTestLogVal = gTestingInvalidArgs;
-        gTestingInvalidArgs = true;
         ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), attributeValue.c_str())) << "Ext-drive name was set to current device name";
-        gTestingInvalidArgs = oldTestLogVal;
     }
 
     // drive name
@@ -6608,11 +6587,8 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::path pathToDrive2 = basePath / "ExtDrive2";
     fs::create_directory(pathToDrive2);
     const string& pathToDriveStr2 = pathToDrive2.u8string();
-    bool oldTestLogVal = gTestingInvalidArgs;
-    gTestingInvalidArgs = true;
     err = synchronousSetDriveName(0, pathToDriveStr2.c_str(), driveName.c_str());
     ASSERT_EQ(API_EEXIST, err) << "setDriveName allowed duplicated name. Should not have.";
-    gTestingInvalidArgs = oldTestLogVal;
 
     // get drive name
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
@@ -7349,7 +7325,6 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fail";
     {
-        TestingWithLogErrorAllowanceGuard g;
         const auto& lp3 = localPath3.u8string();
         ASSERT_EQ(API_EEXIST, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_SAME_PATH, mApi[0].lastSyncError);
@@ -7391,8 +7366,6 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fail";
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         ASSERT_EQ(API_ENOENT, synchronousSetSyncRunState(0, 999999, MegaSync::RUNSTATE_RUNNING)); // Hope it doesn't exist.
         ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
         ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, sync2->getBackupId(), MegaSync::RUNSTATE_RUNNING)); // Currently enabled, already running.
@@ -7410,8 +7383,6 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fail";
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, 9999999)); // Hope id doesn't exist
         ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, backupId)); // already removed.
         ASSERT_EQ(API_ENOENT, synchronousRemoveSync(0, backupId2)); // already removed.
@@ -7889,8 +7860,6 @@ TEST_F(SdkTest, SyncRemoteNode)
     handle backupId = sync->getBackupId();
 
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         // Rename remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
         std::string basePathRenamed = "SyncRemoteNodeRenamed";
@@ -7922,7 +7891,6 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NE(remoteMoveNodeParent.get(), nullptr);
 
     {
-        TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
         ASSERT_EQ(API_OK, doMoveNode(0, nullptr, remoteBaseNode.get(), remoteMoveNodeParent.get()));
         sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_DISABLED, MegaSync::REMOTE_PATH_HAS_CHANGED);
@@ -7953,7 +7921,6 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // Rename remote folder --> Sync fail
     {
-        TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Rename remote node.";
         std::string renamedBasePath = basePath.u8string() + "Renamed";
         ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
@@ -7986,7 +7953,6 @@ TEST_F(SdkTest, SyncRemoteNode)
 
 
     {
-        TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
         ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
@@ -8008,7 +7974,6 @@ TEST_F(SdkTest, SyncRemoteNode)
     }
 
     {
-        TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
         ASSERT_EQ(API_ENOENT, synchronousSetSyncRunState(0, backupId, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling the sync";  //  <--- remote node has been deleted, we should not be able to resume!!
     }
@@ -8017,8 +7982,6 @@ TEST_F(SdkTest, SyncRemoteNode)
     //ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
     //{
-    //    TestingWithLogErrorAllowanceGuard g;
-
     //    // Check if a locallogout keeps the sync configuration if the remote is removed.
     //    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
     //    ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
@@ -8239,8 +8202,6 @@ TEST_F(SdkTest, SyncPaths)
 
 #ifndef WIN32
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         LOG_verbose << "SyncPersistence :  Check that symlinks are considered when creating a sync.";
         ASSERT_EQ(API_EARGS, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
@@ -8277,8 +8238,6 @@ TEST_F(SdkTest, SyncPaths)
 
 #ifndef WIN32
 {
-        TestingWithLogErrorAllowanceGuard g;
-
         ASSERT_EQ(API_EARGS, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
@@ -8353,8 +8312,6 @@ TEST_F(SdkTest, SyncOQTransitions)
     std::unique_ptr<MegaNode> last1GBFileNode(megaApi[0]->getChildNode(remoteFillNode.get(), (remote1GBFile->getName() + to_string(filesNeeded-1)).c_str()));
 
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_DISABLED, MegaSync::STORAGE_OVERQUOTA);
@@ -8402,8 +8359,6 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(API_OK, doCopyNode(1, nullptr, remote1GBFile2nd.get(), inshareNode, (remote1GBFile2nd->getName() + to_string(filesNeeded-1)).c_str()));
 
     {
-        TestingWithLogErrorAllowanceGuard g;
-
         ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));   // sync not actually resumed here though (though it would be if it was still enabled)
         ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ

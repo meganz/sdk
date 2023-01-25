@@ -1960,10 +1960,14 @@ public:
     * @brief Returns the handle of a Pending Contact Request related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST (PCR handle for all of these user alert types)
     *
-    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (parent scheduledMeetingId),
+    *   TYPE_SCHEDULEDMEETING_UPDATED (parent scheduledMeetingId)
+    *
+    * @return the relevant handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getPcrHandle() const;
 
@@ -2050,13 +2054,20 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                        value 0 if someone left the folder)
-    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
-    *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    *   TYPE_UPDATEDSHAREDNODES (0: item count)
+    *   TYPE_DELETEDSHARE (index 0: value 1 if access for this user was removed by the share owner, otherwise
+    *                               value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES     (index 0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (index 0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (index 0: item count)
     *
-    * @return Number related to this request, or -1 if the index is invalid
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    *   TYPE_SCHEDULEDMEETING_UPDATED (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    * @return Number related to this user alert, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
 
@@ -4972,16 +4983,6 @@ class MegaRequest
          * @return scheduled meeting list
          */
         virtual MegaScheduledMeetingList* getMegaScheduledMeetingList() const;
-
-        /**
-         * @brief Returns the scheduled meeting associated to the chatroom if any
-         *
-         * The SDK retains the ownership of the returned value. It will be valid until
-         * the MegaRequest object is deleted.
-         *
-         * @return MegaScheduledMeeting
-         */
-        virtual MegaScheduledMeeting* getScheduledMeeting() const;
 #endif
 
         /**
@@ -15066,30 +15067,6 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Move or Remove the nodes that used to be part of backup.
-         *
-         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
-         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
-         * To move the nodes instead, specify the destination folder in backupDestination.
-         *
-         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
-         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
-         *                          or backupDestination was not in Files or Rubbish
-         *
-         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
@@ -15324,6 +15301,30 @@ class MegaApi
         char *getBlockedPath();
 
 #endif
+
+        /**
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the backup identified with a tag
@@ -18968,10 +18969,12 @@ class MegaApi
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
@@ -18985,9 +18988,10 @@ class MegaApi
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param chatOptions Bitmask that contains the chat options to create the chat
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -19014,10 +19018,12 @@ class MegaApi
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the number of keys doesn't match the number of peers plus one (own user)
@@ -19027,9 +19033,10 @@ class MegaApi
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
          * @param chatOptions Bitmask that contains the chat options to create the chat
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Enable or disable a option for a chatroom
@@ -19062,11 +19069,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
-         * - MegaRequest::getScheduledMeeting - returns a MegaScheduledMeeting (with definitive ScheduledMeeting updated from API)
+         * MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - if no scheduled meeting is provided

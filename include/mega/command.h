@@ -152,6 +152,11 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
+#ifdef ENABLE_CHAT
+    // create json structure for scheduled meetings (mcsmp command)
+    void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
+
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
 
@@ -1034,10 +1039,11 @@ class MEGA_API CommandChatCreate : public Command
     string mUnifiedKey;
     bool mMeeting;
     ChatOptions mChatOptions;
+    std::unique_ptr<ScheduledMeeting> mSchedMeeting;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 };
 
 typedef std::function<void(Error)> CommandSetChatOptionsCompletion;

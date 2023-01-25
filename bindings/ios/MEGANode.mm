@@ -261,6 +261,10 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isForeign() : NO;
 }
 
+- (BOOL)isNodeKeyDecrypted {
+    return self.megaNode ? self.megaNode->isNodeKeyDecrypted() : NO;
+}
+
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {
     NSString *result;
     switch (nodeLabel) {
