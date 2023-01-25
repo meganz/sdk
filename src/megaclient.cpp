@@ -9063,21 +9063,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // with a new parent (server-client move operation)
                     n->changed.removed = false;
                 }
-                else
-                {
-                    // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
-                    {
-                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
-
-                        static bool reloadnotified = false;
-                        if (!reloadnotified)
-                        {
-                            sendevent(99437, "Node inconsistency", 0);
-                            reloadnotified = true;
-                        }
-                    }
-                }
 
                 if (!ISUNDEF(ph))
                 {
