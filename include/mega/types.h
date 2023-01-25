@@ -730,7 +730,7 @@ typedef enum {
     ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
-    ATTR_AUTHRSA = 28,                      // private - byte array
+    //ATTR_AUTHRSA = 28,                    // (deprecated) private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
