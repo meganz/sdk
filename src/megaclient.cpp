@@ -334,7 +334,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 delete n->sharekey;
                 n->sharekey = NULL;
 
-                // TODO: update ^!keys, so the sharekey is gone
+                if (mKeyManager.generation())
+                {
+                    handle nodehandle = n->nodehandle;
+                    if (mKeyManager.removeShare(nodehandle))
+                    {
+                        mKeyManager.commit([this, nodehandle]()
+                        {
+                            mKeyManager.removeShare(nodehandle);
+                        }); // No completion callback
+                    }
+                }
             }
         }
         else
@@ -353,10 +363,20 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     notifyuser(n->inshare->user);
                     delete n->inshare;
                     n->inshare = NULL;
+
+                    if (mKeyManager.generation())
+                    {
+                        handle nodehandle = n->nodehandle;
+                        if (mKeyManager.removeShare(nodehandle))
+                        {
+                            mKeyManager.commit([this, nodehandle]()
+                            {
+                                mKeyManager.removeShare(nodehandle);
+                            }); // No completion callback
+                        }
+                    }
                 }
             }
-
-            // TODO: delete sharekey from `^!keys` for the deleted share
         }
     }
     else
@@ -20474,6 +20494,14 @@ string KeyManager::getShareKey(handle sharehandle) const
         return it->second.first;
     }
     return std::string();
+}
+
+bool KeyManager::removeShare(handle sharehandle)
+{
+    bool removed = mShareKeys.erase(sharehandle);
+    removed |= mPendingOutShares.erase(sharehandle) != 0;
+    removed |= removePendingInShare(toNodeHandle(sharehandle)) != 0;
+    return removed;
 }
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)

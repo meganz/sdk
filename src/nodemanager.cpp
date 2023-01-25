@@ -1509,6 +1509,18 @@ void NodeManager::notifyPurge()
                     n->inshare->user->sharing.erase(n->nodehandle);
                     mClient.notifyuser(n->inshare->user);
                 }
+
+                if (mClient.mKeyManager.generation() && (n->inshare || n->outshares || n->pendingshares))
+                {
+                    handle nodehandle = n->nodehandle;
+                    if (mClient.mKeyManager.removeShare(nodehandle))
+                    {
+                        mClient.mKeyManager.commit([this, nodehandle]()
+                        {
+                            mClient.mKeyManager.removeShare(nodehandle);
+                        }); // No completion callback
+                    }
+                }
             }
             else
             {
