@@ -106,7 +106,8 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         return;
     }
 
-    // We need to copy the user because it can be deleted when this function finishes
+    // We need to copy the user if it's temporary because
+    // it will be deleted when this function finishes
     User *user = u;
     if (u && u->isTemporary)
     {

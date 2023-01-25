@@ -11291,7 +11291,15 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     if (a == ACCESS_UNKNOWN)
     {
         User *u = getUserForSharing(user);
-        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag, move(completion)));
+        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag,
+        [u, completion](Error e, bool writable)
+        {
+            if (u && u->isTemporary)
+            {
+                delete u;
+            }
+            completion(e, writable);
+        }));
         return;
     }
 
@@ -11356,13 +11364,16 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         [this, uid, user, nodehandle, shareKey, completion](Error e, bool writable)
         {
             handle userhandle = user ? user->userhandle : UNDEF;
+            if (user && user->isTemporary)
+            {
+                delete user;
+            }
+
             if (e || ISUNDEF(userhandle))
             {
                 completion(e, writable);
                 return;
             }
-
-            if (user->isTemporary) delete user;
 
             std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
             if (!encryptedKey.size())
