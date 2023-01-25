@@ -107,8 +107,8 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     }
 
     // We need to copy the user because it can be deleted when this function finishes
-    User *user = nullptr;
-    if (u)
+    User *user = u;
+    if (u && u->isTemporary)
     {
         user = new User(u->email.c_str());
         user->set(u->show, u->ctime);
