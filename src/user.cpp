@@ -1017,7 +1017,7 @@ char User::scope(attr_t at)
 
 bool User::isAuthring(attr_t at)
 {
-    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA);
+    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)

@@ -14136,7 +14136,7 @@ void MegaClient::loadAuthrings()
 
 void MegaClient::fetchContactsKeys()
 {
-    assert(mAuthRings.size() == 3 || (mKeyManager.generation() && mAuthRings.size() == 2));
+    assert(mAuthRings.size() == 2);
     mAuthRingsTemp = mAuthRings;
 
     for (auto &it : users)
