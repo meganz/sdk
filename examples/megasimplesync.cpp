@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app,
-                            new WAIT_CLASS,
+                            shared_ptr<Waiter>(new WAIT_CLASS),
                             new HTTPIO_CLASS,
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),

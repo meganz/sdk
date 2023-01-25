@@ -5057,7 +5057,7 @@ bool CommandGetUserQuota::procresult(Result r)
                 break;
 
             case EOO:
-                assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
+                assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 
                 if (mStorage)
                 {
@@ -6681,7 +6681,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions)
+CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
@@ -6758,6 +6758,16 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
 
     endarray();
 
+    // create a scheduled meeting along with chatroom
+    if (schedMeeting)
+    {
+        mSchedMeeting.reset(schedMeeting->copy()); // can avoid copy by mooving check from where we are calling
+        beginobject("sm");
+        arg("a", "mcsmp");
+        createSchedMeetingJson(mSchedMeeting.get());
+        endobject();
+    }
+
     arg("v", 1);
     notself(client);
 
@@ -6775,9 +6785,12 @@ bool CommandChatCreate::procresult(Result r)
     else
     {
         handle chatid = UNDEF;
+        handle schedId = UNDEF;
         int shard = -1;
         bool group = false;
         m_time_t ts = -1;
+        std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+        UserAlert::UpdatedScheduledMeeting::Changeset cs;
 
         for (;;)
         {
@@ -6799,6 +6812,22 @@ bool CommandChatCreate::procresult(Result r)
                     ts = client->json.getint();
                     break;
 
+                case MAKENAMEID2('s', 'm'):
+                {
+                    if (!client->json.isnumeric())
+                    {
+                        schedId = client->json.gethandle(MegaClient::CHATHANDLE);
+                    }
+                    else
+                    {
+                        assert(false); // we don't won't to add an ill-formed chatroom
+                        LOG_err << "Error creating a scheduled meeting along with chat. chatId [" <<  Base64Str<MegaClient::CHATHANDLE>(chatid) << "]";
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers; // unused, but might be set at creation
+                        return false;
+                    }
+                    break;
+                }
                 case EOO:
                     if (chatid != UNDEF && shard != -1)
                     {
@@ -6832,6 +6861,18 @@ bool CommandChatCreate::procresult(Result r)
                         if (mPublicChat)
                         {
                             chat->unifiedKey = mUnifiedKey;
+                        }
+
+                        if (schedId != UNDEF && mSchedMeeting)
+                        {
+                            assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
+                            mSchedMeeting->setSchedId(schedId);
+                            mSchedMeeting->setChatid(chatid);
+                            if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
+                            {
+                                LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+                            }
+                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
                         }
 
                         client->notifychat(chat);
@@ -9419,7 +9460,11 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
     cmd("mcms");
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    //TODO: add support for sfuId
+    if (client->mSfuid != sfu_invalid_id)
+    {
+        arg("sfu", client->mSfuid);
+    }
+
     if (schedId != UNDEF)
     {
         // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
@@ -9499,88 +9544,8 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
     assert(schedMeeting);
-    handle chatid = schedMeeting->chatid();
-    handle schedId = schedMeeting->schedId();
-    handle parentSchedId = schedMeeting->parentSchedId();
-
-    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)
     cmd("mcsmp");
-
-    // required params
-    arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
-    arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-    arg("s", schedMeeting->startDateTime().c_str());
-    arg("e", schedMeeting->endDateTime().c_str());
-    arg("t", Base64::btoa(schedMeeting->title()).c_str());
-    arg("d", Base64::btoa(schedMeeting->description()).c_str());
-
-    // optional params
-    if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
-    if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
-    if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-    if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
-    if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
-
-    if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
-    {
-        arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
-    }
-
-    // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
-    if (schedMeeting->rules())
-    {
-        const ScheduledRules* rules = schedMeeting->rules();
-        beginobject("r");
-
-        if (rules->isValidFreq(rules->freq()))
-        {
-            arg("f", rules->freqToString()); // required
-        }
-
-        if (rules->isValidInterval(rules->interval()))
-        {
-            arg("i", rules->interval());
-        }
-
-        if (!rules->until().empty())
-        {
-            arg("u", rules->until().c_str());
-        }
-
-        if (rules->byWeekDay() && !rules->byWeekDay()->empty())
-        {
-            beginarray("wd");
-            for (auto i: *rules->byWeekDay())
-            {
-                element(static_cast<int>(i));
-            }
-            endarray();
-        }
-
-        if (rules->byMonthDay() && !rules->byMonthDay()->empty())
-        {
-            beginarray("md");
-            for (auto i: *rules->byMonthDay())
-            {
-                element(static_cast<int>(i));
-            }
-            endarray();
-        }
-
-        if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
-        {
-            beginarray("mwd");
-            for (auto i: *rules->byMonthWeekDay())
-            {
-                beginarray();
-                element(static_cast<int>(i.first));
-                element(static_cast<int>(i.second));
-                endarray();
-            }
-            endarray();
-        }
-        endobject();
-    }
+    createSchedMeetingJson(mScheduledMeeting.get());
     notself(client); // set i param to ignore action packet generated by our own action
     tag = client->reqtag;
 }
@@ -9677,7 +9642,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, 0, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
         }
     }
 
@@ -9722,15 +9687,15 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     return true;
 }
 
-CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
+CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, m_time_t since, m_time_t until, unsigned int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
    mCompletion(completion ? completion : [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){})
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since)      { arg("cf", since); }
-    if (until)      { arg("ct", until); }
-    if (count)      { arg("cc", count); }
+    if (since != mega_invalid_timestamp)      { arg("cf", since); }
+    if (until != mega_invalid_timestamp)      { arg("ct", until); }
+    if (count)                                { arg("cc", count); }
     tag = client->reqtag;
 }
 

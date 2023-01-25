@@ -486,7 +486,9 @@ template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNod
 template <> inline Node*& crossref_other_ptr_ref<LocalNode, Node>(LocalNode* p) { return p->node.ptr; }
 template <> inline LocalNode*& crossref_other_ptr_ref<Node, LocalNode>(Node* p) { return p->localnode.ptr; }
 
-#endif
+#endif  // ENABLE_SYNC
+
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot);
 
 } // namespace
 

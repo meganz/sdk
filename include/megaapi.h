@@ -33,6 +33,7 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef int64_t MegaTimeStamp; // unix timestamp
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -48,6 +49,7 @@ typedef uint64_t MegaHandle;
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
+    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -89,6 +91,7 @@ class MegaScheduledMeetingList;
 class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
+class MegaIntegerList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -1946,6 +1949,9 @@ public:
     *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
     *  TYPE_TAKEDOWN_REINSTATED (node handle)
     *
+    * This value is also valid for the following alerts:
+    * TYPE_SCHEDULEDMEETING_NEW (chatid), TYPE_SCHEDULEDMEETING_DELETED (chatid), TYPE_SCHEDULEDMEETING_UPDATED (chatid)
+    *
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getNodeHandle() const;
@@ -2106,17 +2112,73 @@ public:
      *   TYPE_SCHEDULEDMEETING_UPDATED
      *
      * @param changeType The type of change to check. It can be one of the following values:
-     * - MegaUserAlerts::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
-     * - MegaUserAlerts::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
     virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+
+    /**
+     * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_TITLE)
+     *
+     * To retrieve old title you need to call: MegaStringList::get(0)
+     * To retrieve new title you need to call: MegaStringList::get(1)
+     *
+     * @return MegaStringList that contains old and new title for the scheduled meeting
+     */
+    virtual MegaStringList* getUpdatedTitle() const;
+
+    /**
+     * @brief Returns a MegaStringList that contains old and new TimeZone for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE)
+     *
+     * To retrieve old TimeZone you need to call: MegaStringList::get(0)
+     * To retrieve new TimeZone you need to call: MegaStringList::get(1)
+     *
+     * @return MegaStringList that contains old and new TimeZone for the scheduled meeting
+     */
+    virtual MegaStringList* getUpdatedTimeZone() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_STARTDATE)
+     *
+     * To retrieve old StartDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new StartDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new StartDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedStartDate() const;
+
+    /**
+     * @brief Returns a MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     *
+     * Note: This value is only valid if the following conditions are met:
+     *   - MegaUserAlert::getType == TYPE_SCHEDULEDMEETING_UPDATED
+     *   - MegaUserAlert::hasChanged(MegaUserAlert::SM_CHANGE_TYPE_ENDDATE)
+     *
+     * To retrieve old EndDateTime you need to call: MegaIntegerList::get(0)
+     * To retrieve new EndDateTime you need to call: MegaIntegerList::get(1)
+     *
+     * @return MegaIntegerList that contains old and new EndDateTime for the scheduled meeting
+     */
+    virtual MegaIntegerList* getUpdatedEndDate() const;
 #endif
     /**
      * @brief Indicates if the user alert is changed by yourself or by another client.
@@ -2719,21 +2781,21 @@ public:
      * @param parentSchedId : parent scheduled meeting handle
      * @param cancelled     : cancelled flag
      * @param timezone      : timeZone
-     * @param startDateTime : start dateTime (format: 20220726T133000)
-     * @param endDateTime   : end dateTime (format: 20220726T133000)
+     * @param startDateTime : start dateTime (unix timestamp)
+     * @param endDateTime   : end dateTime (unix timestamp)
      * @param title         : meeting title
      * @param description   : meeting description
      * @param attributes    : attributes to store any additional data
-     * @param overrides     : start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @param overrides     : start dateTime of the original meeting series event to be replaced (unix timestamp)
      * @param flags         : flags bitmask (used to store additional boolean settings as a bitmask)
      * @param rules         : scheduled meetings rules
      *
      * @return A pointer to the superclass of the private object
      */
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, MegaHandle schedId, MegaHandle parentSchedId, MegaHandle organizerUserId,
-                                                     int cancelled, const char* timezone, const char* startDateTime,
-                                                     const char* endDateTime, const char* title, const char* description, const char* attributes,
-                                                     const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
+                                                     int cancelled, const char* timezone, MegaTimeStamp startDateTime,
+                                                     MegaTimeStamp endDateTime, const char* title, const char* description, const char* attributes,
+                                                     MegaTimeStamp overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
 
     /**
      * @brief Creates a copy of this MegaScheduledMeeting object
@@ -2791,18 +2853,18 @@ public:
     virtual const char* timezone() const;
 
     /**
-     * @brief Returns the start dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the start dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the start dateTime of the scheduled Meeting
      */
-    virtual const char* startDateTime() const;
+    virtual MegaTimeStamp startDateTime() const;
 
     /**
-     * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
+     * @brief Returns the end dateTime of the scheduled Meeting (unix timestamp)
      *
      * @return the end dateTime of the scheduled Meeting
      */
-    virtual const char* endDateTime() const;
+    virtual MegaTimeStamp endDateTime() const;
 
     /**
      * @brief Returns the scheduled meeting title
@@ -2826,11 +2888,11 @@ public:
     virtual const char* attributes() const;
 
     /**
-     * @brief Returns the start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @brief Returns the start dateTime of the original meeting series event to be replaced (unix timestamp)
      *
      * @return the start dateTime of the original meeting series event to be replaced
      */
-    virtual const char* overrides() const;
+    virtual MegaTimeStamp overrides() const;
 
     /**
      * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
@@ -2939,7 +3001,7 @@ public:
      */
     static MegaScheduledRules* createInstance(int freq,
                                                   int interval = INTERVAL_INVALID,
-                                                  const char* until = nullptr,
+                                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                                   const ::mega::MegaIntegerList* byWeekDay = nullptr,
                                                   const ::mega::MegaIntegerList* byMonthDay = nullptr,
                                                   const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -2971,11 +3033,11 @@ public:
     virtual int interval() const;
 
     /**
-     * @brief Returns when the repetitions should end
+     * @brief Returns when the repetitions should end (unix timestamp)
      *
      * @return When the repetitions should end
      */
-    virtual const char* until() const;
+    virtual MegaTimeStamp until() const;
 
     /**
      * @brief Returns a MegaIntegerList with the week days when the event will occur
@@ -4898,16 +4960,6 @@ class MegaRequest
          * @return scheduled meeting list
          */
         virtual MegaScheduledMeetingList* getMegaScheduledMeetingList() const;
-
-        /**
-         * @brief Returns the scheduled meeting associated to the chatroom if any
-         *
-         * The SDK retains the ownership of the returned value. It will be valid until
-         * the MegaRequest object is deleted.
-         *
-         * @return MegaScheduledMeeting
-         */
-        virtual MegaScheduledMeeting* getScheduledMeeting() const;
 #endif
 
         /**
@@ -14920,30 +14972,6 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Move or Remove the nodes that used to be part of backup.
-         *
-         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
-         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
-         * To move the nodes instead, specify the destination folder in backupDestination.
-         *
-         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
-         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
-         *                          or backupDestination was not in Files or Rubbish
-         *
-         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
@@ -15178,6 +15206,30 @@ class MegaApi
         char *getBlockedPath();
 
 #endif
+
+        /**
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the backup identified with a tag
@@ -18802,10 +18854,12 @@ class MegaApi
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
@@ -18819,9 +18873,10 @@ class MegaApi
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param chatOptions Bitmask that contains the chat options to create the chat
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -18848,10 +18903,12 @@ class MegaApi
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
          * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the number of keys doesn't match the number of peers plus one (own user)
@@ -18861,9 +18918,10 @@ class MegaApi
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
          * @param chatOptions Bitmask that contains the chat options to create the chat
+         * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Enable or disable a option for a chatroom
@@ -18896,11 +18954,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getScheduledMeeting - Returns a MegaScheduledMeeting with data introduced by user
+         * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
-         * - MegaRequest::getScheduledMeeting - returns a MegaScheduledMeeting (with definitive ScheduledMeeting updated from API)
+         * MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with definitive ScheduledMeeting updated from API)
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - if no scheduled meeting is provided
@@ -18967,12 +19025,12 @@ class MegaApi
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies a chat room
-         * @param since DateTime from which we want to fetch occurrences
-         * @param until Datetime until we want to fetch occurrences
+         * @param since DateTime from which we want to fetch occurrences (unix timestamp)
+         * @param until Datetime until we want to fetch occurrences (unix timestamp)
          * @param count Number of occurrences we want to fetch
          * @param listener MegaChatRequestListener to track this request
          */
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -19602,6 +19660,15 @@ class MegaApi
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 
+        /**
+         * @brief Change the SFU id
+         *
+         * This function allows to set the SFU server where all chat calls will be started
+         * It's only useful for testing or debugging purposes.
+         *
+         * @param sfuid New SFU id
+         */
+        void setSFUid(int sfuid);
 #endif
 
         /**

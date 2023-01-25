@@ -1242,6 +1242,24 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     return MimeType_t::MIME_TYPE_UNKNOWN;
 }
 
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
+{
+    nameid id = filenameExtensionLowercaseNoDot.length() > 8
+              ? 0 : AttrMap::string2nameid(filenameExtensionLowercaseNoDot.c_str());
+
+    if (id)
+    {
+        if (photoImageDefExtension.find(id) != photoImageDefExtension.end()) return true;
+        if (photoRawExtensions.find(id) != photoRawExtensions.end()) return true;
+        if (photoExtensions.find(id) != photoExtensions.end()) return true;
+        if (videoExtensions.find(id) != videoExtensions.end()) return true;
+        if (audioExtensions.find(id) != audioExtensions.end()) return true;
+    }
+
+    if (longAudioExtension.find(filenameExtensionLowercaseNoDot) != longAudioExtension.end()) return true;
+    return false;
+}
+
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {
