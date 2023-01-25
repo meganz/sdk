@@ -9554,6 +9554,32 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elCount = differentApi.getSetElementCount(sh);
     ASSERT_EQ(elCount, 1u);
 
+    // Move element's file to Rubbish Bin
+    std::unique_ptr<MegaNode> elementNode(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_TRUE(elementNode) << "File node of Element not found";
+    std::unique_ptr<MegaNode> rubbishNode(megaApi[0]->getRubbishNode());
+    ASSERT_TRUE(rubbishNode) << "Rubbish Bin node not found";
+    ASSERT_EQ(API_OK, doMoveNode(0, nullptr, elementNode.get(), rubbishNode.get())) << "Couldn't move node to Rubbish Bin";
+    els2.reset(megaApi[0]->getSetElements(sh));
+    ASSERT_EQ(els2->size(), 1u) << "Wrong all Element-s, including Rubbish Bin (1 file moved to Rubbish)";
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u) << "Wrong Element count, including Rubbish Bin (1 file moved to Rubbish)";
+    els2.reset(megaApi[0]->getSetElements(sh, false));
+    ASSERT_EQ(els2->size(), 0u) << "Wrong all Element-s, excluding Rubbish Bin (1 file moved to Rubbish)";
+    elCount = megaApi[0]->getSetElementCount(sh, false);
+    ASSERT_EQ(elCount, 0u) << "Wrong Element count, excluding Rubbish Bin (1 file moved to Rubbish)";
+
+    // Restore Element's file from Rubbish Bin
+    ASSERT_EQ(API_OK, doMoveNode(0, nullptr, elementNode.get(), rootnode.get())) << "Couldn't restore node from Rubbish Bin";
+    els2.reset(megaApi[0]->getSetElements(sh));
+    ASSERT_EQ(els2->size(), 1u) << "Wrong all Element-s, including Rubbish Bin (no files in Rubbish)";
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u) << "Wrong Element count, including Rubbish Bin (no files in Rubbish)";
+    els2.reset(megaApi[0]->getSetElements(sh, false));
+    ASSERT_EQ(els2->size(), 1u) << "Wrong all Element-s, excluding Rubbish Bin (no files in Rubbish)";
+    elCount = megaApi[0]->getSetElementCount(sh, false);
+    ASSERT_EQ(elCount, 1u) << "Wrong Element count, excluding Rubbish Bin (no files in Rubbish)";
+
     // Clear Element name
     differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementName(0, nullptr, sh, eh, "");
@@ -9715,6 +9741,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->user(), s1up->user());
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u) << "Wrong Element count after resumeSession";
 
     unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(ellp, nullptr);
