@@ -3650,7 +3650,7 @@ bool CommandGetUA::procresult(Result r)
                                 {
                                     client->trackKey(at, u->userhandle, value);
                                 }
-                                else if (at == ATTR_SIG_CU255_PUBK || at == ATTR_SIG_RSA_PUBK)
+                                else if (at == ATTR_SIG_CU255_PUBK)
                                 {
                                     client->trackSignature(at, u->userhandle, value);
                                 }
@@ -4003,12 +4003,6 @@ bool CommandPubKeyRequest::procresult(Result r)
                         len_pubk = 0;
                     }
 
-                    if (!u->isTemporary && u->userhandle != client->me && len_pubk && u->pubk.isvalid())
-                    {
-                        string pubkstr;
-                        u->pubk.serializekeyforjs(pubkstr);
-                        client->trackKey(ATTR_UNKNOWN, u->userhandle, pubkstr);
-                    }
                     finished = true;
                     break;
 

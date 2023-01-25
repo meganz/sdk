@@ -14180,7 +14180,7 @@ void MegaClient::fetchContactKeys(User *user)
     if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
     else trackKey(attrType, user->userhandle, *user->getattr(attrType));
 
-    // TODO: remove obsolete retrieval and tracking of public RSA keys and its signatures
+    // TODO: remove obsolete retrieval of public RSA keys and its signatures
     // (authrings for RSA are deprecated)
     int creqtag = reqtag;
     reqtag = 0;
@@ -14204,11 +14204,6 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         LOG_err << "Attempt to track an unknown type of key for user " << uid << ": " << User::attr2string(keyType);
         assert(false);
         return API_EARGS;
-    }
-    if (authringType == ATTR_AUTHRSA && mKeyManager.generation())
-    {
-        LOG_info << "Skip tracking RSA key for user " << uid << ": secure client doesn't rely on RSA";
-        return API_OK;
     }
 
     // If checking authrings for all contacts (new session), accumulate updates for all contacts first
@@ -14377,7 +14372,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     const string *pubKey;
-    string pubKeyBuf;   // for RSA, need to serialize the key
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
@@ -14388,17 +14382,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             return API_EINTERNAL;
         }
         pubKey = user->getattr(ATTR_CU25519_PUBK);
-    }
-    else if (signatureType == ATTR_SIG_RSA_PUBK)
-    {
-        if (!user->pubk.isvalid())
-        {
-            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": RSA public key is not available";
-            assert(false);
-            return API_EINTERNAL;
-        }
-        user->pubk.serializekeyforjs(pubKeyBuf);
-        pubKey = &pubKeyBuf;
     }
     else
     {
