@@ -1224,10 +1224,10 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
     TCHAR volume[MAX_PATH + 1];
     if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
     {
-        TCHAR fs[MAX_PATH + 1];
+        TCHAR fs[MAX_PATH + 1] = { 0, };
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
         {
-            LOG_info << "Filesystem type: " << fs;
+            LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
                 && _wcsicmp(fs, L"FAT32")
                 && _wcsicmp(fs, L"exFAT");
