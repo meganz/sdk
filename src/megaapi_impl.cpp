@@ -27324,7 +27324,7 @@ void StreamingBuffer::init(size_t capacity)
     maxBufferSize = (std::max(maxBufferSize, minMaxBufferCapacity) / maxReadChunkSize) * maxReadChunkSize;
     // Set maxOutputSize depending on the final buffer size and the max chunk size which could be read from transfer (DirectReadSlot)
     size_t bufferSize = std::min(capacity, maxBufferSize);
-    size_t maxDeliveryChunksPerByteRate = std::max((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), 1);
+    size_t maxDeliveryChunksPerByteRate = std::max((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), static_cast<size_t>(1));
     maxOutputSize = std::min(maxDeliveryChunksPerByteRate * maxReadChunkSize, bufferSize);
     // Truncate capacity if needed
     if (capacity > bufferSize)
