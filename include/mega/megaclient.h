@@ -296,6 +296,7 @@ public:
     bool addOutShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     bool addInShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
+    bool removeShare(handle sharehandle);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
