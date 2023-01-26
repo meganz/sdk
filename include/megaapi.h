@@ -20513,10 +20513,11 @@ class MegaApi
          * @brief Get Element count of the Set with the given id, for current user.
          *
          * @param sid the id of the Set to get Element count for
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return Element count of requested Set, or 0 if not found
          */
-        unsigned getSetElementCount(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get all Elements in the Set with given id, for current user.
@@ -20526,10 +20527,11 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param sid the id of the Set owning the Elements
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return all Elements in that Set, or null if not found or none added
          */
-        MegaSetElementList* getSetElements(MegaHandle sid);
+        MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get a particular Element in a particular Set, for current user.
