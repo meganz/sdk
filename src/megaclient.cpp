@@ -11305,8 +11305,6 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         // rewrite keys of foreign nodes located in the outbound share that is getting canceled
         // FIXME: verify that it is really getting canceled to prevent benign premature rewrite
         rewriteforeignkeys(n);
-
-        // TODO: update ^!keys, so the sharekey is gone
     }
 
     if (a == ACCESS_UNKNOWN)
