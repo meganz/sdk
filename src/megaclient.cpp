@@ -7491,6 +7491,8 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
+        handle parentSchedId = sm->parentSchedId();
+        m_time_t overrides = sm->overrides();
         handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
 
         // remove all child scheduled meeting occurrences
@@ -7517,15 +7519,15 @@ void MegaClient::sc_scheduledmeetings()
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
-                else createUpdatedSMAlert(ou, chat->id, schedId, std::move(cs));
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
+                else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm, handle parentSchedId, m_time_t startDateTime)
 {
     if (ou == me)
     {
@@ -7533,7 +7535,7 @@ void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, parentSchedId, startDateTime));
 }
 
 void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm)
@@ -7547,8 +7549,8 @@ void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm
     useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm,
-                                      UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm, handle parentSchedId,
+                                      m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
 {
     if (ou == me)
     {
@@ -7556,7 +7558,7 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm
                     << " in a differet session";
         return;
     }
-    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, std::move(cs)));
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, parentSchedId, startDateTime, std::move(cs)));
 }
 
 #endif
@@ -17938,7 +17940,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         error e = API_OK;
         cs.oldValue = j->getint();
         cs.newValue = j->getint();
-        bool updated = static_cast<bool>(cs.newValue);
+        bool updated = cs.newValue > 0;
         if (!updated)
         {
             e = API_ENOENT;
