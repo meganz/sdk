@@ -1621,19 +1621,10 @@ bool DirectReadSlot::doio()
                     m_off_t updatedThroughput = calcThroughput(mThroughput[connectionNum].first + n, mThroughput[connectionNum].second + chunkTime) * 1000;
                     m_off_t chunkThroughput = calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000;
                     aggregatedThroughput = (chunkThroughput + updatedThroughput) / 2;
-                    maxChunkSize = std::max(chunkThroughput, aggregatedThroughput);
+                    maxChunkSize = aggregatedThroughput;
 
                     if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
                     {
-                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] Avoid small chunks due to fragmentation caused by similar chunk sizes"
-                                    << " [previous maxChunkSize = " << maxChunkSize
-                                    << " , new maxChunkSize = mMaxChunkSubmitted = " << mMaxChunkSubmitted
-                                    << "]"
-                                    << " [n = " << n
-                                    << ", updatedThroughput = " << ((updatedThroughput * 1000) / 1024) << " KB/s"
-                                    << ", chunkThroughput = " << ((chunkThroughput * 1000) / 1024) << " KB/s"
-                                    << ", aggregatedThroughput = " << ((aggregatedThroughput * 1000) / 1024) << " KB/s"
-                                    << "]";
                         // Avoid small chunks due to fragmentation caused by similar (but different) chunk sizes (compared to max submitted chunk size)
                         maxChunkSize = mMaxChunkSubmitted;
                     }
