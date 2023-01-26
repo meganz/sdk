@@ -588,13 +588,15 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, bool cinshare, const string& logname)
+           const LocalPath& clocaldebris, bool cinshare,
+           const string& logname, SyncError& e)
 : syncs(us.syncs)
 , localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
 , threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
 {
+    e = NO_SYNC_ERROR;
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
     assert(!cdebris.empty() || !clocaldebris.empty());
@@ -651,14 +653,18 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
-    if (cfsfp)
+    fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
+
+    auto original_fsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
+    if (original_fsfp)
     {
-        fsfp = cfsfp;
-    }
-    else
-    {
-        fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
+        if (fsfp != original_fsfp)
+        {
+            // leave this function before we create a Rubbish/.debris folder where we maybe shouldn't
+            LOG_err << "Sync root path is a different Filesystem than when the sync was created.";
+            e = LOCAL_FILESYSTEM_MISMATCH;
+            return;
+        }
     }
 
     fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
@@ -667,7 +673,10 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     auto fas = syncs.fsaccess->newfileaccess(false);
 
-    if (fas->fopen(mLocalPath, true, false))
+    // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
+    bool reparsePointOkAtRoot = true;
+
+    if (fas->fopen(mLocalPath, true, false, nullptr, reparsePointOkAtRoot, true, nullptr))
     {
         // get the fsid of the synced folder
         localroot->fsid_lastSynced = fas->fsid;
@@ -700,8 +709,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
     else
     {
-        LOG_err << "Could not open sync root folder: " << mLocalPath;
-        us.mConfig.mRunState = SyncRunState::Disable;
+        LOG_err << "Could not open sync root folder, could not get its fsid: " << mLocalPath;
+        e = UNABLE_TO_RETRIEVE_ROOT_FSID;
     }
 }
 
@@ -3390,13 +3399,17 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     us.mConfig.mRunState = SyncRunState::Loading;
     us.changedConfigState(false, true);
 
-    us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
-    us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
+    SyncError constructResult = NO_SYNC_ERROR;
+    us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname, constructResult));
 
-    if (us.mConfig.mRunState == SyncRunState::Disable)
+    if (constructResult != NO_SYNC_ERROR)
     {
-        LOG_err << "Could not determine fsid of sync root folder.";
-        return fail(API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID);
+        LOG_err << "Sync creation failed, syncerr: " << constructResult;
+        return fail(API_EFAILED, constructResult);
+    }
+    else
+    {
+        us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
     }
 
     debugLogHeapUsage();
@@ -10796,7 +10809,7 @@ void Syncs::syncLoop()
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
                     {
                         LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
-                        sync->changestate(LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
                         continue;
                     }
                 }

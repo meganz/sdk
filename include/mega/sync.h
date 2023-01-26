@@ -576,7 +576,7 @@ public:
     // How deep is this sync's cloud root?
     unsigned mCurrentRootDepth = 0;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname);
+    Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
     ~Sync();
 
     // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
