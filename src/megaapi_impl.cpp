@@ -25873,7 +25873,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, transfer->getAppData() /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
