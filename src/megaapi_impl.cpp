@@ -25891,7 +25891,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, transfer->getAppData() /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, nullptr /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
@@ -27295,7 +27295,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(false);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this, fsType);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, nullptr /*appData()*/, transfer->accessCancelToken(), this, fsType);
              transferQueue.push(transferDownload);
          }
     }
