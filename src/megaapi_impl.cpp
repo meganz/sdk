@@ -25648,6 +25648,24 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     LOG_debug << "MegaRecursiveOperation finished subtransfers: " << transfersFinishedCount << " of " << transfersTotalCount;
     if (allSubtransfersResolved())
     {
+        if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+           [this]() // set root folder node handle in MegaTransfer
+           {
+               LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+               auto rootFolderName = transfer->getFileName()
+                       ? transfer->getFileName()
+                       : path.leafName().toPath(true);
+
+               unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+               std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+               if (root)
+               {
+                   transfer->setNodeHandle(root->getHandle());
+               }
+           }();
+        }
+
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
