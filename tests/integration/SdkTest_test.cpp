@@ -8980,15 +8980,15 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     // Make accounts contacts
     LOG_verbose << "EnhancedSecurityShares :  Make account contacts";
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, "EnhancedSecurityShares contact request A to B", MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) ) << "Inviting contact timeout: " << maxTimeout << " seconds.";
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) ) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, "EnhancedSecurityShares contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
 
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) ) << "Accepting contact timeout: " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) ) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Accepting contact timeout: " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
 
     mApi[0].cr.reset();
     mApi[1].cr.reset();
@@ -9075,6 +9075,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_EQ(inshareNode.get(), nullptr);
+
     //
     // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
     //
