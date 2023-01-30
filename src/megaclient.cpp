@@ -230,8 +230,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
         }
 
-        if (auth)
-        {
+        if (auth && n->testShareKey(s->key))
+        {            
             if (n->sharekey)
             {
                 if (!fetchingnodes)
@@ -20627,18 +20627,18 @@ bool KeyManager::promotePendingShares()
         handle userHandle = it.second.first;
         const std::string &encryptedShareKey = it.second.second;
 
-        if (mShareKeys.find(nodeHandle) != mShareKeys.end())
-        {
-            // already have it
-            keysToDelete.push_back(it.first);
-            attributeUpdated = true;
-        }
-        else if (mClient.areCredentialsVerified(userHandle))
+        if (mClient.areCredentialsVerified(userHandle))
         {
             LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())
             {
+                auto skit = mShareKeys.find(nodeHandle);
+                if (skit != mShareKeys.end() && skit->second.first != shareKey)
+                {
+                    LOG_warn << "Updating share key for inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
+                }
+
                 addInShareKey(nodeHandle, shareKey, true);
                 mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
