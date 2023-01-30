@@ -3430,6 +3430,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
     this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
     this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
+    mScheduledMeetingList.reset(request->mScheduledMeetingList ? request->mScheduledMeetingList->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -19039,7 +19040,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 request->setTimeZoneDetails(mTimezones);
-                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
