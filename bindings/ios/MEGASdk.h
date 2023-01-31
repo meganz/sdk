@@ -3714,10 +3714,21 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * The response value is stored as a MEGASetElement array.
  *
  * @param sid the id of the Set owning the Elements
+ * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
  *
  * @return all Elements in that Set, or nil if not found or none added
  */
--(NSArray<MEGASetElement *>*)megaSetElementsBySid:(MEGAHandle)sid;
+- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
+
+/**
+ * @brief Get Element count of the Set with the given id, for current user.
+ *
+ * @param sid the id of the Set to get Element count for
+ * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+ *
+ * @return Element count of requested Set, or 0 if not found
+ */
+- (NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.

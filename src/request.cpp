@@ -41,22 +41,33 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req, bool& suppressSID) const
+void Request::get(string* req, bool& suppressSID, MegaClient* client) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
 
     suppressSID = true; // only if all commands in batch are suppressSID
 
+    map<string, int> counts;
+
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");
-        req->append(cmds[i]->getstring());
+        req->append(cmds[i]->getJSON(client));
         req->append("}");
         suppressSID = suppressSID && cmds[i]->suppressSID;
+        ++counts[cmds[i]->commandStr];
     }
 
     req->append("]");
+
+    string commandCounts;
+    for (auto& e : counts)
+    {
+        if (!commandCounts.empty()) commandCounts += " ";
+        commandCounts += e.first + ":" + std::to_string(e.second);
+    }
+    LOG_debug << "Req command counts: " << commandCounts;
 }
 
 bool Request::processCmdJSON(Command* cmd, bool couldBeError)
@@ -115,6 +126,9 @@ void Request::process(MegaClient* client)
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
             client->json = cmdJSON;
             client->json.storeobject();
+
+            // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
+            assert(false);
         }
         else
         {
@@ -250,7 +264,8 @@ void RequestDispatcher::add(Command *c)
 
 bool RequestDispatcher::cmdspending() const
 {
-    return !nextreqs.front().empty();
+    return nextreqs.empty() ? false :
+          !nextreqs.front().empty();
 }
 
 bool RequestDispatcher::cmdsInflight() const
@@ -258,7 +273,7 @@ bool RequestDispatcher::cmdsInflight() const
     return !inflightreq.empty();
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes)
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -267,7 +282,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
     {
         nextreqs.push_back(Request());
     }
-    inflightreq.get(out, suppressSID);
+    inflightreq.get(out, suppressSID, client);
     includesFetchingNodes = inflightreq.isFetchNodes();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();

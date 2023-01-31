@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "MEGAStringList.h"
 
 typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
     MEGAUserAlertTypeIncomingPendingContactRequest,
@@ -43,8 +44,22 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
     MEGAUserAlertTypePaymentReminder,
     MEGAUserAlertTypeTakedown,
     MEGAUserAlertTypeTakedownReinstated,
+    MEGAUserAlertTypeScheduledMeetingNew,
+    MEGAUserAlertTypeScheduledMeetingDeleted,
+    MEGAUserAlertTypeScheduledMeetingUpdated,
     MEGAUserAlertTypeTotal
 };
+
+typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
+    MEGAUserAlertScheduledMeetingChangeTypeTitle,        // Title has changed
+    MEGAUserAlertScheduledMeetingChangeTypeDescription,  // Description has changed
+    MEGAUserAlertScheduledMeetingChangeTypeCancelled,    // Cancelled flag has changed
+    MEGAUserAlertScheduledMeetingChangeTypeTimeZone,     // Timezone has changed
+    MEGAUserAlertScheduledMeetingChangeTypeStartDate,    // Start date time has changed
+    MEGAUserAlertScheduledMeetingChangeTypeEndDate,      // End date time has changed
+    MEGAUserAlertScheduledMeetingChangeTypeRules,        // Repetition rules have changed
+};
+
 
 /**
  * @brief Represents a user alert in MEGA.
@@ -109,6 +124,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
  *
  * This value is valid for alerts that relate to a single node.
  *
+ * This value is also valid for the following alerts:
+ * MEGAUserAlertTypeScheduledMeetingNew (chatid),
+ * MEGAUserAlertTypeScheduledMeetingDeleted (chatid),
+ * MEGAUserAlertTypeScheduledMeetingUpdated (chatid)
+ *
  * @return the relevant node handle, or UNDEF if this alert does not have one.
  */
 @property (readonly, nonatomic) uint64_t nodeHandle;
@@ -168,6 +188,48 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly, getter=isOwnChange) BOOL ownChange;
 
 /**
+ * @brief Returns the scheduled meeting id, related to the alert
+ *
+ * This value is currently only valid for type
+ *   MEGAUserAlertTypeScheduledMeetingNew,
+ *   MEGAUserAlertTypeScheduledMeetingUpdated,
+ *   MEGAUserAlertTypeScheduledMeetingDeleted,
+ *
+ * @return the relevant scheduled meeting id, or UNDEF.
+ */
+@property (readonly, nonatomic) uint64_t scheduledMeetingId;
+
+/**
+ * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
+ *
+ *   This value is currently only valid for MEGAUserAlertType MEGAUserAlertTypeScheduledMeetingUpdated,
+ *   and MEGAUserAlertScheduledMeetingChangeType MEGAUserAlertScheduledMeetingChangeTypeTitle
+ *
+ * @return MEGAStringList that contains old and new title for ther scheduled meeting
+ */
+@property (readonly, nonatomic) MEGAStringList *titleList;
+
+/**
+ * @brief Returns a array of dates that contains old and new StartDateTime for the scheduled meeting
+ *
+ *   This value is currently only valid for MEGAUserAlertType MEGAUserAlertTypeScheduledMeetingUpdated,
+ *   and MEGAUserAlertScheduledMeetingChangeType MEGAUserAlertScheduledMeetingChangeTypeStartDate
+ *
+ * @return Array of dates that contains old and new StartDateTime for ther scheduled meeting
+ */
+@property (readonly, nonatomic) NSArray<NSDate *> *startDateList;
+
+/**
+ * @brief Returns a array of dates that contains old and new EndDateTime for the scheduled meeting
+ *
+ *   This value is currently only valid for MEGAUserAlertType MEGAUserAlertTypeScheduledMeetingUpdated,
+ *   and MEGAUserAlertScheduledMeetingChangeType MEGAUserAlertScheduledMeetingChangeTypeStartDate
+ *
+ * @return Array of dates that contains old and new EndDateTime for ther scheduled meeting
+ */
+@property (readonly, nonatomic) NSArray<NSDate *> *EndDateList;
+
+/**
  * @brief Creates a copy of this MEGAUserAlert object.
  *
  * The resulting object is fully independent of the source MEGAUserAlert,
@@ -209,5 +271,23 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
  * @return a pointer to the string if index is valid; otherwise nil
  */
 - (NSString *)stringAtIndex:(NSUInteger)index;
+
+/**
+ * @brief Returns true if the scheduled meeting associated to this alert has an specific change
+ *
+ * This value is currently only valid for type: MEGAUserAlertTypeScheduledMeetingUpdated
+ *
+ * @param changeType The type of change to check. It can be one of the following values:
+ * MEGAUserAlertScheduledMeetingChangeTypeTitle,        // Title has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeDescription,  // Description has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeCancelled,    // Cancelled flag has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeTimeZone,     // Timezone has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeStartDate,    // Start date time has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeEndDate,      // End date time has changed
+ * MEGAUserAlertScheduledMeetingChangeTypeRules,        // Repetition rules have changed
+ *
+ * @return a pointer to the string if index is valid; otherwise nil
+ */
+- (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType;
 
 @end
