@@ -5582,6 +5582,7 @@ void MegaClient::finalizesc(bool complete)
     {
         LOG_err << "Cache update DB write error - disabling caching";
         assert(false);
+        sendevent(99467, "Writing in DB error", 0);
         mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
