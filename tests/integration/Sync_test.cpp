@@ -1669,7 +1669,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
             };
 
             // Kick off the putnodes request.
-            sendPutnodes(transfer->client,
+            sendPutnodesOfUpload(transfer->client,
                          transfer->uploadhandle,
                          *transfer->ultoken,
                          transfer->filekey,

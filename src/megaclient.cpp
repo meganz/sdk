@@ -2255,8 +2255,8 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
                     pendingcs_serverBusySent = false;
 
-                    bool suppressSID = true;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
+                    bool suppressSID, v3;
+                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
 
                     pendingcs->posturl = httpio->APIURL;
 
@@ -9290,21 +9290,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // node marked for deletion is being resurrected, possibly
                     // with a new parent (server-client move operation)
                     n->changed.removed = false;
-                }
-                else
-                {
-                    // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
-                    {
-                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
-
-                        static bool reloadnotified = false;
-                        if (!reloadnotified)
-                        {
-                            sendevent(99437, "Node inconsistency", 0);
-                            reloadnotified = true;
-                        }
-                    }
                 }
 
                 if (!ISUNDEF(ph))

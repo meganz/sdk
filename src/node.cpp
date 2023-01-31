@@ -2166,7 +2166,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
 }
 
 // serialize/unserialize the following LocalNode properties:

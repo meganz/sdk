@@ -45,7 +45,7 @@ void Command::cancel()
 }
 
 // returns completed command JSON string
-const char* Command::getstring()
+const char* Command::getJSON(MegaClient*)
 {
     return jsonWriter.getstring().c_str();
 }
@@ -243,6 +243,7 @@ bool Command::loadIpsFromJson(std::vector<string>& ips)
 void Command::cmd(const char* cmd)
 {
     jsonWriter.cmd(cmd);
+    commandStr = cmd;
 }
 
 void Command::notself(MegaClient *client)
