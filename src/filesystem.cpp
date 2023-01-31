@@ -803,11 +803,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -1837,14 +1837,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
     return isFilenameAnomaly(localPath, node->displayname(), node->type);
 }
 
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
-{
-    return isFilenameAnomaly(node.getLocalname(), node.name, node.type);
-}
-#endif
-
-
 bool isNetworkFilesystem(FileSystemType type)
 {
     return type == FS_CIFS
@@ -1858,8 +1850,7 @@ std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
 
-ScanService::ScanService(Waiter& waiter)
-    : mWaiter(waiter)
+ScanService::ScanService()
 {
     // Locking here, rather than in the if statement, ensures that the
     // worker is fully constructed when control leaves the constructor.
@@ -1880,10 +1871,10 @@ ScanService::~ScanService()
     }
 }
 
-auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
+auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter) -> RequestPtr
 {
     // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
+    auto request = std::make_shared<ScanRequest>(move(waiter), followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
 
     // Queue request for processing.
     mWorker->queue(request);
@@ -1891,7 +1882,7 @@ auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool foll
     return request;
 }
 
-ScanService::ScanRequest::ScanRequest(Waiter& waiter,
+ScanService::ScanRequest::ScanRequest(shared_ptr<Waiter> waiter,
     bool followSymLinks,
     LocalPath targetPath,
     handle expectedFsid,
@@ -1974,7 +1965,7 @@ void ScanService::Worker::queue(ScanRequestPtr request)
 void ScanService::Worker::loop()
 {
     // We're ready when we have some work to do.
-    auto ready = [this]() { return mPending.size(); };
+    auto ready = [this]() { return !mPending.empty(); };
 
     for ( ; ; )
     {
@@ -1984,6 +1975,8 @@ void ScanService::Worker::loop()
             // Wait for something to do.
             std::unique_lock<std::mutex> lock(mPendingLock);
             mPendingNotifier.wait(lock, ready);
+
+            assert(ready()); // condition variable should have taken care of this
 
             // Are we being told to terminate?
             if (!mPending.front())
@@ -2018,7 +2011,7 @@ void ScanService::Worker::loop()
         }
 
         request->mScanResult = result;
-        request->mWaiter.notify();
+        request->mWaiter->notify();
     }
 }
 

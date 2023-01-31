@@ -585,7 +585,8 @@ public:
         {
             // Get the current path.
             bool result = fsAccess.cwd(rootPath);
-            assert(result);
+            if (!result)
+                assert(result);
 
             // Create temporary DB root path.
             rootPath.appendWithSeparator(
@@ -597,7 +598,8 @@ public:
 
             // Create root path.
             result = fsAccess.mkdirlocal(rootPath, false, true);
-            assert(result);
+            if (!result)
+                assert(result);
         }
 
         ~SqliteDBTest()
@@ -606,7 +608,8 @@ public:
             fsAccess.emptydirlocal(rootPath);
 
             bool result = fsAccess.rmdirlocal(rootPath);
-            assert(result);
+            if (!result)
+                assert(result);
         }
 
         FSACCESS_CLASS fsAccess;
@@ -795,14 +798,6 @@ TEST(JSONWriter, escape)
     string expected = "\\\"\\\\";
 
     EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
-}
-
-TEST(JSON, NullValue)
-{
-    string s = "\"foo\":,\"bar\":null,\"restof\":\"json\"}remainder"; // no leading '{'
-    JSON j(s);
-    EXPECT_EQ(j.getnameid(), j.getnameid("restof\"")); // no leading '"'
-    EXPECT_EQ(0, strcmp(j.pos, "\"json\"}remainder"));
 }
 
 TEST(JSON, stripWhitespace)

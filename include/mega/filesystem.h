@@ -766,7 +766,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
-    handle fsidOf(const LocalPath& path, bool follow);
+    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck);
 
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
@@ -834,9 +834,6 @@ bool isReservedName(const string& name, nodetype_t type = FILENODE);
 // - If no anomalies were detected.
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
-#endif
 
 struct MEGA_API FSNode
 {
@@ -910,14 +907,14 @@ private:
 class MEGA_API ScanService
 {
 public:
-    ScanService(Waiter& waiter);
+    ScanService();
     ~ScanService();
 
     // Concrete representation of a scan request.
     class ScanRequest
     {
     public:
-        ScanRequest(Waiter& waiter,
+        ScanRequest(shared_ptr<Waiter> waiter,
             bool followSymlinks,
             LocalPath targetPath,
             handle expectedFsid,
@@ -949,7 +946,7 @@ public:
         friend class ScanService;
 
         // Waiter to notify when done
-        Waiter& mWaiter;
+        shared_ptr<Waiter> mWaiter;
 
         // Whether the scan request is complete.
         std::atomic<ScanResult> mScanResult; // SCAN_INPROGRESS;
@@ -975,7 +972,7 @@ public:
     using RequestPtr = std::shared_ptr<ScanRequest>;
 
     // Issue a scan for the given target.
-    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter);
 
     // Track performance (debug only)
     static CodeCounter::ScopeStats syncScanTime;
@@ -1017,8 +1014,6 @@ private:
         // Worker threads.
         std::vector<std::thread> mThreads;
     }; // Worker
-
-    Waiter& mWaiter;
 
     // How many services are currently active.
     static std::atomic<size_t> mNumServices;

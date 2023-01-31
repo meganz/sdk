@@ -39,6 +39,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fromInsycShare = false;
     temporaryfile = false;
     tag = 0;
 }
@@ -308,12 +309,12 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
+        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
     }
 }
 
 
-void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
                         LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
@@ -414,6 +415,65 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     }
 }
 
+void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
+                    putsource_t source, NodeHandle ovHandle,
+                    std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                    bool canChangeVault)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_NODE;
+    newnode->canChangeVault = canChangeVault;
+    newnode->nodehandle = nodeToClone->nodehandle;
+
+    // file's crypto key
+    newnode->nodekey = nodeToClone->nodekey();
+    assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
+
+    // copy attrs
+    AttrMap attrs;
+    attrs.map = nodeToClone->attrs.map;
+    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != attrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute for clone";
+        attrs.map.erase(it);
+    }
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    // store filename
+    attrs.map['n'] = name;
+
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+        assert(syncxfer);
+        newnode->ovhandle = ovHandle;
+        client->reqs.add(new CommandPutNodes(client,
+                                             th, NULL,
+                                             mVersioningOption,
+                                             move(newnodes),
+                                             tag,
+                                             source, nullptr, move(completion), canChangeVault));
+    }
+}
+
+
 void File::terminated(error)
 {
 
@@ -470,7 +530,7 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname, bool fromInshare)
 {
     sync = csync;
 
@@ -479,6 +539,7 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
     *(FileFingerprint*)this = *n;
 
     syncxfer = true;
+    fromInsycShare = fromInshare;
     n->syncget = this;
 
     setLocalname(clocalname);
@@ -571,7 +632,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare, n->parent->localnode->sync->isBackup());
+            n->parent->client->movetosyncdebris(n, fromInsycShare, n->parent->localnode->sync->isBackup());
         }
     }
 

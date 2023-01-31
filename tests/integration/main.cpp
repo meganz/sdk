@@ -17,7 +17,6 @@ using namespace ::mega;
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
-bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
@@ -326,14 +325,6 @@ public:
                 {
                     std::cout << os.str() << std::flush;
                 }
-
-                if (!gTestingInvalidArgs)
-                {
-                    if (loglevel <= logError)
-                    {
-                        ASSERT_GT(loglevel, logError) << os.str();
-                    }
-                }
             }
 
 #ifdef _WIN32
@@ -534,6 +525,18 @@ int main (int argc, char *argv[])
     if (startOneSecLogger) one_sec_logger.join();
 
     //SimpleLogger::setOutputClass(nullptr);
+
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
+#endif
 
     return ret;
 }
