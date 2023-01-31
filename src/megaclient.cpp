@@ -5553,8 +5553,8 @@ void MegaClient::finalizesc(bool complete)
     {
         LOG_err << "Cache update DB write error - disabling caching";
         assert(false);
-        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
         sendevent(99467, "Writing in DB error", 0);
+        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -19566,8 +19566,8 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     {
         assert(false);
         LOG_err << "Failed to unserialize node. Requesting app to reload...";
-        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
         sendevent(99468, "Failed to unserialize node", 0);
+        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
 
         return nullptr;
     }
