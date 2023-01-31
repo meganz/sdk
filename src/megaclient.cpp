@@ -19567,7 +19567,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         assert(false);
         LOG_err << "Failed to unserialize node. Requesting app to reload...";
         fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
-        sendevent(99468, "Failed to unserialize node", 0);
+        mClient.sendevent(99468, "Failed to unserialize node", 0);
 
         return nullptr;
     }
