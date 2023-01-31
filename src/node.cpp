@@ -1418,13 +1418,17 @@ bool Node::testShareKey(const byte *shareKey)
     SymmCipher *sc = client->getRecycledTemporaryNodeCipher(shareKey);
     if (!client->decryptkey(k, key, keylength, sc, 0, UNDEF))
     {
-        return false;
+        // This should never happen (malformed key)
+        LOG_err << "Malformed node key detected";
+        assert(false);
+        return true; // The share key could be OK
     }
 
     sc->setkey(key, keylength);
     byte* buf = Node::decryptattr(sc, attrstring->c_str(), attrstring->size());
     if (!buf)
     {
+        LOG_warn << "Outdated / incorrect share key detected for " << toNodeHandle(nodehandle);
         return false;
     }
 
