@@ -2512,6 +2512,7 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         {
             std::unique_lock<std::mutex> g(mMutex);
             mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            assert(!mQueue.empty());
             f = std::move(mQueue.front().f);
             if (!f) return;   // nullptr is not popped, and causes all the threads to exit
             mQueue.pop_front();

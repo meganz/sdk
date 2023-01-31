@@ -1578,6 +1578,18 @@ CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool kee
     tag = client->reqtag;
 }
 
+const char* CommandLogout::getJSON(MegaClient* client)
+{
+    if (!incrementedCount)
+    {
+        // only set this once we are about to send the command, in case there are others ahead of it in the queue
+        client->loggingout++;
+        // only set it once in case of retries due to -3.
+        incrementedCount = true;
+    }
+    return jsonWriter.getstring().c_str();
+}
+
 bool CommandLogout::procresult(Result r)
 {
     assert(r.wasErrorOrOK());

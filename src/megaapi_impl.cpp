@@ -3437,6 +3437,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
     this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
     this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
+    mScheduledMeetingList.reset(request->mScheduledMeetingList ? request->mScheduledMeetingList->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -5454,7 +5455,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     // allow for putnodes with a different mtime to the actual file
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
         nullptr, nullptr, customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime, false);
 
     delete this;
@@ -19204,7 +19205,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 request->setTimeZoneDetails(mTimezones);
-                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
