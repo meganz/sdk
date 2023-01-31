@@ -114,6 +114,104 @@ bool Command::checkError(Error& errorDetails, JSON& json)
     return errorDetected;
 }
 
+#ifdef ENABLE_CHAT
+void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
+{
+    if (!schedMeeting)
+    {
+        assert(false);
+        return;
+    }
+
+    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)
+    handle chatid = schedMeeting->chatid();
+    handle schedId = schedMeeting->schedId();
+    handle parentSchedId = schedMeeting->parentSchedId();
+
+    // chatid is only required when we create a scheduled meeting for an existing chat
+    if (!ISUNDEF(chatid))	{ arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); }
+
+    // required params
+    arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
+    arg("s", schedMeeting->startDateTime());
+    arg("e", schedMeeting->endDateTime());
+    arg("t", Base64::btoa(schedMeeting->title()).c_str());
+    arg("d", Base64::btoa(schedMeeting->description()).c_str());
+
+    // optional params
+    if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
+    if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
+    if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
+    if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
+
+    if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
+    {
+        arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
+    }
+
+    if (MegaClient::isValidMegaTimeStamp(schedMeeting->overrides()))
+    {
+        arg("o", schedMeeting->overrides());
+    }
+
+    // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
+    if (schedMeeting->rules())
+    {
+        const ScheduledRules* rules = schedMeeting->rules();
+        beginobject("r");
+
+        if (rules->isValidFreq(rules->freq()))
+        {
+            arg("f", rules->freqToString()); // required
+        }
+
+        if (rules->isValidInterval(rules->interval()))
+        {
+            arg("i", rules->interval());
+        }
+
+        if (MegaClient::isValidMegaTimeStamp(rules->until()))
+        {
+            arg("u", rules->until());
+        }
+
+        if (rules->byWeekDay() && !rules->byWeekDay()->empty())
+        {
+            beginarray("wd");
+            for (auto i: *rules->byWeekDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthDay() && !rules->byMonthDay()->empty())
+        {
+            beginarray("md");
+            for (auto i: *rules->byMonthDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
+        {
+            beginarray("mwd");
+            for (auto i: *rules->byMonthWeekDay())
+            {
+                beginarray();
+                element(static_cast<int>(i.first));
+                element(static_cast<int>(i.second));
+                endarray();
+            }
+            endarray();
+        }
+        endobject();
+    }
+}
+#endif
+
 // cache urls and ips given in response to avoid further waiting for dns resolution
 bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
 {

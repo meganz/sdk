@@ -64,6 +64,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/mediafileattribute.cpp \
     sdk/src/testhooks.cpp \
     sdk/src/textchat.cpp \
+    sdk/src/nodemanager.cpp \
     sdk/src/setandelement.cpp
 
 C_SOURCES = sdk/src/mega_glob.c
@@ -119,6 +120,7 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/mega_zxcvbn.h \
         sdk/include/mega/mediafileattribute.h \
         sdk/include/mega/textchat.h \
+        sdk/include/mega/nodemanager.h \
         sdk/include/mega/setandelement.h
 
 OBJECTS=$(CPP_SOURCES:.cpp=.o) $(C_SOURCES:.c=.o)
