@@ -1439,7 +1439,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
     assert(connectionNum < mReqs.size());
     if (!mDr->drbuf.isRaid() ||
         mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
-        mNumReqsInflight > (static_cast<unsigned>(mReqs.size()) - usedConnections())) // If there is any used connection inflight we don't switch (we only switch when their status is REQ_READY to avoid disconnections)
+        mNumReqsInflight) // If there is any connection inflight we don't switch (we only switch when the status is REQ_READY for all reqs to avoid disconnections)
     {
         return false;
     }
@@ -1766,6 +1766,11 @@ bool DirectReadSlot::doio()
                         if (!req)
                         {
                             mReqs[connectionNum] = make_unique<HttpReq>(true);
+                        }
+
+                        if (!mDr->drbuf.isRaid())
+                        {
+                            posrange.second = std::min(posrange.second, posrange.first + DirectReadSlot::MAX_DELIVERY_CHUNK);
                         }
 
                         char buf[128];
