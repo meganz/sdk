@@ -8953,12 +8953,12 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 
 
 /**
- * @brief TEST_F EnhancedSecurityShares
+ * @brief TEST_F TestSharesContactVerification
  *
- * Test shares with enhanced security
+ * Test contact verification for shares
  *
  */
-TEST_F(SdkTest, EnhancedSecurityShares)
+TEST_F(SdkTest, TestSharesContactVerification)
 {
     // What we are going to test here:
     // 1: Create a share between A and B, being A and B already contacts in the following scenarios:
@@ -8967,7 +8967,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     //    1-3: None are verified. Then A verifies B and later B verifies A.
     // 2: Create a share between A and B, being A and B no contacts.
 
-    LOG_info << "___TEST EnhancedSecurityShares___";
+    LOG_info << "___TEST TestSharesContactVerification___";
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
@@ -9018,9 +9018,9 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     //
 
     // Make accounts contacts
-    LOG_verbose << "EnhancedSecurityShares :  Make account contacts";
+    LOG_verbose << "TestSharesContactVerification :  Make account contacts";
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, "EnhancedSecurityShares contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, "TestSharesContactVerification contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
     ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
@@ -9034,14 +9034,8 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     mApi[1].cr.reset();
 
     // Ensure no account has the other verified from previous unfinished tests.
-    if (areCredentialsVerified(0, mApi[1].email))
-    {
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
-    }
-    if (areCredentialsVerified(1, mApi[0].email))
-    {
-        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
-    }
+    if (areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));}
+    if (areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));}
 
     //
     // 1-1: A and B credentials already verified by both.
@@ -9055,7 +9049,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // Verify credentials:
-    LOG_verbose << "EnhancedSecurityShares :  Verify A and B credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify A and B credentials";
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
     ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
@@ -9063,7 +9057,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Create share.
     // B should end with a new inshare and able to decrypt the new node.
-    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9074,7 +9068,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9084,7 +9078,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Share the same node again
-    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9095,7 +9089,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Reset credentials
-    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
     ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
     // Established share remains in the same status.
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
@@ -9107,7 +9101,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9128,14 +9122,14 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
     // Verify credentials
-    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials:";
+    LOG_verbose << "TestSharesContactVerification :  Verify B credentials:";
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
     ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
     ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
 
     // Create share
     // B should end with an unverified inshare and be unable to decrypt the node.
-    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9146,7 +9140,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9156,7 +9150,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Share the same node again
-    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9168,7 +9162,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Verify A credentials in B account
     // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated); // file name is set when decrypted.
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
     ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
@@ -9182,7 +9176,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9192,7 +9186,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials:
-    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
     ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
 
@@ -9209,7 +9203,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Create share.
     // A should end with an unverified outshare and B should have an unverified inshare and unable to decrypt the new node.
-    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
@@ -9220,7 +9214,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9230,7 +9224,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Share the same node again
-    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share again the same folder from A to B";
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
@@ -9242,7 +9236,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Verify B credentials in A account
     // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
-    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify B credentials";
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
     ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
@@ -9255,7 +9249,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Verify A credentials in B account
     // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
     ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
@@ -9269,7 +9263,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9279,11 +9273,11 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials
-    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
     ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
     // Delete contacts
-    LOG_verbose << "EnhancedSecurityShares :  Remove Contact";
+    LOG_verbose << "TestSharesContactVerification :  Remove Contact";
     mApi[0].userUpdated = false;
     ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
     ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
@@ -9305,7 +9299,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Create share.
     // Since are no contacts, B should receive a contact request.
-    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Share a folder from A to B";
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
     ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get(), false, false));
     ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
@@ -9331,7 +9325,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Verify B credentials in A account
     // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
-    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify B credentials";
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
     ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
@@ -9344,7 +9338,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
 
     // Verify A credentials in B account
     // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
-    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    LOG_verbose << "TestSharesContactVerification :  Verify A credentials";
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
     ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
     ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
@@ -9358,7 +9352,7 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
-    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
     ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
@@ -9368,11 +9362,11 @@ TEST_F(SdkTest, EnhancedSecurityShares)
     ASSERT_EQ(inshareNode.get(), nullptr);
 
     // Reset credentials
-    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
     ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
     // Delete contacts
-    LOG_verbose << "EnhancedSecurityShares :  Remove Contact";
+    LOG_verbose << "TestSharesContactVerification :  Remove Contact";
     mApi[0].userUpdated = false;
     ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
     ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
