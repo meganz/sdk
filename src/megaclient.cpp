@@ -1678,6 +1678,7 @@ void MegaClient::exec()
                             if (fa->th.isUndef())
                             {
                                 // client app requested the upload without a node yet, and it will use the fa handle
+                                restag = fa->tag;
                                 app->putfa_result(fah, fa->type, API_OK);
                             }
                             else
