@@ -87,9 +87,12 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    TransferDbCommitter* committer = client->tctable ?
-                         static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter()) :
-                         nullptr;
+    TransferDbCommitter* committer = nullptr;
+    if (client->tctable && client->tctable->getTransactionCommitter())
+    {
+        committer = dynamic_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter());
+        assert(committer);
+    }
 
     if (!uploadhandle.isUndef())
     {
