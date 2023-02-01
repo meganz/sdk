@@ -25650,20 +25650,18 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     {
         if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
         {
-           [this]() // set root folder node handle in MegaTransfer
-           {
-               LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
-               auto rootFolderName = transfer->getFileName()
-                       ? transfer->getFileName()
-                       : path.leafName().toPath(true);
+            // set root folder node handle in MegaTransfer
+            LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+            auto rootFolderName = transfer->getFileName()
+                   ? transfer->getFileName()
+                   : path.leafName().toPath(true);
 
-               unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
-               std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
-               if (root)
-               {
-                   transfer->setNodeHandle(root->getHandle());
-               }
-           }();
+            unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+            std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+            if (root)
+            {
+               transfer->setNodeHandle(root->getHandle());
+            }
         }
 
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
