@@ -1770,6 +1770,9 @@ bool DirectReadSlot::doio()
 
                         if (!mDr->drbuf.isRaid())
                         {
+                            // Chunk size limit for non-raid: MAX_DELIVERY_CHUNK.
+                            // If the whole chunk is requested (file size), with the same request all the time,
+                            // the throughput could be too low for long periods of time, depending on the actual TCP congestion algorithm.
                             posrange.second = std::min(posrange.second, posrange.first + DirectReadSlot::MAX_DELIVERY_CHUNK);
                         }
 

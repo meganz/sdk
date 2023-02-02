@@ -27317,41 +27317,23 @@ void StreamingBuffer::init(size_t capacity)
 {
     assert(this->fileSize > 0);
     assert(capacity > 0);
-    size_t bytesPerSecond, bufferSize;
-    size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
-    if (duration)
-    {
-        bytesPerSecond = getBytesPerSecond();
-        // Set maxBufferSize taking into account the value already set by the http server (by client's request) and the minimum needed for the StreamingBuffer to work
-        size_t minMaxBufferCapacity = std::max(std::min(10 * bytesPerSecond, maxBufferSize * 2), maxReadChunkSize); // Avoid giant chunks or exceeding too much the requested capacity from client... and also avoid the streaming buffer from discarding data (maxReadChunkSize)
-        maxBufferSize = (std::max(maxBufferSize, minMaxBufferCapacity) / maxReadChunkSize) * maxReadChunkSize;
-        // Set maxOutputSize depending on the final buffer size and the max chunk size which could be read from transfer (DirectReadSlot)
-        bufferSize = std::min(capacity, maxBufferSize);
-        size_t maxDeliveryChunksPerByteRate = std::max((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), static_cast<size_t>(1));
-        maxOutputSize = maxDeliveryChunksPerByteRate * maxReadChunkSize;
-    }
-    else
-    {
-        bytesPerSecond = 0;
-        maxBufferSize = std::max(maxBufferSize, maxReadChunkSize);
-        bufferSize = std::min(capacity, maxBufferSize);
-        maxOutputSize = maxReadChunkSize;
-    }
-    maxOutputSize = std::min(maxOutputSize, bufferSize / 2);
+    // Recalculate maxBufferSize and maxOutputSize.
+    calcMaxBufferAndMaxOutputSize();
     // Truncate capacity if needed
-    if (capacity > bufferSize)
+    if (capacity > maxBufferSize)
     {
+        size_t bytesPerSecond = getBytesPerSecond();
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
                  << " Capacity requested = " << capacity << " bytes"
-                 << ", truncated to = " << bufferSize << " bytes"
+                 << ", truncated to = " << maxBufferSize << " bytes"
                  << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(bufferSize / bytesPerSecond)).append(" secs")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / bytesPerSecond)).append(" secs")
                                     .append(", max length to be served: ").append(std::to_string(maxOutputSize / bytesPerSecond)).append(" secs")
                                     .append(", bytes per second: ").append(std::to_string(bytesPerSecond / 1024)).append(" KB/s")
                                 : "")
                  << "]";
-        capacity = bufferSize;
+        capacity = maxBufferSize;
     }
     else
     {
@@ -27369,6 +27351,33 @@ void StreamingBuffer::init(size_t capacity)
     this->outpos = 0;
     this->size = 0;
     this->free = this->capacity;
+}
+
+void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
+{
+    size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
+    size_t maxDeliveryChunksPerByteRate, minNeededBufferSize;
+    if (duration)
+    {
+        size_t bytesPerSecond = getBytesPerSecond();
+        // Desirable min buffer capacity: 10 seconds at least. Limit: 2x max buffer size requested by the client.
+        size_t minDesirableBufferSize = std::min(10 * bytesPerSecond, maxBufferSize * 2);
+        // Min buffer capacity needed to prevent data from shrinking: a chunk up to maxReadChunkSize bytes can be read from DirectReadSlot.
+        minNeededBufferSize = std::max(minDesirableBufferSize, maxReadChunkSize);
+        // Calc multiplication factor for maxOutputSize depending on the byteRate and the maxReadChunkSize from DirectReadSlot.
+        maxDeliveryChunksPerByteRate = std::max((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), 1ul);
+    }
+    else
+    {
+        // Default min buffer capacity needed: the max chunk size which can be read from DirectReadSlot.
+        minNeededBufferSize = maxReadChunkSize;
+        // Default multiplication factor for maxOutputSize (there is no byteRate to adapt the value).
+        maxDeliveryChunksPerByteRate = 1;
+    }
+     // Set maxBufferSize taking into account minNeededBufferSize, truncating the value to be divisible by maxReadChunkSize.
+    maxBufferSize = (std::max(maxBufferSize, minNeededBufferSize) / maxReadChunkSize) * maxReadChunkSize;
+    // Set max outputSize depending on maxDeliveryChunksPerByteRate. Limit is half bufferSize, accordingly to pause/resume buffer logic (2*lastBufferSize).
+    maxOutputSize = std::min(maxDeliveryChunksPerByteRate * maxReadChunkSize, maxBufferSize / 2);
 }
 
 void StreamingBuffer::reset(bool freeData, size_t sizeToReset)
