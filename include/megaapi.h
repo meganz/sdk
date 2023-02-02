@@ -2491,12 +2491,13 @@ public:
 
     enum
     {
-        CHANGE_TYPE_ATTACHMENT      = 0x01,
-        CHANGE_TYPE_FLAGS           = 0x02,
-        CHANGE_TYPE_MODE            = 0x04,
-        CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
-        CHANGE_TYPE_SCHED_MEETING   = 0x10,
-        CHANGE_TYPE_SCHED_OCURR     = 0x20,
+        CHANGE_TYPE_ATTACHMENT          = 0x01,
+        CHANGE_TYPE_FLAGS               = 0x02,
+        CHANGE_TYPE_MODE                = 0x04,
+        CHANGE_TYPE_CHAT_OPTIONS        = 0x08,
+        CHANGE_TYPE_SCHED_MEETING       = 0x10,
+        CHANGE_TYPE_SCHED_OCURR         = 0x20,
+        CHANGE_TYPE_SCHED_APPEND_OCURR  = 0x40,
     };
 
     virtual ~MegaTextChat();
@@ -2627,6 +2628,10 @@ public:
      *
      * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
      * Check if scheduled meetings occurrences have changed
+     * (current ones are automatically discarded)
+     *
+     * CHANGE_TYPE_SCHED_APPEND_OCURR
+     * Check if we have received more scheduled meetings occurrences
      *
      * @return true if this chat has an specific change
      */
@@ -2637,8 +2642,6 @@ public:
      *
      * This value is only useful for chats notified by MegaListener::onChatsUpdate or
      * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
-     *
-     * @return The returned value is an OR combination of these flags:
      *
      * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
@@ -2657,6 +2660,12 @@ public:
      *
      * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
      * Check if scheduled meetings occurrences have changed
+     * (current ones are automatically discarded)
+     *
+     * CHANGE_TYPE_SCHED_APPEND_OCURR
+     * Check if we have received more scheduled meetings occurrences
+     *
+     * @return The returned value is an OR combination of these flags:
      */
     virtual int getChanges() const;
 
@@ -19028,9 +19037,9 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
-         * - MegaRequest::getName - Returns the dateTime from which we want to fetch occurrences
-         * - MegaRequest::getEmail - Returns the dateTime until we want to fetch occurrences
-         * - MegaRequest::getNumber - Returns the number of occurrences we want to fetch
+         * - MegaRequest::getNumber - Returns the dateTime from which we want to fetch occurrences
+         * - MegaRequest::getTotalBytes - Returns the dateTime until we want to fetch occurrences
+         * - MegaRequest::getTransferredBytes - Returns the number of occurrences we want to fetch
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the chatroom does not exists
