@@ -2680,6 +2680,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
  * - Share a folder with User2
  * - Check the outgoing share from User1
  * - Check the incoming share to User2
+ * - Check that User2 cannot tag the incoming share as favourite
  * - Get file name and fingerprint from User1
  * - Search by file name for User2
  * - Search by fingerprint for User2
@@ -2800,6 +2801,12 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
+
+
+    // --- Check that User2 cannot tag the incoming share as favourite ---
+
+    auto err = synchronousSetNodeFavourite(1, n, true);
+    ASSERT_EQ(API_EACCESS, err) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << err << ")";
 
 
     // --- Get file name and fingerprint from User1 account ---
