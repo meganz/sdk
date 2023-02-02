@@ -10521,6 +10521,12 @@ TEST_F(SdkTest, SdkUserAlerts)
         << "Node update not received by B1 after " << maxTimeout << " seconds";
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+    // Wait for node to be decrypted in B account
+    ASSERT_TRUE(WaitFor([this, &B1, hSharedFolder]()
+    {
+        std::unique_ptr<MegaNode> inshareNode(B1.getNodeByHandle(hSharedFolder));
+        return inshareNode && inshareNode->isNodeKeyDecrypted();
+    }, 60*1000)) << "Cannot decrypt inshare in B account.";
 
     // NewShare
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
@@ -10545,9 +10551,15 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "NewShare";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "NewShare";
     ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "NewShare";
-    string path = A1dtls.email + ':' + sharedFolder;
-    ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "NewShare";
-    ASSERT_STREQ(a->getName(), sharedFolder) << "NewShare";
+    if (string(a->getName()) != "NO_KEY") // Share key may not yet be available when the user alert is created
+    {
+        ASSERT_STRCASEEQ(a->getPath(), string(A1dtls.email + ':' + sharedFolder).c_str()) << "NewShare";
+        ASSERT_STREQ(a->getName(), sharedFolder) << "NewShare";
+    }
+    else
+    {
+        ASSERT_STRCASEEQ(a->getPath(), string(A1dtls.email + ":NO_KEY").c_str()) << "NewShare";
+    }
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
 
@@ -10871,7 +10883,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "DeletedShare";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "DeletedShare";
     ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "DeletedShare";
-    path = A1dtls.email + ':' + sharedFolder;
+    string path = A1dtls.email + ':' + sharedFolder;
     ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "DeletedShare";
     ASSERT_STREQ(a->getName(), sharedFolder) << "DeletedShare";
     ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
