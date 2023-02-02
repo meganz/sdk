@@ -2680,7 +2680,8 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
  * - Share a folder with User2
  * - Check the outgoing share from User1
  * - Check the incoming share to User2
- * - Check that User2 cannot tag the incoming share as favourite
+ * - Check that User2 (sharee) cannot tag the incoming share as favourite
+ * - Check that User1 (sharer) can tag the outgoing share as favourite
  * - Get file name and fingerprint from User1
  * - Search by file name for User2
  * - Search by fingerprint for User2
@@ -2803,10 +2804,15 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
 
-    // --- Check that User2 cannot tag the incoming share as favourite ---
+    // --- Check that User2 (sharee) cannot tag the incoming share as favourite ---
 
-    auto err = synchronousSetNodeFavourite(1, n, true);
-    ASSERT_EQ(API_EACCESS, err) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << err << ")";
+    auto errU2SetFavourite = synchronousSetNodeFavourite(1, n, true);
+    ASSERT_EQ(API_EACCESS, errU2SetFavourite) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
+
+    // --- Check that User1 (sharer) can tag the outgoing share as favourite ---
+
+    auto errU1SetFavourite = synchronousSetNodeFavourite(0, n, true);
+    ASSERT_EQ(API_OK, errU1SetFavourite) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
 
 
     // --- Get file name and fingerprint from User1 account ---
