@@ -1361,9 +1361,22 @@ bool Node::applykey()
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
+        std::string undecryptedKey = nodekeydata;
         client->mAppliedKeyNodeCount++;
         nodekeydata.assign((const char*)key, keylength);
         setattr();
+        if (attrstring)
+        {
+            if (foreignkey)
+            {
+                // Decryption with a foreign share key failed.
+                // Restoring the undecrypted node key because an updated
+                // share key can be received later.
+                client->mAppliedKeyNodeCount--;
+                nodekeydata = undecryptedKey;
+            }
+            LOG_warn << "Failed to decrypt attributes for node: " << toNodeHandle(nodehandle);
+        }
     }
 
     bool applied = keyApplied();
@@ -1375,9 +1388,52 @@ bool Node::applykey()
         // and user C adds some files, which will be undecryptable for user B.
         // The ticket SDK-1959 aims to mitigate the problem. Uncomment next line when done:
         // assert(applied);
+        // This can also happen due to a race condition between the creation / destruction of shares
+        // the retrieval keys using "pk" and the update of the "^!keys" attribute.
+        // If a folder is shared / unshared / shared, it's possible to reach this code with the old share
+        // key, that could be in "mNewKeyRepository" (not in n->sharekey because Node::testShareKey is
+        // used to prevent it).
     }
 
     return applied;
+}
+
+bool Node::testShareKey(const byte *shareKey)
+{
+    if (keyApplied() || !attrstring)
+    {
+        return true;
+    }
+
+    std::string mark = toNodeHandle(nodehandle) + ":";
+    size_t p = nodekeydata.find(mark);
+    if (p == string::npos)
+    {
+        return true;
+    }
+
+    byte key[FILENODEKEYLENGTH];
+    unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
+    const char* k = nodekeydata.c_str() + p + mark.size();
+    SymmCipher *sc = client->getRecycledTemporaryNodeCipher(shareKey);
+    if (!client->decryptkey(k, key, keylength, sc, 0, UNDEF))
+    {
+        // This should never happen (malformed key)
+        LOG_err << "Malformed node key detected";
+        assert(false);
+        return true; // The share key could be OK
+    }
+
+    sc = client->getRecycledTemporaryNodeCipher(key);
+    byte* buf = Node::decryptattr(sc, attrstring->c_str(), attrstring->size());
+    if (!buf)
+    {
+        LOG_warn << "Outdated / incorrect share key detected for " << toNodeHandle(nodehandle);
+        return false;
+    }
+
+    delete [] buf;
+    return true;
 }
 
 NodeCounter Node::getCounter() const
