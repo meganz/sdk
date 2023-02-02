@@ -231,7 +231,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         }
 
         if (auth && n->testShareKey(s->key))
-        {            
+        {
             if (n->sharekey)
             {
                 if (!fetchingnodes)

@@ -1375,7 +1375,7 @@ bool Node::applykey()
                 client->mAppliedKeyNodeCount--;
                 nodekeydata = undecryptedKey;
             }
-            LOG_warn << "Failed to decrypt attributes for node: " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
+            LOG_warn << "Failed to decrypt attributes for node: " << toNodeHandle(nodehandle);
         }
     }
 
@@ -1424,7 +1424,7 @@ bool Node::testShareKey(const byte *shareKey)
         return true; // The share key could be OK
     }
 
-    sc->setkey(key, keylength);
+    sc = client->getRecycledTemporaryNodeCipher(key);
     byte* buf = Node::decryptattr(sc, attrstring->c_str(), attrstring->size());
     if (!buf)
     {
