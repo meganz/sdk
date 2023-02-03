@@ -5263,7 +5263,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-    LOG_info << "___TEST Cloudraid transfers___";
+    LOG_info << "___TEST Cloudraid transfers with connection failures___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -5322,7 +5322,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-    LOG_info << "___TEST Cloudraid transfers___";
+    LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
