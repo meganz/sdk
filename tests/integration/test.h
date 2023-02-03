@@ -769,12 +769,17 @@ struct StandardClient : public MegaApp
     bool   opcr(const string& email);
 
     bool iscontact(const string& email);
+    bool isverified(const string& email);
+    bool verifyCredentials(const string& email);
+    bool resetCredentials(const string& email);
 
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
 
     void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
     bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
+
+    void upgradeSecurity(PromiseBoolSP result);
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
