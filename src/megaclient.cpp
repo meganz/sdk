@@ -14310,7 +14310,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                 std::string serializedAuthring = authring->serializeForJS();
                 if (mKeyManager.generation())
                 {
-                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
+                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackKey())";
                     mKeyManager.commit(
                     [this, serializedAuthring]()
                     {
@@ -14471,7 +14471,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                 {
                     if (authringType == ATTR_AUTHCU255)
                     {
-                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
+                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackSignature())";
                         mKeyManager.commit(
                         [this, serializedAuthring]()
                         {
