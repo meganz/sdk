@@ -255,6 +255,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 handle nodehandle = n->nodehandle;
                 std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
                 bool outgoing = s->outgoing;
+                LOG_debug << "Adding legacy key to ^!keys for " << (outgoing ? "outshare " : "inshare ") << toNodeHandle(nodehandle);
                 mKeyManager.commit(
                 [this, nodehandle, shareKey, outgoing]()
                 {
@@ -339,6 +340,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     handle nodehandle = n->nodehandle;
                     if (mKeyManager.removeShare(nodehandle))
                     {
+                        LOG_debug << "Removing share key from ^!keys related to an outshare " << toNodeHandle(nodehandle);
                         mKeyManager.commit([this, nodehandle]()
                         {
                             mKeyManager.removeShare(nodehandle);
@@ -369,6 +371,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         handle nodehandle = n->nodehandle;
                         if (mKeyManager.removeShare(nodehandle))
                         {
+                            LOG_debug << "Removing share key from ^!keys related to a nested inshare " << toNodeHandle(nodehandle);
                             mKeyManager.commit([this, nodehandle]()
                             {
                                 mKeyManager.removeShare(nodehandle);
@@ -11253,6 +11256,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         handle nodehandle = n->nodehandle;
         std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
+        LOG_debug << "Adding new share key to ^!keys for outshare " << toNodeHandle(nodehandle);
         mKeyManager.commit(
         [this, nodehandle, shareKey]()
         {
@@ -11398,7 +11402,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                 }
                 else
                 {
-                    LOG_debug << "Share key correctly sent";
+                    LOG_debug << "Share key correctly sent. Removing pendingoutshare from ^!keys (" << toNodeHandle(nodehandle) << " -> " << uid << ")";
                     mKeyManager.commit(
                     [this, nodehandle, uid]()
                     {
@@ -11416,6 +11420,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 
     if (newshare || uid.size())
     {
+        LOG_debug << "Updating ^!keys before sharing " << toNodeHandle(nodehandle);
         mKeyManager.commit(
         [this, newshare, nodehandle, shareKey, uid]()
         {
@@ -14305,6 +14310,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                 std::string serializedAuthring = authring->serializeForJS();
                 if (mKeyManager.generation())
                 {
+                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
                     mKeyManager.commit(
                     [this, serializedAuthring]()
                     {
@@ -14465,6 +14471,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                 {
                     if (authringType == ATTR_AUTHCU255)
                     {
+                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
                         mKeyManager.commit(
                         [this, serializedAuthring]()
                         {
@@ -20172,7 +20179,10 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
     hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, info, sizeof(info));
     mKey.setkey(derivedKey);
 
-    LOG_verbose << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH));
+    if (mDebugContents)
+    {
+        LOG_verbose << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH));
+    }
 }
 
 bool KeyManager::fromKeysContainer(const string &data)
@@ -20295,6 +20305,7 @@ void KeyManager::updateValues(KeyManager &km)
 
     if (promotePendingShares())
     {
+        LOG_debug << "Promoting pending shares after an update of ^!keys";
         commit([this]()
         {
             // Changes to apply in the commit
@@ -20936,27 +20947,40 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
             return false;
         }
-        LOG_verbose << "Tag: " << (int)tag << " Len: " << len;
+
+        if (mDebugContents)
+        {
+            LOG_verbose << "Tag: " << (int)tag << " Len: " << len;
+        }
 
         switch (tag)
         {
         case TAG_VERSION:
             if (len != sizeof(km.mVersion)) return false;
             km.mVersion = MemAccess::get<uint8_t>(blob + offset);
-            LOG_verbose << "Version: " << (int)km.mVersion;
+            if (mDebugContents)
+            {
+                LOG_verbose << "Version: " << (int)km.mVersion;
+            }
             break;
 
         case TAG_CREATION_TIME:
             if (len != sizeof(km.mCreationTime)) return false;
             km.mCreationTime = MemAccess::get<uint32_t>(blob + offset);
             km.mCreationTime = ntohl(km.mCreationTime); // Webclient sets this value as BigEndian
-            LOG_verbose << "Creation time: " << km.mCreationTime;
+            if (mDebugContents)
+            {
+                LOG_verbose << "Creation time: " << km.mCreationTime;
+            }
             break;
 
         case TAG_IDENTITY:
             if (len != sizeof(mIdentity)) return false;
             km.mIdentity = MemAccess::get<handle>(blob + offset);
-            LOG_verbose << "Identity: " << toHandle(km.mIdentity);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Identity: " << toHandle(km.mIdentity);
+            }
             break;
 
         case TAG_GENERATION:
@@ -20964,30 +20988,42 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             if (len != sizeof(km.mGeneration)) return false;
             km.mGeneration = MemAccess::get<uint32_t>(blob + offset);
             km.mGeneration = ntohl(km.mGeneration); // Webclient sets this value as BigEndian
-            LOG_verbose << "Generation: " << km.mGeneration;
+            LOG_verbose << "KeyManager generation: " << km.mGeneration;
             break;
         }
         case TAG_ATTR:
             km.mAttr.assign(blob + offset, len);
-            LOG_verbose << "Attr: " << Base64::btoa(km.mAttr);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Attr: " << Base64::btoa(km.mAttr);
+            }
             break;
 
         case TAG_PRIV_ED25519:
             if (len != EdDSA::SEED_KEY_LENGTH) return false;
             km.mPrivEd25519.assign(blob + offset, len);
-            LOG_verbose << "PrivEd25519: " << Base64::btoa(km.mPrivEd25519);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivEd25519: " << Base64::btoa(km.mPrivEd25519);
+            }
             break;
 
         case TAG_PRIV_CU25519:
             if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
             km.mPrivCu25519.assign(blob + offset, len);
-            LOG_verbose << "PrivCu25519: " << Base64::btoa(km.mPrivCu25519);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivCu25519: " << Base64::btoa(km.mPrivCu25519);
+            }
             break;
 
         case TAG_PRIV_RSA:
         {
             km.mPrivRSA.assign(blob + offset, len);
-            LOG_verbose << "PrivRSA: " << Base64::btoa(km.mPrivRSA);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivRSA: " << Base64::btoa(km.mPrivRSA);
+            }
             break;
         }
         case TAG_AUTHRING_ED25519:
@@ -20995,7 +21031,10 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             attr_t at = ATTR_AUTHRING;
             km.mAuthEd25519.assign(blob + offset, len);
             AuthRing tmp(at, km.mAuthEd25519);
-            LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(tmp);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(tmp);
+            }
             break;
         }
         case TAG_AUTHRING_CU25519:
@@ -21003,41 +21042,59 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             attr_t at = ATTR_AUTHCU255;
             km.mAuthCu25519.assign(blob + offset, len);
             AuthRing tmp(at, km.mAuthCu25519);
-            LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(tmp);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(tmp);
+            }
             break;
         }
         case TAG_SHAREKEYS:
         {
             string buf(blob + offset, len);
             if (!deserializeShareKeys(km, buf)) return false;
-            LOG_verbose << shareKeysToString(km);
+            if (mDebugContents)
+            {
+                LOG_verbose << shareKeysToString(km);
+            }
             break;
         }
         case TAG_PENDING_OUTSHARES:
         {
             string buf(blob + offset, len);
             if (!deserializePendingOutshares(km, buf)) return false;
-            LOG_verbose << pendingOutsharesToString(km);
+            if (mDebugContents)
+            {
+                LOG_verbose << pendingOutsharesToString(km);
+            }
             break;
         }
         case TAG_PENDING_INSHARES:
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            LOG_verbose << pendingInsharesToString(km);
+            if (mDebugContents)
+            {
+                LOG_verbose << pendingInsharesToString(km);
+            }
             break;
         }
         case TAG_BACKUPS:
         {
             string buf(blob + offset, len);
             if (!deserializeBackups(km, buf)) return false;
-            LOG_verbose << "Backups: " << Base64::btoa(km.mBackups);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Backups: " << Base64::btoa(km.mBackups);
+            }
             break;
         }
         case TAG_WARNINGS:
             km.mWarnings.assign(blob + offset, len);
             // TODO: deserialize it
-            LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
+            }
             break;
 
         default:    // any other tag needs to be stored as well, and included in newer versions
