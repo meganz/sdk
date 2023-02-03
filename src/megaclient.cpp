@@ -18290,6 +18290,60 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
+void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(!els.empty() && els.front().set() != UNDEF);
+
+    // make sure Set id is valid
+    const Set* existingSet = (els.empty() || els.front().set() == UNDEF) ? nullptr : getSet(els.front().set());
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Set not found when adding bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr, nullptr);
+        }
+        return;
+    }
+
+    // build encrypted details
+    vector<pair<string, string>> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
+    for (size_t i = 0u; i < els.size(); ++i)
+    {
+        SetElement& el = els[i];
+
+        Node* n = nodebyhandle(el.node());
+        if (!n || !n->keyApplied() || !n->nodecipher() || n->attrstring || n->type != FILENODE)
+        {
+            // if file node was invalid, reset it and let the API return error for it, to allow the other Elements to be created
+            el.setNode(UNDEF);
+        }
+        else
+        {
+            el.setKey(n->nodekey());
+            assert(el.key().size() == FILENODEKEYLENGTH);
+
+            // encrypt element.key with set.key
+            byte encryptBuffer[FILENODEKEYLENGTH];
+            std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
+            tmpnodecipher.setkey(&existingSet->key());
+            tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+
+            auto& ed = encrDetails[i];
+            ed.second.assign((char*)encryptBuffer, sizeof(encryptBuffer));
+
+            if (el.hasAttrs())
+            {
+                ed.first = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+            }
+        }
+    }
+
+    reqs.add(new CommandPutSetElements(this, move(els), move(encrDetails), completion));
+}
+
+
 void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
 {
     // setId is required
@@ -18870,6 +18924,7 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
 const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
 {
     handle sid = el.set();
+    assert(sid != UNDEF);
     handle eid = el.id();
 
     auto itS = mSetElements.find(sid);

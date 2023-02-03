@@ -1502,6 +1502,7 @@ public:
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
+    bool procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
@@ -1544,6 +1545,18 @@ private:
 };
 
 class SetElement;
+
+class MEGA_API CommandPutSetElements : public CommandSE
+{
+public:
+    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<pair<string, string>>&& encrDetails,
+                         std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<vector<SetElement>> mElements; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> mCompletion;
+};
 
 class MEGA_API CommandPutSetElement : public CommandSE
 {

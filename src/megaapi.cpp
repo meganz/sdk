@@ -1122,6 +1122,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+MegaIntegerList* MegaRequest::getMegaIntegerList() const
+{
+    return nullptr;
+}
+
 MegaSet* MegaRequest::getMegaSet() const
 {
     return nullptr;
@@ -5738,6 +5743,11 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
 void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 {
     pImpl->fetchSet(sid, listener);
+}
+
+void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+{
+    pImpl->putSetElements(sid, nodes, names, listener);
 }
 
 void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)

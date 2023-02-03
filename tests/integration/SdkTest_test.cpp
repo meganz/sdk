@@ -9410,13 +9410,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     //  1. Create Set
     //  2. Update Set name
-    //  3. Upload test file
+    //  3. Upload test files
     //  4. Add Element
     //  5. Fetch Set
     //  6. Update Element order
     //  7. Update Element name
     //  8. Remove Element
-    //  9. Add another element
+    //  9. Add bulk elements
     // 10. Logout / login
     // 11. Remove all Sets
 
@@ -9496,7 +9496,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1up->ts());
 
-    // 3. Upload test file
+    // 3. Upload test files
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
     MegaHandle uploadedNode = INVALID_HANDLE;
@@ -9508,15 +9508,26 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
         false   /*isSourceTemporary*/,
         false   /*startFirst*/,
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    string filename2 = UPFILE + "2";
+    ASSERT_TRUE(createFile(filename2, false)) << "Couldn't create " << filename2;
+    MegaHandle uploadedNode2 = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &uploadedNode2, filename2.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Could not upload test file " << filename2;
 
     // 4. Add Element
     string elattrs = u8"Element name emoji: 📞🎉❤️"; // "📞🎉❤️"
     differentApiDtls.setElementUpdated = false;
-    MegaSetElementList* newEll = nullptr;
-    err = doCreateSetElement(0, &newEll, sh, uploadedNode, elattrs.c_str());
+    MegaSetElementList* newElls = nullptr;
+    err = doCreateSetElement(0, &newElls, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
 
-    unique_ptr<MegaSetElementList> els(newEll);
+    unique_ptr<MegaSetElementList> els(newElls);
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
     ASSERT_EQ(els->get(0)->node(), uploadedNode);
@@ -9708,22 +9719,64 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 9. Add another element
+    // 9. Add bulk elements
+    // Add 2; only the first will succeed
     differentApiDtls.setElementUpdated = false;
-    elattrs += u8" again";
-    MegaSetElementList* newEll2 = nullptr;
-    err = doCreateSetElement(0, &newEll2, sh, uploadedNode, elattrs.c_str());
+    string elattrs2 = elattrs + u8" bulk2";
+    elattrs += u8" bulk1";
+    newElls = nullptr;
+    MegaIntegerList* newElErrs = nullptr;
+    vector<MegaHandle> newElHandles = {uploadedNode, INVALID_HANDLE};
+    unique_ptr<MegaStringList> newElNames(MegaStringList::createInstance());
+    newElNames->add(elattrs.c_str());
+    newElNames->add(elattrs2.c_str());
+    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElHandles, newElNames.get());
+    els.reset(newElls);
+    unique_ptr<MegaIntegerList> elErrs(newElErrs);
     ASSERT_EQ(err, API_OK);
-    ASSERT_NE(newEll2, nullptr);
-    ASSERT_EQ(newEll2->size(), 1u);
-    ASSERT_EQ(newEll2->get(0)->name(), elattrs);
-    eh = newEll2->get(0)->id();
+    ASSERT_NE(newElls, nullptr);
+    ASSERT_EQ(newElls->size(), 1u);
+    ASSERT_EQ(newElls->get(0)->name(), elattrs);
+    eh = newElls->get(0)->id();
     ASSERT_NE(eh, INVALID_HANDLE);
-    delete newEll2;
+    ASSERT_NE(newElErrs, nullptr);
+    ASSERT_EQ(newElErrs->size(), 2);
+    ASSERT_EQ(newElErrs->get(0), API_OK);
+    ASSERT_EQ(newElErrs->get(1), API_ENOENT);
     unique_ptr<MegaSetElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elp_b4lo, nullptr);
     ASSERT_EQ(elp_b4lo->id(), eh);
     ASSERT_EQ(elp_b4lo->name(), elattrs);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
+
+    // Add 2 more; both will succeed
+    differentApiDtls.setElementUpdated = false;
+    newElls = nullptr;
+    newElErrs = nullptr;
+    newElHandles = {uploadedNode, uploadedNode2};
+    newElNames.reset(MegaStringList::createInstance());
+    string namebulk11 = elattrs + "1";
+    newElNames->add(namebulk11.c_str());
+    string namebulk12 = elattrs + "2";
+    newElNames->add(namebulk12.c_str());
+    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElHandles, newElNames.get());
+    els.reset(newElls);
+    ASSERT_EQ(err, API_OK);
+    ASSERT_NE(newElls, nullptr);
+    ASSERT_EQ(newElls->size(), 2u);
+    ASSERT_EQ(newElls->get(1)->name(), namebulk12);
+    MegaHandle ehBulk = newElls->get(1)->id();
+    ASSERT_NE(ehBulk, INVALID_HANDLE);
+    ASSERT_EQ(newElls->get(0)->name(), namebulk11);
+    ehBulk = newElls->get(0)->id();
+    ASSERT_NE(ehBulk, INVALID_HANDLE);
+    ASSERT_NE(newElErrs, nullptr);
+    ASSERT_EQ(newElErrs->size(), 2);
+    ASSERT_EQ(newElErrs->get(0), API_OK);
+    ASSERT_EQ(newElErrs->get(1), API_OK);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 3u);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
@@ -9742,7 +9795,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
     elCount = megaApi[0]->getSetElementCount(sh);
-    ASSERT_EQ(elCount, 1u) << "Wrong Element count after resumeSession";
+    ASSERT_EQ(elCount, 3u) << "Wrong Element count after resumeSession";
 
     unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(ellp, nullptr);
