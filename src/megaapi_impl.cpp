@@ -27323,7 +27323,6 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
-    assert(this->fileSize > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
