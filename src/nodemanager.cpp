@@ -1225,6 +1225,7 @@ void NodeManager::notifyPurge()
                     handle nodehandle = n->nodehandle;
                     if (mClient.mKeyManager.removeShare(nodehandle))
                     {
+                        LOG_debug << "Removing share keys related to " << toNodeHandle(nodehandle) << " due to node deletion";
                         mClient.mKeyManager.commit([this, nodehandle]()
                         {
                             mClient.mKeyManager.removeShare(nodehandle);

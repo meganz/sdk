@@ -364,6 +364,9 @@ private:
     // client is considered to exchange keys in a secure way (requires credential's verification)
     bool mSecure = false;
 
+    // enable / disable logs related to the contents of ^!keys
+    static const bool mDebugContents = false;
+
     // true when the account is being created -> don't show warning to user "updading security",
     // false when the account is being upgraded to ^!keys -> show the warning
     bool mPostRegistration = false;
