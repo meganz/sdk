@@ -3551,11 +3551,6 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
-}
-
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeSyncById(backupId, listener);
@@ -3661,6 +3656,11 @@ void MegaApi::setExclusionUpperSizeLimit(long long limit)
 }
 #endif
 
+
+void MegaApi::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
+{
+    pImpl->moveOrRemoveDeconfiguredBackupNodes(deconfiguredBackupRoot, backupDestination, listener);
+}
 
 MegaScheduledCopy *MegaApi::getScheduledCopyByTag(int tag)
 {
@@ -4099,12 +4099,12 @@ MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelT
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(nullptr, searchString, CancelToken(), order);
+    return pImpl->search(nullptr, searchString, CancelToken(), true, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), order);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
@@ -5776,14 +5776,14 @@ MegaHandle MegaApi::getSetCover(MegaHandle sid)
     return pImpl->getSetCover(sid);
 }
 
-unsigned MegaApi::getSetElementCount(MegaHandle sid)
+unsigned MegaApi::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
-    return pImpl->getSetElementCount(sid);
+    return pImpl->getSetElementCount(sid, includeElementsInRubbishBin);
 }
 
-MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApi::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
 {
-    return pImpl->getSetElements(sid);
+    return pImpl->getSetElements(sid, includeElementsInRubbishBin);
 }
 
 MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
