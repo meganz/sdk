@@ -84,6 +84,10 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
+- (int64_t)pendingContactRequestHandle {
+    return self.megaUserAlert ? self.megaUserAlert->getPcrHandle() : ::mega::INVALID_HANDLE;
+}
+
 - (NSString *)email {
     if (!self.megaUserAlert) return nil;
     

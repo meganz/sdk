@@ -1501,7 +1501,7 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
 
             if (!p || p->type == FILENODE)
             {
-                DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
+                TransferDbCommitter committer(client->tctable); // potentially stopping many transfers here
                 TreeProcDelSyncGet tdsg;
                 client->proctree(this, &tdsg);
             }
