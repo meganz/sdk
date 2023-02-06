@@ -1295,7 +1295,6 @@ bool CommandPutNodes::procresult(Result r)
         }
     }
 
-    // TODO: probably needs something if 'secure'
     client->sendkeyrewrites();
 
     // when the target has been removed, the API automatically adds the new node/s
