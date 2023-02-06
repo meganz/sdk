@@ -25815,6 +25815,22 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     LOG_debug << "MegaRecursiveOperation finished subtransfers: " << transfersFinishedCount << " of " << transfersTotalCount;
     if (allSubtransfersResolved())
     {
+        if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            // set root folder node handle in MegaTransfer
+            LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+            auto rootFolderName = transfer->getFileName()
+                   ? transfer->getFileName()
+                   : path.leafName().toPath(true);
+
+            unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+            std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+            if (root)
+            {
+               transfer->setNodeHandle(root->getHandle());
+            }
+        }
+
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
@@ -26040,7 +26056,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, nullptr /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
@@ -27444,7 +27460,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(false);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this, fsType);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, nullptr /*appData()*/, transfer->accessCancelToken(), this, fsType);
              transferQueue.push(transferDownload);
          }
     }
