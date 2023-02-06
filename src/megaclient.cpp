@@ -10004,7 +10004,13 @@ void MegaClient::applykeys()
 
 void MegaClient::sendkeyrewrites()
 {
-    if (mKeyManager.isSecure()) return;
+    if (mKeyManager.isSecure())
+    {
+        LOG_debug << "Skipped to send key rewrites (secured client)";
+        sharekeyrewrite.clear();
+        nodekeyrewrite.clear();
+        return;
+    }
 
     if (sharekeyrewrite.size())
     {
@@ -11076,7 +11082,11 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
-    if (mKeyManager.isSecure()) return;
+    if (mKeyManager.isSecure())
+    {
+        LOG_debug << "Skipped to rewrite foreign keys (secured client)";
+        return;
+    }
 
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
@@ -21400,7 +21410,6 @@ string KeyManager::computeSymmetricKey(handle user)
     if (!cachedav)
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
-        // TODO: Do we need to request it and retry?
         assert(false);
         mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
         return std::string();
