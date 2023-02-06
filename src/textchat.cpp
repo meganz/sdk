@@ -1189,6 +1189,10 @@ bool TextChat::removeSchedMeeting(handle schedId)
     return true;
 }
 
+void TextChat::removeSchedMeetingsList(const handle_set& schedList)
+{
+    for_each(begin(schedList), end(schedList), [this](handle sm) { deleteSchedMeeting(sm); });
+}
 handle_set TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
     // remove all scheduled meeting whose parent is parentSchedId

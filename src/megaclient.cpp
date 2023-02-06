@@ -7466,10 +7466,12 @@ void MegaClient::sc_delscheduledmeeting()
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
 void MegaClient::sc_scheduledmeetings()
 {
+    handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
-    handle ou = UNDEF;
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs);
+    std::shared_ptr<handle_set> childMeetingsDeleted(new handle_set());
+
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -7485,25 +7487,25 @@ void MegaClient::sc_scheduledmeetings()
             LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
             continue;
         }
-
-        // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-
-        // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-
-        // remove all child scheduled meeting occurrences
-        // API currently just supports 1 level in scheduled meetings hierarchy
-        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
-        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
-        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
-
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+
+        // remove child scheduled meetings in cmd (child meetings deleted) array
+        chat->removeSchedMeetingsList(*childMeetingsDeleted);
+
+        // we have received an "mcsmp" AP indicating that a scheduled meeting has been updated, so we need to:
+        //  + remove all the occurrences whose schedId is the schedId received in mcsmp
+        //  + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
+        handle_set deletedChildrenOccurr = chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
+
+        // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
+
+        if (res || !childMeetingsDeleted->empty()
+                || !deletedChildrenOccurr.empty()) // in case JUST occurrences deletion could be done, we still need to notify chat updates
         {
             if (!res)
             {
@@ -7515,14 +7517,18 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            for_each(begin(deletedChildren), end(deletedChildren),
+            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+            for_each(begin(*childMeetingsDeleted), end(*childMeetingsDeleted),
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
                 else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
+
+        // fetch for fresh scheduled meetings occurrences
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }

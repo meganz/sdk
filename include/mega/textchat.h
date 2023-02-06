@@ -323,6 +323,9 @@ public:
     // removes a scheduled meeting given a scheduled meeting id
     bool removeSchedMeeting(handle schedId);
 
+    // removes all scheduled meetings in provided list as param
+    void removeSchedMeetingsList(const handle_set& schedList);
+
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
     // returns handle_set with the meeting id of the removed children
     handle_set removeChildSchedMeetings(handle parentSchedId);
