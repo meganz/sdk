@@ -17565,7 +17565,8 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce,
-                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
+                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
+                                         std::shared_ptr<handle_set> childMeetingsDeleted)
 {
     JSON* auxJson = j
             ? j         // custom Json provided
@@ -17801,6 +17802,19 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         parseScheduledMeetingChangeset(auxJson, cs);
                         auxJson->leaveobject();
+                    }
+                    break;
+                }
+                case MAKENAMEID3('c', 'm', 'd'):
+                {
+                    assert(childMeetingsDeleted);
+                    if (auxJson->enterarray() && childMeetingsDeleted)
+                    {
+                        while(auxJson->ishandle())
+                        {
+                            childMeetingsDeleted->insert(auxJson->gethandle());
+                        }
+                        auxJson->leavearray();
                     }
                     break;
                 }
