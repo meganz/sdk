@@ -20786,7 +20786,7 @@ string KeyManager::toString() const
     buf << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHCU255))<< "\n";
     buf << shareKeysToString(*this);
     buf << pendingOutsharesToString(*this);
-    buf << "Pending Inshares: \n" << pendingInsharesToString(*this);
+    buf << pendingInsharesToString(*this);
     buf << "Backups: " << Base64::btoa(mBackups) << "\n";
     buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
 
