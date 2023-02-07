@@ -328,25 +328,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
 
             // Erase sharekey if no outgoing shares (incl pending) exist
+            // Sharekey is kept in KeyManager
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
 
                 delete n->sharekey;
                 n->sharekey = NULL;
-
-                if (mKeyManager.generation())
-                {
-                    handle nodehandle = n->nodehandle;
-                    if (mKeyManager.removeShare(nodehandle))
-                    {
-                        LOG_debug << "Removing share key from ^!keys related to an outshare " << toNodeHandle(nodehandle);
-                        mKeyManager.commit([this, nodehandle]()
-                        {
-                            mKeyManager.removeShare(nodehandle);
-                        }); // No completion callback
-                    }
-                }
             }
         }
         else
@@ -365,19 +353,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     notifyuser(n->inshare->user);
                     delete n->inshare;
                     n->inshare = NULL;
-
-                    if (mKeyManager.generation())
-                    {
-                        handle nodehandle = n->nodehandle;
-                        if (mKeyManager.removeShare(nodehandle))
-                        {
-                            LOG_debug << "Removing share key from ^!keys related to a nested inshare " << toNodeHandle(nodehandle);
-                            mKeyManager.commit([this, nodehandle]()
-                            {
-                                mKeyManager.removeShare(nodehandle);
-                            }); // No completion callback
-                        }
-                    }
                 }
             }
         }
@@ -11245,7 +11220,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
         else
         {
-            LOG_warn << "Setting node's sharekey from KeyManager (openShareDialog)";
+            LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }

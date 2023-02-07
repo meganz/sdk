@@ -1220,7 +1220,7 @@ void NodeManager::notifyPurge()
                     mClient.notifyuser(n->inshare->user);
                 }
 
-                if (mClient.mKeyManager.generation() && (n->inshare || n->outshares || n->pendingshares))
+                if (mClient.mKeyManager.generation() && mClient.mKeyManager.getShareKey(n->nodehandle).size())
                 {
                     handle nodehandle = n->nodehandle;
                     if (mClient.mKeyManager.removeShare(nodehandle))
