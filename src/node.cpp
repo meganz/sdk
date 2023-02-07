@@ -234,7 +234,7 @@ uint64_t Node::getDBFlags() const
 //static
 uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
 {
-    std::bitset<FLAGS_SIZE> flags = oldFlags;
+    Flags flags = oldFlags;
     flags.set(FLAGS_IS_VERSION, isVersion);
     flags.set(FLAGS_IS_IN_RUBBISH, isInRubbish);
     flags.set(FLAGS_IS_MARKED_SENSTIVE, isSensitive);
