@@ -194,7 +194,7 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     checkDbFileAndAdjustLegacy(fsAccess, name, flags, dbPath);
     int result = sqlite3_open_v2(dbPath.toPath(false).c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
-        | SQLITE_OPEN_NOMUTEX // SQLite can be safely used by multiple threads provided that no single database connection is used simultaneously in two or more threads
+        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction.
         , nullptr);
 
     if (result)
