@@ -2665,7 +2665,7 @@ public:
      * CHANGE_TYPE_SCHED_APPEND_OCURR
      * Check if we have received more scheduled meetings occurrences
      *
-     * @return The returned value is an OR combination of these flags:
+     * @return The returned value is an OR combination of these flags
      */
     virtual int getChanges() const;
 
