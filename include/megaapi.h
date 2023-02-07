@@ -700,9 +700,9 @@ class MegaNode
         virtual bool isFavourite();
 
         /**
-        * @brief Ascertain if the node is makred as sensitive 
+        * @brief Ascertain if the node is marked as sensitive 
         *
-        * see MegaSApi::isSensitiveInherit(MegaNode *) to see if the node is marked sensitive
+        * see MegaApi::isSensitiveInherit to see if the node is marked sensitive
         *   or as descendent of a node that is marked sensitive
         *
         * @param node node to inspect
@@ -12408,7 +12408,9 @@ class MegaApi
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Mark a node and all descendents as sensitive using the 'sen' a node attribute.
+         * @brief Mark a node as sensitive
+         * 
+         * @note Descendants will inherit the sensitive property.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
@@ -12426,7 +12428,7 @@ class MegaApi
         /**
         * @brief Ascertain if the node is marked as sensitive or a descendent of such
         *
-        * see MegaNode::isMarkedSensitive() to see if the node is sensitive
+        * see MegaNode::isMarkedSensitive to see if the node is sensitive
         *
         * @param node node to inspect
         */
