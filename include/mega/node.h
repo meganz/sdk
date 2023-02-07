@@ -264,7 +264,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setCounter(const NodeCounter &counter, bool notify);
 
     // parent
-    // nullptr is is root node
+    // nullptr if is root node or top node of an inshare
     Node* parent = nullptr;
 
     // own position in NodeManager::mFingerPrints (only valid for file nodes)
@@ -332,7 +332,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // that is it and every descendent is to be considered
         // sensitive
         // i.e. the 'sen' attribute is set
-        FLAGS_SIZE = 3,
+        FLAGS_SIZE = 3
     };
 
     typedef std::bitset<FLAGS_SIZE> Flags; 
