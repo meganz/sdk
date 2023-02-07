@@ -328,25 +328,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
 
             // Erase sharekey if no outgoing shares (incl pending) exist
+            // Sharekey is kept in KeyManager
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
 
                 delete n->sharekey;
                 n->sharekey = NULL;
-
-                if (mKeyManager.generation())
-                {
-                    handle nodehandle = n->nodehandle;
-                    if (mKeyManager.removeShare(nodehandle))
-                    {
-                        LOG_debug << "Removing share key from ^!keys related to an outshare " << toNodeHandle(nodehandle);
-                        mKeyManager.commit([this, nodehandle]()
-                        {
-                            mKeyManager.removeShare(nodehandle);
-                        }); // No completion callback
-                    }
-                }
             }
         }
         else
@@ -365,19 +353,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     notifyuser(n->inshare->user);
                     delete n->inshare;
                     n->inshare = NULL;
-
-                    if (mKeyManager.generation())
-                    {
-                        handle nodehandle = n->nodehandle;
-                        if (mKeyManager.removeShare(nodehandle))
-                        {
-                            LOG_debug << "Removing share key from ^!keys related to a nested inshare " << toNodeHandle(nodehandle);
-                            mKeyManager.commit([this, nodehandle]()
-                            {
-                                mKeyManager.removeShare(nodehandle);
-                            }); // No completion callback
-                        }
-                    }
                 }
             }
         }
@@ -11260,7 +11235,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         }
         else
         {
-            LOG_warn << "Setting node's sharekey from KeyManager (openShareDialog)";
+            LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
             n->sharekey = new SymmCipher((const byte*)previousKey.data());
         }
     }
@@ -11354,13 +11329,25 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
+    bool newShareKey = false;
     if (!n->sharekey && uid.empty())
     {
         assert(newshare);
 
-        byte key[SymmCipher::KEYLENGTH];
-        rng.genblock(key, sizeof key);
-        n->sharekey = new SymmCipher(key);
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+            newShareKey = true;
+        }
+        else
+        {
+            LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
     }
 
     if (!n->sharekey)
@@ -11433,14 +11420,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }));
     };
 
-    if (newshare || uid.size())
+    if (uid.size() || newShareKey) // share with a user or folder-link requiring new sharekey
     {
         LOG_debug << "Updating ^!keys before sharing " << toNodeHandle(nodehandle);
         mKeyManager.commit(
-        [this, newshare, nodehandle, shareKey, uid]()
+        [this, newShareKey, nodehandle, shareKey, uid]()
         {
             // Changes to apply in the commit
-            if (newshare)
+            if (newShareKey)
             {
                 // Add outshare key into ^!keys
                 mKeyManager.addOutShareKey(nodehandle, shareKey, true);
@@ -11458,7 +11445,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         });
         return;
     }
-    else // folder link on an already shared folder -> no need to update ^!keys
+    else // folder link on an already shared folder or reusing existing sharekey -> no need to update ^!keys
     {
         completeShare();
     }
