@@ -12408,7 +12408,9 @@ class MegaApi
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Mark a node and all descendents as sensitive using the 'sen' a node attribute.
+         * @brief Mark a node as sensitive
+         * 
+         * @note Descendants will inherit the sensitive property.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
