@@ -1650,6 +1650,7 @@ void MegaClient::exec()
                             if (fa->th.isUndef())
                             {
                                 // client app requested the upload without a node yet, and it will use the fa handle
+                                restag = fa->tag;
                                 app->putfa_result(fah, fa->type, API_OK);
                             }
                             else
@@ -4924,6 +4925,7 @@ void MegaClient::finalizesc(bool complete)
     {
         LOG_err << "Cache update DB write error - disabling caching";
         assert(false);
+        sendevent(99467, "Writing in DB error", 0);
         mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
@@ -7001,6 +7003,8 @@ void MegaClient::sc_scheduledmeetings()
 
         // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
+        handle parentSchedId = sm->parentSchedId();
+        m_time_t overrides = sm->overrides();
         handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
 
         // remove all child scheduled meeting occurrences
@@ -7027,15 +7031,15 @@ void MegaClient::sc_scheduledmeetings()
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
             if (res)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId);
-                else createUpdatedSMAlert(ou, chat->id, schedId, std::move(cs));
+                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
+                else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
     }
 }
 
-void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
+void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm, handle parentSchedId, m_time_t startDateTime)
 {
     if (ou == me)
     {
@@ -7043,7 +7047,7 @@ void MegaClient::createNewSMAlert(const handle& ou, handle chatid, handle sm)
                     << " in a different session";
         return;
     }
-    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
+    useralerts.add(new UserAlert::NewScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, parentSchedId, startDateTime));
 }
 
 void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm)
@@ -7057,8 +7061,8 @@ void MegaClient::createDeletedSMAlert(const handle& ou, handle chatid, handle sm
     useralerts.add(new UserAlert::DeletedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm));
 }
 
-void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm,
-                                      UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
+void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm, handle parentSchedId,
+                                      m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs)
 {
     if (ou == me)
     {
@@ -7066,7 +7070,7 @@ void MegaClient::createUpdatedSMAlert(const handle& ou, handle chatid, handle sm
                     << " in a differet session";
         return;
     }
-    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, std::move(cs)));
+    useralerts.add(new UserAlert::UpdatedScheduledMeeting(ou, m_time(), useralerts.nextId(), chatid, sm, parentSchedId, startDateTime, std::move(cs)));
 }
 
 #endif
@@ -7735,6 +7739,10 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
                 updates[nameId] = "";
             }
         }
+    }
+    if (n->changed.favourite && (n->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
+    {
+        return API_EACCESS;
     }
     // we only update the values stored in the node once the command completes successfully
     reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
@@ -8530,21 +8538,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // node marked for deletion is being resurrected, possibly
                     // with a new parent (server-client move operation)
                     n->changed.removed = false;
-                }
-                else
-                {
-                    // node already present - check for race condition
-                    if ((n->parent && ph != n->parent->nodehandle && p &&  p->type != FILENODE) || n->type != t)
-                    {
-                        app->reload("Node inconsistency", ReasonsToReload::REASON_ERROR_NODE_INCONSISTENCY);
-
-                        static bool reloadnotified = false;
-                        if (!reloadnotified)
-                        {
-                            sendevent(99437, "Node inconsistency", 0);
-                            reloadnotified = true;
-                        }
-                    }
                 }
 
                 if (!ISUNDEF(ph))
@@ -15758,7 +15751,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         error e = API_OK;
         cs.oldValue = j->getint();
         cs.newValue = j->getint();
-        bool updated = static_cast<bool>(cs.newValue);
+        bool updated = cs.newValue > 0;
         if (!updated)
         {
             e = API_ENOENT;

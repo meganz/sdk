@@ -181,7 +181,7 @@ public:
         mTable = nullptr;
     }
 
-    ~DBTableTransactionCommitter()
+    virtual ~DBTableTransactionCommitter()
     {
         if (mTable)
         {

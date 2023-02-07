@@ -11904,6 +11904,16 @@ public class MegaApiJava {
         return megaApi.getSetElementCount(sid);
     }
 
+    /**
+     * Get Element count of the Set with the given id, for current user.
+     *
+     * @param sid                         the id of the Set to get Element count for
+     * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return Element count of requested Set, or 0 if not found
+     */
+    public long getSetElementCount(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElementCount(sid, includeElementsInRubbishBin);
+    }
 
     /**
      * Get all Elements in the Set with given id, for current user.
@@ -11917,6 +11927,21 @@ public class MegaApiJava {
      */
     public MegaSetElementList getSetElements(long sid) {
         return megaApi.getSetElements(sid);
+    }
+
+    /**
+     * Get all Elements in the Set with given id, for current user.
+     * <p>
+     * The response value is stored as a MegaSetElementList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid                         the id of the Set owning the Elements
+     * @param includeElementsInRubbishBin includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return all Elements in that Set, or null if not found or none added
+     */
+    public MegaSetElementList getSetElements(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElements(sid, includeElementsInRubbishBin);
     }
 
     /**
