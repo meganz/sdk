@@ -12428,7 +12428,7 @@ class MegaApi
         /**
         * @brief Ascertain if the node is marked as sensitive or a descendent of such
         *
-        * see MegaNode::isMarkedSensitive() to see if the node is sensitive
+        * see MegaNode::isMarkedSensitive to see if the node is sensitive
         *
         * @param node node to inspect
         */
