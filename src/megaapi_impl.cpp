@@ -2007,6 +2007,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              email = p->email();
              nodeHandle = p->mChatid;
              schedMeetingId = p->mSchedMeetingHandle;
+             mPcrHandle = p->mParentSchedId;
+             numbers.push_back(p->mStartDateTime);
          }
          else
          {
@@ -2017,6 +2019,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
                  email = p->email();
                  nodeHandle = p->mChatid;
                  schedMeetingId = p->mSchedMeetingHandle;
+                 mPcrHandle = p->mParentSchedId;
+                 numbers.push_back(p->mStartDateTime);
                  schedMeetingChangeset = p->mUpdatedChangeset;
              }
              else
@@ -3413,6 +3417,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #ifdef ENABLE_CHAT
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
+    this->mScheduledMeetingList.reset(request->mScheduledMeetingList ? request->mScheduledMeetingList->copy() : nullptr);
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
@@ -5441,7 +5446,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     // allow for putnodes with a different mtime to the actual file
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
         nullptr, nullptr, customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime, false);
 
     delete this;
@@ -9048,53 +9053,6 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
-    request->setNodeHandle(backupDestination);
-
-    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request](){
-
-        Node* n1 = client->nodebyhandle(deconfiguredBackupRoot);
-        Node* n2 = client->nodebyhandle(backupDestination);
-
-        if (!n1)
-        {
-            LOG_debug << "Backup root node not found";
-            return API_ENOENT;
-        }
-        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
-
-        if (!n1->parent ||   // device
-            !n1->parent->parent ||  // my backups node
-            !n1->parent->parent->parent ||  // Vault root
-             n1->parent->parent->parent->nodehandle != client->mNodeManager.getRootNodeVault().as8byte())
-        {
-            LOG_debug << "Node not in the right place to be a backup root";
-            return API_EARGS;
-        }
-
-        if (n2 &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeFiles().as8byte() &&
-            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
-        {
-            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
-            return API_EARGS;
-        }
-
-        NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
-        NodeHandle destination = NodeHandle().set6byte(backupDestination);
-
-        client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e){
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        });
-        return API_OK;
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
@@ -9325,6 +9283,53 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 }
 
 #endif
+
+void MegaApiImpl::moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES, listener);
+    request->setNodeHandle(backupDestination);
+
+    request->performRequest = [deconfiguredBackupRoot, backupDestination, this, request]() {
+
+        Node* n1 = client->nodebyhandle(deconfiguredBackupRoot);
+        Node* n2 = client->nodebyhandle(backupDestination);
+
+        if (!n1)
+        {
+            LOG_debug << "Backup root node not found";
+            return API_ENOENT;
+        }
+        LOG_debug << "About to move/remove backup nodes from " << n1->displaypath();
+
+        if (!n1->parent ||   // device
+            !n1->parent->parent ||  // my backups node
+            !n1->parent->parent->parent ||  // Vault root
+            n1->parent->parent->parent->nodehandle != client->mNodeManager.getRootNodeVault().as8byte())
+        {
+            LOG_debug << "Node not in the right place to be a backup root";
+            return API_EARGS;
+        }
+
+        if (n2 &&
+            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeFiles().as8byte() &&
+            n2->firstancestor()->nodeHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
+        {
+            LOG_debug << "Destination node not in the main files root, or in rubbish: " << n2->displaypath();
+            return API_EARGS;
+        }
+
+        NodeHandle root = NodeHandle().set6byte(deconfiguredBackupRoot);
+        NodeHandle destination = NodeHandle().set6byte(backupDestination);
+
+        client->unlinkOrMoveBackupNodes(root, destination, [request, this](Error e) {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 int MegaApiImpl::getNumPendingUploads()
 {
@@ -13855,8 +13860,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         return;
     }
 
-    if(requestMap.find(tag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(tag);
+    auto reqIt = requestMap.find(tag);
+    MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
@@ -16351,6 +16356,10 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
     activeTransfer = NULL;
     activeError = NULL;
+    if (transfer->isStreamingTransfer())
+    {
+        client->removeAppData(transfer);
+    }
     delete transfer;
 }
 
@@ -18286,7 +18295,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = transfer->fingerprint_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
 
-                    f->setTransfer(transfer);
+                    f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!
                     f->cancelToken = transfer->accessCancelToken();
 
                     error result = API_OK;
@@ -18340,6 +18349,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result));
                         }
+
+                        delete f; // `started` was false, `f` wasn't stored at Transfer::files
                     }
                     currentTransfer = NULL;
                 }
@@ -18501,6 +18512,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     }
 
                     currentTransfer = transfer;
+
                     unique_ptr<MegaFileGet> f;
                     if (node)
                     {
@@ -19035,7 +19047,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 request->setTimeZoneDetails(mTimezones);
-                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -23881,20 +23893,42 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
-unsigned MegaApiImpl::getSetElementCount(MegaHandle sid)
+bool MegaApiImpl::nodeInRubbishCheck(handle h) const
+{
+    Node* n = client->nodebyhandle(h);
+    bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
+    return inRubbish;
+}
+
+unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
-    return client->getSetElementCount(sid);
+    if (includeElementsInRubbishBin)
+    {
+        return client->getSetElementCount(sid);
+    }
+    else
+    {
+        auto els = client->getSetElements(sid);
+        auto ret = count_if(begin(*els), end(*els), [this](const pair<const handle, SetElement>& e)
+                            { return !nodeInRubbishCheck(e.second.node()); });
+        return static_cast<unsigned>(ret);
+    }
 }
 
-MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
     auto* elements = client->getSetElements(sid);
-    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
+    std::function<bool(handle)> filterOut;
+    if (!includeElementsInRubbishBin)
+    {
+        filterOut = std::bind(&MegaApiImpl::nodeInRubbishCheck, this, std::placeholders::_1);
+    }
 
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, filterOut);
     return eList;
 }
 
@@ -23951,16 +23985,20 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut)
 {
     if (elements)
     {
         mElements.reserve(elements->size());
         for (const auto& e : *elements)
         {
-            const SetElement& el = e.second;
-            add(MegaSetElementPrivate(el));
+            if (!filterOut || !filterOut(e.second.node()))
+            {
+                const SetElement& el = e.second;
+                add(MegaSetElementPrivate(el));
+            }
         }
+        mElements.shrink_to_fit();
     }
 }
 
@@ -25620,6 +25658,22 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     LOG_debug << "MegaRecursiveOperation finished subtransfers: " << transfersFinishedCount << " of " << transfersTotalCount;
     if (allSubtransfersResolved())
     {
+        if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            // set root folder node handle in MegaTransfer
+            LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+            auto rootFolderName = transfer->getFileName()
+                   ? transfer->getFileName()
+                   : path.leafName().toPath(true);
+
+            unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+            std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+            if (root)
+            {
+               transfer->setNodeHandle(root->getHandle());
+            }
+        }
+
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
@@ -25845,7 +25899,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, nullptr /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
@@ -27249,7 +27303,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(false);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this, fsType);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, nullptr /*appData()*/, transfer->accessCancelToken(), this, fsType);
              transferQueue.push(transferDownload);
          }
     }

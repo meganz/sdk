@@ -1960,10 +1960,14 @@ public:
     * @brief Returns the handle of a Pending Contact Request related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST (PCR handle for all of these user alert types)
     *
-    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (parent scheduledMeetingId),
+    *   TYPE_SCHEDULEDMEETING_UPDATED (parent scheduledMeetingId)
+    *
+    * @return the relevant handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getPcrHandle() const;
 
@@ -2050,13 +2054,20 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                        value 0 if someone left the folder)
-    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
-    *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    *   TYPE_UPDATEDSHAREDNODES (0: item count)
+    *   TYPE_DELETEDSHARE (index 0: value 1 if access for this user was removed by the share owner, otherwise
+    *                               value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES     (index 0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (index 0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (index 0: item count)
     *
-    * @return Number related to this request, or -1 if the index is invalid
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    *   TYPE_SCHEDULEDMEETING_UPDATED (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    * @return Number related to this user alert, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
 
@@ -14972,30 +14983,6 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Move or Remove the nodes that used to be part of backup.
-         *
-         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
-         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
-         * To move the nodes instead, specify the destination folder in backupDestination.
-         *
-         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
-         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
-         *                          or backupDestination was not in Files or Rubbish
-         *
-         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
-         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
-         * @param listener MegaRequestListener to track this request
-         */
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
@@ -15230,6 +15217,30 @@ class MegaApi
         char *getBlockedPath();
 
 #endif
+
+        /**
+         * @brief Move or Remove the nodes that used to be part of backup.
+         *
+         * The folder must be in folder Vault/<device>/, and will be moved, or permanently deleted.
+         * Deletion is permanent (not to trash) and is selected with destination INVALID_HANDLE.
+         * To move the nodes instead, specify the destination folder in backupDestination.
+         *
+         * These nodes cannot be deleted with the usual remove() function as they are in the Vault.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_OLD_BACKUP_NODES
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the deconfiguredBackupRoot handle
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - deconfiguredBackupRoot was not valid
+         * - MegaError::API_EARGS - deconfiguredBackupRoot was not in the Vault,
+         *                          or backupDestination was not in Files or Rubbish
+         *
+         * @param deconfiguredBackupRoot Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the backup identified with a tag
@@ -20398,10 +20409,11 @@ class MegaApi
          * @brief Get Element count of the Set with the given id, for current user.
          *
          * @param sid the id of the Set to get Element count for
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return Element count of requested Set, or 0 if not found
          */
-        unsigned getSetElementCount(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get all Elements in the Set with given id, for current user.
@@ -20411,10 +20423,11 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param sid the id of the Set owning the Elements
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return all Elements in that Set, or null if not found or none added
          */
-        MegaSetElementList* getSetElements(MegaHandle sid);
+        MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get a particular Element in a particular Set, for current user.
