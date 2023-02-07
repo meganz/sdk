@@ -7496,9 +7496,12 @@ void MegaClient::sc_scheduledmeetings()
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(*childMeetingsDeleted);
 
-        // we have received an "mcsmp" AP indicating that a scheduled meeting has been updated, so we need to:
-        //  + remove all the occurrences whose schedId is the schedId received in mcsmp
-        //  + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
+        /* remove outdated occurrences upon "mcsmp" AP (indicating that a scheduled meeting has been updated):
+         *   + remove all the occurrences whose schedId is the schedId received in mcsmp
+         *   + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
+         *
+         * Note: occurrences will only be considered as changed when TextChat::changed::schedOcurr is set true, upon mcsmfo procresult
+         */
         handle_set deletedChildrenOccurr = chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
 
         // update scheduled meeting with updated record received at mcsmp AP
@@ -11788,7 +11791,7 @@ void MegaClient::procmcsm(JSON *j)
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
-        // fetch scheduled meetings occurences (no previous events occurrences cached)
+        // fetch scheduled meetings occurrences (no previous events occurrences cached, as we are processing FetchNodes)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
