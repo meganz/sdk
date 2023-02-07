@@ -81,15 +81,18 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 
     skipserialization = false;
 
-    transfers_it = client->transfers[type].end();
+    transfers_it = client->multi_transfers[type].end();
 }
 
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    TransferDbCommitter* committer = client->tctable ?
-                         static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter()) :
-                         nullptr;
+    TransferDbCommitter* committer = nullptr;
+    if (client->tctable && client->tctable->getTransactionCommitter())
+    {
+        committer = dynamic_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter());
+        assert(committer);
+    }
 
     if (!uploadhandle.isUndef())
     {
@@ -109,9 +112,9 @@ Transfer::~Transfer()
 
     if (!mOptimizedDelete)
     {
-        if (transfers_it != client->transfers[type].end())
+        if (transfers_it != client->multi_transfers[type].end())
         {
-            client->transfers[type].erase(transfers_it);
+            client->multi_transfers[type].erase(transfers_it);
         }
 
         client->transferlist.removetransfer(this);
@@ -124,8 +127,7 @@ Transfer::~Transfer()
 
     if (asyncopencontext)
     {
-        delete asyncopencontext;
-        asyncopencontext = NULL;
+        asyncopencontext.reset();
         client->asyncfopens--;
     }
 
@@ -205,7 +207,7 @@ bool Transfer::serialize(string *d)
 #ifdef DEBUG
     // very quick debug only double check
     string tempstr = *d;
-    transfer_map tempmap[2];
+    transfer_multimap tempmap[2];
     unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
     assert(t);
     assert(t->localfilename == localfilename);
@@ -218,7 +220,7 @@ bool Transfer::serialize(string *d)
     return true;
 }
 
-Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
+Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap* multi_transfers)
 {
     unsigned short ll;
     const char* ptr = d->data();
@@ -372,12 +374,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
-    auto it_bool = transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
-    if (!it_bool.second)
-    {
-        // duplicate transfer
-        t.reset();
-    }
+    multi_transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
     return t.release();
 }
 

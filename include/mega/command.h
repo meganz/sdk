@@ -52,6 +52,7 @@ public:
     MegaClient* client; // non-owning
 
     int tag;
+    string commandStr;
 
     bool persistent;
 
@@ -145,12 +146,18 @@ public:
 
     virtual bool procresult(Result) = 0;
 
-    const char* getstring();
+    // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
+    virtual const char* getJSON(MegaClient* client);
 
     Command();
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
+
+#ifdef ENABLE_CHAT
+    // create json structure for scheduled meetings (mcsmp command)
+    void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -498,6 +505,8 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool incrementedCount = false;
+    const char* getJSON(MegaClient* client) override;
 public:
     using Completion = std::function<void(error)>;
 
@@ -1011,10 +1020,11 @@ class MEGA_API CommandChatCreate : public Command
     string mUnifiedKey;
     bool mMeeting;
     ChatOptions mChatOptions;
+    std::unique_ptr<ScheduledMeeting> mSchedMeeting;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 };
 
 typedef std::function<void(Error)> CommandSetChatOptionsCompletion;

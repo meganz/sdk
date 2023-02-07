@@ -2,7 +2,7 @@
 
 CURRENTPATH=`pwd`
 
-CRYPTOPP_VERSION="982655845a784a9a4cfbc92221359a25a74184a3"
+CRYPTOPP_VERSION="64ecb2e974bfecd26467c4c301de3bd5ed29cb67"
 
 set -e
 
@@ -13,32 +13,38 @@ then
 curl -LO "https://github.com/weidai11/cryptopp/archive/${CRYPTOPP_VERSION}.tar.gz"
 fi
 
-ARCHS="x86_64 arm64"
+ARCHS="x86_64 arm64-simulator arm64"
+
+tar zxf ${CRYPTOPP_VERSION}.tar.gz
 
 for ARCH in ${ARCHS}
 do
-tar zxf ${CRYPTOPP_VERSION}.tar.gz
 pushd cryptopp-${CRYPTOPP_VERSION}
 if [ $ARCH = "x86_64" ]; then
-sed -i '' $'204s/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM\"/IOS_FLAGS=\"\$IOS_FLAGS -DCRYPTOPP_DISABLE_ASM -miphoneos-version-min=7\"/' setenv-ios.sh
+source TestScripts/setenv-ios.sh iPhoneSimulator ${ARCH}
+elif [ $ARCH = "arm64" ]; then
+sed -i '' $'75s/DEF_CPPFLAGS=\"-DNDEBUG\"/DEF_CPPFLAGS=\"-DNDEBUG -DCRYPTOPP_DISABLE_ARM_CRC32\"/' TestScripts/setenv-ios.sh
+source TestScripts/setenv-ios.sh iPhone ${ARCH}
+elif [ $ARCH = "arm64-simulator" ]; then
+source TestScripts/setenv-ios.sh iPhoneSimulator ${ARCH}
 fi;
-source setenv-ios.sh ${ARCH}
 mkdir -p "${CURRENTPATH}/bin/${ARCH}.sdk"
-make -f GNUmakefile-cross lean -j ${NPROCESSORS}
+make -f GNUmakefile-cross lean -j${NPROCESSORS}
 mv libcryptopp.a "${CURRENTPATH}/bin/${ARCH}.sdk"
+make clean
 popd
-rm -rf cryptopp-${CRYPTOPP_VERSION}
 done
 
-mkdir -p lib
+mkdir xcframework || true
 
-lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/libcryptopp.a"
+lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64-simulator.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/libcryptopp.a"
+
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libcryptopp.a -library ${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a -output ${CURRENTPATH}/xcframework/libcryptopp.xcframework
 
 tar zxf ${CRYPTOPP_VERSION}.tar.gz
 mkdir -p include/cryptopp || true
 cp -f cryptopp-${CRYPTOPP_VERSION}/*.h include/cryptopp
 rm -rf cryptopp-${CRYPTOPP_VERSION}
-mv -f libcryptopp.a lib/
 
 rm -rf bin
 rm -rf ${CRYPTOPP_VERSION}.tar.gz
