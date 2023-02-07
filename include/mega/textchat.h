@@ -275,7 +275,6 @@ private:        // use setter to modify these members
                 mScheduledMeetingsOcurrences.erase(auxIt);
             }
         }
-        mSchedMeetingsChanged.insert(schedId);
     }
 
 public:
@@ -333,10 +332,6 @@ public:
     // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
     // returns handle_set with the meeting id of the removed children
     handle_set removeSchedMeetingsOccurrencesAndChildren(handle schedId);
-
-    // removes all scheduled meeting occurrences whose parent scheduled meeting id, is equal to parentSchedId provided
-    // returns handle_set with the meeting id of the removed children
-    handle_set removeChildSchedMeetingsOccurrences(handle parentSchedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);

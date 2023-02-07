@@ -9578,22 +9578,40 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
+    TextChat* chat = it->second;
+    mScheduledMeeting->setSchedId(schedId);
+
+    // parse cmd (child meetings deleted) array
+    handle_set childMeetingsDeleted;
+    if (r.hasJsonArray())
+    {
+        if (client->json.enterarray())
+        {
+            while(client->json.ishandle())
+            {
+                childMeetingsDeleted.insert(client->json.gethandle());
+            }
+            client->json.leavearray();
+        }
+        else if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, nullptr);
+        }
+    }
+
+    // remove child scheduled meetings in cmd (child meetings deleted) array
+    chat->removeSchedMeetingsList(childMeetingsDeleted);
+
+    /* remove outdated occurrences upon "mcsmp" procresult (indicating that a scheduled meeting has been updated):
+     *   + remove all the occurrences whose schedId is the schedId received in mcsmp
+     *   + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
+     *
+     * Note: occurrences will only be considered as changed when TextChat::changed::schedOcurr is set true, upon "mcsmfo" procresult
+     */
+    handle_set deletedChildrenOccurr = chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
 
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
-
-    TextChat* chat = it->second;
-
-    // remove children scheduled meetings (API requirement)
-    handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
-
-    // remove all child scheduled meeting occurrences
-    // API currently just supports 1 level in scheduled meetings hierarchy
-    // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
-    // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
-    handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
-
-    mScheduledMeeting->setSchedId(schedId);
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     if (res)
     {
@@ -9603,7 +9621,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (!deletedChildren.empty() || !deletedChildrenOccurr.empty())
+    else if (!childMeetingsDeleted.empty() || !deletedChildrenOccurr.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
