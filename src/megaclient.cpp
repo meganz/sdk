@@ -21467,18 +21467,28 @@ void KeyManager::updateAuthring(attr_t at, string& value)
 
 void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
 {
-    for (const auto& it : shareKeys)
+    for (const auto& itNew : shareKeys)
     {
-        handle h = it.first;
+        handle h = itNew.first;
 
-        const auto& it2 = mShareKeys.find(h);
-        if (it2 != mShareKeys.end() && it.second != shareKeys.at(h))
+        const auto& itOld = mShareKeys.find(h);
+        if (itOld != mShareKeys.end() && itNew.second != itOld->second)
         {
-            LOG_warn << "[keymgr] Sharekey (or trust) for " << toNodeHandle(h) << " has changed. Updating...";
+            if (itNew.second.first != itOld->second.first)
+            {
+                LOG_warn << "[keymgr] Sharekey for " << toNodeHandle(h) << " has changed. Updating...";
+                assert(false);
+                mClient.sendevent(99469, "KeyMgr / Replacing sharekey");
+            }
+            else
+            {
+                LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " has changed ("
+                         << itOld->second.second << " -> " << itNew.second.second << "). Updating...";
+            }
         }
-
-        mShareKeys[h] = move(it.second);
     }
+
+    mShareKeys = move(shareKeys);
 
     // Set the sharekey to the node, if missing (since it might not have been received along with
     // the share itself (ok / k is discontinued since ^!keys)
