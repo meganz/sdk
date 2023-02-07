@@ -2702,6 +2702,19 @@ public:
     virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
 
     /**
+     * @brief Returns a list with updated the scheduled meetings occurrences.
+     *
+     * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * The value returned by this method will only be valid when
+     * MegaTextChat::hasChange(CHANGE_TYPE_SCHED_APPEND_OCURR) returns true
+     *
+     * @return The list of the updated scheduled meetings occurrences.
+     */
+    virtual const MegaScheduledMeetingList* getUpdatedOccurrencesList() const;
+
+    /**
      * @brief Returns a MegaHandleList with the handles of the scheduled meetings that have changed
      *
      * This method only returns a valid value when MegaTextChat::hasChange(CHANGE_TYPE_SCHED_MEETING) returns true

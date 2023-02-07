@@ -33329,6 +33329,11 @@ const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurren
     return mScheduledMeetingsOcurrences.get();
 }
 
+const MegaScheduledMeetingList* MegaTextChatPrivate::getUpdatedOccurrencesList() const
+{
+    return mUpdatedOcurrences.get();
+}
+
 const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const
 {
     return mSchedMeetingsChanged.get();

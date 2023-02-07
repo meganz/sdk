@@ -1876,6 +1876,7 @@ public:
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
     const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
+    const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
