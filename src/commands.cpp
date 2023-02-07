@@ -9611,6 +9611,9 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         client->notifychat(chat);
     }
 
+    // fetch for fresh scheduled meetings occurrences
+    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+
     if (mCompletion) { mCompletion(e, result); }
     return res;
 }

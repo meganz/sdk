@@ -23345,11 +23345,6 @@ void MegaApiImpl::sendPendingRequests()
                     l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
                     request->setMegaScheduledMeetingList(l.get());
                 }
-                textchat_map::iterator it = client->chats.find(chatid);
-                if (!e && it != client->chats.end())
-                {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
-                }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
