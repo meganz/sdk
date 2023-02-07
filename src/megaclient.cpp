@@ -11314,13 +11314,25 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     bool newshare = !n->isShared();
 
     // if creating a folder link and there's no sharekey already
+    bool newShareKey = false;
     if (!n->sharekey && uid.empty())
     {
         assert(newshare);
 
-        byte key[SymmCipher::KEYLENGTH];
-        rng.genblock(key, sizeof key);
-        n->sharekey = new SymmCipher(key);
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+            newShareKey = true;
+        }
+        else
+        {
+            LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
     }
 
     if (!n->sharekey)
@@ -11393,14 +11405,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }));
     };
 
-    if (newshare || uid.size())
+    if (uid.size() || newShareKey) // share with a user or folder-link requiring new sharekey
     {
         LOG_debug << "Updating ^!keys before sharing " << toNodeHandle(nodehandle);
         mKeyManager.commit(
-        [this, newshare, nodehandle, shareKey, uid]()
+        [this, newShareKey, nodehandle, shareKey, uid]()
         {
             // Changes to apply in the commit
-            if (newshare)
+            if (newShareKey)
             {
                 // Add outshare key into ^!keys
                 mKeyManager.addOutShareKey(nodehandle, shareKey, true);
@@ -11418,7 +11430,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         });
         return;
     }
-    else // folder link on an already shared folder -> no need to update ^!keys
+    else // folder link on an already shared folder or reusing existing sharekey -> no need to update ^!keys
     {
         completeShare();
     }
