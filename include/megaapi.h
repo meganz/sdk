@@ -1962,10 +1962,14 @@ public:
     * @brief Returns the handle of a Pending Contact Request related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST (PCR handle for all of these user alert types)
     *
-    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (parent scheduledMeetingId),
+    *   TYPE_SCHEDULEDMEETING_UPDATED (parent scheduledMeetingId)
+    *
+    * @return the relevant handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getPcrHandle() const;
 
@@ -2052,13 +2056,20 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                        value 0 if someone left the folder)
-    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
-    *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    *   TYPE_UPDATEDSHAREDNODES (0: item count)
+    *   TYPE_DELETEDSHARE (index 0: value 1 if access for this user was removed by the share owner, otherwise
+    *                               value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES     (index 0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (index 0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (index 0: item count)
     *
-    * @return Number related to this request, or -1 if the index is invalid
+    * This value is also valid for the following alerts:
+    *   TYPE_SCHEDULEDMEETING_NEW (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    *   TYPE_SCHEDULEDMEETING_UPDATED (index 0: value MEGA_INVALID_TIMESTAMP if there's no original startDateTime available for this user alert, otherwise
+    *                                     returns a value greater than MEGA_INVALID_TIMESTAMP)
+    *
+    * @return Number related to this user alert, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
 
@@ -20619,10 +20630,11 @@ class MegaApi
          * @brief Get Element count of the Set with the given id, for current user.
          *
          * @param sid the id of the Set to get Element count for
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return Element count of requested Set, or 0 if not found
          */
-        unsigned getSetElementCount(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get all Elements in the Set with given id, for current user.
@@ -20632,10 +20644,11 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param sid the id of the Set owning the Elements
+         * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
          *
          * @return all Elements in that Set, or null if not found or none added
          */
-        MegaSetElementList* getSetElements(MegaHandle sid);
+        MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin = true);
 
         /**
          * @brief Get a particular Element in a particular Set, for current user.
