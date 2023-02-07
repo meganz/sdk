@@ -700,7 +700,7 @@ class MegaNode
         virtual bool isFavourite();
 
         /**
-        * @brief Ascertain if the node is makred as sensitive 
+        * @brief Ascertain if the node is marked as sensitive 
         *
         * see MegaSApi::isSensitiveInherit(MegaNode *) to see if the node is marked sensitive
         *   or as descendent of a node that is marked sensitive
