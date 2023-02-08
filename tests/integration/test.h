@@ -881,7 +881,7 @@ bool debugTolerantWaitOnFuture(std::future<T> f, size_t numSeconds)
     // rather, wait with a timeout
     // if we stop in the debugger, continue the wait after the debugger continues
     // otherwise, things fail on timeout immediately
-    for (int i = 0; i < numSeconds*10; ++i)
+    for (size_t i = 0; i < numSeconds*10; ++i)
     {
         if (future_status::ready == f.wait_for(std::chrono::milliseconds(100)))
         {
