@@ -11778,9 +11778,6 @@ void MegaClient::procmcsm(JSON *j)
         handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
-
-        // fetch scheduled meetings occurrences (no previous events occurrences cached, as we are processing FetchNodes)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 #endif
