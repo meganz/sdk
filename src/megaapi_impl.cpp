@@ -149,6 +149,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->videocodecid = node->getVideocodecid();
         this->mFavourite = node->isFavourite();
         this->mLabel = static_cast<nodelabel_t>(node->getLabel());
+        mMarkedSensitive = node->isMarkedSensitive();
     }
 
     this->latitude = node->getLatitude();
@@ -395,7 +396,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     }
                     else
                     {
-                        markedSensitive = sen;
+                        mMarkedSensitive = sen;
                     }
                 }
                 catch (std::exception& ex)
@@ -744,7 +745,7 @@ bool MegaNodePrivate::isFavourite()
 
 bool MegaNodePrivate::isMarkedSensitive()
 {
-    return markedSensitive;
+    return mMarkedSensitive;
 }
 
 int MegaNodePrivate::getLabel()
