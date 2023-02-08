@@ -864,11 +864,11 @@ foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES)
     target_link_libraries(Mega PUBLIC ${PKG} )
 endforeach(PKG)
 
-IF(WIN32)
+IF(WIN32 or APPLE)
 set(icu_deps icu icudt)
-ELSE(WIN32)
+ELSE()
 set(icu_deps icuuc icudata)
-ENDIF(WIN32)
+ENDIF()
 
 target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
