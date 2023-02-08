@@ -1030,9 +1030,17 @@ bool Node::isSensitiveInherited() const
 {
     if (isMarkedSensitive())
         return true;
-    if (parent == nullptr)
-        return false;
-    return parent->isSensitiveInherited();
+    Node* p = parent;
+    while (p)
+    {
+        if (p->isMarkedSensitive())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
 }
 
 bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags) const
