@@ -642,7 +642,11 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         if (fsfp != original_fsfp)
         {
             // leave this function before we create a Rubbish/.debris folder where we maybe shouldn't
-            LOG_err << "Sync root path is a different Filesystem than when the sync was created.";
+            LOG_err << "Sync root path is a different Filesystem than when the sync was created. Original filesystem id: "
+                    << original_fsfp
+                    << "  Current: "
+                    << fsfp;
+
             e = LOCAL_FILESYSTEM_MISMATCH;
             return;
         }
@@ -3379,8 +3383,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     assert(onSyncThread());
     assert(!us.mSync);
 
-    auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
-
     auto fail = [&us, &completion](Error e, SyncError se) -> void {
         us.changeState(se, false, true, true);
         us.mSync.reset();
@@ -3425,15 +3427,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
                 << us.mConfig.getLocalPath();
 
         return fail(API_EFAILED, UNABLE_TO_ADD_WATCH);
-    }
-    else if (prevFingerprint && prevFingerprint != us.mConfig.mFilesystemFingerprint)
-    {
-        LOG_err << "New sync local fingerprint mismatch. Previous: "
-                << prevFingerprint
-                << "  Current: "
-                << us.mConfig.mFilesystemFingerprint;
-
-        return fail(API_EFAILED, LOCAL_FILESYSTEM_MISMATCH);
     }
 
     us.mSync->isnetwork = isNetwork;
@@ -8957,8 +8950,6 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
             LOG_debug << syncname << "Moved local item to local sync debris: " << fullPath.localPath << logTriplet(row, fullPath);
             row.syncNode->setScanAgain(true, false, false, 0);
             row.syncNode->scanAgain = TREE_RESOLVED;
-
-            //todo: remove deletedFS flag, it should be sufficient to suppress recursion now, and parent scan will take care of the rest.
 
             // don't let revisits do anything until the tree is cleaned up
             row.syncNode->deletedFS = true;
