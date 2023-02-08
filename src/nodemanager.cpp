@@ -462,7 +462,8 @@ node_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchStr
     if (requiredFlags.any() || excludeFlags.any() || excludeRecursiveFlags.any())
     {
         node_vector isnodes;
-        for (Node* node : nodes) {
+        for (Node* node : nodes)
+        {
             if (!node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                 continue;
             isnodes.push_back(node);

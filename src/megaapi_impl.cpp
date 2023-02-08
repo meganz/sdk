@@ -12108,7 +12108,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         else if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
             // Search on rootnode (Cloud and Vault, excludes Rubbish)
-            if (recursive) {
+            if (recursive)
+            {
                 Node* node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 if (!node)
                 {
@@ -12135,7 +12136,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 }
                 if (node->getMimeType() == mimeType && 
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) {
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    {
                         result.push_back(node);
                 }
 
@@ -12143,7 +12145,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 if (node &&
                     node->getMimeType() == mimeType && 
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) {
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    {
                         result.push_back(node);
                 }
             }
@@ -12204,7 +12207,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
-        } else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
+        } 
+        else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
             // always recursive

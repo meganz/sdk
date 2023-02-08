@@ -537,7 +537,8 @@ bool MegaNode::isRemoved()
     return false;
 }
 
-bool MegaNode::isMarkedSensitive() {
+bool MegaNode::isMarkedSensitive() 
+{
     return false;
 }
 
