@@ -401,6 +401,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
 
         ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
+        ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
+        ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
@@ -556,8 +558,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             #liblcms and libturbojpeg already added above.  also libopenjpeg
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
-            ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
-            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
 
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
@@ -570,7 +570,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt liblcms libturbojpeg libopenjpeg bzip2 libpng)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -864,6 +864,12 @@ foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES)
     target_link_libraries(Mega PUBLIC ${PKG} )
 endforeach(PKG)
 
+IF(WIN32)
+set(icu_deps icu icudt)
+ELSE(WIN32)
+set(icu_deps icuuc icudata)
+ENDIF(WIN32)
+
 target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
@@ -881,7 +887,8 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
-                        ${Mega_PlatformSpecificLibs})
+                        ${Mega_PlatformSpecificLibs}
+                        ${icu_deps})
 
 target_compile_definitions(Mega PUBLIC
                 $<$<PLATFORM_ID:iOS>:USE_IOS>
@@ -953,7 +960,7 @@ if(IOS)
         ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
         ${MegaDir}/bindings/ios/MEGAContactRequest.mm
         ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
-	${MegaDir}/bindings/ios/MEGACurrency.mm
+    ${MegaDir}/bindings/ios/MEGACurrency.mm
         ${MegaDir}/bindings/ios/MEGAError.mm
         ${MegaDir}/bindings/ios/MEGAEvent.mm
         ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
