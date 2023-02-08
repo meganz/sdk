@@ -750,9 +750,13 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     if (excludeRecursiveFlags.none())
+    {
         mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
+    }
     else
+    {
         mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
+    }
 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }

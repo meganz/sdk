@@ -12220,7 +12220,9 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
 
-        } else {
+        }
+        else
+        {
             assert(!"no start node specified and unknown target");
         }
 
