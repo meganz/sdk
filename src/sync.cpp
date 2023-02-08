@@ -326,6 +326,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mRemoteNode(remoteNode)
     , mOriginalPathOfRemoteRootNode(remotePath)
     , mFilesystemFingerprint(localFingerprint)
+    , mLocalPathFsid(0)
     , mSyncType(syncType)
     , mError(error)
     , mWarning(warning)
@@ -333,28 +334,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mExternalDrivePath(externalDrivePath)
     , mBackupState(SYNC_BACKUP_NONE)
 {}
-
-bool SyncConfig::operator==(const SyncConfig& rhs) const
-{
-    return mEnabled == rhs.mEnabled
-           && mExternalDrivePath == rhs.mExternalDrivePath
-           && mLocalPath == rhs.mLocalPath
-           && mName == rhs.mName
-           && mRemoteNode == rhs.mRemoteNode
-           && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
-           && mFilesystemFingerprint == rhs.mFilesystemFingerprint
-           && mSyncType == rhs.mSyncType
-           && mError == rhs.mError
-           && mBackupId == rhs.mBackupId
-           && mWarning == rhs.mWarning
-           && mBackupState == rhs.mBackupState;
-}
-
-bool SyncConfig::operator!=(const SyncConfig& rhs) const
-{
-    return !(*this == rhs);
-}
-
 
 bool SyncConfig::getEnabled() const
 {
@@ -504,6 +483,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Insufficient disk space.";
     case FAILURE_ACCESSING_PERSISTENT_STORAGE:
         return "Failure accessing to persistent storage";
+    case MISMATCH_OF_ROOT_FSID:
+        return "Mismatch on sync root FSID.";
     default:
         return "Undefined error";
     }
@@ -676,42 +657,53 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
 
-    if (fas->fopen(mLocalPath, true, false, nullptr, reparsePointOkAtRoot, true, nullptr))
-    {
-        // get the fsid of the synced folder
-        localroot->fsid_lastSynced = fas->fsid;
-
-        // load LocalNodes from cache (only for internal syncs)
-        // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-        if (shouldHaveDatabase())
-        {
-            string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
-
-            // Check if the database exists on disk.
-            us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
-
-            // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED));
-
-            // Did the call above create the database?
-            us.mConfig.mDatabaseExists |= !!statecachetable;
-
-            // Don't bother trying to read the cache if we couldn't open the database.
-            if (us.mConfig.mDatabaseExists)
-            {
-                readstatecache();
-            }
-        }
-        us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
-
-        mCaseInsensitive = determineCaseInsenstivity(false);
-        LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
-    }
-    else
+    if (!fas->fopen(mLocalPath, true, false, nullptr, reparsePointOkAtRoot, true, nullptr)
+        || fas->fsid == UNDEF)
     {
         LOG_err << "Could not open sync root folder, could not get its fsid: " << mLocalPath;
         e = UNABLE_TO_RETRIEVE_ROOT_FSID;
+        return;
     }
+    else if (us.mConfig.mLocalPathFsid != UNDEF &&
+            us.mConfig.mLocalPathFsid != fas->fsid)
+    {
+        // We can't start a sync with the wrong root folder fsid becuase that is part of
+        // the name of the sync database.  So we can't retrieve the sync state
+        LOG_err << "Sync root folder does not have the same fsid as before: " << mLocalPath
+                << " was " << toHandle(us.mConfig.mLocalPathFsid) << " now " << toHandle(fas->fsid);
+        e = MISMATCH_OF_ROOT_FSID;
+        return;
+    }
+
+    // record the fsid of the synced folder
+    localroot->fsid_lastSynced = fas->fsid;
+    us.mConfig.mLocalPathFsid = fas->fsid;
+
+    // load LocalNodes from cache (only for internal syncs)
+    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
+    if (shouldHaveDatabase())
+    {
+        string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
+
+        // Check if the database exists on disk.
+        us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
+        // Note, we opened dbaccess in thread-safe mode
+        statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED));
+
+        // Did the call above create the database?
+        us.mConfig.mDatabaseExists |= !!statecachetable;
+
+        // Don't bother trying to read the cache if we couldn't open the database.
+        if (us.mConfig.mDatabaseExists)
+        {
+            readstatecache();
+        }
+    }
+    us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
+
+    mCaseInsensitive = determineCaseInsenstivity(false);
+    LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
 }
 
 Sync::~Sync()
@@ -3427,14 +3419,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         LOG_err << "Unable to open state cache database.";
         return fail(API_EFAILED, UNABLE_TO_OPEN_DATABASE);
     }
-    // Make sure we were able to assign the root's FSID.
-    else if (us.mSync->localroot->fsid_lastSynced == UNDEF)
-    {
-        LOG_err << "Unable to retrieve the sync root's FSID: "
-                << us.mConfig.getLocalPath();
-
-        return fail(API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID);
-    }
     else if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
     {
         LOG_err << "Unable to add a watch for the sync root: "
@@ -4272,12 +4256,24 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                       << " internal sync config(s) from disk.";
 
             // check if sync databases exist, so we know if a sync is disabled or merely suspended
+            // note that the sync root path might not be available now, and we might start the
+            // sync later if the drive appears (and its suspension reason was that path disappearing)
             for (auto& c: configs)
             {
-                auto fas = fsaccess->newfileaccess(false);
-                if (fas->fopen(c.mLocalPath, true, false))
+                handle root_fsid = c.mLocalPathFsid;
+                if (root_fsid == UNDEF)
                 {
-                    string dbname = c.getSyncDbStateCacheName(fas->fsid, c.mRemoteNode, mClient.me);
+                    // backward compatibilty for when we didn't store the fsid in serialized config
+                    auto fas = fsaccess->newfileaccess(false);
+                    if (fas->fopen(c.mLocalPath, true, false))
+                    {
+                        root_fsid = fas->fsid;
+                    }
+                }
+
+                if (root_fsid != UNDEF)
+                {
+                    string dbname = c.getSyncDbStateCacheName(root_fsid, c.mRemoteNode, mClient.me);
 
                     // Note, we opened dbaccess in thread-safe mode
                     LocalPath dbPath;
@@ -10442,7 +10438,8 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
     const auto TYPE_CHANGE_METHOD   = MAKENAMEID2('c', 'm');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
-    const auto TYPE_FINGERPRINT     = MAKENAMEID2('f', 'p');
+    const auto TYPE_FILESYSTEM_FP   = MAKENAMEID2('f', 'p');
+    const auto TYPE_ROOT_FSID       = MAKENAMEID2('r', 'f');
     const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
     const auto TYPE_NAME            = MAKENAMEID1('n');
@@ -10473,8 +10470,12 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             config.mEnabled = reader.getbool();
             break;
 
-        case TYPE_FINGERPRINT:
+        case TYPE_FILESYSTEM_FP:
             config.mFilesystemFingerprint = reader.getfp();
+            break;
+
+        case TYPE_ROOT_FSID:
+            config.mLocalPathFsid = reader.getfp();
             break;
 
         case TYPE_LAST_ERROR:
@@ -10597,6 +10598,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mFilesystemFingerprint);
+    writer.arg_fsfp("rf", config.mLocalPathFsid);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
@@ -10854,6 +10856,39 @@ void Syncs::syncLoop()
                     LOG_err << "Detected sync root node is now at a different path.";
                     sync->changestate(REMOTE_PATH_HAS_CHANGED, false, true, true);
                     mClient.app->syncupdate_remote_root_changed(sync->getConfig());
+                }
+            }
+            else if (us->mConfig.mRunState == SyncRunState::Suspend &&
+                    (us->mConfig.mError == LOCAL_PATH_UNAVAILABLE ||
+                     us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
+            {
+                // If we shut the sync down before because the local path wasn't available (yet)
+                // And it's safe to resume the sync becuase it's in Suspend (rather than disable)
+                // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
+
+                fsfp_t filesystemId = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
+                auto fa = fsaccess->newfileaccess();
+                if (fa->fopen(us->mConfig.mLocalPath, true, false, nullptr, true))
+                {
+                    if (fa->type != FOLDERNODE)
+                    {
+                        LOG_err << "Sync path is available again but is not a folder: " << us->mConfig.mLocalPath;
+                    }
+                    // todo: we don't keep the fsid of the root folder in config, but maybe we should?
+                    //else if (fa->fsid != us->mConfig.mLocalPathFsid)
+                    //{
+                    //    LOG_err << "Sync path is available again but is not the same folder, by fsid: " << us->mConfig.mLocalPath;
+                    //}
+                    else if (filesystemId && us->mConfig.mFilesystemFingerprint &&
+                             filesystemId != us->mConfig.mFilesystemFingerprint)
+                    {
+                        LOG_err << "Sync path is available again but is not the same filesystem, by id: " << us->mConfig.mLocalPath;
+                    }
+                    else
+                    {
+                        LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, false, true, false, nullptr, "", "");
+                    }
                 }
             }
         };

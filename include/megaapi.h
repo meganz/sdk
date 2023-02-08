@@ -6398,6 +6398,7 @@ public:
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
         FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
+        MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
     };
 
     enum Warning
