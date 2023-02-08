@@ -374,19 +374,6 @@ public:
     m_off_t getThroughput(size_t connectionNum) const;
 
     /**
-    *   @brief Detect and disconnect the slowest initial connection. Only valid for RAID.
-    *
-    *   This is called only for one time since the DirectReadSlot is constructed.
-    *   Detect the last connection to get a chunk big enough for submitting to the transfer buffer.
-    *
-    *   @param connectionNum Connection index in mReq vector.
-    *   @return True if the slowest connection has been found and disconnected, False otherwise.
-    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
-    *   @see DirectReadSlot::mMaxChunkSize
-    */
-    bool detectSlowestStartConnection(size_t connectionNum);
-
-    /**
     *   @brief Search for the slowest connection and switch it with the actual unused connection.
     *
     *   This method is called between requests:

@@ -3631,6 +3631,8 @@ public:
 private:
     // Rate between partial file size and its duration (only for media files)
     m_off_t partialDuration(m_off_t partialSize) const;
+    // Recalculate maxBufferSize and maxOutputSize taking into accout the byteRate (for media files) and DirectReadSlot read chunk size.
+    void calcMaxBufferAndMaxOutputSize();
 
 protected:
     // Circular buffer to store data to feed the consumer
