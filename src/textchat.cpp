@@ -1123,20 +1123,15 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm, bool byDemand)
+void TextChat::clearUpdatedSchedMeetingOccurrences()
 {
-    if (byDemand)
-    {
-        // we have fetched for more occurrences by demand, so we only need to notificate received ones
-        mUpdatedOcurrences.emplace_back(sm->copy());
-    }
-
-    mScheduledMeetingsOcurrences.emplace_back(std::move(sm));
+    mUpdatedOcurrences.clear();
 }
 
-void TextChat::clearSchedMeetingOccurrences()
+void TextChat::addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
 {
-    mScheduledMeetingsOcurrences.clear();
+    if (!sm) { return; }
+    mUpdatedOcurrences.emplace_back(std::move(sm));
 }
 
 ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
@@ -1208,23 +1203,6 @@ handle_set TextChat::removeChildSchedMeetings(handle parentSchedId)
     for_each(begin(deletedChildren), end(deletedChildren), [this](handle sm) { deleteSchedMeeting(sm); });
 
     return deletedChildren;
-}
-
-handle_set TextChat::removeSchedMeetingsOccurrencesAndChildren(handle schedId)
-{
-    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
-    handle_set deletedOccurr;
-    for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
-    {
-        if ((*it)->schedId() == schedId || (*it)->parentSchedId() == schedId)
-        {
-            deletedOccurr.insert((*it)->schedId());
-        }
-    }
-
-    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle schedId) { deleteSchedMeetingOccurrBySchedId(schedId); });
-
-    return deletedOccurr;
 }
 
 bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)

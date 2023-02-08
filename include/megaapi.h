@@ -2496,7 +2496,7 @@ public:
         CHANGE_TYPE_MODE                = 0x04,
         CHANGE_TYPE_CHAT_OPTIONS        = 0x08,
         CHANGE_TYPE_SCHED_MEETING       = 0x10,
-        CHANGE_TYPE_SCHED_OCURR         = 0x20,
+        CHANGE_TYPE_SCHED_REPLACE_OCURR = 0x20,
         CHANGE_TYPE_SCHED_APPEND_OCURR  = 0x40,
     };
 
@@ -2690,16 +2690,6 @@ public:
      * @return The list of the scheduled meetings.
      */
     virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
-
-    /**
-     * @brief Returns the scheduled meetings occurrences list.
-     *
-     * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
-     * be only valid until the MegaTextChat is deleted.
-     *
-     * @return The list of the scheduled meetings occurrences.
-     */
-    virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
 
     /**
      * @brief Returns a list with updated the scheduled meetings occurrences.

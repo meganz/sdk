@@ -1875,7 +1875,6 @@ public:
     int getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
-    const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
     const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
@@ -1902,9 +1901,6 @@ private:
 
     // list of scheduled meetings Id's that have changed
     std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
-
-    // list of scheduled meetings occurrences
-    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
 
     // list of updated scheduled meetings occurrences (just in case app requested manually for more occurrences)
     std::unique_ptr<MegaScheduledMeetingList> mUpdatedOcurrences;

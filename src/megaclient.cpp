@@ -7436,10 +7436,6 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->id;
-
-                        // remove scheduled meetings occurrences and children
-                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
@@ -7496,19 +7492,10 @@ void MegaClient::sc_scheduledmeetings()
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(*childMeetingsDeleted);
 
-        /* remove outdated occurrences upon "mcsmp" AP (indicating that a scheduled meeting has been updated):
-         *   + remove all the occurrences whose schedId is the schedId received in mcsmp
-         *   + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
-         *
-         * Note: occurrences will only be considered as changed when TextChat::changed::schedOcurr is set true, upon mcsmfo procresult
-         */
-        handle_set deletedChildrenOccurr = chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
         // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
 
-        if (res || !childMeetingsDeleted->empty()
-                || !deletedChildrenOccurr.empty()) // in case JUST occurrences deletion could be done, we still need to notify chat updates
+        if (res || !childMeetingsDeleted->empty())
         {
             if (!res)
             {
@@ -7877,6 +7864,7 @@ void MegaClient::notifypurge(void)
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
             chat->mSchedMeetingsChanged.clear();
+            chat->mUpdatedOcurrences.clear();
         }
 
         chatnotify.clear();

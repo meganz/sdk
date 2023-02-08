@@ -246,12 +246,6 @@ struct TextChat : public Cacheable
     // list of scheduled meetings changed
     handle_set mSchedMeetingsChanged;
 
-    // vector of scheduled meeting occurrences
-    // a scheduled meetings ocurrence is an event based on a scheduled meeting
-    // a scheduled meeting could have one or multiple ocurrences (unique key: <schedId, startdatetime>)
-    // (check ScheduledMeeting class documentation)
-    std::vector<std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
-
     // vector of scheduled meeting occurrences that needs to be notified
     std::vector<std::unique_ptr<ScheduledMeeting>> mUpdatedOcurrences;
 
@@ -262,19 +256,6 @@ private:        // use setter to modify these members
     {
         mScheduledMeetings.erase(sm);
         mSchedMeetingsChanged.insert(sm);
-    }
-
-    void deleteSchedMeetingOccurrBySchedId(const handle schedId)
-    {
-        for (auto it = mScheduledMeetingsOcurrences.begin();
-             it != mScheduledMeetingsOcurrences.end();)
-        {
-            auto auxIt = it++;
-            if ((*auxIt)->schedId() == schedId)
-            {
-                mScheduledMeetingsOcurrences.erase(auxIt);
-            }
-        }
     }
 
 public:
@@ -296,7 +277,8 @@ public:
         bool flags : 1;
         bool mode : 1;
         bool options : 1;
-        bool schedOcurr : 1;
+        bool schedOcurrReplace : 1;
+        bool schedOcurrAppend : 1;
     } changed;
 
     // return false if failed
@@ -305,13 +287,9 @@ public:
     bool setFlag(bool value, uint8_t offset = 0xFF);
     bool setFlags(byte newFlags);
     bool isFlagSet(uint8_t offset) const;
+    void clearUpdatedSchedMeetingOccurrences();
+    void addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
     bool setMode(bool publicchat);
-
-    // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
-    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm, bool byDemand);
-
-    // clear scheduled meetings ocurrences for a chatroom
-    void clearSchedMeetingOccurrences();
 
     // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
@@ -328,10 +306,6 @@ public:
     // removes all scheduled meeting whose parent scheduled meeting id, is equal to parentSchedId provided
     // returns handle_set with the meeting id of the removed children
     handle_set removeChildSchedMeetings(handle parentSchedId);
-
-    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
-    // returns handle_set with the meeting id of the removed children
-    handle_set removeSchedMeetingsOccurrencesAndChildren(handle schedId);
 
     // updates scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);

@@ -9602,14 +9602,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     // remove child scheduled meetings in cmd (child meetings deleted) array
     chat->removeSchedMeetingsList(childMeetingsDeleted);
 
-    /* remove outdated occurrences upon "mcsmp" procresult (indicating that a scheduled meeting has been updated):
-     *   + remove all the occurrences whose schedId is the schedId received in mcsmp
-     *   + remove all the occurrences whose parentSchedId is equal to the schedId received in mcsmp
-     *
-     * Note: occurrences will only be considered as changed when TextChat::changed::schedOcurr is set true, upon "mcsmfo" procresult
-     */
-    handle_set deletedChildrenOccurr = chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
@@ -9621,7 +9613,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         result = mScheduledMeeting.get();
         e = API_OK;
     }
-    else if (!childMeetingsDeleted.empty() || !deletedChildrenOccurr.empty())
+    else if (!childMeetingsDeleted.empty())
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
@@ -9668,9 +9660,6 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
-
-            // remove scheduled meetings occurrences and children
-            chat->removeSchedMeetingsOccurrencesAndChildren(mSchedId);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
 
@@ -9747,7 +9736,6 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
         if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
-
     TextChat* chat = it->second;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(schedMeetings, true /*parsingOccurrences*/);
@@ -9757,31 +9745,23 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
         return false;
     }
 
-    if (!mByDemand)
-    {
-        // if we didn't fetch occurrences by demand, it means that any external/internal event required fetching for fresh occurrences (like mcsmp AP),
-        // so we need to clear current occurrences cache for that chat, and replace by received ones from API (API requirement)
+    // clear list in case it contains any element
+    chat->clearUpdatedSchedMeetingOccurrences();
 
-        // clear old sched meetings
-        LOG_debug << "Invalidating outdated scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
-        chat->clearSchedMeetingOccurrences();
-    }
-    else //-> we have fetched occurrences by demand, so we need to preserve current stored occurrences, and append received ones
-    {
-        LOG_debug << "Appending scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
-    }
-
+    // add received scheduled meetings occurrences from API into mUpdatedOcurrences to be notified
     for (auto& schedMeeting: schedMeetings)
     {
-        // add received scheduled meetings occurrences from API
-        chat->addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>(schedMeeting->copy()), mByDemand);
+        chat->addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>(schedMeeting->copy()));
     }
 
+    // set the change type although we haven't received any occurrences (but there's no error and json proccessing has been succesfull)
+    mByDemand
+            ? chat->changed.schedOcurrAppend = true
+            : chat->changed.schedOcurrReplace = true;
+
     // just notify once, for all ocurrences received for the same chat
-    chat->changed.schedOcurr = true;
     chat->setTag(tag ? tag : -1);
     client->notifychat(chat);
-
     if (mCompletion) { mCompletion(API_OK, &schedMeetings); }
     return true;
 }
