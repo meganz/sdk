@@ -87,11 +87,6 @@ public:
         handle hearBeatID = UNDEF
     );
 
-private:
-    bool operator==(const SyncConfig &rhs);
-    bool operator!=(const SyncConfig &rhs);
-public:
-
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
 
