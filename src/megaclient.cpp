@@ -232,43 +232,59 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
         // if authentication token is received...
         // and the sharekey can decrypt encrypted node's attributes (if still encrypted)...
-        // and the sharekey is not in ^!keys or it's, but not trusted
-        if (auth && n->testShareKey(s->key) && !mKeyManager.isShareKeyTrusted(n->nodehandle))
+        if (auth && n->testShareKey(s->key))
         {
-            if (n->sharekey)
+            std::string newShareKey((const char *)s->key, SymmCipher::KEYLENGTH);
+            std::string secureShareKey = mKeyManager.getShareKey(n->nodehandle);
+
+            // newShareKey can arrive here from ^!keys from KeyManager::loadShareKeys
+            // or loaded from mKeyManager at the beginning of this function
+            // If newShareKey != secureShareKey the key should be legacy
+            bool legacyKey = newShareKey != secureShareKey;
+
+            // we don't allow legacy keys to replace trusted keys
+            if (legacyKey && mKeyManager.isShareKeyTrusted(n->nodehandle))
             {
-                if (!fetchingnodes)
-                {
-                    sendevent(99428,"Replacing share key", 0);
-                }
-                delete n->sharekey;
+                LOG_warn << "A legacy key for " << toNodeHandle(n->nodehandle) << "has not been"
+                         << " allowed to replace a trusted share key";
             }
-            n->sharekey = new SymmCipher(s->key);
-            skreceived = true;
-
-            // Save the new sharekey in mKeyManager
-            // (it will happen for shares created with old clients
-            // or while mKeyManager.isSecure() is false)
-            if (mKeyManager.generation())
+            else
             {
-                // This shouldn't happen if isSecure() is true, because in that case
-                // the keys arriving here should only come from mKeyManager
-                assert(!mKeyManager.isSecure());
-
-                handle nodehandle = n->nodehandle;
-                std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
-                bool outgoing = s->outgoing;
-                LOG_debug << "Adding legacy key to ^!keys for " << (outgoing ? "outshare " : "inshare ") << toNodeHandle(nodehandle);
-                mKeyManager.commit(
-                [this, nodehandle, shareKey, outgoing]()
+                // in all other cases, we can apply the key
+                if (n->sharekey)
                 {
-                    // Changes to apply in the commit
-                    mKeyManager.addShareKey(nodehandle, shareKey);
-                    if (!outgoing)
+                    if (!fetchingnodes)
                     {
-                        mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
+                        sendevent(99428,"Replacing share key", 0);
                     }
-                }); // No completion callback
+                    delete n->sharekey;
+                }
+                n->sharekey = new SymmCipher(s->key);
+                skreceived = true;
+
+                // Save the new sharekey in mKeyManager
+                // (it will happen for shares created with old clients
+                // or while mKeyManager.isSecure() is false)
+                if (mKeyManager.generation() && legacyKey) // no need to add the share key if it's already there
+                {
+                    // This shouldn't happen if isSecure() is true, because in that case
+                    // the keys arriving here should only come from mKeyManager
+                    assert(!mKeyManager.isSecure());
+
+                    handle nodehandle = n->nodehandle;
+                    bool outgoing = s->outgoing;
+                    LOG_debug << "Adding legacy key to ^!keys for " << (outgoing ? "outshare " : "inshare ") << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle, newShareKey, outgoing]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.addShareKey(nodehandle, newShareKey);
+                        if (!outgoing)
+                        {
+                            mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
+                        }
+                    }); // No completion callback
+                }
             }
         }
     }
