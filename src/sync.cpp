@@ -326,7 +326,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mRemoteNode(remoteNode)
     , mOriginalPathOfRemoteRootNode(remotePath)
     , mFilesystemFingerprint(localFingerprint)
-    , mLocalPathFsid(0)
+    , mLocalPathFsid(UNDEF)
     , mSyncType(syncType)
     , mError(error)
     , mWarning(warning)
