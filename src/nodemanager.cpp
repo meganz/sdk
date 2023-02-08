@@ -462,7 +462,8 @@ node_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchStr
     if (requiredFlags.any() || excludeFlags.any() || excludeRecursiveFlags.any())
     {
         node_vector isnodes;
-        for (Node* node : nodes) {
+        for (Node* node : nodes)
+        {
             if (!node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                 continue;
             isnodes.push_back(node);
@@ -749,9 +750,13 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     if (excludeRecursiveFlags.none())
+    {
         mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
+    }
     else
+    {
         mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
+    }
 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }

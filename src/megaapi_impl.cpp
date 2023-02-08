@@ -149,6 +149,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->videocodecid = node->getVideocodecid();
         this->mFavourite = node->isFavourite();
         this->mLabel = static_cast<nodelabel_t>(node->getLabel());
+        mMarkedSensitive = node->isMarkedSensitive();
     }
 
     this->latitude = node->getLatitude();
@@ -395,7 +396,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     }
                     else
                     {
-                        markedSensitive = sen;
+                        mMarkedSensitive = sen;
                     }
                 }
                 catch (std::exception& ex)
@@ -744,7 +745,7 @@ bool MegaNodePrivate::isFavourite()
 
 bool MegaNodePrivate::isMarkedSensitive()
 {
-    return markedSensitive;
+    return mMarkedSensitive;
 }
 
 int MegaNodePrivate::getLabel()
@@ -12107,7 +12108,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         else if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
             // Search on rootnode (Cloud and Vault, excludes Rubbish)
-            if (recursive) {
+            if (recursive)
+            {
                 Node* node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 if (!node)
                 {
@@ -12134,7 +12136,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 }
                 if (node->getMimeType() == mimeType && 
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) {
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    {
                         result.push_back(node);
                 }
 
@@ -12142,7 +12145,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 if (node &&
                     node->getMimeType() == mimeType && 
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) {
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    {
                         result.push_back(node);
                 }
             }
@@ -12203,7 +12207,8 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
-        } else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
+        } 
+        else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
             // always recursive
@@ -12215,7 +12220,9 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
 
-        } else {
+        }
+        else
+        {
             assert(!"no start node specified and unknown target");
         }
 

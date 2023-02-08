@@ -703,7 +703,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNodeList *children;
         MegaHandle owner;
         bool mFavourite;
-        bool markedSensitive = false; // sensitive attribute set on this node
+        bool mMarkedSensitive = false; // sensitive attribute set on this node
         nodelabel_t mLabel;
         bool mIsNodeKeyDecrypted = false;
 };
