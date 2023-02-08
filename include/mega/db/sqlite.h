@@ -25,6 +25,9 @@
 
 #include <sqlite3.h>
 
+// Include ICU headers
+#include <unicode/ucol.h>
+
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -100,6 +103,11 @@ public:
     // Callback registered by some long-time running queries, so they can be canceled
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
+    static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
+    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
+            const uint8_t *zString,    /* The UTF-8 string to compare against */
+            const UChar32 uEsc         /* The escape character */
+          );
 
 private:
     // Iterate over a SQL query row by row and fill the map

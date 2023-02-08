@@ -161,6 +161,14 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 #endif
 
+    result = sqlite3_create_function(db, "regexp", 2, SQLITE_ANY,0, &SqliteAccountState::userRegexp, 0, 0);
+    if (result)
+    {
+        LOG_debug << "Data base error(sqlite3_create_function): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -1300,12 +1308,9 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
         uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION);
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByName, NULL);
     }
@@ -1354,12 +1359,9 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
     {
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.parenthandle = ? AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.parenthandle = ? AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByNameNoRecursive, NULL);
     }
@@ -1411,12 +1413,9 @@ bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, 
     {
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.share = ? AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.share = ? AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtInShareOutShareByName, NULL);
     }
@@ -1872,6 +1871,142 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     sqlite3_reset(mStmtNodeByMimeType);
 
     return result;
+}
+
+void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    const unsigned char* pattern = (const unsigned char*)sqlite3_value_text(argv[0]);
+    const unsigned char* dataBaseName = (const unsigned char*)sqlite3_value_text(argv[1]);
+    if( dataBaseName!=0 && pattern != 0)
+    {
+        sqlite3_result_int(context, SqliteAccountState::icuLikeCompare(static_cast<const uint8_t*>(pattern), static_cast<const uint8_t*>(dataBaseName), 0));
+    }
+}
+
+// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
+
+/*
+** This lookup table is used to help decode the first byte of
+** a multi-byte UTF8 character. It is copied here from SQLite source
+** code file utf8.c.
+*/
+static const unsigned char icuUtf8Trans1[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
+};
+
+#define SQLITE_ICU_READ_UTF8(zIn, c)                      \
+    c = *(zIn++);                                         \
+    if (c>=0xc0){                                         \
+    c = icuUtf8Trans1[c-0xc0];                            \
+    while ((*zIn & 0xc0)==0x80){                          \
+    c = (c<<6) + (0x3f & *(zIn++));                       \
+}                                                         \
+}
+
+#define SQLITE_ICU_SKIP_UTF8(zIn)                        \
+    assert(*zIn);                                        \
+    if (*(zIn++)>=0xc0){                                 \
+    while ((*zIn & 0xc0)==0x80){zIn++;}                  \
+}
+
+
+int SqliteAccountState::icuLikeCompare(
+        const uint8_t *zPattern,   // LIKE pattern
+        const uint8_t *zString,    // The UTF-8 string to compare against
+        const UChar32 uEsc)         // The escape character
+{
+    // Define Linux wildcards
+    static const uint32_t MATCH_ONE = (uint32_t)'?';
+    static const uint32_t MATCH_ALL = (uint32_t)'*';
+
+    int prevEscape = 0;     //True if the previous character was uEsc
+
+    while (1)
+    {
+        // Read (and consume) the next character from the input pattern.
+        uint32_t uPattern;
+        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
+        if(uPattern == 0)
+            break;
+
+        /* There are now 4 possibilities:
+        **
+        **     1. uPattern is an unescaped match-all character "*",
+        **     2. uPattern is an unescaped match-one character "?",
+        **     3. uPattern is an unescaped escape character, or
+        **     4. uPattern is to be handled as an ordinary character
+        */
+        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 1
+            uint8_t c;
+
+            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
+            // MATCH_ALL. For each MATCH_ONE, skip one character in the
+            // test string
+            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
+            {
+                if (c == MATCH_ONE)
+                {
+                    if (*zString == 0) return 0;
+                    SQLITE_ICU_SKIP_UTF8(zString);
+                }
+
+                zPattern++;
+            }
+
+            if (*zPattern == 0)
+                return 1;
+
+            while (*zString)
+            {
+                if (icuLikeCompare(zPattern, zString, uEsc))
+                {
+                    return 1;
+                }
+
+                SQLITE_ICU_SKIP_UTF8(zString);
+            }
+
+            return 0;
+        }
+        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 2
+            if( *zString==0 ) return 0;
+            SQLITE_ICU_SKIP_UTF8(zString);
+
+        }
+        else if (uPattern == (uint32_t)uEsc && !prevEscape)
+        {
+            // Case 3
+            prevEscape = 1;
+
+        }
+        else
+        {
+            // Case 4
+            uint32_t uString;
+            SQLITE_ICU_READ_UTF8(zString, uString);
+            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
+            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
+            if (uString != uPattern)
+            {
+                return 0;
+            }
+
+            prevEscape = 0;
+        }
+    }
+
+    return *zString == 0;
 }
 
 } // namespace
