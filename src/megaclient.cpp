@@ -230,7 +230,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
         }
 
-        if (auth && n->testShareKey(s->key))
+        // if authentication token is received...
+        // and the sharekey can decrypt encrypted node's attributes (if still encrypted)...
+        // and the sharekey is not in ^!keys or it's, but not trusted
+        if (auth && n->testShareKey(s->key) && !mKeyManager.isShareKeyTrusted(n->nodehandle))
         {
             if (n->sharekey)
             {
@@ -243,10 +246,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             n->sharekey = new SymmCipher(s->key);
             skreceived = true;
 
-            // Save the key if it doesn't exist in mKeyManager
-            // It will happen for shares created with old clients
-            // or while mKeyManager.isSecure() is false
-            if (mKeyManager.generation() && !mKeyManager.getShareKey(n->nodehandle).size())
+            // Save the new sharekey in mKeyManager
+            // (it will happen for shares created with old clients
+            // or while mKeyManager.isSecure() is false)
+            if (mKeyManager.generation())
             {
                 // This shouldn't happen if isSecure() is true, because in that case
                 // the keys arriving here should only come from mKeyManager
@@ -260,13 +263,9 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 [this, nodehandle, shareKey, outgoing]()
                 {
                     // Changes to apply in the commit
-                    if (outgoing)
+                    mKeyManager.addShareKey(nodehandle, shareKey);
+                    if (!outgoing)
                     {
-                        mKeyManager.addOutShareKey(nodehandle, shareKey);
-                    }
-                    else
-                    {
-                        mKeyManager.addInShareKey(nodehandle, shareKey);
                         mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
                     }
                 }); // No completion callback
@@ -11135,7 +11134,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         if (n->sharekey)
         {
             ++migratedInShares;
-            mKeyManager.addInShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
         }
     }
 
@@ -11146,7 +11145,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         if (n->sharekey)
         {
             ++migratedOutShares;
-            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
         }
     }
 
@@ -11157,7 +11156,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         if (n->sharekey)
         {
             ++migratedOutShares;
-            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
         }
     }
 
@@ -11168,7 +11167,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         if (n->sharekey)
         {
             ++migratedOutShares;
-            mKeyManager.addOutShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
         }
     }
 
@@ -11251,7 +11250,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
         [this, nodehandle, shareKey]()
         {
             // Changes to apply in the commit
-            mKeyManager.addOutShareKey(nodehandle, shareKey, true);
+            mKeyManager.addShareKey(nodehandle, shareKey, true);
         },
         [completion]()
         {
@@ -11430,7 +11429,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             if (newShareKey)
             {
                 // Add outshare key into ^!keys
-                mKeyManager.addOutShareKey(nodehandle, shareKey, true);
+                mKeyManager.addShareKey(nodehandle, shareKey, true);
             }
 
             if (uid.size()) // not a folder link, but a share with a user
@@ -20471,14 +20470,14 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
     return mPendingInShares.erase(shareHandle);
 }
 
-bool KeyManager::addOutShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
+bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
-    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
-    return true;
-}
+    if (isShareKeyTrusted(sharehandle))
+    {
+        LOG_warn << "Skipping replacement of trusted sharekey for " << toNodeHandle(sharehandle);
+        return false;
+    }
 
-bool KeyManager::addInShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
-{
     mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
     return true;
 }
@@ -20491,6 +20490,12 @@ string KeyManager::getShareKey(handle sharehandle) const
         return it->second.first;
     }
     return std::string();
+}
+
+bool KeyManager::isShareKeyTrusted(handle sharehandle) const
+{
+    auto it = mShareKeys.find(sharehandle);
+    return it != mShareKeys.end() && it->second.second;
 }
 
 bool KeyManager::removeShare(handle sharehandle)
@@ -20638,7 +20643,7 @@ bool KeyManager::promotePendingShares()
                     LOG_warn << "Updating share key for inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
                 }
 
-                addInShareKey(nodeHandle, shareKey, true);
+                addShareKey(nodeHandle, shareKey, true);
                 mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
                 keysToDelete.push_back(it.first);
                 attributeUpdated = true;
