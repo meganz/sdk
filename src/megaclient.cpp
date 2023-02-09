@@ -19291,6 +19291,29 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
 }
 
+void MegaClient::removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(sid != UNDEF && !eids.empty());
+
+    // make sure Set id is valid
+    const Set* existingSet = (eids.empty() || sid == UNDEF) ? nullptr : getSet(sid);
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Invalid request data when removing bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr);
+        }
+        return;
+    }
+
+    // Do not validate Element ids here. Let the API return error for invalid ones,
+    // to allow valid ones to be removed.
+
+    reqs.add(new CommandRemoveSetElements(this, sid, move(eids), completion));
+}
+
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
 {
     if (!getSetElement(sid, eid))

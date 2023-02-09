@@ -451,6 +451,14 @@ public:
     template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaSetElementList** ell, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (ell && rt.request->getMegaSetElementList()) *ell = rt.request->getMegaSetElementList()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doRemoveBulkSetElements(unsigned apiIndex, MegaIntegerList** errs, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->removeSetElements(args..., &rt);
+        rt.waitForResult();
+        if (errs && rt.request->getMegaIntegerList()) *errs = rt.request->getMegaIntegerList()->copy();
+        return rt.result;
+    }
     template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetUserAttribute(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setUserAttribute(args..., &rt); return rt.waitForResult(); }

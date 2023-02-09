@@ -2299,6 +2299,9 @@ public:
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
+    // generate "aerb" command
+    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
