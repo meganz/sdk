@@ -1062,9 +1062,17 @@ bool Node::anyExcludeRecursiveFlag(Node::Flags flags) const
 {
     if ((getDBFlagsBitset() & flags).any())
         return true;
-    if (parent == nullptr)
-        return false;
-    return parent->anyExcludeRecursiveFlag(flags);
+    Node* p = parent;
+    while (p)
+    {
+        if (p->getDBFlagsBitset() & flags).any())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
 }
 
 vector<pair<handle, int>> Node::getSdsBackups() const
