@@ -144,6 +144,17 @@ vcpkg {
     }
 }
 
+#TODO: Review it
+!vcpkg {
+    unix:!macx {
+        LIBS += -licuuc -licudata
+    }
+    else {#win/mac
+        LIBS += -licu -licudt
+    }
+}
+
+
 
 CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
   SOURCES += src/rotativeperformancelogger.cpp
