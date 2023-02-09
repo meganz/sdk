@@ -9755,9 +9755,8 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     }
 
     // set the change type although we haven't received any occurrences (but there's no error and json proccessing has been succesfull)
-    mByDemand
-            ? chat->changed.schedOcurrAppend = true
-            : chat->changed.schedOcurrReplace = true;
+    if (mByDemand) { chat->changed.schedOcurrAppend = true; }
+    else           { chat->changed.schedOcurrReplace = true; }
 
     // just notify once, for all ocurrences received for the same chat
     chat->setTag(tag ? tag : -1);
