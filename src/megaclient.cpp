@@ -21498,7 +21498,7 @@ void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
             if (itNew.second.first != itOld->second.first)
             {
                 LOG_warn << "[keymgr] Sharekey for " << toNodeHandle(h) << " has changed. Updating...";
-                assert(false);
+                assert(!itOld->second.second);
                 mClient.sendevent(99469, "KeyMgr / Replacing sharekey");
             }
             else
