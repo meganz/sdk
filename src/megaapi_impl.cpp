@@ -27373,28 +27373,28 @@ void StreamingBuffer::init(size_t capacity)
 void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
 {
     size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
-    size_t maxDeliveryChunksPerByteRate, minNeededBufferSize;
+    constexpr size_t BUFFER_PAUSE_RESUME_FACTOR = 4; // Take into account pausing/resuming actions: we need that margin.
+    size_t minNeededBufferSize = maxReadChunkSize * BUFFER_PAUSE_RESUME_FACTOR;
+    size_t maxDeliveryChunksPerByteRate;
     if (duration)
     {
         size_t bytesPerSecond = getBytesPerSecond();
         // Desirable min buffer capacity: 10 seconds at least. Limit: 2x max buffer size requested by the client.
         size_t minDesirableBufferSize = std::min(10 * bytesPerSecond, maxBufferSize * 2);
-        // Min buffer capacity needed to prevent data from shrinking: a chunk up to maxReadChunkSize bytes can be read from DirectReadSlot.
-        minNeededBufferSize = std::max(minDesirableBufferSize, maxReadChunkSize);
+        // Min buffer capacity needed to prevent data from shrinking: minNeededBufferSize at least.
+        minNeededBufferSize = std::max(minNeededBufferSize, minDesirableBufferSize);
         // Calc multiplication factor for maxOutputSize depending on the byteRate and the maxReadChunkSize from DirectReadSlot.
-        maxDeliveryChunksPerByteRate = std::max((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), 1ul);
+        maxDeliveryChunksPerByteRate = std::max<size_t>((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), 1ul);
     }
     else
     {
-        // Default min buffer capacity needed: the max chunk size which can be read from DirectReadSlot.
-        minNeededBufferSize = maxReadChunkSize;
         // Default multiplication factor for maxOutputSize (there is no byteRate to adapt the value).
         maxDeliveryChunksPerByteRate = 1;
     }
      // Set maxBufferSize taking into account minNeededBufferSize, truncating the value to be divisible by maxReadChunkSize.
     maxBufferSize = (std::max(maxBufferSize, minNeededBufferSize) / maxReadChunkSize) * maxReadChunkSize;
-    // Set max outputSize depending on maxDeliveryChunksPerByteRate. Limit is half bufferSize, accordingly to pause/resume buffer logic (2*lastBufferSize).
-    maxOutputSize = std::min(maxDeliveryChunksPerByteRate * maxReadChunkSize, maxBufferSize / 2);
+    // Set max outputSize depending on maxDeliveryChunksPerByteRate. Limit is maxBufferSize.
+    maxOutputSize = std::min(maxDeliveryChunksPerByteRate * maxReadChunkSize, maxBufferSize);
 }
 
 void StreamingBuffer::reset(bool freeData, size_t sizeToReset)
@@ -28621,8 +28621,7 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
 
     if (httpctx->pause)
     {
-        size_t resumeCapacity = httpctx->lastBufferLen * 2; // If httpctx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
-        if (httpctx->streamingBuffer.availableSpace() > resumeCapacity)
+        if (httpctx->streamingBuffer.availableSpace() >= DirectReadSlot::MAX_DELIVERY_CHUNK)
         {
             httpctx->pause = false;
             m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
@@ -30553,7 +30552,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
+    if ((remaining > availableSpace) && ((availableSpace - size) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
