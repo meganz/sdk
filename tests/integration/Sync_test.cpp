@@ -3188,7 +3188,7 @@ bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
     PromiseBoolSP result = makeSharedPromise<bool>();
     client.syncs.enableSyncByBackupId(id, pause, false, false, false,
         [result](error e, SyncError, handle){ result->set_value(!e); }, id, "");
-    return result->get_future().get();
+    return debugTolerantWaitOnFuture(result->get_future(), 45);
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
@@ -3646,7 +3646,7 @@ bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
         pb->set_value(true);
     });
 
-    pb->get_future().get();
+    EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
 
     return result;
 }
@@ -6570,23 +6570,28 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
     standardclient.getpubliclink(n2, 0, 0, false, false, pe1);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe1.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
     standardclient.exportnode(n2, 0, 0, false, false, pe1a);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe1a.get_future(), 45));
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
     standardclient.getpubliclink(n2, 0, 0, false, false, pe2);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe2.get_future(), 45));
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
     standardclient.getpubliclink(n2, 1, 0, false, false, pe3);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe3.get_future(), 45));
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
     standardclient.getpubliclink(n2, 0, 0, false, false, pe4);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe4.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 
@@ -7100,6 +7105,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         // Update path for c1.
         config0.mLocalPath = LocalPath::fromAbsolutePath(root0.u8string());
         config1.mLocalPath = LocalPath::fromAbsolutePath(root1.u8string());
+        config0.mLocalPathFsid = UNDEF;
+        config1.mLocalPathFsid = UNDEF;
 
         // Make sure local sync roots exist.
         fs::create_directories(root0);
@@ -7145,7 +7152,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.fetchnodes(false, true, false));
 
     // Wait for the syncs to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c1);
@@ -9126,7 +9133,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->login_fetchnodes(session));
 
         // Wait for the sync to be resumed.
-        notify.get_future().get();
+        ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
         c->triggerPeriodicScanEarly(id);
 
@@ -9673,7 +9680,7 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     ASSERT_TRUE(c.login_fetchnodes(session));
 
     // Wait for sync to resume.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -11119,7 +11126,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.login_fetchnodes(session));
 
     // Wait for the sync to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for the sync to catch up.
     waitonsyncs(TIMEOUT, &c);
@@ -11485,7 +11492,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Wait for the sync to try and upload a file.
-        waiter.get_future().get();
+        ASSERT_TRUE(debugTolerantWaitOnFuture(waiter.get_future(), 45));
 
         // Save the session ID.
         cb.client.dumpsession(sessionID);
@@ -11685,7 +11692,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
 
     // Wait for the sync to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Give the sync some time to think.
     waitonsyncs(TIMEOUT, &cb);

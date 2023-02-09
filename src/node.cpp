@@ -1688,7 +1688,6 @@ LocalNode::LocalNode(Sync* csync)
 void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
     parent = NULL;
-//    notseen = 0;
     unstableFsidAssigned = false;
     deletedFS = false;
     moveAppliedToLocal = false;
@@ -1742,19 +1741,6 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 
         mExclusionState = ES_INCLUDED;
     }
-
-
-//#ifdef DEBUG
-//    // double check we were given the right shortname (if the file exists yet)
-//    auto fa = sync->client->fsaccess->newfileaccess(false);
-//    if (fa->fopen(cfullpath))  // exists, is file
-//    {
-//        auto sn = sync->client->fsaccess->fsShortname(cfullpath);
-//        assert(!localname.empty() &&
-//            ((!slocalname && (!sn || localname == *sn)) ||
-//                (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
-//    }
-//#endif
 
     sync->threadSafeState->incrementSyncNodeCount(type, 1);
 }

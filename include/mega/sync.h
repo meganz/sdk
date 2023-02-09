@@ -87,9 +87,6 @@ public:
         handle hearBeatID = UNDEF
     );
 
-    bool operator==(const SyncConfig &rhs) const;
-    bool operator!=(const SyncConfig &rhs) const;
-
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
 
@@ -133,6 +130,10 @@ public:
 
     // uniquely identifies the filesystem, we check this is unchanged.
     fsfp_t mFilesystemFingerprint;
+
+    // uniquely identifies the local folder.  This ID is also a component of the sync database's filename
+    // so if it changes, we would lose sync state.  So, we cannot allow that
+    handle mLocalPathFsid = UNDEF;
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
