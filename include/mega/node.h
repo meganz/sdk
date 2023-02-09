@@ -338,7 +338,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     typedef std::bitset<FLAGS_SIZE> Flags; 
 
     // check if any of the flags are set in any of the anesestors
-    bool anyExcludeRecursiveFlag(Flags flags) const;
+    bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
 
     // should we keep the node
     // requiredFlags are flags that must be set

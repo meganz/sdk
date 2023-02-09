@@ -1058,14 +1058,16 @@ bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, No
     return true;
 }
 
-bool Node::anyExcludeRecursiveFlag(Node::Flags flags) const
+bool Node::anyExcludeRecursiveFlag(Node::Flags excludeRecursiveFlags) const
 {
-    if ((getDBFlagsBitset() & flags).any())
+    if ((getDBFlagsBitset() & excludeRecursiveFlags).any())
         return true;
-    Node* p = parent;
+
+    const Node* p = parent;
     while (p)
     {
-        if (p->getDBFlagsBitset() & flags).any())
+        Node::Flags flags = p->getDBFlagsBitset();
+        if ((excludeRecursiveFlags & flags).any())
         {
             return true;
         }
