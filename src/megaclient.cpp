@@ -245,7 +245,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             // we don't allow legacy keys to replace trusted keys
             if (legacyKey && mKeyManager.isShareKeyTrusted(n->nodehandle))
             {
-                LOG_warn << "A legacy key for " << toNodeHandle(n->nodehandle) << "has not been"
+                LOG_warn << "A legacy key for " << toNodeHandle(n->nodehandle) << " has not been"
                          << " allowed to replace a trusted share key";
             }
             else
@@ -20490,8 +20490,9 @@ bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool shar
 {
     if (isShareKeyTrusted(sharehandle))
     {
-        LOG_warn << "Skipping replacement of trusted sharekey for " << toNodeHandle(sharehandle);
-        return false;
+        LOG_warn << "Replacement of trusted sharekey for " << toNodeHandle(sharehandle);
+        mClient.sendevent(99470, "KeyMgr / Replacing trusted sharekey");
+        assert(false);
     }
 
     mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
