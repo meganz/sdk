@@ -7467,9 +7467,9 @@ void MegaClient::sc_scheduledmeetings()
     handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
-    std::shared_ptr<handle_set> childMeetingsDeleted(new handle_set());
+    handle_set childMeetingsDeleted;
 
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, childMeetingsDeleted);
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -7492,12 +7492,12 @@ void MegaClient::sc_scheduledmeetings()
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
 
         // remove child scheduled meetings in cmd (child meetings deleted) array
-        chat->removeSchedMeetingsList(*childMeetingsDeleted);
+        chat->removeSchedMeetingsList(childMeetingsDeleted);
 
         // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
 
-        if (res || !childMeetingsDeleted->empty())
+        if (res || !childMeetingsDeleted.empty())
         {
             if (!res)
             {
@@ -7510,7 +7510,7 @@ void MegaClient::sc_scheduledmeetings()
             notifychat(chat);
 
             // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
-            for_each(begin(*childMeetingsDeleted), end(*childMeetingsDeleted),
+            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
 
             if (res)
@@ -17566,7 +17566,7 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce,
                                          handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
-                                         std::shared_ptr<handle_set> childMeetingsDeleted)
+                                         handle_set* const childMeetingsDeleted)
 {
     JSON* auxJson = j
             ? j         // custom Json provided

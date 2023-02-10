@@ -9578,45 +9578,51 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return false;
     }
+
     TextChat* chat = it->second;
-
-    // parse schedId
+    bool exit = false;
     handle schedId = UNDEF;
-    if (client->json.getnameid() == MAKENAMEID2('i', 'd'))
-    {
-        schedId = client->json.gethandle(MegaClient::CHATHANDLE);
-    }
-    if (ISUNDEF(schedId))
-    {
-        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
-        return false;
-    }
-    mScheduledMeeting->setSchedId(schedId);
-
-    // parse cmd (child meetings deleted) array
     handle_set childMeetingsDeleted;
-    if (client->json.getnameid() == MAKENAMEID3('c', 'm', 'd'))
+    while (!exit)
     {
-        if (client->json.enterarray())
+        switch (client->json.getnameid())
         {
-            while(client->json.ishandle())
+            case MAKENAMEID3('c', 'm', 'd'):
             {
-                childMeetingsDeleted.insert(client->json.gethandle());
-            }
-            client->json.leavearray();
-        }
-        else if (mCompletion)
-        {
-            mCompletion(API_EINTERNAL, nullptr);
-        }
+                if (client->json.enterarray())
+                {
+                    while(client->json.ishandle())
+                    {
+                        childMeetingsDeleted.insert(client->json.gethandle());
+                    }
+                    client->json.leavearray();
+                }
+                else if (mCompletion)
+                {
+                    mCompletion(API_EINTERNAL, nullptr);
+                    return false;
+                }
 
-        // remove child scheduled meetings in cmd (child meetings deleted) array
-        chat->removeSchedMeetingsList(childMeetingsDeleted);
-    }
-    else
-    {
-        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
-        return false;
+                // remove child scheduled meetings in cmd (child meetings deleted) array
+                chat->removeSchedMeetingsList(childMeetingsDeleted);
+                break;
+            }
+            case MAKENAMEID2('i', 'd'):
+                schedId = client->json.gethandle(MegaClient::CHATHANDLE);
+                mScheduledMeeting->setSchedId(schedId);
+                break;
+
+            case EOO:
+                exit = true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
+                    return false;
+                }
+        }
     }
 
     ScheduledMeeting* result = nullptr;
