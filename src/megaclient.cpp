@@ -20488,7 +20488,8 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
 
 bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
-    if (isShareKeyTrusted(sharehandle))
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end() && it->second.second && it->second.first != shareKey)
     {
         LOG_warn << "Replacement of trusted sharekey for " << toNodeHandle(sharehandle);
         mClient.sendevent(99470, "KeyMgr / Replacing trusted sharekey");
