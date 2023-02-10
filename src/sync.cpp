@@ -485,6 +485,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Failure accessing to persistent storage";
     case MISMATCH_OF_ROOT_FSID:
         return "Mismatch on sync root FSID.";
+    case FILESYSTEM_FILE_IDS_ARE_UNSTABLE:
+        return "File IDs on this filesystem on this platform are too unstable.";
     default:
         return "Undefined error";
     }
@@ -655,6 +657,15 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
+    if (!fsstableids)
+    {
+#ifdef __APPLE__
+        // On Mac, stat() can and sometimes does return different IDs between calls
+        // for the same path, for exFAT, and probably other FAT variants too.
+        e = FILESYSTEM_FILE_IDS_ARE_UNSTABLE;
+        return;
+#endif
+    }
 
     auto fas = syncs.fsaccess->newfileaccess(false);
 
@@ -682,6 +693,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     // record the fsid of the synced folder
     localroot->fsid_lastSynced = fas->fsid;
     us.mConfig.mLocalPathFsid = fas->fsid;
+    us.mConfig.mFilesystemFingerprint = fsfp;
 
     // load LocalNodes from cache (only for internal syncs)
     // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
@@ -3152,7 +3164,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
 #ifdef __APPLE__
     if (!resetFingerprint)
     {
-        LOG_debug << "turning on reset of filesystem fingerprint on Mac, as they are not consisten there";  // eg. from networked filesystem, qnap shared drive
+        LOG_debug << "turning on reset of filesystem fingerprint on Mac, as they are not consistent there";  // eg. from networked filesystem, qnap shared drive
         resetFingerprint = true;
     }
 #endif
@@ -3400,10 +3412,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     {
         LOG_err << "Sync creation failed, syncerr: " << constructResult;
         return fail(API_EFAILED, constructResult);
-    }
-    else
-    {
-        us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
     }
 
     debugLogHeapUsage();
@@ -10802,7 +10810,7 @@ void Syncs::syncLoop()
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
                     {
                         LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
-                        sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
+                        sync->changestate(MISMATCH_OF_ROOT_FSID, false, true, true);
                         continue;
                     }
                 }

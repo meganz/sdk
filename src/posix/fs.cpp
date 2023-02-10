@@ -1807,7 +1807,9 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Scan target mismatch on expected FSID: "
-                 << targetPath;
+                 << targetPath
+                 << " was " << expectedFsid
+                 << " now " << (handle)metadata.st_ino;
 
         return SCAN_FSID_MISMATCH;
     }
@@ -1988,7 +1990,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
     return type != FS_EXFAT
            && type != FS_FAT32
-           && type != FS_FUSE;
+           && type != FS_FUSE
+           && type != FS_LIFS;
 }
 
 #endif // ENABLE_SYNC
@@ -2118,7 +2121,8 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         {"ntfs",        FS_NTFS}, // Apple NTFS
         {"smbfs",       FS_SMB},
         {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
-        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS},  // Paragon NTFS for Mac
+        {"lifs",        FS_LIFS},  // on macos (in Ventura at least), external USB with exFAT are reported as "lifs"
     }; /* filesystemTypes */
 
     struct statfs statbuf;

@@ -501,6 +501,7 @@ enum SyncError {
     INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
     FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
     MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
+    FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
 };
 
 enum SyncWarning {

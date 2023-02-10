@@ -2152,6 +2152,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         {
             LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
+            setScanAgain(true, false, false, 0);
         }
 
         if (SCAN_SUCCESS == ourScanRequest->completionResult()
@@ -2159,6 +2160,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         {
             LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
+            setScanAgain(true, false, false, 0);
         }
 
         if (scanObsolete)
