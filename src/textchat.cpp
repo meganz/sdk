@@ -1123,9 +1123,15 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
+void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm, bool byDemand)
 {
-    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::move(sm));
+    if (byDemand)
+    {
+        // we have fetched for more occurrences by demand, so we only need to notificate received ones
+        mUpdatedOcurrences.emplace_back(sm->copy());
+    }
+
+    mScheduledMeetingsOcurrences.emplace_back(std::move(sm));
 }
 
 void TextChat::clearSchedMeetingOccurrences()
@@ -1206,13 +1212,13 @@ handle_set TextChat::removeSchedMeetingsOccurrencesAndChildren(handle schedId)
     handle_set deletedOccurr;
     for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
     {
-        if (it->second->schedId() == schedId || it->second->parentSchedId() == schedId)
+        if ((*it)->schedId() == schedId || (*it)->parentSchedId() == schedId)
         {
-            deletedOccurr.insert(it->second->schedId());
+            deletedOccurr.insert((*it)->schedId());
         }
     }
 
-    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
+    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle schedId) { deleteSchedMeetingOccurrBySchedId(schedId); });
 
     return deletedOccurr;
 }
@@ -1223,13 +1229,13 @@ handle_set TextChat::removeChildSchedMeetingsOccurrences(handle parentSchedId)
     handle_set deletedOccurr;
     for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
     {
-        if (it->second->parentSchedId() == parentSchedId)
+        if ((*it)->parentSchedId() == parentSchedId)
         {
-            deletedOccurr.insert(it->second->schedId());
+            deletedOccurr.insert((*it)->schedId());
         }
     }
 
-    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
+    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle schedId) { deleteSchedMeetingOccurrBySchedId(schedId); });
 
     return deletedOccurr;
 }

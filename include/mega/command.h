@@ -1664,11 +1664,12 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetchEvents : public Command
 {
     handle mChatId;
+    bool mByDemand;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, bool, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 

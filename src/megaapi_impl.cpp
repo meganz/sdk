@@ -10914,7 +10914,7 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
     request->setNodeHandle(chatid);
     request->setNumber(since);
     request->setTotalBytes(until);
-    request->setNumber(count);
+    request->setTransferredBytes(count);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23514,7 +23514,7 @@ void MegaApiImpl::sendPendingRequests()
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -23572,7 +23572,7 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             m_time_t since = request->getNumber();
             m_time_t until = request->getTotalBytes();
-            unsigned int count = static_cast<unsigned int>(request->getNumber());
+            unsigned int count = static_cast<unsigned int>(request->getTransferredBytes());
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -23581,7 +23581,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, true /*byDemand*/, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
                 if (result && !result->empty())
                 {
@@ -27489,7 +27489,6 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
-    assert(this->fileSize > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
@@ -33350,7 +33349,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
         for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
         {
-            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
         }
     }
 
@@ -33362,6 +33361,26 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
             mSchedMeetingsChanged->addMegaHandle(*it);
         }
         changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
+    }
+
+    if (chat->changed.schedOcurr) // schedOcurr is true for all scenarios we request occurrences to API (mcsmfo)
+    {
+        if (!chat->mUpdatedOcurrences.empty())
+        {
+            mUpdatedOcurrences.reset(MegaScheduledMeetingList::createInstance());
+            for (auto it = chat->mUpdatedOcurrences.begin(); it != chat->mUpdatedOcurrences.end(); it++)
+            {
+                mUpdatedOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
+            }
+
+            // this change type indicates that we need to preserve our current occurrences list, and append new ones
+            changed |= MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
+        }
+        else
+        {
+            // this change type indicates that we need to discard our current occurrences list and add occurrences at TextChat::mScheduledMeetingsOcurrences
+            changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
+        }
     }
 
     if (chat->changed.attachments)
@@ -33379,13 +33398,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.options)
     {
         changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
-    }
-
-    if (chat->changed.schedOcurr)
-    {
-        // we do not need a list of changed scheduled occurrences, as we manage (retrieve, update and clear) them
-        // in block (all occurrences for the chat)
-        changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
     }
 }
 
@@ -33496,6 +33508,11 @@ const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() c
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
 {
     return mScheduledMeetingsOcurrences.get();
+}
+
+const MegaScheduledMeetingList* MegaTextChatPrivate::getUpdatedOccurrencesList() const
+{
+    return mUpdatedOcurrences.get();
 }
 
 const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const
