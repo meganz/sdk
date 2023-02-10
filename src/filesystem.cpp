@@ -641,6 +641,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SMB";
         case FS_SMB2:
             return "SMB2";
+        case FS_LIFS:
+            return "LIFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -723,6 +725,7 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
     case FS_FUSE:
     case FS_NTFS:
     case FS_SDCARDFS:
+    case FS_LIFS:
     case FS_UNKNOWN:
     default:
         return !(std::iscntrl(character) || strchr("\\/:?\"<>|*", character));
