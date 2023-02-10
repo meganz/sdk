@@ -47,7 +47,8 @@ enum FileSystemType
     FS_CIFS = 10,
     FS_NFS = 11,
     FS_SMB = 12,
-    FS_SMB2 = 13
+    FS_SMB2 = 13,
+    FS_LIFS = 14,
 };
 
 typedef void (*asyncfscallback)(void *);

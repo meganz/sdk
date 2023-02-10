@@ -1990,7 +1990,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
     return type != FS_EXFAT
            && type != FS_FAT32
-           && type != FS_FUSE;
+           && type != FS_FUSE
+           && type != FS_LIFS;
 }
 
 #endif // ENABLE_SYNC
@@ -2120,7 +2121,8 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         {"ntfs",        FS_NTFS}, // Apple NTFS
         {"smbfs",       FS_SMB},
         {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
-        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS},  // Paragon NTFS for Mac
+        {"lifs",        FS_LIFS},  // on macos (in Ventura at least), external USB with exFAT are reported as "lifs"
     }; /* filesystemTypes */
 
     struct statfs statbuf;
