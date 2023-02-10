@@ -1807,7 +1807,9 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Scan target mismatch on expected FSID: "
-                 << targetPath;
+                 << targetPath
+                 << " was " << expectedFsid
+                 << " now " << (handle)metadata.st_ino;
 
         return SCAN_FSID_MISMATCH;
     }
