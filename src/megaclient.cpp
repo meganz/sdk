@@ -7921,7 +7921,7 @@ Node* MegaClient::nodeByHandle(NodeHandle h)
     return mNodeManager.getNodeByHandle(h);
 }
 
-Node* MegaClient::nodeByPath(const char* path, Node* node)
+Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
 {
     if (!path) return NULL;
 
@@ -7932,7 +7932,6 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
     const char* bptr = path;
     int remote = 0;
     Node* n = nullptr;
-    Node* nn;
 
     // split path by / or :
     do {
@@ -8104,7 +8103,19 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = childnodebyname(n, c[l].c_str());
+                    Node* nn = nullptr;
+
+                    switch (type)
+                    {
+                    case FILENODE:
+                    case FOLDERNODE:
+                        nn = childnodebynametype(n, c[l].c_str(), type);
+                        break;
+                    case TYPE_UNKNOWN:
+                    default:
+                        nn = childnodebyname(n, c[l].c_str());
+                        break;
+                    }
 
                     if (!nn)
                     {
@@ -8119,7 +8130,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
         l++;
     }
 
-    return n;
+    return (type == TYPE_UNKNOWN || type == n->type) ? n : nullptr;
 }
 
 // server-client deletion

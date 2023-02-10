@@ -1521,7 +1521,7 @@ public:
     Node* nodeByHandle(NodeHandle);
     Node* nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr);
+    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC

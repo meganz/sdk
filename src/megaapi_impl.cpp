@@ -18034,6 +18034,28 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
     return MegaNodePrivate::fromNode(result);
 }
 
+MegaNode* MegaApiImpl::getNodeByPathOfType(const char* path, MegaNode* node, int type)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    Node* root = nullptr;
+
+    if (node)
+    {
+        root = client->nodebyhandle(node->getHandle());
+        if (!root)
+        {
+            return nullptr;
+        }
+    }
+
+    nodetype_t t = (type == MegaNode::TYPE_FILE ? FILENODE :
+                   (type == MegaNode::TYPE_FOLDER ? FOLDERNODE : TYPE_UNKNOWN));
+    Node* result = client->nodeByPath(path, root, t);
+
+    return MegaNodePrivate::fromNode(result);
+}
+
 MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
 {
     if(handle == UNDEF) return NULL;
