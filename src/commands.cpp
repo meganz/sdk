@@ -2013,7 +2013,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
 
     if (a != ACCESS_UNKNOWN)
     {
-        if (!client->mKeyManager.isSecure())
+        if (!client->mKeyManager.isSecure() && !client->mKeyManager.isShareKeyTrusted(n->nodehandle))
         {
             // securely store/transmit share key
             // by creating a symmetrically (for the sharer) and an asymmetrically
@@ -2128,25 +2128,13 @@ bool CommandSetShare::procresult(Result r)
         {
             case MAKENAMEID2('o', 'k'):  // an owner key response will only
                                          // occur if the same share was created
-                                         // concurrently with a different key
+                                         // with a different key
             {
-                byte key[SymmCipher::KEYLENGTH + 1];
-                if (client->json.storebinary(key, sizeof key + 1) == SymmCipher::KEYLENGTH)
-                {
-                    Node* n;
-
-                    if ((n = client->nodebyhandle(sh)) && n->sharekey)
-                    {
-                        client->key.ecb_decrypt(key);
-                        n->sharekey->setkey(key);
-
-                        // repeat attempt with corrected share key
-                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), mWritable, personal_representation.c_str(),
-                                         tag, move(completion)));
-                        return false;
-                    }
-                }
-                break;
+                // if the API has a different key, the only legit scenario is that
+                // such owner key is invalid (ie. "AAAAA..."), set by a client with
+                // secure=true
+                completion(API_EKEY, mWritable);
+                return true;
             }
 
             case 'u':   // user/handle confirmation
