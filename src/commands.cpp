@@ -1988,7 +1988,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     tag = ctag;
 
     sh = n->nodehandle;
-    user = u;
     access = a;
     mWritable = writable;
 
