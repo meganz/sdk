@@ -399,10 +399,9 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_CRYPTOPP)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
-
         ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
-        ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
-        ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
+        ImportStdVcpkgLibrary(icu             icuucd icuuc libicuuc libicuuc)
+        ImportStdVcpkgLibrary(icudt           icudtd icudt libicudata libicudata)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
@@ -864,14 +863,6 @@ foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES)
     target_link_libraries(Mega PUBLIC ${PKG} )
 endforeach(PKG)
 
-IF(WIN32)
-set(icu_deps icu icudt)
-ELSEIF(APPLE)
-set(icu_deps icu icudt)
-ELSE()
-set(icu_deps icuuc icudata)
-ENDIF()
-
 target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
@@ -889,8 +880,8 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
-                        ${Mega_PlatformSpecificLibs}
-                        ${icu_deps})
+                        icu icudt
+                        ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
                 $<$<PLATFORM_ID:iOS>:USE_IOS>
