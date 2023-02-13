@@ -52,6 +52,7 @@ public:
     MegaClient* client; // non-owning
 
     int tag;
+    string commandStr;
 
     bool persistent;
 
@@ -145,7 +146,8 @@ public:
 
     virtual bool procresult(Result) = 0;
 
-    const char* getstring();
+    // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
+    virtual const char* getJSON(MegaClient* client);
 
     Command();
     virtual ~Command();
@@ -503,6 +505,8 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool incrementedCount = false;
+    const char* getJSON(MegaClient* client) override;
 public:
     using Completion = std::function<void(error)>;
 
@@ -1637,11 +1641,12 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetchEvents : public Command
 {
     handle mChatId;
+    bool mByDemand;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, bool, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 

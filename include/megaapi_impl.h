@@ -783,7 +783,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements);
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
@@ -1876,6 +1876,7 @@ public:
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
     const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
+    const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
@@ -1904,6 +1905,9 @@ private:
 
     // list of scheduled meetings occurrences
     std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
+
+    // list of updated scheduled meetings occurrences (just in case app requested manually for more occurrences)
+    std::unique_ptr<MegaScheduledMeetingList> mUpdatedOcurrences;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2652,10 +2656,13 @@ class MegaApiImpl : public MegaApp
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
-        unsigned getSetElementCount(MegaHandle sid);
-        MegaSetElementList* getSetElements(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin);
+        MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+    private:
+        bool nodeInRubbishCheck(handle) const;
 
+    public:
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);

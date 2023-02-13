@@ -5776,14 +5776,14 @@ MegaHandle MegaApi::getSetCover(MegaHandle sid)
     return pImpl->getSetCover(sid);
 }
 
-unsigned MegaApi::getSetElementCount(MegaHandle sid)
+unsigned MegaApi::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
-    return pImpl->getSetElementCount(sid);
+    return pImpl->getSetElementCount(sid, includeElementsInRubbishBin);
 }
 
-MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApi::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
 {
-    return pImpl->getSetElements(sid);
+    return pImpl->getSetElements(sid, includeElementsInRubbishBin);
 }
 
 MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
@@ -6780,6 +6780,11 @@ const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingList() const
 }
 
 const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingOccurrencesList() const
+{
+    return NULL;
+}
+
+const MegaScheduledMeetingList* MegaTextChat::getUpdatedOccurrencesList() const
 {
     return NULL;
 }

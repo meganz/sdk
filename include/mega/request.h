@@ -41,7 +41,7 @@ public:
 
     size_t size() const;
 
-    void get(string*, bool& suppressSID) const;
+    void get(string*, bool& suppressSID, MegaClient* client) const;
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
@@ -93,7 +93,7 @@ public:
      * @param suppressSID
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes);
+    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();

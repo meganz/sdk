@@ -2007,6 +2007,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
              email = p->email();
              nodeHandle = p->mChatid;
              schedMeetingId = p->mSchedMeetingHandle;
+             mPcrHandle = p->mParentSchedId;
+             numbers.push_back(p->mStartDateTime);
          }
          else
          {
@@ -2017,6 +2019,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
                  email = p->email();
                  nodeHandle = p->mChatid;
                  schedMeetingId = p->mSchedMeetingHandle;
+                 mPcrHandle = p->mParentSchedId;
+                 numbers.push_back(p->mStartDateTime);
                  schedMeetingChangeset = p->mUpdatedChangeset;
              }
              else
@@ -3413,6 +3417,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #ifdef ENABLE_CHAT
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
+    this->mScheduledMeetingList.reset(request->mScheduledMeetingList ? request->mScheduledMeetingList->copy() : nullptr);
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
@@ -5441,7 +5446,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     // allow for putnodes with a different mtime to the actual file
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
         nullptr, nullptr, customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime, false);
 
     delete this;
@@ -10763,7 +10768,7 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
     request->setNodeHandle(chatid);
     request->setNumber(since);
     request->setTotalBytes(until);
-    request->setNumber(count);
+    request->setTransferredBytes(count);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19035,7 +19040,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 request->setTimeZoneDetails(mTimezones);
-                e = API_OK;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -23343,7 +23348,7 @@ void MegaApiImpl::sendPendingRequests()
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -23401,7 +23406,7 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             m_time_t since = request->getNumber();
             m_time_t until = request->getTotalBytes();
-            unsigned int count = static_cast<unsigned int>(request->getNumber());
+            unsigned int count = static_cast<unsigned int>(request->getTransferredBytes());
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -23410,7 +23415,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, true /*byDemand*/, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
                 if (result && !result->empty())
                 {
@@ -23881,20 +23886,42 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
-unsigned MegaApiImpl::getSetElementCount(MegaHandle sid)
+bool MegaApiImpl::nodeInRubbishCheck(handle h) const
+{
+    Node* n = client->nodebyhandle(h);
+    bool inRubbish = n && n->firstancestor()->type == RUBBISHNODE;
+    return inRubbish;
+}
+
+unsigned MegaApiImpl::getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
-    return client->getSetElementCount(sid);
+    if (includeElementsInRubbishBin)
+    {
+        return client->getSetElementCount(sid);
+    }
+    else
+    {
+        auto els = client->getSetElements(sid);
+        auto ret = count_if(begin(*els), end(*els), [this](const pair<const handle, SetElement>& e)
+                            { return !nodeInRubbishCheck(e.second.node()); });
+        return static_cast<unsigned>(ret);
+    }
 }
 
-MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid, bool includeElementsInRubbishBin)
 {
     SdkMutexGuard g(sdkMutex);
 
     auto* elements = client->getSetElements(sid);
-    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
+    std::function<bool(handle)> filterOut;
+    if (!includeElementsInRubbishBin)
+    {
+        filterOut = std::bind(&MegaApiImpl::nodeInRubbishCheck, this, std::placeholders::_1);
+    }
 
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements, filterOut);
     return eList;
 }
 
@@ -23951,16 +23978,20 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut)
 {
     if (elements)
     {
         mElements.reserve(elements->size());
         for (const auto& e : *elements)
         {
-            const SetElement& el = e.second;
-            add(MegaSetElementPrivate(el));
+            if (!filterOut || !filterOut(e.second.node()))
+            {
+                const SetElement& el = e.second;
+                add(MegaSetElementPrivate(el));
+            }
         }
+        mElements.shrink_to_fit();
     }
 }
 
@@ -25618,6 +25649,22 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     LOG_debug << "MegaRecursiveOperation finished subtransfers: " << transfersFinishedCount << " of " << transfersTotalCount;
     if (allSubtransfersResolved())
     {
+        if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            // set root folder node handle in MegaTransfer
+            LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+            auto rootFolderName = transfer->getFileName()
+                   ? transfer->getFileName()
+                   : path.leafName().toPath(true);
+
+            unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+            std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+            if (root)
+            {
+               transfer->setNodeHandle(root->getHandle());
+            }
+        }
+
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
@@ -25843,7 +25890,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, nullptr /*appdata*/, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
@@ -27247,7 +27294,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath(false);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this, fsType);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, nullptr /*appData()*/, transfer->accessCancelToken(), this, fsType);
              transferQueue.push(transferDownload);
          }
     }
@@ -27276,7 +27323,6 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
-    assert(this->fileSize > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
@@ -33137,7 +33183,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
         for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
         {
-            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
         }
     }
 
@@ -33149,6 +33195,26 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
             mSchedMeetingsChanged->addMegaHandle(*it);
         }
         changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
+    }
+
+    if (chat->changed.schedOcurr) // schedOcurr is true for all scenarios we request occurrences to API (mcsmfo)
+    {
+        if (!chat->mUpdatedOcurrences.empty())
+        {
+            mUpdatedOcurrences.reset(MegaScheduledMeetingList::createInstance());
+            for (auto it = chat->mUpdatedOcurrences.begin(); it != chat->mUpdatedOcurrences.end(); it++)
+            {
+                mUpdatedOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
+            }
+
+            // this change type indicates that we need to preserve our current occurrences list, and append new ones
+            changed |= MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
+        }
+        else
+        {
+            // this change type indicates that we need to discard our current occurrences list and add occurrences at TextChat::mScheduledMeetingsOcurrences
+            changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
+        }
     }
 
     if (chat->changed.attachments)
@@ -33166,13 +33232,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.options)
     {
         changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
-    }
-
-    if (chat->changed.schedOcurr)
-    {
-        // we do not need a list of changed scheduled occurrences, as we manage (retrieve, update and clear) them
-        // in block (all occurrences for the chat)
-        changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
     }
 }
 
@@ -33283,6 +33342,11 @@ const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() c
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
 {
     return mScheduledMeetingsOcurrences.get();
+}
+
+const MegaScheduledMeetingList* MegaTextChatPrivate::getUpdatedOccurrencesList() const
+{
+    return mUpdatedOcurrences.get();
 }
 
 const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const
