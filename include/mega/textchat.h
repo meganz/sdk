@@ -246,11 +246,14 @@ struct TextChat : public Cacheable
     // list of scheduled meetings changed
     handle_set mSchedMeetingsChanged;
 
-    // maps a scheduled meeting id to a scheduled meeting occurrence
+    // vector of scheduled meeting occurrences
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
     // a scheduled meeting could have one or multiple ocurrences (unique key: <schedId, startdatetime>)
     // (check ScheduledMeeting class documentation)
-    multimap<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
+    std::vector<std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
+
+    // vector of scheduled meeting occurrences that needs to be notified
+    std::vector<std::unique_ptr<ScheduledMeeting>> mUpdatedOcurrences;
 
 
 private:        // use setter to modify these members
@@ -261,11 +264,18 @@ private:        // use setter to modify these members
         mSchedMeetingsChanged.insert(sm);
     }
 
-    void deleteSchedMeetingOccurrBySchedId(const handle sm)
+    void deleteSchedMeetingOccurrBySchedId(const handle schedId)
     {
-        // multiple entries can be deleted (multimap)
-        mScheduledMeetingsOcurrences.erase(sm);
-        mSchedMeetingsChanged.insert(sm);
+        for (auto it = mScheduledMeetingsOcurrences.begin();
+             it != mScheduledMeetingsOcurrences.end();)
+        {
+            auto auxIt = it++;
+            if ((*auxIt)->schedId() == schedId)
+            {
+                mScheduledMeetingsOcurrences.erase(auxIt);
+            }
+        }
+        mSchedMeetingsChanged.insert(schedId);
     }
 
 public:
@@ -299,7 +309,7 @@ public:
     bool setMode(bool publicchat);
 
     // add a scheduled meeting ocurrence, SDK adquires the ownership of provided ScheduledMeeting occurrence
-    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
+    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm, bool byDemand);
 
     // clear scheduled meetings ocurrences for a chatroom
     void clearSchedMeetingOccurrences();

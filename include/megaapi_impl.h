@@ -1900,6 +1900,7 @@ public:
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
     const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
+    const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
@@ -1928,6 +1929,9 @@ private:
 
     // list of scheduled meetings occurrences
     std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
+
+    // list of updated scheduled meetings occurrences (just in case app requested manually for more occurrences)
+    std::unique_ptr<MegaScheduledMeetingList> mUpdatedOcurrences;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
