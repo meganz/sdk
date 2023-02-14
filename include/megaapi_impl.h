@@ -1987,10 +1987,10 @@ public:
     virtual ~MegaIntegerMapPrivate();
     MegaSmallIntMap* toByteMap() const;
     MegaIntegerMap* copy() const override;
-    bool at(size_t index, long long& key, long long& value) const override;
+    bool at(int64_t index, int64_t& key, int64_t& value) const override;
     MegaIntegerList* getKeys() const override;
-    unsigned long long size() const override;
-    void set(const long long& key, const long long& value) override;
+    int64_t size() const override;
+    void set(const int64_t &key, const int64_t &value) override;
     const integer_map* getMap() const;
 private:
     MegaIntegerMapPrivate(const MegaIntegerMapPrivate &megaIntegerMap);

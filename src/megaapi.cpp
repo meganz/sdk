@@ -6891,7 +6891,7 @@ MegaIntegerMap* MegaIntegerMap::copy() const
     return NULL;
 }
 
-bool MegaIntegerMap::at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const
+bool MegaIntegerMap::at(int64_t /*index*/, int64_t& /*key*/, int64_t& /*value*/) const
 {
     return false;
 }
@@ -6901,12 +6901,12 @@ MegaIntegerList* MegaIntegerMap::getKeys() const
     return NULL;
 }
 
-void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
+void MegaIntegerMap::set(const int64_t& /*key*/, const int64_t& /*value*/)
 {
 
 }
 
-unsigned long long MegaIntegerMap::size() const
+int64_t MegaIntegerMap::size() const
 {
     return 0;
 }

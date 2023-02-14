@@ -4413,7 +4413,7 @@ MegaIntegerMap* MegaIntegerMapPrivate::copy() const
     return new MegaIntegerMapPrivate(*this);
 }
 
-bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
+bool MegaIntegerMapPrivate::at(int64_t index, int64_t& key, int64_t& value) const
 {
     if (index >= mIntegerMap.size())
     {
@@ -4438,12 +4438,12 @@ MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
     return new MegaIntegerListPrivate(keys);
 }
 
-unsigned long long MegaIntegerMapPrivate::size() const
+int64_t MegaIntegerMapPrivate::size() const
 {
-    return mIntegerMap.size();
+    return static_cast<int64_t>(mIntegerMap.size());
 }
 
-void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
+void MegaIntegerMapPrivate::set(const int64_t& key, const int64_t& value)
 {
     mIntegerMap.emplace(key, value);
 }

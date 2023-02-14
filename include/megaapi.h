@@ -3290,7 +3290,7 @@ public:
      * @param value The value associated to the key will be copied in this param
      * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
      */
-    virtual bool at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const;
+    virtual bool at(int64_t /*index*/, int64_t& /*key*/, int64_t& /*value*/) const;
 
     /**
      * @brief Returns the list of keys in the MegaIntegerMap
@@ -3310,13 +3310,13 @@ public:
      * @param key The key in the map.
      * @param value The new value for the key in the map.
      */
-    virtual void set(const long long& /*key*/, const long long& /*value*/);
+    virtual void set(const int64_t& /*key*/, const int64_t& /*value*/);
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map
      * @return Number of pairs in the map
      */
-    virtual unsigned long long size() const;
+    virtual int64_t size() const;
 };
 
 /**
