@@ -4251,6 +4251,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
+    p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -6067,7 +6068,7 @@ void exec_users(autocomplete::ACState& s)
         {
             if (it->second.email.size())
             {
-                cout << "\t" << it->second.email;
+                cout << "\t" << it->second.email << " (" << toHandle(it->second.userhandle) << ")";
 
                 if (it->second.userhandle == client->me)
                 {
@@ -11013,4 +11014,18 @@ void exec_searchbyname(autocomplete::ACState &s)
             cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
         }
     }
+}
+
+void exec_secure(autocomplete::ACState &s)
+{
+    if (s.extractflag("-on"))
+    {
+        client->mKeyManager.setSecureFlag(true);
+    }
+    else if (s.extractflag("-off"))
+    {
+        client->mKeyManager.setSecureFlag(false);
+    }
+
+    cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
 }
