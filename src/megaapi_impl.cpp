@@ -4429,6 +4429,17 @@ int64_t MegaIntegerMapPrivate::size() const
     return static_cast<int64_t>(mIntegerMap.size());
 }
 
+MegaIntegerList* MegaIntegerMapPrivate::get(int64_t key) const
+{
+    vector<int64_t> values;
+    auto range = mIntegerMap.equal_range(key);
+    for (auto i = range.first; i != range.second; ++i)
+    {
+        values.emplace_back(i->second);
+    }
+    return new MegaIntegerListPrivate(values);
+}
+
 void MegaIntegerMapPrivate::set(const int64_t key, const int64_t value)
 {
     mIntegerMap.emplace(key, value);

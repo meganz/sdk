@@ -1988,6 +1988,7 @@ public:
     MegaSmallIntMap* toByteMap() const;
     MegaIntegerMap* copy() const override;
     MegaIntegerList* getKeys() const override;
+    MegaIntegerList* get(int64_t key) const override;
     int64_t size() const override;
     void set(const int64_t key, const int64_t value) override;
     const integer_map* getMap() const;

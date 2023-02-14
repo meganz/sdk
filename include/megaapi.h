@@ -3289,6 +3289,16 @@ public:
     virtual MegaIntegerList* getKeys() const;
 
     /**
+     * @brief Returns a list of values for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list of values for the provided key
+     */
+    virtual MegaIntegerList* get(int64_t key) const;
+
+    /**
      * @brief Sets a value in the map for the given key.
      *
      * If the key already exists, the value will be overwritten by the

@@ -6896,6 +6896,11 @@ MegaIntegerList* MegaIntegerMap::getKeys() const
     return NULL;
 }
 
+MegaIntegerList* MegaIntegerMap::get(int64_t key) const
+{
+    return NULL;
+}
+
 void MegaIntegerMap::set(const int64_t /*key*/, const int64_t /*value*/)
 {
 
