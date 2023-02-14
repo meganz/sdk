@@ -3280,19 +3280,6 @@ public:
     virtual MegaIntegerMap* copy() const;
 
     /**
-     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
-     * Returns true if index is < map size, otherwise returns false
-     * If index is not out of range, key will be copied in first parameter (key)
-     * If index is not out of range, value will be copied in second parameter (value)
-     *
-     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
-     * @param key Key of the string that you want to get from the map
-     * @param value The value associated to the key will be copied in this param
-     * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
-     */
-    virtual bool at(int64_t /*index*/, int64_t& /*key*/, int64_t& /*value*/) const;
-
-    /**
      * @brief Returns the list of keys in the MegaIntegerMap
      *
      * You take the ownership of the returned value

@@ -6891,11 +6891,6 @@ MegaIntegerMap* MegaIntegerMap::copy() const
     return NULL;
 }
 
-bool MegaIntegerMap::at(int64_t /*index*/, int64_t& /*key*/, int64_t& /*value*/) const
-{
-    return false;
-}
-
 MegaIntegerList* MegaIntegerMap::getKeys() const
 {
     return NULL;

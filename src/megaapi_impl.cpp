@@ -4413,21 +4413,6 @@ MegaIntegerMap* MegaIntegerMapPrivate::copy() const
     return new MegaIntegerMapPrivate(*this);
 }
 
-bool MegaIntegerMapPrivate::at(int64_t index, int64_t& key, int64_t& value) const
-{
-    size_t auxindex = static_cast<size_t>(index);
-    if (auxindex >= mIntegerMap.size())
-    {
-        return false;
-    }
-
-    auto it = mIntegerMap.begin();
-    std::advance(it, auxindex);
-    key = it->first;
-    value = it->second;
-    return true;
-}
-
 MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
 {
     vector<int64_t> keys;
