@@ -4444,7 +4444,7 @@ int64_t MegaIntegerMapPrivate::size() const
     return static_cast<int64_t>(mIntegerMap.size());
 }
 
-void MegaIntegerMapPrivate::set(const int64_t& key, const int64_t& value)
+void MegaIntegerMapPrivate::set(const int64_t key, const int64_t value)
 {
     mIntegerMap.emplace(key, value);
 }
