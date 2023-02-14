@@ -11781,7 +11781,6 @@ void MegaClient::procmcsm(JSON *j)
         }
 
         // add scheduled meeting
-        handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
     }
