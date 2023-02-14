@@ -31,7 +31,7 @@ namespace mega {
 class MEGA_API Request
 {
 private:
-    vector<Command*> cmds;
+    vector<unique_ptr<Command>> cmds;
     string jsonresponse;
     JSON json;
     size_t processindex = 0;
