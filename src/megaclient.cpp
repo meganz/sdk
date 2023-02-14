@@ -8109,7 +8109,8 @@ Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
                     {
                     case FILENODE:
                     case FOLDERNODE:
-                        nn = childnodebynametype(n, c[l].c_str(), type);
+                        nn = childnodebynametype(n, c[l].c_str(),
+                            l + 1 < int(c.size()) ? FOLDERNODE : type); // only the last leaf could be a file
                         break;
                     case TYPE_UNKNOWN:
                     default:
