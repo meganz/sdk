@@ -4415,13 +4415,14 @@ MegaIntegerMap* MegaIntegerMapPrivate::copy() const
 
 bool MegaIntegerMapPrivate::at(int64_t index, int64_t& key, int64_t& value) const
 {
-    if (index >= mIntegerMap.size())
+    size_t auxindex = static_cast<size_t>(index);
+    if (auxindex >= mIntegerMap.size())
     {
         return false;
     }
 
     auto it = mIntegerMap.begin();
-    std::advance(it, index);
+    std::advance(it, auxindex);
     key = it->first;
     value = it->second;
     return true;
