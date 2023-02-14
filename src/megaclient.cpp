@@ -6958,7 +6958,7 @@ void MegaClient::sc_delscheduledmeeting()
 
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
                         createDeletedSMAlert(ou, chatid, schedId);
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
                     }
                 }
@@ -7035,7 +7035,7 @@ void MegaClient::sc_scheduledmeetings()
                 else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 
@@ -11211,7 +11211,7 @@ void MegaClient::procmcsm(JSON *j)
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 #endif
