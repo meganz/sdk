@@ -16193,7 +16193,7 @@ class MegaApi
         /**
          * @brief Get a list with all active and pending outbound sharings
          *
-         * This method returns verified shares.
+         * This method returns both, verified and unverified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -16208,7 +16208,7 @@ class MegaApi
         /**
          * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
-         * This method returns verified shares.
+         * This method returns both, verified and unverified shares.
          *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
@@ -16222,7 +16222,7 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
-         * This method returns verified shares.
+         * This method returns both, verified and unverified shares.
          *
          * You take the ownership of the returned value
          *
@@ -16234,7 +16234,7 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
-         * This method returns verified shares.
+         * This method returns both, verified and unverified shares.
          *
          * You take the ownership of the returned value
          *

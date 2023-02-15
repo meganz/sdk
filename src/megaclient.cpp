@@ -20682,7 +20682,21 @@ bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
         {
             return true;
         }
+
+        // if 'uid' is a userhandle, try to match by email
+        // (in case of pending outshare that later upgrades to outshare by
+        // sharee accepting the PCR, the 'uid' in 'keys.pendingoutshares' will
+        // keep the email, but we already know the userHandle)
+        if (uid.find("@") == uid.npos)
+        {
+            User* u = mClient.finduser(uid.c_str(), 0);
+            if (u && uidIt == u->email)
+            {
+                return true;
+            }
+        }
     }
+
     return false;
 }
 

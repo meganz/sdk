@@ -7019,7 +7019,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
             {
                 assert(share.second->pcr);
                 if (share.second->pcr &&
-                        client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))
+                        client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail))
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
                 }
@@ -11344,7 +11344,17 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             handles.push_back(n->nodehandle);
             shares.push_back(it);
-            verified.push_back(!it->pcr && it->user && !client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->user->userhandle)));
+
+            bool isUnverified;
+            if (it->pcr)
+            {
+                isUnverified = client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->pcr->targetemail);
+            }
+            else    // here we have always a it->user, since folder links are already filtered out
+            {
+                isUnverified = client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->user->userhandle));
+            }
+            verified.push_back(!isUnverified);
         }
     }
 
@@ -11381,7 +11391,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
             {
                 vShares.push_back(share);
                 vHandles.push_back(node->nodehandle);
-                vVerified.push_back(!share->pcr && !client->mKeyManager.isUnverifiedOutShare(node->nodehandle, toHandle(share->user->userhandle)));
+                vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, toHandle(share->user->userhandle)));
             }
         }
     }
