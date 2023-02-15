@@ -2926,6 +2926,10 @@ std::string winErrorMessage(DWORD error)
     std::string r;
     LocalPath::local2path(&wstr, &r, false);
 
+    // remove tailing \r\n
+    if (r.length() >= 2 && r[r.length() - 2] == '\r' && r[r.length() - 1] == '\n')
+        r = r.substr(0, r.length() - 2);
+
     return r;
 }
 #endif
