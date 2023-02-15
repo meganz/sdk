@@ -906,7 +906,7 @@ public:
                                  bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
-                                 handle_set* const childMeetingsDeleted = nullptr);
+                                 handle_set* childMeetingsDeleted = nullptr);
 #endif
 
     // get mega achievements
