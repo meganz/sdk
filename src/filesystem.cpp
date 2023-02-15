@@ -956,7 +956,7 @@ bool FileAccess::openf()
     bool r = sysopen();
     if (!r) {
         LOG_err << "Error opening file handle (sysopen) '"
-                << nonblocking_localname << ": errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return r;
 }
