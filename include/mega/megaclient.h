@@ -309,7 +309,8 @@ public:
     void setPrivRSA(std::string privRSA);
     std::string getPrivRSA();
     bool promotePendingShares();
-    bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
+    bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
+    bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
 
     void cacheShareKeys();
     void loadShareKeys();

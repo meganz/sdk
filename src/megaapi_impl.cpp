@@ -7006,7 +7006,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
         {
             for (auto &share : *n->outshares)
             {
-                if (share.second->user && client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->user->userhandle))
+                if (share.second->user && client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))  // public links have no user
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
                 }
@@ -11188,7 +11188,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
     for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
     {
         Node *n;
-        if ((n = client->nodebyhandle(*sit)) && !n->parent && n->sharekey)
+        if ((n = client->nodebyhandle(*sit)) && !n->parent)
         {
             vNodes.push_back(n);
         }
@@ -11211,7 +11211,7 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
 {
     SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes = client->getVerifiedInShares();
+    node_vector nodes = client->getInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 
@@ -11341,7 +11341,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             handles.push_back(n->nodehandle);
             shares.push_back(it);
-            verified.push_back(!it->pcr && it->user && !client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->user->userhandle));
+            verified.push_back(!it->pcr && it->user && !client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->user->userhandle)));
         }
     }
 
@@ -11373,11 +11373,13 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
         {
             Share *share = it->second;
+            assert(!share->pcr);
+            assert(share->user);
             if (share->user)
             {
                 vShares.push_back(share);
                 vHandles.push_back(node->nodehandle);
-                vVerified.push_back(!share->pcr && share->user && !client->mKeyManager.isUnverifiedOutShare(node->nodehandle, share->user->userhandle));
+                vVerified.push_back(!share->pcr && !client->mKeyManager.isUnverifiedOutShare(node->nodehandle, toHandle(share->user->userhandle)));
             }
         }
     }

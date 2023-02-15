@@ -16067,6 +16067,8 @@ class MegaApi
         /**
          * @brief Get a list with all active inbound sharings from one MegaUser
          *
+         * This method returns both verified and not verified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16081,6 +16083,8 @@ class MegaApi
         /**
          * @brief Get a list with all active inbound sharings
          *
+         * This method returns both verified and not verified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16093,6 +16097,8 @@ class MegaApi
 
         /**
          * @brief Get a list with all active inbound sharings
+         *
+         * This method returns verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -16187,6 +16193,8 @@ class MegaApi
         /**
          * @brief Get a list with all active and pending outbound sharings
          *
+         * This method returns verified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16199,6 +16207,8 @@ class MegaApi
 
         /**
          * @brief Get a list with the active and pending outbound sharings for a MegaNode
+         *
+         * This method returns verified shares.
          *
          * If the node doesn't exist in the account, this function returns an empty list.
          *

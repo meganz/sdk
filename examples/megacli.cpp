@@ -1798,7 +1798,7 @@ static void listnodeshares(Node* n)
             if (it->first)
             {
                 cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
-                     << (n->client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->user->userhandle) ? " (unverified)" : "")
+                     << (n->client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->second->user->userhandle)) ? " (unverified)" : "")
                      << endl;
             }
             else

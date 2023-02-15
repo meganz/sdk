@@ -586,7 +586,7 @@ node_vector MegaClient::getVerifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && !mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -604,7 +604,7 @@ node_vector MegaClient::getUnverifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && !n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -20670,26 +20670,35 @@ bool KeyManager::promotePendingShares()
     return attributeUpdated;
 }
 
-bool KeyManager::isUnverifiedOutShare(handle nodeHandle, handle userHandle)
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
 {
-    if (ISUNDEF(userHandle))
-    {
-        return true;
-    }
-
     auto it = mPendingOutShares.find(nodeHandle);
     if (it == mPendingOutShares.end())
     {
         return false;
     }
 
-    for (const auto& uid : it->second)
+    for (const auto& uidIt : it->second)
     {
-        User *u = mClient.finduser(uid.c_str(), 0);
-        if (u && u->userhandle == userHandle)
+        if (uidIt == uid)
         {
             return true;
         }
+    }
+    return false;
+}
+
+bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
+{
+    auto it = mPendingInShares.find(toNodeHandle(nodeHandle));
+    if (it == mPendingInShares.end())
+    {
+        return false;
+    }
+
+    if (it->second.first == userHandle)
+    {
+        return true;
     }
     return false;
 }
