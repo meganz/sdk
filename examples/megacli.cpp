@@ -1787,23 +1787,26 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     return n;
 }
 
-static void listnodeshares(Node* n)
+static void listnodeshares(Node* n, bool printLinks)
 {
     if(n->outshares)
     {
         for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
-            cout << "\t" << n->displayname();
+            assert(!it->second->pcr);
 
-            if (it->first)
+            if (printLinks && !it->second->user)
             {
-                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
-                     << (n->client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->user->userhandle) ? " (unverified)" : "")
-                     << endl;
-            }
-            else
-            {
+                cout << "\t" << n->displayname();
                 cout << ", shared as exported folder link" << endl;
+            }
+
+            if (!printLinks && it->second->user)
+            {
+                cout << "\t" << n->displayname();
+                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
+                     << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->second->user->userhandle)) ? " (unverified)" : "")
+                     << endl;
             }
         }
     }
@@ -1817,25 +1820,27 @@ static void listnodependingshares(Node* n)
         {
             cout << "\t" << n->displayname();
 
-            if (it->first)
-            {
-                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
-            }
+            assert(it->second->pcr);
+            assert(!it->second->user);
 
-            cout << endl;
+            cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")"
+                 << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->pcr->targetemail) ? " (unverified)" : "")
+                 << endl;
         }
     }
 }
 
 static void listallshares()
 {
-    cout << "Shared folders:" << endl;
+    cout << "Outgoing shared folders:" << endl;
 
     node_vector outshares = client->mNodeManager.getNodesWithOutShares();
     for (auto& share : outshares)
     {
-        listnodeshares(share);
+        listnodeshares(share, false);
     }
+
+    cout << "Incoming shared folders:" << endl;
 
     for (user_map::iterator uit = client->users.begin();
         uit != client->users.end(); uit++)
@@ -1854,14 +1859,14 @@ static void listallshares()
                 {
                     cout << "\t" << n->displayname() << " ("
                         << getAccessLevelStr(n->inshare->access) << ")"
-                        << (n->sharekey ? "" : " (unverified)")
+                        << (client->mKeyManager.isUnverifiedInShare(n->nodehandle, u->userhandle) ? " (unverified)" : "")
                         << endl;
                 }
             }
         }
     }
 
-    cout << "Pending shared folders:" << endl;
+    cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
     node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
@@ -1869,6 +1874,15 @@ static void listallshares()
     {
         listnodependingshares(share);
     }
+
+    cout << "Public folder links:" << endl;
+
+    node_vector links = client->mNodeManager.getNodesWithLinks();
+    for (auto& share : links)
+    {
+        listnodeshares(share, true);
+    }
+
 }
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
@@ -5979,7 +5993,7 @@ void exec_share(autocomplete::ACState& s)
         {
             if (s.words.size() == 2)
             {
-                listnodeshares(n);
+                listnodeshares(n, false);
             }
             else
             {

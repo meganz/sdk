@@ -586,7 +586,7 @@ node_vector MegaClient::getVerifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && !mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -604,7 +604,7 @@ node_vector MegaClient::getUnverifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && !n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -20140,7 +20140,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         string prRSABin = Base64::atob(prRSA);
         AsymmCipher ac;
 
-        LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
         if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
         {
             LOG_err << "Priv RSA key problem during KeyManager initialization.";
@@ -20151,7 +20150,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
             // Store it in the short format (3 Ints): pqd.
             ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
         }
-        LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
     }
     else
     {
@@ -20670,26 +20668,49 @@ bool KeyManager::promotePendingShares()
     return attributeUpdated;
 }
 
-bool KeyManager::isUnverifiedOutShare(handle nodeHandle, handle userHandle)
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
 {
-    if (ISUNDEF(userHandle))
-    {
-        return true;
-    }
-
     auto it = mPendingOutShares.find(nodeHandle);
     if (it == mPendingOutShares.end())
     {
         return false;
     }
 
-    for (const auto& uid : it->second)
+    for (const auto& uidIt : it->second)
     {
-        User *u = mClient.finduser(uid.c_str(), 0);
-        if (u && u->userhandle == userHandle)
+        if (uidIt == uid)
         {
             return true;
         }
+
+        // if 'uid' is a userhandle, try to match by email
+        // (in case of pending outshare that later upgrades to outshare by
+        // sharee accepting the PCR, the 'uid' in 'keys.pendingoutshares' will
+        // keep the email, but we already know the userHandle)
+        if (uid.find("@") == uid.npos)
+        {
+            User* u = mClient.finduser(uid.c_str(), 0);
+            if (u && uidIt == u->email)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
+{
+    auto it = mPendingInShares.find(toNodeHandle(nodeHandle));
+    if (it == mPendingInShares.end())
+    {
+        return false;
+    }
+
+    if (it->second.first == userHandle)
+    {
+        return true;
     }
     return false;
 }
