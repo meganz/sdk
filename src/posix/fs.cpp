@@ -349,7 +349,8 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
-    if (context->failed) {
+    if (context->failed)
+    {
         LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
