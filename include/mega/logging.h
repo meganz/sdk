@@ -660,11 +660,13 @@ std::ostream& operator <<(std::ostream&, const std::error_code&);
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
-// LOG_err if the condition is true otherwise LOG_debug
-// condition may be evaluated twice
+// LOG_err if the condition is true otherwise LOG_warn
+// use {} if placed in a if. condition is only evaluated once.
+#define _LOG_err_if_join(a, b) a##b
 #define LOG_err_if(condition) \
-    if (::mega::SimpleLogger::logCurrentLevel >= ((condition) ? ::mega::logError : ::mega::logDebug)) \
-        ::mega::SimpleLogger((condition) ? ::mega::logError : ::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
+    mega::LogLevel _LOG_err_if_join(_LOG_err_if_tmp_, __LINE__) = (condition) ? ::mega::logError : ::mega::logWarning; \
+    if (::mega::SimpleLogger::logCurrentLevel >= _LOG_err_if_join(_LOG_err_if_tmp_, __LINE__)) \
+        ::mega::SimpleLogger(_LOG_err_if_join(_LOG_err_if_tmp_, __LINE__), ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)

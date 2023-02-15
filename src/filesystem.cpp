@@ -913,7 +913,12 @@ bool FileAccess::fopen(const LocalPath& name)
 {
     updatelocalname(name, true);
 
-    return sysstat(&mtime, &size);
+    bool r = sysstat(&mtime, &size);
+    if (!r) 
+    {
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+    }
+    return r;
 }
 
 bool FileAccess::isfile(const LocalPath& path)

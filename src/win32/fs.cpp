@@ -258,7 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+        LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -632,7 +632,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file. Error code: " << e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
