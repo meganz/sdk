@@ -258,7 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        LOG_err << "Unable to stat: GetFileAttributesExW('"<< nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -303,7 +303,7 @@ bool WinFileAccess::sysopen(bool async)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -2049,6 +2049,10 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 std::string WinFileAccess::getErrorMessage(int error) const
 {
     return winErrorMessage(error);
+}
+
+bool WinFileAccess::isErrorFileNotFound(int error) const {
+    return error == ERROR_FILE_NOT_FOUND;
 }
 
 } // namespace

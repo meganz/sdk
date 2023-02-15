@@ -274,7 +274,7 @@ bool PosixFileAccess::sysopen(bool)
     if (fd < 0)
     {
         errorcode = errno;
-        LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << strerror(errorcode);
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << strerror(errorcode);
     }
 
     return fd >= 0;
@@ -351,7 +351,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
                              context->access & AsyncIOContext::ACCESS_WRITE);
     if (context->failed)
     {
-        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -656,7 +656,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
     }
     if (fd >= 0 || statok)
     {
@@ -707,6 +707,10 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 std::string PosixFileAccess::getErrorMessage(int error) const
 {
     return strerror(error);
+}
+
+bool PosixFileAccess::isErrorFileNotFound(int error) const {
+    return error == ENOENT;
 }
 
 PosixFileSystemAccess::PosixFileSystemAccess()

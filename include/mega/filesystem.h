@@ -503,6 +503,9 @@ struct MEGA_API FileAccess
     // errno on unix. Defaults to the number itself.
     virtual std::string getErrorMessage(int error) const;
 
+    // error is errno on unix or a DWORD on windows
+    virtual bool isErrorFileNotFound(int error) const = 0;
+
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);

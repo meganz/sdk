@@ -940,7 +940,7 @@ bool FileAccess::openf()
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_err << "Error opening file handle (sysstat) '"
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysstat) '"
                 << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
@@ -955,7 +955,8 @@ bool FileAccess::openf()
 
     bool r = sysopen();
     if (!r) {
-        LOG_err << "Error opening file handle (sysopen) '"
+        // file may have been deleted just now
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysopen) '"
                 << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return r;
@@ -1017,7 +1018,7 @@ bool FileAccess::asyncopenf()
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -1037,7 +1038,7 @@ bool FileAccess::asyncopenf()
     }
     else
     {
-        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return result;
 }
