@@ -647,7 +647,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY), defaultfilepermissions);
     if (fd < 0) {
         errorcode = errno; // streaming may set errno
-        LOG_debug << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
     }
     if (fd >= 0 || statok)
     {
