@@ -7438,15 +7438,11 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->id;
-
-                        // remove scheduled meetings occurrences and children
-                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
-
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                         createDeletedSMAlert(ou, chatid, schedId);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
@@ -7468,10 +7464,12 @@ void MegaClient::sc_delscheduledmeeting()
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
 void MegaClient::sc_scheduledmeetings()
 {
+    handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
-    handle ou = UNDEF;
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs);
+    handle_set childMeetingsDeleted;
+
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -7487,25 +7485,19 @@ void MegaClient::sc_scheduledmeetings()
             LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
             continue;
         }
-
-        // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-
-        // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-
-        // remove all child scheduled meeting occurrences
-        // API currently just supports 1 level in scheduled meetings hierarchy
-        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
-        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
-        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
-
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+
+        // remove child scheduled meetings in cmd (child meetings deleted) array
+        chat->removeSchedMeetingsList(childMeetingsDeleted);
+
+        // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
+
+        if (res || !childMeetingsDeleted.empty())
         {
             if (!res)
             {
@@ -7517,14 +7509,18 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            for_each(begin(deletedChildren), end(deletedChildren),
+            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
                 else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
+
+        // fetch for fresh scheduled meetings occurrences
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
@@ -7870,6 +7866,7 @@ void MegaClient::notifypurge(void)
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
             chat->mSchedMeetingsChanged.clear();
+            chat->mUpdatedOcurrences.clear();
         }
 
         chatnotify.clear();
@@ -11784,12 +11781,8 @@ void MegaClient::procmcsm(JSON *j)
         }
 
         // add scheduled meeting
-        handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
-
-        // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 #endif
@@ -17571,7 +17564,8 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce,
-                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
+                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
+                                         handle_set* childMeetingsDeleted)
 {
     JSON* auxJson = j
             ? j         // custom Json provided
@@ -17807,6 +17801,19 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         parseScheduledMeetingChangeset(auxJson, cs);
                         auxJson->leaveobject();
+                    }
+                    break;
+                }
+                case MAKENAMEID3('c', 'm', 'd'):
+                {
+                    assert(childMeetingsDeleted);
+                    if (auxJson->enterarray() && childMeetingsDeleted)
+                    {
+                        while(auxJson->ishandle())
+                        {
+                            childMeetingsDeleted->insert(auxJson->gethandle());
+                        }
+                        auxJson->leavearray();
                     }
                     break;
                 }

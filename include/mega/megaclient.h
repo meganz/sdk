@@ -905,7 +905,8 @@ public:
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
                                  bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
-                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
+                                 handle_set* childMeetingsDeleted = nullptr);
 #endif
 
     // get mega achievements

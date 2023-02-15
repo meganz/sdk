@@ -23345,11 +23345,6 @@ void MegaApiImpl::sendPendingRequests()
                     l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
                     request->setMegaScheduledMeetingList(l.get());
                 }
-                textchat_map::iterator it = client->chats.find(chatid);
-                if (!e && it != client->chats.end())
-                {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
-                }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
@@ -33140,14 +33135,14 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
         mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
     }
 
-    if (chat->getScheduledMeetingOccurrencesList() && chat->getScheduledMeetingOccurrencesList()->size())
-    {
-        mScheduledMeetingsOcurrences.reset(chat->getScheduledMeetingOccurrencesList()->copy());
-    }
-
     if (chat->getSchedMeetingsChanged() && chat->getSchedMeetingsChanged()->size())
     {
         mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
+    }
+
+    if (chat->getUpdatedOccurrencesList() && chat->getUpdatedOccurrencesList()->size())
+    {
+        mUpdatedOcurrences.reset(chat->getUpdatedOccurrencesList()->copy());
     }
 }
 
@@ -33178,15 +33173,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         }
     }
 
-    if (!chat->mScheduledMeetingsOcurrences.empty())
-    {
-        mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
-        for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
-        {
-            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
-        }
-    }
-
     if (!chat->mSchedMeetingsChanged.empty())
     {
         mSchedMeetingsChanged.reset(MegaHandleList::createInstance());
@@ -33197,8 +33183,12 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
-    if (chat->changed.schedOcurr) // schedOcurr is true for all scenarios we request occurrences to API (mcsmfo)
+    if (chat->changed.schedOcurrReplace || chat->changed.schedOcurrAppend)
     {
+        changed |= chat->changed.schedOcurrReplace
+                ? MegaTextChat::CHANGE_TYPE_SCHED_REPLACE_OCURR
+                : MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
+
         if (!chat->mUpdatedOcurrences.empty())
         {
             mUpdatedOcurrences.reset(MegaScheduledMeetingList::createInstance());
@@ -33206,14 +33196,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
             {
                 mUpdatedOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
             }
-
-            // this change type indicates that we need to preserve our current occurrences list, and append new ones
-            changed |= MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
-        }
-        else
-        {
-            // this change type indicates that we need to discard our current occurrences list and add occurrences at TextChat::mScheduledMeetingsOcurrences
-            changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
         }
     }
 
@@ -33337,11 +33319,6 @@ int MegaTextChatPrivate::getChanges() const
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
 {
     return mScheduledMeetings.get();
-}
-
-const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
-{
-    return mScheduledMeetingsOcurrences.get();
 }
 
 const MegaScheduledMeetingList* MegaTextChatPrivate::getUpdatedOccurrencesList() const
