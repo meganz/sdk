@@ -941,7 +941,7 @@ bool FileAccess::openf()
     if (!sysstat(&curr_mtime, &curr_size))
     {
         LOG_err << "Error opening file handle (sysstat) '"
-                << nonblocking_localname << ": errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
