@@ -16222,6 +16222,8 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns verified shares.
+         *
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
@@ -16231,6 +16233,8 @@ class MegaApi
 
         /**
          * @brief Get a list with all pending outbound sharings
+         *
+         * This method returns verified shares.
          *
          * You take the ownership of the returned value
          *

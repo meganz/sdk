@@ -7017,7 +7017,9 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
         {
             for (auto &share : *n->pendingshares)
             {
-                if (share.second->user || share.second->pcr) // public links have no user
+                assert(share.second->pcr);
+                if (share.second->pcr &&
+                        client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
                 }
@@ -11388,9 +11390,15 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     {
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
-            vShares.push_back(it->second);
-            vHandles.push_back(node->nodehandle);
-            vVerified.push_back(false);
+            Share *share = it->second;
+            assert(share->pcr);
+            assert(!share->user);
+            if (share->pcr)
+            {
+                vShares.push_back(share);
+                vHandles.push_back(node->nodehandle);
+                vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, share->pcr->targetemail));
+            }
         }
     }
 
@@ -11411,11 +11419,11 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
         assert(n->pendingshares);
         for (auto &share : *n->pendingshares)
         {
-            if (share.second->user || share.second->pcr) // public links have no user
+            if (share.second->pcr)
             {
                 handles.push_back(n->nodehandle);
                 shares.push_back(share.second);
-                verified.push_back(false);
+                verified.push_back(!client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail));
             }
         }
     }
@@ -11443,7 +11451,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     {
         vShares.push_back(it->second);
         vHandles.push_back(node->nodehandle);
-        vVerified.push_back(false);
+        vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, it->second->pcr->targetemail));
     }
 
     return new MegaShareListPrivate(vShares.data(), vHandles.data(), vVerified.data(), int(vShares.size()));
