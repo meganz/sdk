@@ -708,5 +708,4 @@ bool WinHttpIO::doio()
 {
     return false;
 }
-
 } // namespace
