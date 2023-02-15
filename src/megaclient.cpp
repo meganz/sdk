@@ -6261,7 +6261,7 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
-                if (mKeyManager.isSecure() && mKeyManager.generation()) // Same logic as below but without using the key
+                if (!k || (mKeyManager.isSecure() && mKeyManager.generation())) // Same logic as below but without using the key
                 {
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
@@ -6339,24 +6339,6 @@ bool MegaClient::sc_shares()
                         //Returns false because as this is a new share, the node
                         //could not have been received yet
                         return false;
-                    }
-                }
-                else
-                {
-                    // Outshare or pending outshare
-                    if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
-                    {
-                        handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
-                        {
-                            User* u = finduser(peer);
-                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
-                        }
-
-                        // share revocation or share without key
-                        newshares.push_back(new NewShare(h, outbound,
-                                                         peer, r, 0, NULL, NULL, p, false, okremoved));
-                        return r == ACCESS_UNKNOWN;
                     }
                 }
 
