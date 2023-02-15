@@ -660,6 +660,11 @@ std::ostream& operator <<(std::ostream&, const std::error_code&);
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
+// LOG_err if the condition is true otherwise LOG_debug
+#define LOG_err_if(condition) \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logDebug) \
+        ::mega::SimpleLogger((condition) ? ::mega::logError : ::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
+
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)
 {
