@@ -2885,7 +2885,7 @@ std::string winErrorMessage(DWORD error)
     if (error == 0xFFFFFFFF)
         error = GetLastError();
 
-    LPVOID lpMsgBuf;
+    LPWSTR lpMsgBuf;
     if (!FormatMessage(
         FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_FROM_SYSTEM |
@@ -2893,7 +2893,7 @@ std::string winErrorMessage(DWORD error)
         NULL,
         error,
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-        (LPTSTR)&lpMsgBuf,
+        (LPWSTR)&lpMsgBuf, // FORMAT_MESSAGE_ALLOCATE_BUFFER treats the buffer like a pointer
         0,
         NULL))
     {
@@ -2901,7 +2901,7 @@ std::string winErrorMessage(DWORD error)
         return "[Unknown error " + std::to_string(error) + "]";
     }
 
-    std::wstring wstr((LPCWSTR)lpMsgBuf);
+    std::wstring wstr(lpMsgBuf);
     // Free the buffer.
     LocalFree(lpMsgBuf);
 
