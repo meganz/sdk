@@ -879,6 +879,11 @@ bool MegaShare::isPending()
     return false;
 }
 
+bool MegaShare::isVerified()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
@@ -2492,6 +2497,31 @@ void MegaApi::sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener
 void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener)
 {
     pImpl->sendFileToUser(node, email, listener);
+}
+
+void MegaApi::upgradeSecurity(MegaRequestListener* listener)
+{
+    pImpl->upgradeSecurity(listener);
+}
+
+void MegaApi::setSecureFlag(bool enable)
+{
+    pImpl->setSecureFlag(enable);
+}
+
+void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->openShareDialog(node, listener);
+}
+
+MegaShareList *MegaApi::getUnverifiedInShares(int order)
+{
+    return pImpl->getUnverifiedInShares(order);
+}
+
+MegaShareList *MegaApi::getUnverifiedOutShares(int order)
+{
+    return pImpl->getUnverifiedOutShares(order);
 }
 
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)

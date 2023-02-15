@@ -4145,7 +4145,32 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
         return result->set_value(false);
 
     auto completion = [=](Error e, bool) {
-        result->set_value(!e);
+        if (e == API_EKEY)
+        {
+            // create share key and try again
+            client.openShareDialog(node, [=](Error osdErr)
+                {
+                    if (osdErr == API_OK)
+                    {
+                        client.setshare(node,
+                            email.c_str(),
+                            permissions,
+                            false,
+                            nullptr,
+                            ++next_request_tag,
+                            [result](Error e2, bool) {result->set_value(!e2);});
+                    }
+                    else
+                    {
+                        result->set_value(false);
+                    }
+                }
+            );
+        }
+        else
+        {
+            result->set_value(!e);
+        }
     };
 
     client.setshare(node,
@@ -4169,7 +4194,8 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
     if (status == future_status::timeout)
         return false;
 
-    return result.get();
+    bool r = result.get();
+    return r;
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;

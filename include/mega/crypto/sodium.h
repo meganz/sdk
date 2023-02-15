@@ -39,7 +39,7 @@ public:
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;
-    bool initializationOK;
+    bool initializationOK = false;
 
     EdDSA(PrnGen &rng, unsigned char* keySeed = NULL);
     ~EdDSA();
@@ -93,12 +93,17 @@ public:
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;
-    bool initializationOK;
+    bool initializationOK = false;
 
     unsigned char privKey[PRIVATE_KEY_LENGTH];
     unsigned char pubKey[PUBLIC_KEY_LENGTH];
 
-    ECDH(unsigned char * privKey = NULL);
+    // generate new key pair
+    ECDH();
+
+    // initialize the private key (and derive public key)
+    ECDH(const std::string &privKey);
+
     ~ECDH();
 
     /**
