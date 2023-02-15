@@ -8131,7 +8131,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
         l++;
     }
 
-    return (type == TYPE_UNKNOWN || type == n->type) ? n : nullptr;
+    return (type == TYPE_UNKNOWN || (n && type == n->type)) ? n : nullptr;
 }
 
 // server-client deletion
