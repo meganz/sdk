@@ -20140,7 +20140,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         string prRSABin = Base64::atob(prRSA);
         AsymmCipher ac;
 
-        LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
         if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
         {
             LOG_err << "Priv RSA key problem during KeyManager initialization.";
@@ -20151,7 +20150,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
             // Store it in the short format (3 Ints): pqd.
             ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
         }
-        LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
     }
     else
     {

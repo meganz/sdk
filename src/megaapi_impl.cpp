@@ -11314,6 +11314,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             for (auto &share : *n->outshares)
             {
+                assert(!share.second->pcr);
                 if (share.second->user) // public links have no user
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
@@ -11325,7 +11326,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             for (auto &share : *n->pendingshares)
             {
-                if (share.second->user || share.second->pcr) // public links have no user
+                if (share.second->pcr)
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
                 }
@@ -11376,8 +11377,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         {
             Share *share = it->second;
             assert(!share->pcr);
-            assert(share->user);
-            if (share->user)
+            if (share->user)    // public links have no user
             {
                 vShares.push_back(share);
                 vHandles.push_back(node->nodehandle);
