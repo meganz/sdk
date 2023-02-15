@@ -303,7 +303,7 @@ bool WinFileAccess::sysopen(bool async)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        LOG_debug << "Unable to open file '" << nonblocking_localname << ": (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+        LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
