@@ -271,7 +271,7 @@ bool PosixFileAccess::sysopen(bool)
     // When fully supporting symlinks, this might need to be reassessed
 
     fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY);
-    if (fd < 0 )
+    if (fd < 0)
     {
         errorcode = errno;
         LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << strerror(errorcode);
