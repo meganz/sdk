@@ -4440,7 +4440,7 @@ MegaIntegerList* MegaIntegerMapPrivate::get(int64_t key) const
     return new MegaIntegerListPrivate(values);
 }
 
-void MegaIntegerMapPrivate::set(const int64_t key, const int64_t value)
+void MegaIntegerMapPrivate::set(int64_t key, int64_t value)
 {
     mIntegerMap.emplace(key, value);
 }

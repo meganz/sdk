@@ -3307,7 +3307,7 @@ public:
      * @param key The key in the map.
      * @param value The new value for the key in the map.
      */
-    virtual void set(const int64_t key, const int64_t value);
+    virtual void set(int64_t key, int64_t value);
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map

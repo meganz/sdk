@@ -6901,7 +6901,7 @@ MegaIntegerList* MegaIntegerMap::get(int64_t key) const
     return NULL;
 }
 
-void MegaIntegerMap::set(const int64_t /*key*/, const int64_t /*value*/)
+void MegaIntegerMap::set(int64_t /*key*/, int64_t /*value*/)
 {
 
 }
