@@ -274,7 +274,7 @@ bool PosixFileAccess::sysopen(bool)
     if (fd < 0 )
     {
         errorcode = errno;
-        LOG_debug << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << strerror(errorcode);
+        LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << strerror(errorcode);
     }
 
     return fd >= 0;
