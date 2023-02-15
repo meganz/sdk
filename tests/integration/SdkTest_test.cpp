@@ -10864,12 +10864,3 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
     ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
 }
 */
-
-TEST_F(SdkTest, LogErrors) {
-    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
-    auto fa = fsa->newfileaccess();
-    fa->fopen(LocalPath::fromAbsolutePath("/file-that-does-not-exist"));
-
-    auto fa2 = fsa->newfileaccess();
-    fa2->fopen(LocalPath::fromAbsolutePath("c:\\Temp\\read-only.txt"), false, true);
-}
