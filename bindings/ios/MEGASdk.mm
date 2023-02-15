@@ -1535,10 +1535,10 @@ using namespace mega;
     return setElement;
 }
 
-- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid {
+- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
     if (self.megaApi == nil) return nil;
     
-    MegaSetElementList *setElementList = self.megaApi->getSetElements(sid);
+    MegaSetElementList *setElementList = self.megaApi->getSetElements(sid, includeElementsInRubbishBin);
     int size = setElementList->size();
     
     NSMutableArray *setElements = [[NSMutableArray alloc] initWithCapacity:size];
@@ -1551,6 +1551,12 @@ using namespace mega;
     delete setElementList;
     
     return [setElements copy];
+}
+
+- (NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return 0;
+    
+    return self.megaApi->getSetElementCount(sid, includeElementsInRubbishBin);
 }
 
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {

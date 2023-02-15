@@ -388,6 +388,301 @@ void Node::setkey(const byte* newkey)
     setattr();
 }
 
+Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+{
+    handle h, ph;
+    nodetype_t t;
+    m_off_t s;
+    handle u;
+    const byte* k = NULL;
+    const char* fa;
+    m_time_t ts;
+    const byte* skey;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+    unsigned short ll;
+    int i;
+    char isExported = '\0';
+    char hasLinkCreationTs = '\0';
+
+    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
+    {
+        return NULL;
+    }
+
+    s = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof s;
+
+    if (s < 0 && s >= -RUBBISHNODE)
+    {
+        t = (nodetype_t)-s;
+    }
+    else
+    {
+        t = FILENODE;
+    }
+
+    h = 0;
+    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    ph = 0;
+    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    if (!ph)
+    {
+        ph = UNDEF;
+    }
+
+    u = 0;
+    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
+    ptr += MegaClient::USERHANDLE;
+
+    // FIME: use m_time_t / Serialize64 instead
+    ptr += sizeof(time_t);
+
+    ts = (uint32_t)MemAccess::get<time_t>(ptr);
+    ptr += sizeof(time_t);
+
+    if ((t == FILENODE) || (t == FOLDERNODE))
+    {
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+
+        if (ptr + keylen + 8 + sizeof(short) > end)
+        {
+            return NULL;
+        }
+
+        k = (const byte*)ptr;
+        ptr += keylen;
+    }
+
+    if (t == FILENODE)
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
+        fa = ptr;
+        ptr += ll;
+    }
+    else
+    {
+        fa = NULL;
+    }
+
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    {
+        return NULL;
+    }
+
+    isExported = MemAccess::get<char>(ptr);
+    ptr += sizeof(isExported);
+
+    hasLinkCreationTs = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkCreationTs);
+
+    auto authKeySize = MemAccess::get<char>(ptr);
+
+    ptr += sizeof authKeySize;
+    const char *authKey = nullptr;
+    if (authKeySize)
+    {
+        authKey = ptr;
+        ptr += authKeySize;
+    }
+
+    if (ptr + (unsigned)*ptr > end)
+    {
+        return nullptr;
+    }
+
+    auto encrypted = *ptr && ptr[1];
+
+    ptr += (unsigned)*ptr + 1;
+
+    for (i = 4; i--;)
+    {
+        if (ptr + (unsigned char)*ptr < end)
+        {
+            ptr += (unsigned char)*ptr + 1;
+        }
+    }
+
+    if (ptr + sizeof(short) > end)
+    {
+        return NULL;
+    }
+
+    short numshares = MemAccess::get<short>(ptr);
+    ptr += sizeof(numshares);
+
+    if (numshares)
+    {
+        if (ptr + SymmCipher::KEYLENGTH > end)
+        {
+            return NULL;
+        }
+
+        skey = (const byte*)ptr;
+        ptr += SymmCipher::KEYLENGTH;
+    }
+    else
+    {
+        skey = NULL;
+    }
+
+    unique_ptr<Node> n(new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
+
+    if (!encrypted && k)
+    {
+        n->setkey(k);
+    }
+
+    // read inshare, outshares, or pending shares
+    while (numshares)   // inshares: -1, outshare/s: num_shares
+    {
+        int direction = (numshares > 0) ? -1 : 0;
+        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
+
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            client.newshares.push_back(newShare.release());
+        }
+        else
+        {
+            ownNewshares.push_back(std::move(newShare));
+        }
+
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
+    }
+
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
+    {
+        LOG_err << "Failed to unserialize attrs";
+        assert(false);
+        return NULL;
+    }
+
+    if (fromOldCache)
+    {
+        // It's needed to re-normalize node names because
+        // the updated version of utf8proc doesn't provide
+        // exactly the same output as the previous one that
+        // we were using
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            LocalPath::utf8_normalize(&(it->second));
+        }
+    }
+    // else from new cache, names has been normalized before to store in DB
+
+    if (!encrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
+
+    PublicLink *plink = NULL;
+    if (isExported)
+    {
+        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
+        {
+            return NULL;
+        }
+
+        handle ph = 0;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
+        ptr += MegaClient::NODEHANDLE;
+        m_time_t ets = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(ets);
+        bool takendown = MemAccess::get<bool>(ptr);
+        ptr += sizeof(takendown);
+
+        m_time_t cts = 0;
+        if (hasLinkCreationTs)
+        {
+            cts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(cts);
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+    }
+    n->plink = plink;
+
+    if (encrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(uint32_t) > end)
+        {
+            return nullptr;
+        }
+
+        auto length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the node key data?
+        if (ptr + length > end)
+        {
+            return nullptr;
+        }
+
+        n->setUndecryptedKey(string(ptr, length));
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(uint32_t) > end)
+        {
+            return nullptr;
+        }
+
+        length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the attribute string?
+        if (ptr + length > end)
+        {
+            return nullptr;
+        }
+
+        n->attrstring.reset(new string(ptr, length));
+        ptr += length;
+    }
+
+    if (ptr == end)
+    {
+        return n.release();
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
@@ -532,7 +827,15 @@ bool Node::serialize(string* d)
 
     if (numshares)
     {
-        d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+
+        if (sharekey)
+        {
+            d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
+        }
+        else
+        {
+            d->append(SymmCipher::KEYLENGTH, '\0');
+        }
 
         if (inshare)
         {
@@ -939,6 +1242,24 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     return MimeType_t::MIME_TYPE_UNKNOWN;
 }
 
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
+{
+    nameid id = filenameExtensionLowercaseNoDot.length() > 8
+              ? 0 : AttrMap::string2nameid(filenameExtensionLowercaseNoDot.c_str());
+
+    if (id)
+    {
+        if (photoImageDefExtension.find(id) != photoImageDefExtension.end()) return true;
+        if (photoRawExtensions.find(id) != photoRawExtensions.end()) return true;
+        if (photoExtensions.find(id) != photoExtensions.end()) return true;
+        if (videoExtensions.find(id) != videoExtensions.end()) return true;
+        if (audioExtensions.find(id) != audioExtensions.end()) return true;
+    }
+
+    if (longAudioExtension.find(filenameExtensionLowercaseNoDot) != longAudioExtension.end()) return true;
+    return false;
+}
+
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {
@@ -1125,7 +1446,7 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
 
             if (!p || p->type == FILENODE)
             {
-                DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
+                TransferDbCommitter committer(client->tctable); // potentially stopping many transfers here
                 TreeProcDelSyncGet tdsg;
                 client->proctree(this, &tdsg);
             }
@@ -1846,7 +2167,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
 }
 
 // serialize/unserialize the following LocalNode properties:

@@ -117,6 +117,8 @@ public:
     virtual bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) = 0;
     virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
     virtual bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
+    virtual bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) = 0;
+    virtual bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) = 0;
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) = 0;
@@ -179,7 +181,7 @@ public:
         mTable = nullptr;
     }
 
-    ~DBTableTransactionCommitter()
+    virtual ~DBTableTransactionCommitter()
     {
         if (mTable)
         {

@@ -294,6 +294,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
+    static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
@@ -485,7 +486,9 @@ template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNod
 template <> inline Node*& crossref_other_ptr_ref<LocalNode, Node>(LocalNode* p) { return p->node.ptr; }
 template <> inline LocalNode*& crossref_other_ptr_ref<Node, LocalNode>(Node* p) { return p->localnode.ptr; }
 
-#endif
+#endif  // ENABLE_SYNC
+
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot);
 
 } // namespace
 

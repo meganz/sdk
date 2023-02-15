@@ -838,13 +838,14 @@ string StandardClient::ensureDir(const fs::path& p)
 
 StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
     :
+      waiter(new WAIT_CLASS),
 #ifdef GFX_CLASS
       gfx(::mega::make_unique<GFX_CLASS>()),
 #endif
       client_dbaccess_path(ensureDir(basepath / name))
     , httpio(new HTTPIO_CLASS)
     , client(this,
-                &waiter,
+                waiter,
                 httpio.get(),
 #ifdef DBACCESS_CLASS
                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
@@ -894,7 +895,7 @@ StandardClient::~StandardClient()
     LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
-    waiter.notify();
+    waiter->notify();
     clientthread.join();
     LOG_debug << "~StandardClient end of function (work thread joined)";
 }
@@ -1668,7 +1669,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
             };
 
             // Kick off the putnodes request.
-            sendPutnodes(transfer->client,
+            sendPutnodesOfUpload(transfer->client,
                          transfer->uploadhandle,
                          *transfer->ultoken,
                          transfer->filekey,
@@ -3244,7 +3245,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
             {
                 any_add_del = true;
             }
-            if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
+            if (!client.multi_transfers[GET].empty() || !client.multi_transfers[PUT].empty())
             {
                 any_add_del = true;
             }
@@ -3482,7 +3483,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         int direction[] = { PUT, GET };
         for (int d = 0; d < 2; ++d)
         {
-            for (auto& it : sc.client.transfers[direction[d]])
+            for (auto& it : sc.client.multi_transfers[direction[d]])
             {
                 for (auto& it2 : it.second->files)
                 {
@@ -3502,24 +3503,26 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     }
 
     // wait for completion of ongoing transfers, up to 60s
-    for (int i = 30000; i-- && !client.transfers[GET].empty(); ) WaitMillisec(1);
-    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[GET].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
     LOG_debug << clientname << "transfers cleaned";
 
     // wait further for reqs to finish if any are queued, up to 30s
-    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.multi_transfers[PUT].empty(); ) WaitMillisec(1);
 
     // check transfers were canceled successfully
-    if (client.transfers[PUT].size() || client.transfers[GET].size())
+    if (client.multi_transfers[PUT].size() || client.multi_transfers[GET].size())
     {
         LOG_err << clientname << "Failed to clean transfers at cleanupForTestReuse():"
-                   << " put: " << client.transfers[PUT].size()
-                   << " get: " << client.transfers[GET].size();
+                   << " put: " << client.multi_transfers[PUT].size()
+                   << " get: " << client.multi_transfers[GET].size();
     }
     else
     {
         LOG_debug << clientname << "transfers cleaned successfully";
     }
+
+    // todo: make these calls to reqs thread safe. Low priority
 
     // wait for cmds in flight and queued, up to 120s
     if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
@@ -4568,7 +4571,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 #ifdef SRW_NEEDED_FOR_THIS_ONE
     addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
 #else
-    addModelFile(model1, "d/d_1", "a", data0);
+    addModelFile(model1, "d/d_1", "a", data1); // with treatAsIfFileDataEqual we can get this one right
 #endif
     model1.ensureLocalDebrisTmpLock("d");
 
