@@ -2676,6 +2676,34 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
     return ok;
 }
 
+void SdkTest::delSchedMeetings()
+{
+    std::vector<std::unique_ptr<RequestTracker>> delSchedTrackers;
+    for (size_t i = 0; i < mApi.size(); i++)
+    {
+        for (auto &it: mApi[i].chats)
+        {
+            if (!it.second->getScheduledMeetingList()->size()) { continue; }
+            if (it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+            {
+                LOG_info << "Could not remove scheduled meetings for chat" << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
+                continue;
+            }
+
+            const MegaScheduledMeetingList* schedList = it.second->getScheduledMeetingList();
+            for (size_t j = 0; j < schedList->size(); j++)
+            {
+                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(mApi[i].megaApi)));
+                mApi[i].megaApi->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId());
+            }
+        }
+    }
+
+    // wait for requests to complete:
+    for (auto& d : delSchedTrackers) d->waitForResult();
+    WaitMillisec(2000);
+}
+
 bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n, MegaHandle mh)
 {
     bool ok = false;
