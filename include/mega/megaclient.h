@@ -561,6 +561,7 @@ public:
 
     // check password
     error validatepwd(const byte *);
+    bool validatepwdlocally(const char* pswd);
 
     // get user data
     void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);

@@ -5763,45 +5763,7 @@ MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
 bool MegaApiImpl::checkPassword(const char *password)
 {
     SdkMutexGuard g(sdkMutex);
-    if (!password || !password[0] || client->k.size() != SymmCipher::KEYLENGTH)
-    {
-        return false;
-    }
-
-    string k = client->k;
-    if (client->accountversion == 1)
-    {
-        byte pwkey[SymmCipher::KEYLENGTH];
-        if (client->pw_key(password, pwkey))
-        {
-            return false;
-        }
-
-        SymmCipher cipher(pwkey);
-        cipher.ecb_decrypt((byte *)k.data());
-    }
-    else if (client->accountversion == 2)
-    {
-        if (client->accountsalt.size() != 32) // SHA256
-        {
-            return false;
-        }
-
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)client->accountsalt.data(), client->accountsalt.size(), 100000);
-
-        SymmCipher cipher(derivedKey);
-        cipher.ecb_decrypt((byte *)k.data());
-    }
-    else
-    {
-        LOG_warn << "Version of account not supported";
-        return false;
-    }
-
-    return !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
+    return client->validatepwdlocally(password);
 }
 
 char *MegaApiImpl::getMyCredentials()

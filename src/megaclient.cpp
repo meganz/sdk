@@ -10420,6 +10420,49 @@ void MegaClient::login(string session)
 }
 
 // check password's integrity
+bool MegaClient::validatepwdlocally(const char* pswd)
+{
+    if (!pswd || !pswd[0] || k.size() != SymmCipher::KEYLENGTH)
+    {
+        return false;
+    }
+
+    string tmpk = k;
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if (pw_key(pswd, pwkey))
+        {
+            return false;
+        }
+
+        SymmCipher cipher(pwkey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else if (accountversion == 2)
+    {
+        if (accountsalt.size() != 32) // SHA256
+        {
+            return false;
+        }
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte*)pswd, strlen(pswd),
+            (const byte*)accountsalt.data(), accountsalt.size(), 100000);
+
+        SymmCipher cipher(derivedKey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else
+    {
+        LOG_warn << "Version of account not supported";
+        return false;
+    }
+
+    return !memcmp(tmpk.data(), key.key, SymmCipher::KEYLENGTH);
+}
+
 error MegaClient::validatepwd(const byte *pwkey)
 {
     User *u = finduser(me);
