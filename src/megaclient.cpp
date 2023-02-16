@@ -14642,11 +14642,16 @@ error MegaClient::resetCredentials(handle uh)
 
 bool MegaClient::areCredentialsVerified(handle uh)
 {
+    if (uh == me)
+    {
+        return false;
+    }
+
     AuthRingsMap::const_iterator itCu = mAuthRings.find(ATTR_AUTHCU255);
     bool cuAuthringFound = itCu != mAuthRings.end();
     if (!cuAuthringFound || !itCu->second.areCredentialsVerified(uh))
     {
-        LOG_debug << "Failed to verify Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
+        LOG_err << "Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
         return false;
     }
 
@@ -14654,7 +14659,7 @@ bool MegaClient::areCredentialsVerified(handle uh)
     bool edAuthringFound = it != mAuthRings.end();
     if (!edAuthringFound || !it->second.areCredentialsVerified(uh))
     {
-        LOG_debug << "Failed to verify Ed25519 for " << toHandle(uh) << ": " << (!edAuthringFound ? "authring missing" : "fingerprint not verified");
+        if (!edAuthringFound) LOG_err << "Ed25519 for " << toHandle(uh) << ": " << "authring missing";
         return false;
     }
 
