@@ -12270,12 +12270,19 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                 unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
                 for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
                 {
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle()); // will search first in RAM, then in DB
                     assert(node);
                     if (node)
                     {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                        // This node might be only in RAM, so searchInNodeManager() will not find it because it will only search the DB.
+                        // Beside, avoiding another search might be more efficient, so just check that node name contains the searched string.
+                        string haystack = node->displayname();
+                        string needle = searchString;
+                        if (haystack.end() != std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end(),
+                            [](unsigned char ch1, unsigned char ch2) { return std::tolower(ch1) == std::tolower(ch2); }))
+                        {
+                            result.push_back(node);
+                        }
                     }
                 }
             }
@@ -12311,7 +12318,15 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
                     assert(node);
                     if (node)
                     {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken, true);
+                        // Shouldn't this avoid another DB search (!) and validate the name here, just like INSHARE above?
+                        //
+                        // Plus:
+                        // searchInNodeManager() needs _parent_ handle, later passed to NodeManager::processUnserializedNodes() as _ancestorHandle_,
+                        // which potentially creates another problem: that it can return too many results from the same parent, the one that is
+                        // an OUTSHARE and others that are not.
+                        // Adding here a vector of results should be wrong by definition. We are trying to validate one single particular share
+                        // that is shares->get(i). So only _that one_ should be added or not.
+                        node_vector nodeVector = searchInNodeManager(node->parenthandle, searchString, type, cancelToken, true);
                         result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                     }
                 }
@@ -12330,7 +12345,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !cancelToken.isCancelled(); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelToken, true);
+                // Shouldn't this avoid another DB search (!) and validate the name here, just like INSHARE above?
+                //
+                // Plus:
+                // searchInNodeManager() needs _parent_ handle, later passed to NodeManager::processUnserializedNodes() as _ancestorHandle_,
+                // which potentially creates another problem: that it can return too many results from the same parent, the one that has
+                // a PUBLICLINK and others that have not (and it actually _always_ did in my tests, for a file -- even if that could
+                // have been due to the test setup).
+                // Adding here a vector of results should be wrong by definition. We are trying to validate one single particular publicLink
+                // that is (*it). So only _that one_ should be added or not.
+                node_vector nodeVector = searchInNodeManager((*it)->parenthandle, searchString, type, cancelToken, true);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
