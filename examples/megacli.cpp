@@ -6109,6 +6109,11 @@ void exec_users(autocomplete::ACState& s)
                     cout << ", unknown visibility (" << it->second.show << ")";
                 }
 
+                if (it->second.userhandle != client->me && client->areCredentialsVerified(it->second.userhandle))
+                {
+                    cout << ", credentials verified";
+                }
+
                 if (it->second.sharing.size())
                 {
                     cout << ", sharing " << it->second.sharing.size() << " folder(s)";
