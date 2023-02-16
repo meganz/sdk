@@ -15450,6 +15450,18 @@ class MegaApi
          */
         void getMegaSyncStallList(MegaRequestListener* listener);
 
+
+        /**
+         * @brief
+         * Clear a stall item in case the user Refreshes the list again
+         * before the sync code has re-iterated the tree to generate a new list
+         *
+         * @param stallCloudPath
+         * The stall item (or a copy of it) that was addressed but for which the
+         * sync code might not have noticed yet.
+         */
+        void clearStalledPath(MegaSyncStall* originalStall);
+
 #endif // ENABLE_SYNC
 
         /**

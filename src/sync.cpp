@@ -3157,17 +3157,9 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
-
-#ifdef __APPLE__
-    if (!resetFingerprint)
-    {
-        LOG_debug << "turning on reset of filesystem fingerprint on Mac, as they are not consistent there";  // eg. from networked filesystem, qnap shared drive
-        resetFingerprint = true;
-    }
-#endif
 
     auto clientCompletion = [=](error e, SyncError se, handle)
         {
@@ -3179,11 +3171,11 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
         });
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -3226,13 +3218,35 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         return;
     }
 
+
+
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
     us.mConfig.mTemporarilyPaused = paused;
 
+
+    bool resetFingerprint = false;
+
+#ifdef __APPLE__
+    if (!resetFingerprint)
+    {
+        LOG_debug << "turning on reset of filesystem fingerprint on Mac, as they are not consistent there";  // eg. from networked filesystem, qnap shared drive
+        resetFingerprint = true;
+    }
+#endif
+
+    if (!resetFingerprint && !us.mConfig.mDatabaseExists)
+    {
+        // It's ok to sync to a new folder (new fs even) at the same path, if we are truly going from scratch
+        // Users may, eg. put a sync to disabled, move the local folder elsewhere, make an empty folder with that same name, restart the sync
+        LOG_debug << "turning on reset of filesystem fingerprint for previously disabled sync (ie, had no database)";
+        resetFingerprint = true;
+    }
+
     if (resetFingerprint)
     {
         us.mConfig.mFilesystemFingerprint = 0; //This will cause the local filesystem fingerprint to be recalculated
+        us.mConfig.mLocalPathFsid = UNDEF;
     }
 
     if (setOriginalPath)
@@ -3523,7 +3537,7 @@ void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&&
 }
 
 
-void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
+void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> completion,
                             bool completionInClient)
 {
     using MC = MegaClient;
@@ -3531,17 +3545,18 @@ void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
 
     if (completionInClient)
     {
-        completion = [this, completion](SyncProblems& problems) {
-            queueClient([completion, problems](MC&, DBTC&) mutable {
-                completion(problems);
+        completion = [this, completion](unique_ptr<SyncProblems> problems) {
+            SyncProblems* rawPtr = problems.release();
+            queueClient([completion, rawPtr](MC&, DBTC&) mutable {
+                completion(unique_ptr<SyncProblems>(rawPtr));
             });
         };
     }
 
     queueSync([this, completion]() mutable {
-        SyncProblems problems;
-        getSyncProblems_inThread(problems);
-        completion(problems);
+        unique_ptr<SyncProblems> problems(new SyncProblems);
+        getSyncProblems_inThread(*problems);
+        completion(move(problems));
     });
 }
 
@@ -5113,7 +5128,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, true, completion, logname, excludedPath);
+    enableSyncByBackupId_inThread(c.mBackupId, false, notifyApp, true, completion, logname, excludedPath);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -5681,7 +5696,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -10886,7 +10901,7 @@ void Syncs::syncLoop()
                     else
                     {
                         LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, false, true, false, nullptr, "", "");
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, true, false, nullptr, "", "");
                     }
                 }
             }
@@ -11278,6 +11293,8 @@ void Syncs::syncLoop()
                 mClient.app->syncupdate_stalled(stalled);
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
+
+            ++completedPassCount;
         }
 
 

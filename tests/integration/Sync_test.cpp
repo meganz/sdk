@@ -3186,14 +3186,14 @@ Sync* StandardClient::syncByBackupId(handle backupId)
 bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 {
     PromiseBoolSP result = makeSharedPromise<bool>();
-    client.syncs.enableSyncByBackupId(id, pause, false, false, false,
+    client.syncs.enableSyncByBackupId(id, pause, false, false,
         [result](error e, SyncError, handle){ result->set_value(!e); }, id, "");
     return debugTolerantWaitOnFuture(result->get_future(), 45);
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    client.syncs.enableSyncByBackupId(id, false, false, false, true,
+    client.syncs.enableSyncByBackupId(id, false, true,
         [result](error e, SyncError, handle){ result->set_value(!e); }, id, logname);
 }
 
