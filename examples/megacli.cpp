@@ -4148,7 +4148,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
-    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -6107,6 +6107,11 @@ void exec_users(autocomplete::ACState& s)
                 else
                 {
                     cout << ", unknown visibility (" << it->second.show << ")";
+                }
+
+                if (it->second.userhandle != client->me && client->areCredentialsVerified(it->second.userhandle))
+                {
+                    cout << ", credentials verified";
                 }
 
                 if (it->second.sharing.size())
@@ -11004,6 +11009,7 @@ void exec_searchbyname(autocomplete::ACState &s)
     if (s.words.size() >= 2)
     {
         bool recursive = !s.extractflag("-norecursive");
+        bool noSensitive = s.extractflag("-nosensitive");
 
         NodeHandle nodeHandle;
         if (s.words.size() == 3)
@@ -11019,9 +11025,10 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-
         std::string searchString = s.words[1].s;
-        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+        Node::Flags exclusiveRecuriveFlags;
+        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
 
         for (const auto& node : nodes)
         {
