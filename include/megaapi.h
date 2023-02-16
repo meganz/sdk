@@ -3280,19 +3280,6 @@ public:
     virtual MegaIntegerMap* copy() const;
 
     /**
-     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
-     * Returns true if index is < map size, otherwise returns false
-     * If index is not out of range, key will be copied in first parameter (key)
-     * If index is not out of range, value will be copied in second parameter (value)
-     *
-     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
-     * @param key Key of the string that you want to get from the map
-     * @param value The value associated to the key will be copied in this param
-     * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
-     */
-    virtual bool at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const;
-
-    /**
      * @brief Returns the list of keys in the MegaIntegerMap
      *
      * You take the ownership of the returned value
@@ -3300,6 +3287,16 @@ public:
      * @return A MegaIntegerList containing the keys present in the MegaIntegerMap
      */
     virtual MegaIntegerList* getKeys() const;
+
+    /**
+     * @brief Returns a list of values for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list of values for the provided key
+     */
+    virtual MegaIntegerList* get(int64_t key) const;
 
     /**
      * @brief Sets a value in the map for the given key.
@@ -3310,13 +3307,13 @@ public:
      * @param key The key in the map.
      * @param value The new value for the key in the map.
      */
-    virtual void set(const long long& /*key*/, const long long& /*value*/);
+    virtual void set(int64_t key, int64_t value);
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map
      * @return Number of pairs in the map
      */
-    virtual unsigned long long size() const;
+    virtual int64_t size() const;
 };
 
 /**

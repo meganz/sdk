@@ -4422,20 +4422,6 @@ MegaIntegerMap* MegaIntegerMapPrivate::copy() const
     return new MegaIntegerMapPrivate(*this);
 }
 
-bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
-{
-    if (index >= mIntegerMap.size())
-    {
-        return false;
-    }
-
-    auto it = mIntegerMap.begin();
-    std::advance(it, index);
-    key = it->first;
-    value = it->second;
-    return true;
-}
-
 MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
 {
     vector<int64_t> keys;
@@ -4447,12 +4433,23 @@ MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
     return new MegaIntegerListPrivate(keys);
 }
 
-unsigned long long MegaIntegerMapPrivate::size() const
+int64_t MegaIntegerMapPrivate::size() const
 {
-    return mIntegerMap.size();
+    return static_cast<int64_t>(mIntegerMap.size());
 }
 
-void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
+MegaIntegerList* MegaIntegerMapPrivate::get(int64_t key) const
+{
+    vector<int64_t> values;
+    auto range = mIntegerMap.equal_range(key);
+    for (auto i = range.first; i != range.second; ++i)
+    {
+        values.emplace_back(i->second);
+    }
+    return new MegaIntegerListPrivate(values);
+}
+
+void MegaIntegerMapPrivate::set(int64_t key, int64_t value)
 {
     mIntegerMap.emplace(key, value);
 }

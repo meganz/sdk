@@ -6916,22 +6916,22 @@ MegaIntegerMap* MegaIntegerMap::copy() const
     return NULL;
 }
 
-bool MegaIntegerMap::at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const
-{
-    return false;
-}
-
 MegaIntegerList* MegaIntegerMap::getKeys() const
 {
     return NULL;
 }
 
-void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
+MegaIntegerList* MegaIntegerMap::get(int64_t key) const
+{
+    return NULL;
+}
+
+void MegaIntegerMap::set(int64_t /*key*/, int64_t /*value*/)
 {
 
 }
 
-unsigned long long MegaIntegerMap::size() const
+int64_t MegaIntegerMap::size() const
 {
     return 0;
 }
