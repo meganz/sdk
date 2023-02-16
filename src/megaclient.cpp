@@ -1150,19 +1150,14 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {
-        nameid favnid = AttrMap::string2nameid("fav");
-        auto it = previousNode->attrs.map.find(favnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[favnid] = it->second;
-        }
-
-        nameid lblnid = AttrMap::string2nameid("lbl");
-        it = previousNode->attrs.map.find(lblnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[lblnid] = it->second;
+    {        
+        for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
+            nameid id = AttrMap::string2nameid(attr.c_str());
+            auto it = previousNode->attrs.map.find(id);
+            if (it != previousNode->attrs.map.end())
+            {
+                attrs.map[id] = it->second;
+            }
         }
     }
 }
@@ -8442,6 +8437,8 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     {
         return API_EACCESS;
     }
+    
+    n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);

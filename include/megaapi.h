@@ -529,7 +529,8 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
-            CHANGE_TYPE_COUNTER            = 0x2000,
+            CHANGE_TYPE_COUNTER         = 0x2000,
+            CHANGE_TYPE_SENSITIVE       = 0x4000
         };
 
         static const int INVALID_DURATION = -1;
@@ -692,11 +693,21 @@ class MegaNode
         virtual int getVideocodecid();
 
         /**
-         * @brief Get the attribute of the node representing if node is marked as favourite.
+         * @brief Return if the node is marked as favourite.
          *
          * @return True if node is marked as favourite, otherwise return false (attribute is not set).
          */
         virtual bool isFavourite();
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive 
+        *
+        * see MegaApi::isSensitiveInherit to see if the node is marked sensitive
+        *   or as descendent of a node that is marked sensitive
+        *
+        * @param node node to inspect
+        */
+        virtual bool isMarkedSensitive();
 
         /**
          * @brief Get the attribute of the node representing its label.
@@ -8890,8 +8901,9 @@ class MegaApi
             NODE_ATTR_COORDINATES = 1,
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
-            NODE_ATTR_FAV = 4,
+            NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
+            NODE_ATTR_SEN = 6 // "sen"
         };
 
         enum {
@@ -12487,6 +12499,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Mark a node as sensitive
+         * 
+         * @note Descendants will inherit the sensitive property.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+         *
+         * @param node Node that will receive the information.
+         * @param sensitive if true set node as sensitive, otherwise remove the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener = NULL);
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive or a descendent of such
+        *
+        * see MegaNode::isMarkedSensitive to see if the node is sensitive
+        *
+        * @param node node to inspect
+        */
+        bool isSensitiveInherited(MegaNode* node);
 
         /**
          * @brief Get a list of favourite nodes.
@@ -17414,7 +17453,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes

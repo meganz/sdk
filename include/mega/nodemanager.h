@@ -82,7 +82,7 @@ public:
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
     // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive);
+    node_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
     node_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
     node_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
@@ -107,7 +107,7 @@ public:
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
 
-    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag);
+    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);

@@ -598,6 +598,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getDuration() override;
         int getWidth() override;
         bool isFavourite() override;
+        bool isMarkedSensitive() override;
         int getLabel() override;
         int getHeight() override;
         int getShortformat() override;
@@ -702,6 +703,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNodeList *children;
         MegaHandle owner;
         bool mFavourite;
+        bool mMarkedSensitive = false; // sensitive attribute set on this node
         nodelabel_t mLabel;
         bool mIsNodeKeyDecrypted = false;
 };
@@ -2556,6 +2558,7 @@ class MegaApiImpl : public MegaApp
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
+        void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -2737,6 +2740,7 @@ class MegaApiImpl : public MegaApp
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
+        bool isSensitiveInherited(MegaNode* node);
         MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
@@ -2812,7 +2816,9 @@ class MegaApiImpl : public MegaApp
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
-        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
+        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
+
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
@@ -3144,7 +3150,9 @@ protected:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
-        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, CancelToken cancelToken, bool recursive);
+        // if seachString == "" type must not be default
+        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
+
         bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;
