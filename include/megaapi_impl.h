@@ -920,7 +920,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -928,9 +928,10 @@ class MegaSharePrivate : public MegaShare
         virtual int getAccess();
         virtual int64_t getTimestamp();
         virtual bool isPending();
+        virtual bool isVerified();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -938,6 +939,7 @@ class MegaSharePrivate : public MegaShare
 		int access;
 		int64_t ts;
         bool pending;
+        bool mVerified;
 };
 
 class MegaCancelTokenPrivate : public MegaCancelToken
@@ -1875,7 +1877,6 @@ public:
     int getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
-    const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
     const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
@@ -1902,9 +1903,6 @@ private:
 
     // list of scheduled meetings Id's that have changed
     std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
-
-    // list of scheduled meetings occurrences
-    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
 
     // list of updated scheduled meetings occurrences (just in case app requested manually for more occurrences)
     std::unique_ptr<MegaScheduledMeetingList> mUpdatedOcurrences;
@@ -2105,7 +2103,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
@@ -2507,6 +2505,9 @@ class MegaApiImpl : public MegaApp
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+        void setSecureFlag(bool enable);
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
@@ -2753,12 +2754,14 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
+        MegaShareList *getUnverifiedInShares(int order);
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        MegaShareList *getUnverifiedOutShares(int order);
         bool isPrivateNode(MegaHandle h);
         bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
@@ -3323,6 +3326,8 @@ protected:
         void nodes_current() override;
         void catchup_result() override;
         void key_modified(handle, attr_t) override;
+        void upgrading_security() override;
+        void downgrade_attack() override;
 
         void fetchnodes_result(const Error&) override;
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;

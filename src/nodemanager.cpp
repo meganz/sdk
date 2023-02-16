@@ -1219,6 +1219,17 @@ void NodeManager::notifyPurge()
                     n->inshare->user->sharing.erase(n->nodehandle);
                     mClient.notifyuser(n->inshare->user);
                 }
+
+                // The node is permanently deleted, so the references in ^!keys, if any
+                handle nodehandle = n->nodehandle;
+                if (mClient.mKeyManager.generation() && mClient.mKeyManager.removeShare(nodehandle))
+                {
+                    LOG_debug << "Removing share keys related to " << toNodeHandle(nodehandle) << " due to node deletion";
+                    mClient.mKeyManager.commit([this, nodehandle]()
+                    {
+                        mClient.mKeyManager.removeShare(nodehandle);
+                    }); // No completion callback
+                }
             }
             else
             {

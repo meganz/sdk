@@ -2264,6 +2264,7 @@ MegaSharePrivate::MegaSharePrivate(MegaShare *share) : MegaShare()
     this->access = share->getAccess();
     this->ts = share->getTimestamp();
     this->pending = share->isPending();
+    this->mVerified = share->isVerified();
 }
 
 MegaShare *MegaSharePrivate::copy()
@@ -2271,7 +2272,7 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool verified)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -2283,11 +2284,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
     this->access = share->access;
     this->ts = share->ts;
     this->pending = share->pcr;
+    this->mVerified = verified;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool verified)
 {
-    return new MegaSharePrivate(nodeuint64_t, share);
+    return new MegaSharePrivate(nodeuint64_t, share, verified);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -2318,6 +2320,11 @@ int64_t MegaSharePrivate::getTimestamp()
 bool MegaSharePrivate::isPending()
 {
     return pending;
+}
+
+bool MegaSharePrivate::isVerified()
+{
+    return mVerified;
 }
 
 
@@ -4188,6 +4195,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
+        case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
+        case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
     }
     return "UNKNOWN";
 }
@@ -4950,7 +4959,7 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, byte *verified, int size)
 {
     list = NULL; s = size;
     if(!size) return;
@@ -4958,7 +4967,7 @@ MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tli
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
     {
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], verified[i]);
     }
 }
 
@@ -6891,6 +6900,145 @@ void MegaApiImpl::sendFileToUser(MegaNode *node, const char* email, MegaRequestL
     request->setEmail(email);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_UPGRADE_SECURITY, listener);
+    request->performRequest = [this, request]()
+    {
+        client->upgradeSecurity([this, request](Error e) {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setSecureFlag(bool enable)
+{
+    SdkMutexGuard m(sdkMutex);
+    client->mKeyManager.setSecureFlag(enable);
+}
+
+void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_OPEN_SHARE_DIALOG, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->performRequest = [this, request]()
+    {
+        Node *node = client->nodebyhandle(request->getNodeHandle());
+
+        client->openShareDialog(node, [this, request](Error e) {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaShareList *MegaApiImpl::getUnverifiedInShares(int order)
+{
+    SdkMutexGuard lock(sdkMutex);
+
+    node_vector nodes = client->getUnverifiedInShares();
+
+    sortByComparatorFunction(nodes, order, *client);
+
+    vector<Share*> shares;
+    handle_vector handles;
+    vector<byte> verified;
+
+    for (Node *node : nodes)
+    {
+        shares.push_back(node->inshare);
+        handles.push_back(node->nodehandle);
+        verified.push_back(false);
+    }
+
+    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), verified.data(), int(shares.size()));
+    return shareList;
+}
+
+MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+
+    // Avoid duplicate nodes present in both outshares and pending shares
+    node_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
+    for (Node* pendingShare : pendingShares)
+    {
+        bool found = false;
+        for (Node* node : outshares)
+        {
+            if (node->nodeHandle() == pendingShare->nodeHandle())
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            outshares.push_back(pendingShare);
+        }
+    }
+
+    std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
+    for (const Node* n : outshares)
+    {
+        if (n->outshares)
+        {
+            for (auto &share : *n->outshares)
+            {
+                if (share.second->user && client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))  // public links have no user
+                {
+                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                }
+            }
+        }
+
+        if (n->pendingshares)
+        {
+            for (auto &share : *n->pendingshares)
+            {
+                assert(share.second->pcr);
+                if (share.second->pcr &&
+                        client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail))
+                {
+                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                }
+            }
+        }
+    }
+
+    MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
+    vector<handle> handles;
+    vector<Share *> shares;
+    vector<byte> verified;
+    for (const Node *n: outshares)
+    {
+        for (const auto it : nodeSharesMap[n->nodeHandle()])
+        {
+            handles.push_back(n->nodehandle);
+            shares.push_back(it);
+            verified.push_back(false);
+        }
+    }
+
+    return new MegaShareListPrivate(shares.data(), handles.data(), verified.data(), int(shares.size()));
 }
 
 void MegaApiImpl::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
@@ -11073,19 +11221,22 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
 {
     SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes = client->getInShares();
+    node_vector nodes = client->getVerifiedInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 
     vector<Share*> shares;
     handle_vector handles;
+    vector<byte> verified;
+
     for (Node *node : nodes)
     {
         shares.push_back(node->inshare);
         handles.push_back(node->nodehandle);
+        verified.push_back(true);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
+    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), verified.data(), int(shares.size()));
     return shareList;
 }
 
@@ -11160,6 +11311,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             for (auto &share : *n->outshares)
             {
+                assert(!share.second->pcr);
                 if (share.second->user) // public links have no user
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
@@ -11171,7 +11323,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         {
             for (auto &share : *n->pendingshares)
             {
-                if (share.second->user || share.second->pcr) // public links have no user
+                if (share.second->pcr)
                 {
                     nodeSharesMap[n->nodeHandle()].insert(share.second);
                 }
@@ -11182,16 +11334,28 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
     MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
     vector<handle> handles;
     vector<Share *> shares;
+    vector<byte> verified;
     for (const Node *n: outshares)
     {
         for (const auto it : nodeSharesMap[n->nodeHandle()])
         {
             handles.push_back(n->nodehandle);
             shares.push_back(it);
+
+            bool isUnverified;
+            if (it->pcr)
+            {
+                isUnverified = client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->pcr->targetemail);
+            }
+            else    // here we have always a it->user, since folder links are already filtered out
+            {
+                isUnverified = client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->user->userhandle));
+            }
+            verified.push_back(!isUnverified);
         }
     }
 
-    return new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
+    return new MegaShareListPrivate(shares.data(), handles.data(), verified.data(), int(shares.size()));
 }
 
 MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
@@ -11212,16 +11376,19 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
     vector<Share*> vShares;
     vector<handle> vHandles;
+    vector<byte> vVerified;
 
     if (node->outshares)
     {
         for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
         {
             Share *share = it->second;
-            if (share->user)
+            assert(!share->pcr);
+            if (share->user)    // public links have no user
             {
                 vShares.push_back(share);
                 vHandles.push_back(node->nodehandle);
+                vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, toHandle(share->user->userhandle)));
             }
         }
     }
@@ -11230,12 +11397,19 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     {
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
-            vShares.push_back(it->second);
-            vHandles.push_back(node->nodehandle);
+            Share *share = it->second;
+            assert(share->pcr);
+            assert(!share->user);
+            if (share->pcr)
+            {
+                vShares.push_back(share);
+                vHandles.push_back(node->nodehandle);
+                vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, share->pcr->targetemail));
+            }
         }
     }
 
-    return new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
+    return new MegaShareListPrivate(vShares.data(), vHandles.data(), vVerified.data(), int(vShares.size()));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
@@ -11245,19 +11419,22 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
     node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
     vector<handle> handles;
     vector<Share *> shares;
+    vector<byte> verified;
+
     for (const Node* n : nodes)
     {
         assert(n->pendingshares);
         for (auto &share : *n->pendingshares)
         {
-            if (share.second->user || share.second->pcr) // public links have no user
+            if (share.second->pcr)
             {
                 handles.push_back(n->nodehandle);
                 shares.push_back(share.second);
+                verified.push_back(!client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail));
             }
         }
     }
-    return new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
+    return new MegaShareListPrivate(shares.data(), handles.data(), verified.data(), int(shares.size()));
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
@@ -11276,13 +11453,15 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
 
     vector<Share*> vShares;
     vector<handle> vHandles;
+    vector<byte> vVerified;
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
         vShares.push_back(it->second);
         vHandles.push_back(node->nodehandle);
+        vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, it->second->pcr->targetemail));
     }
 
-    return new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
+    return new MegaShareListPrivate(vShares.data(), vHandles.data(), vVerified.data(), int(vShares.size()));
 }
 
 bool MegaApiImpl::isPrivateNode(MegaHandle h)
@@ -14945,12 +15124,6 @@ void MegaApiImpl::putua_result(error e)
         return;
     }
 
-    if (e && client->fetchingkeys)
-    {
-        client->clearKeys();
-        client->resetKeyring();
-    }
-
     // if user just set the preferred language... change the GET param to the new language
     if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
     {
@@ -15514,6 +15687,18 @@ void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
         break;
     }
     event->setHandle(userhandle);
+    fireOnEvent(event);
+}
+
+void MegaApiImpl::upgrading_security()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_UPGRADE_SECURITY);
+    fireOnEvent(event);
+}
+
+void MegaApiImpl::downgrade_attack()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DOWNGRADE_ATTACK);
     fireOnEvent(event);
 }
 
@@ -20024,6 +20209,7 @@ void MegaApiImpl::sendPendingRequests()
             string attrvalue;
 
             if (type == ATTR_KEYRING                ||
+                    type == ATTR_KEYS               ||
                     User::isAuthring(type)          ||
                     type == ATTR_CU25519_PUBK       ||
                     type == ATTR_ED25519_PUBK       ||
@@ -23341,11 +23527,6 @@ void MegaApiImpl::sendPendingRequests()
                     std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
                     l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
                     request->setMegaScheduledMeetingList(l.get());
-                }
-                textchat_map::iterator it = client->chats.find(chatid);
-                if (!e && it != client->chats.end())
-                {
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -33137,14 +33318,14 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
         mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
     }
 
-    if (chat->getScheduledMeetingOccurrencesList() && chat->getScheduledMeetingOccurrencesList()->size())
-    {
-        mScheduledMeetingsOcurrences.reset(chat->getScheduledMeetingOccurrencesList()->copy());
-    }
-
     if (chat->getSchedMeetingsChanged() && chat->getSchedMeetingsChanged()->size())
     {
         mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
+    }
+
+    if (chat->getUpdatedOccurrencesList() && chat->getUpdatedOccurrencesList()->size())
+    {
+        mUpdatedOcurrences.reset(chat->getUpdatedOccurrencesList()->copy());
     }
 }
 
@@ -33175,15 +33356,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         }
     }
 
-    if (!chat->mScheduledMeetingsOcurrences.empty())
-    {
-        mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
-        for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
-        {
-            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
-        }
-    }
-
     if (!chat->mSchedMeetingsChanged.empty())
     {
         mSchedMeetingsChanged.reset(MegaHandleList::createInstance());
@@ -33194,8 +33366,12 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
     }
 
-    if (chat->changed.schedOcurr) // schedOcurr is true for all scenarios we request occurrences to API (mcsmfo)
+    if (chat->changed.schedOcurrReplace || chat->changed.schedOcurrAppend)
     {
+        changed |= chat->changed.schedOcurrReplace
+                ? MegaTextChat::CHANGE_TYPE_SCHED_REPLACE_OCURR
+                : MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
+
         if (!chat->mUpdatedOcurrences.empty())
         {
             mUpdatedOcurrences.reset(MegaScheduledMeetingList::createInstance());
@@ -33203,14 +33379,6 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
             {
                 mUpdatedOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
             }
-
-            // this change type indicates that we need to preserve our current occurrences list, and append new ones
-            changed |= MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
-        }
-        else
-        {
-            // this change type indicates that we need to discard our current occurrences list and add occurrences at TextChat::mScheduledMeetingsOcurrences
-            changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
         }
     }
 
@@ -33334,11 +33502,6 @@ int MegaTextChatPrivate::getChanges() const
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
 {
     return mScheduledMeetings.get();
-}
-
-const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
-{
-    return mScheduledMeetingsOcurrences.get();
 }
 
 const MegaScheduledMeetingList* MegaTextChatPrivate::getUpdatedOccurrencesList() const
@@ -33836,6 +33999,9 @@ const char *MegaEventPrivate::getEventString(int type)
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
+        case MegaEvent::EVENT_RELOAD: return "RELOAD";
+        case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
+        case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
     }
 
     return "UNKNOWN";
