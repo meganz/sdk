@@ -3193,7 +3193,7 @@ bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    client.syncs.enableSyncByBackupId(id, false, true,
+    client.syncs.enableSyncByBackupId(id, false, false, true,
         [result](error e, SyncError, handle){ result->set_value(!e); }, id, logname);
 }
 
