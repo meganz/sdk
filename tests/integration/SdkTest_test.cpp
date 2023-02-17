@@ -291,6 +291,7 @@ void SdkTest::Cleanup()
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
+    delSchedMeetings();
 
 #ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
@@ -576,6 +577,16 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
             break;
 
+    case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
+        if (mApi[static_cast<size_t>(apiIndex)].lastError == API_OK
+            && request->getMegaScheduledMeetingList()
+            && request->getMegaScheduledMeetingList()->size() == 1)
+        {
+            mApi[static_cast<size_t>(apiIndex)].schedUpdated = true;
+            mApi[static_cast<size_t>(apiIndex)].chatid = request->getMegaScheduledMeetingList()->at(0)->chatid();
+            mApi[static_cast<size_t>(apiIndex)].schedId = request->getMegaScheduledMeetingList()->at(0)->schedId();
+        }
+        break;
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -1130,6 +1141,74 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
     EXPECT_NE(nullptr, usr.get()) << "User " << email << " not found at apiIndex " << apiIndex;
     return megaApi[apiIndex]->areCredentialsVerified(usr.get());
 }
+
+#ifdef ENABLE_CHAT
+void SdkTest::createChatScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
+{
+    MegaHandle auxChatid = UNDEF;
+    for (auto &it: mApi[apiIndex].chats)
+    {
+        if (it.second->isGroup()
+                && it.second->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR)
+        {
+            auxChatid = it.first;
+            break;
+        }
+    }
+
+    if (auxChatid == UNDEF) // create chatroom with moderator privileges
+    {
+        mApi[apiIndex].chatUpdated = false;
+        std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
+        peers->addPeer(megaApi[apiIndex + 1]->getMyUser()->getHandle(), PRIV_STANDARD);
+        ASSERT_NO_FATAL_FAILURE( createChat(true, peers.get()) );
+
+        ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE]) )
+                << "Cannot create a new chat";
+        ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Chat creation failed (error: " << mApi[apiIndex].lastError << ")";
+        ASSERT_TRUE( waitForResponse(&mApi[apiIndex + 1].chatUpdated ))   // at the target side (auxiliar account)
+                << "Chat update not received after " << maxTimeout << " seconds";
+
+        auxChatid = mApi[apiIndex].chatid;   // set at onRequestFinish() of chat creation request
+    }
+
+    // Set scheduled meetings data
+    m_time_t startDateTime = m_time();
+    m_time_t endDateTime = startDateTime + 3600;
+    std::string title = "ScheduledMeeting_"; title.append(std::to_string(startDateTime));
+    std::unique_ptr<::mega::MegaIntegerList> byWeekDay(::mega::MegaIntegerList::createInstance());
+    byWeekDay->add(1);byWeekDay->add(3);byWeekDay->add(5);
+
+    std::unique_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance());
+    flags->importFlagsValue(1);
+
+    std::unique_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(MegaScheduledRules::FREQ_DAILY,
+                                                                                         MegaScheduledRules::INTERVAL_INVALID,
+                                                                                         0 /*until invalid*/,
+                                                                                         byWeekDay.get(), nullptr, nullptr));
+
+    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/, UNDEF /*organizerUserId*/,
+                                                                       false /*cancelled*/, "Europe/Madrid",
+                                                                       startDateTime,
+                                                                       endDateTime, title.c_str(), title.append("_Description").c_str(),
+                                                                       nullptr /*attributes*/,
+                                                                       MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                                       flags.get(), rules.get()));
+    mApi[apiIndex].schedUpdated = false;
+    mApi[apiIndex].schedId = UNDEF;
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get());
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING]) )
+            << "Cannot create a new scheduled meeting";
+
+    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Scheduled meeting creation failed (error: " << mApi[apiIndex].lastError << ")";
+
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].schedUpdated ))   // at the target side (auxiliar account)
+            << "Scheduled meeting update not received after " << maxTimeout << " seconds";
+
+    ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting id received is not valid ";
+    chatid = auxChatid;
+}
+#endif
 
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
@@ -2683,18 +2762,24 @@ void SdkTest::delSchedMeetings()
     {
         for (auto &it: mApi[i].chats)
         {
-            if (!it.second->getScheduledMeetingList()->size()) { continue; }
+            if (!it.second->getScheduledMeetingList()
+                    || !it.second->getScheduledMeetingList()->size())
+            {
+                continue;
+            }
+
             if (it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
             {
-                LOG_info << "Could not remove scheduled meetings for chat" << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
+                LOG_info << "Could not remove scheduled meetings for chat (due to insufficient permissions)"
+                         << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
                 continue;
             }
 
             const MegaScheduledMeetingList* schedList = it.second->getScheduledMeetingList();
             for (size_t j = 0; j < schedList->size(); j++)
             {
-                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(mApi[i].megaApi)));
-                mApi[i].megaApi->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId());
+                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
+                megaApi[i]->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId(), delSchedTrackers.back().get());
             }
         }
     }
@@ -10723,6 +10808,41 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
 
+    // NewScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    size_t apiIndex = 0;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].chatid = UNDEF;
+    A1dtls.userUpdated = false;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    MegaHandle chatid = UNDEF;
+    createChatScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
+    count = 0;
+
+    bool expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_NEW)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+
+    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting creation";
 
     // ContactChange  --  contact request accepted
     //--------------------------------------------

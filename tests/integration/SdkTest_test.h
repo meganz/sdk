@@ -237,8 +237,10 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
+        bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
+        MegaHandle schedId;         // last scheduled meeting added
 #endif
     };
 
@@ -468,6 +470,7 @@ public:
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
 
+    void createChatScheduledMeeting(unsigned apiIndex, MegaHandle &chatid);
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
