@@ -1281,13 +1281,157 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     return nullptr;
 }
 
+bool AddressedStallFilter::addressedNameConfict(const string& cloudPath, const LocalPath& localPath)
+{
+    lock_guard<mutex> g(m);
+
+    if (!cloudPath.empty())
+    {
+        if (addressedNameConflictCloudStalls.find(cloudPath) != addressedNameConflictCloudStalls.end())
+        {
+            return true;
+        }
+    }
+    if (!localPath.empty())
+    {
+        if (addressedNameConflictLocalStalls.find(localPath) != addressedNameConflictLocalStalls.end())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool AddressedStallFilter::addressedCloudStall(const string& cloudPath)
+{
+    assert (!cloudPath.empty());
+    lock_guard<mutex> g(m);
+    return addressedSyncCloudStalls.find(cloudPath) != addressedSyncCloudStalls.end();
+}
+
+bool AddressedStallFilter::addressedLocalStall(const LocalPath& localPath)
+{
+    assert (!localPath.empty());
+    lock_guard<mutex> g(m);
+    return addressedSyncLocalStalls.find(localPath) != addressedSyncLocalStalls.end();
+}
+
+void AddressedStallFilter::filterStallCloud(const string& cloudPath, int completedPassCount)
+{
+    lock_guard<mutex> g(m);
+    addressedSyncCloudStalls[cloudPath] = completedPassCount;
+}
+
+void AddressedStallFilter::filterStallLocal(const LocalPath& localPath, int completedPassCount)
+{
+    lock_guard<mutex> g(m);
+    addressedSyncLocalStalls[localPath] = completedPassCount;
+}
+
+void AddressedStallFilter::filterNameConfict(const string& cloudPath, const LocalPath& localPath, int completedPassCount)
+{
+    lock_guard<mutex> g(m);
+    if (!cloudPath.empty())
+    {
+        addressedNameConflictCloudStalls[cloudPath] = completedPassCount;
+    }
+    if (!localPath.empty())
+    {
+        addressedNameConflictLocalStalls[localPath] = completedPassCount;
+    }
+}
+
+void AddressedStallFilter::removeOldFilters(int completedPassCount)
+{
+    // when a filter was added, the sync code could already have started a new pass, and passed this node.
+    // So, only after we are on a number greater than n+1 of the added n can we remove a filter
+
+    for (auto i = addressedNameConflictLocalStalls.begin(); i != addressedNameConflictLocalStalls.end(); )
+    {
+        if (completedPassCount > i->second + 1)
+        {
+            i = addressedNameConflictLocalStalls.erase(i);
+        }
+        else ++i;
+    }
+    for (auto i = addressedNameConflictCloudStalls.begin(); i != addressedNameConflictCloudStalls.end(); )
+    {
+        if (completedPassCount > i->second + 1)
+        {
+            i = addressedNameConflictCloudStalls.erase(i);
+        }
+        else ++i;
+    }
+    for (auto i = addressedSyncLocalStalls.begin(); i != addressedSyncLocalStalls.end(); )
+    {
+        if (completedPassCount > i->second + 1)
+        {
+            i = addressedSyncLocalStalls.erase(i);
+        }
+        else ++i;
+    }
+    for (auto i = addressedSyncCloudStalls.begin(); i != addressedSyncCloudStalls.end(); )
+    {
+        if (completedPassCount > i->second + 1)
+        {
+            i = addressedSyncCloudStalls.erase(i);
+        }
+        else ++i;
+    }
+}
+
 void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
-    auto type = MegaRequest::TYPE_GET_SYNC_STALL_LIST;
-    auto request = make_unique<MegaRequestPrivate>(type, listener);
+    auto request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SYNC_STALL_LIST, listener);
 
-    requestQueue.push(request.release());
+    request->performRequest = [this, request]() -> error {
+
+        auto completion = [this, request](unique_ptr<SyncProblems> problems) {
+
+            mAddressedStallFilter.removeOldFilters(client->syncs.completedPassCount.load());
+
+            // If the user already addressed some sync issues but the sync hasn't made another pass
+            // to generate a new stall list, then the filter will hide those for now
+            auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
+            auto stalls = ::mega::make_unique<MegaSyncStallListPrivate>(move(*problems), mAddressedStallFilter);
+
+            request->setMegaSyncStallList(std::move(stalls));
+
+            fireOnRequestFinish(request, std::move(error));
+        };
+
+        client->syncs.getSyncProblems(std::move(completion), true);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::clearStalledPath(MegaSyncStall* stall)
+{
+    // do not report these ones anymore in calls to getMegaSyncStallList
+    // until the sync core has made another full pass over the sync tree
+
+    if (auto ptr = dynamic_cast<MegaSyncStallPrivate*>(stall))
+    {
+        if (!ptr->info.cloudPath1.cloudPath.empty())
+        {
+            mAddressedStallFilter.filterStallCloud(ptr->info.cloudPath1.cloudPath,
+                                                   client->syncs.completedPassCount.load());
+        }
+        if (!ptr->info.localPath1.localPath.empty())
+        {
+            mAddressedStallFilter.filterStallLocal(ptr->info.localPath1.localPath,
+                                                   client->syncs.completedPassCount.load());
+        }
+    }
+    else if (auto ptr = dynamic_cast<MegaSyncNameConflictStallPrivate*>(stall))
+    {
+        mAddressedStallFilter.filterNameConfict(ptr->mConflict.cloudPath,
+                                                ptr->mConflict.localPath,
+                                                client->syncs.completedPassCount.load());
+    }
 }
 
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
@@ -1380,21 +1524,30 @@ const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
     return nullptr;
 }
 
-MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncProblems& sp)
+MegaSyncStallListPrivate::MegaSyncStallListPrivate(SyncProblems&& sp, AddressedStallFilter& filter)
 {
     for(auto& nc : sp.mConflicts)
     {
-        mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+        if (!filter.addressedNameConfict(nc.cloudPath, nc.localPath))
+        {
+            mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
+        }
     }
 
     for(auto& stall : sp.mStalls.cloud)
     {
-        mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+        if (!filter.addressedCloudStall(stall.first))
+        {
+            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+        }
     }
 
     for(auto& stall : sp.mStalls.local)
     {
-        mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+        if (!filter.addressedLocalStall(stall.first))
+        {
+            mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
+        }
     }
 }
 
@@ -9036,7 +9189,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, true, [this, request](error err, SyncError serr, handle)
+                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
@@ -21650,20 +21803,6 @@ void MegaApiImpl::sendPendingRequests()
             };
 
             client->syncs.deregisterThenRemoveSync(backupId, completion, false);
-            break;
-        }
-        case MegaRequest::TYPE_GET_SYNC_STALL_LIST:
-        {
-            auto completion = [this, request](SyncProblems& problems) {
-                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
-                auto stalls = ::mega::make_unique<MegaSyncStallListPrivate>(problems);
-
-                request->setMegaSyncStallList(std::move(stalls));
-
-                fireOnRequestFinish(request, std::move(error));
-            };
-
-            client->syncs.getSyncProblems(std::move(completion), true);
             break;
         }
 #endif  // ENABLE_SYNC

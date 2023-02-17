@@ -2490,8 +2490,8 @@ class MegaSyncStallPrivate : public MegaSyncStall
         static const char*
         pathProblemDebugString(MegaSyncStall::SyncPathProblem reason);
 
-    protected:
         const SyncStallEntry info;
+    protected:
         mutable string lpConverted[2];
 };
 
@@ -2500,7 +2500,7 @@ class MegaSyncNameConflictStallPrivate : public MegaSyncStall
 public:
     MegaSyncNameConflictStallPrivate(const NameConflict& nc) : mConflict(nc) {}
 
-    MegaSyncStall* copy() const override
+    MegaSyncNameConflictStallPrivate* copy() const override
     {
         return new MegaSyncNameConflictStallPrivate(*this);
     }
@@ -2577,15 +2577,40 @@ public:
     static const char*
         pathProblemDebugString(MegaSyncStall::SyncPathProblem reason);
 
-protected:
     const NameConflict mConflict;
+protected:
     mutable map<int, string> mCache1, mCache2;
 };
+
+class AddressedStallFilter
+{
+    // Keeps track of which stalls the user addressed already
+    // So we don't re-show them if the user presses Refresh
+    // before the sync actually re-evaluates those nodes
+    // in a complete new pass over the sync nodes
+
+    mutex m;
+
+    std::map<string, int> addressedSyncCloudStalls;
+    std::map<LocalPath, int> addressedSyncLocalStalls;
+    std::map<string, int> addressedNameConflictCloudStalls;
+    std::map<LocalPath, int> addressedNameConflictLocalStalls;
+
+public:
+    bool addressedNameConfict(const string& cloudPath, const LocalPath& localPath);
+    bool addressedCloudStall(const string& cloudPath);
+    bool addressedLocalStall(const LocalPath& localPath);
+    void filterStallCloud(const string& cloudPath, int completedPassCount);
+    void filterStallLocal(const LocalPath& localPath, int completedPassCount);
+    void filterNameConfict(const string& cloudPath, const LocalPath& localPath, int completedPassCount);
+    void removeOldFilters(int completedPassCount);
+};
+
 
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:
-        MegaSyncStallListPrivate(const SyncProblems&);
+        MegaSyncStallListPrivate(SyncProblems&&, AddressedStallFilter& filter);
 
         MegaSyncStallListPrivate* copy() const override;
 
@@ -2954,6 +2979,9 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         void getMegaSyncStallList(MegaRequestListener* listener);
+        void clearStalledPath(MegaSyncStall*);
+
+        AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC
 

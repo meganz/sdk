@@ -3602,6 +3602,11 @@ void MegaApi::getMegaSyncStallList(MegaRequestListener* listener)
     pImpl->getMegaSyncStallList(listener);
 }
 
+void MegaApi::clearStalledPath(MegaSyncStall* stall)
+{
+    pImpl->clearStalledPath(stall);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);

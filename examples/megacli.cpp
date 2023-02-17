@@ -10813,7 +10813,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, pause, true, true, [pause](error err, SyncError serr, handle)
             {
                 if (err)
                 {
