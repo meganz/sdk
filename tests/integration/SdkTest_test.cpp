@@ -8226,6 +8226,18 @@ TEST_F(SdkTest, SearchByPathOfType)
         false   /*startFirst*/,
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
 
+    // Test not found cases:
+    {
+        for (auto type : {MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER, MegaNode::TYPE_UNKNOWN})
+        {
+            for (auto pathToNonExisting : {"this/does/not/exist", "/this/does/not/exist", "./thisdoesnotexist", "thisdoesnotexist"})
+            {
+                std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(pathToNonExisting, nullptr, type)};
+                ASSERT_FALSE(fileNode);
+            }
+        }
+    }
+
     // Test file search using relative path
     std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
     ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
