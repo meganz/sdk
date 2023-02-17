@@ -12327,97 +12327,42 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 }
             }
 
-        } else if (target == MegaApi::SEARCH_TARGET_INSHARE)
+        }
+        else if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
-            if (recursive)
-            {
-                // Search on inshares
-                unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
-                {
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle()); // will search first in RAM, then in DB
-                    assert(node);
-                    if (node)
-                    {
-                        // This node might be only in RAM, so searchInNodeManager() will not find it because it will only search the DB.
-                        // Beside, avoiding another search might be more efficient, so just check that node name contains the searched string.
-                        string haystack = node->displayname();
-                        string needle = searchString;
-                        if (haystack.end() != std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end(),
-                            [](unsigned char ch1, unsigned char ch2) { return std::tolower(ch1) == std::tolower(ch2); }))
-                        {
-                            result.push_back(node);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+            node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
+            result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
         }
         else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
-            if (recursive)
-            {
-                // Search on outshares
-                std::set<MegaHandle> outsharesHandles;
-                unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
-                {
-                    handle h = shares->get(i)->getNodeHandle();
-                    if (outsharesHandles.find(h) != outsharesHandles.end())
-                    {
-                        // shares list includes an item per outshare AND per sharee/user
-                        continue;   // avoid duplicates
-                    }
-                    outsharesHandles.insert(h);
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    assert(node);
-                    if (node)
-                    {
-                        // Shouldn't this avoid another DB search (!) and validate the name here, just like INSHARE above?
-                        //
-                        // Plus:
-                        // searchInNodeManager() needs _parent_ handle, later passed to NodeManager::processUnserializedNodes() as _ancestorHandle_,
-                        // which potentially creates another problem: that it can return too many results from the same parent, the one that is
-                        // an OUTSHARE and others that are not.
-                        // Adding here a vector of results should be wrong by definition. We are trying to validate one single particular share
-                        // that is shares->get(i). So only _that one_ should be added or not.
-                        node_vector nodeVector = searchInNodeManager(node->parenthandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                    }
-                }
-            }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+            node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
+            result.insert(result.end(), nodeVector.begin(), nodeVector.end());
         } 
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
             // always recursive
             node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+            set<handle> uniqueLinks;
+            for (auto& pl : publicLinks) uniqueLinks.insert(pl->nodehandle);
+            set<handle> matchedUniqueLinks;
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                 && !cancelToken.isCancelled(); it++)
             {
-                // Shouldn't this avoid another DB search (!) and validate the name here, just like INSHARE above?
-                //
-                // Plus:
-                // searchInNodeManager() needs _parent_ handle, later passed to NodeManager::processUnserializedNodes() as _ancestorHandle_,
-                // which potentially creates another problem: that it can return too many results from the same parent, the one that has
-                // a PUBLICLINK and others that have not (and it actually _always_ did in my tests, for a file -- even if that could
-                // have been due to the test setup).
-                // Adding here a vector of results should be wrong by definition. We are trying to validate one single particular publicLink
-                // that is (*it). So only _that one_ should be added or not.
                 node_vector nodeVector = searchInNodeManager((*it)->parenthandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                for (auto& l : nodeVector)
+                {
+                    if (uniqueLinks.find(l->nodehandle) != uniqueLinks.end() && matchedUniqueLinks.find(l->nodehandle) == matchedUniqueLinks.end())
+                    {
+                        matchedUniqueLinks.insert(l->nodehandle);
+                        result.push_back(l);
+                    }
+                }
             }
 
         }

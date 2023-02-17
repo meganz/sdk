@@ -3563,6 +3563,12 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(nfile1->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfile1->isTakenDown()) << "Public link is taken down, it mustn't";
 
+    // Make sure that search functionality finds it
+    std::unique_ptr<MegaNodeList>foundByLink{ megaApi[0]->searchOnPublicLinks(nfile1->getName(), nullptr) };
+    ASSERT_TRUE(foundByLink);
+    ASSERT_EQ(foundByLink->size(), 1);
+    ASSERT_EQ(foundByLink->get(0)->getHandle(), nfile1->getHandle());
+
     // Regenerate the same link should not trigger a new request
     nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
     string nodelink4 = createPublicLink(0, nfile1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
@@ -3620,6 +3626,12 @@ TEST_F(SdkTest, SdkTestShares)
 
     nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
     ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
+
+    // Make sure that search functionality finds it
+    foundByLink.reset(megaApi[0]->searchOnPublicLinks(nfolder1->getName(), nullptr));
+    ASSERT_TRUE(foundByLink);
+    ASSERT_EQ(foundByLink->size(), 1);
+    ASSERT_EQ(foundByLink->get(0)->getHandle(), nfolder1->getHandle());
 
     // Regenerate the same link should not trigger a new request
     string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
@@ -8655,6 +8667,14 @@ TEST_F(SdkTest, SyncOQTransitions)
     unique_ptr<MegaNodeList> nodeList(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
+
+    // Make sure that search functionality finds them
+    unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
+    ASSERT_TRUE(outShares);
+    ASSERT_GT(outShares->size(), 0);
+    unique_ptr<MegaNodeList> inShares(megaApi[1]->searchOnInShares(fillPath.u8string().c_str(), nullptr));
+    ASSERT_TRUE(inShares);
+    ASSERT_GT(inShares->size(), 0);
 
     LOG_verbose << "SyncOQTransitions :  Check for transition to OQ while offline.";
     std::string session = unique_ptr<char[]>(dumpSession()).get();
