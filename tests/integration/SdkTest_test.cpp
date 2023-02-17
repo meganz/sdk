@@ -8671,10 +8671,12 @@ TEST_F(SdkTest, SyncOQTransitions)
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
-    ASSERT_GT(outShares->size(), 0);
+    ASSERT_EQ(outShares->size(), 1);
+    ASSERT_EQ(outShares->get(0)->getHandle(), remoteFillNode->getHandle());
     unique_ptr<MegaNodeList> inShares(megaApi[1]->searchOnInShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(inShares);
-    ASSERT_GT(inShares->size(), 0);
+    ASSERT_EQ(inShares->size(), 1);
+    ASSERT_EQ(inShares->get(0)->getHandle(), remoteFillNode->getHandle());
 
     LOG_verbose << "SyncOQTransitions :  Check for transition to OQ while offline.";
     std::string session = unique_ptr<char[]>(dumpSession()).get();

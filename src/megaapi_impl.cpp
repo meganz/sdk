@@ -12332,17 +12332,54 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-            node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
-            result.insert(result.end(), nodeVector.begin(), nodeVector.end());
 
+            // find in-shares themselves
+            node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search in each inshare
+            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+            {
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
+                {
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                }
+            }
         }
         else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // always recursive
             // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find out-shares themselves
             node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
-            result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-        } 
+            result.swap(nodeVector);
+
+            // Search in each outshare
+            std::set<MegaHandle> outsharesHandles;
+            unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+            {
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
+                {
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
+                {
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                }
+            }
+        }
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // Search on public links
@@ -12354,7 +12391,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                 && !cancelToken.isCancelled(); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->parenthandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                // find descendants
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                for (auto& l : nodeVector)
+                {
+                    if (matchedUniqueLinks.find(l->nodehandle) == matchedUniqueLinks.end()) // if not found yet
+                    {
+                        matchedUniqueLinks.insert(l->nodehandle);
+                        result.push_back(l);
+                    }
+                }
+                // find public links themselves
+                nodeVector = searchInNodeManager((*it)->parenthandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
                 for (auto& l : nodeVector)
                 {
                     if (uniqueLinks.find(l->nodehandle) != uniqueLinks.end() && matchedUniqueLinks.find(l->nodehandle) == matchedUniqueLinks.end())
