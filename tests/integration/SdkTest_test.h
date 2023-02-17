@@ -471,6 +471,8 @@ public:
     bool areCredentialsVerified(unsigned apiIndex, string email);
 
     void createChatScheduledMeeting(unsigned apiIndex, MegaHandle &chatid);
+    void updateScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
+    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);

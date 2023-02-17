@@ -587,6 +587,14 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[static_cast<size_t>(apiIndex)].schedId = request->getMegaScheduledMeetingList()->at(0)->schedId();
         }
         break;
+
+    case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
+        if (mApi[static_cast<size_t>(apiIndex)].lastError == API_OK)
+        {
+            mApi[static_cast<size_t>(apiIndex)].schedUpdated = true;
+            mApi[static_cast<size_t>(apiIndex)].schedId = request->getParentHandle();
+        }
+        break;
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -1208,6 +1216,99 @@ void SdkTest::createChatScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
     ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting id received is not valid ";
     chatid = auxChatid;
 }
+
+void SdkTest::updateScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
+{
+    const auto isValidChat = [](const MegaTextChat* chat) -> bool
+    {
+        if (!chat) { return false; }
+
+        return chat->isGroup()
+                && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
+                && chat->getScheduledMeetingList()
+                && chat->getScheduledMeetingList()->size();
+    };
+
+    const MegaTextChat* chat = nullptr;
+    auto it = mApi[apiIndex].chats.find(chatid);
+    if (chatid == UNDEF
+            || it == mApi[apiIndex].chats.end()
+            || !isValidChat(it->second.get()))
+    {
+        for (auto &auxit: mApi[apiIndex].chats)
+        {
+            if (isValidChat(auxit.second.get()))
+            {
+                chatid = auxit.second->getHandle();
+                chat = auxit.second.get();
+                break;
+            }
+        }
+    }
+    else
+    {
+        chat = it->second.get();
+    }
+
+    ASSERT_NE(chat, nullptr) << "Invalid chat";
+    const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
+    ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
+    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(aux->chatid(), aux->schedId(), aux->parentSchedId(),
+                                                                                  aux->organizerUserid(), aux->cancelled(),
+                                                                                  aux->timezone(), aux->startDateTime(), aux->endDateTime(),
+                                                                                  (std::string(aux->title())+ "_updated").c_str(),
+                                                                                  (std::string(aux->description())+ "_updated").c_str(),
+                                                                                  aux->attributes(), MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                                                  aux->flags(), aux->rules()));
+
+
+    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), tracker.get());
+    tracker->waitForResult();
+    WaitMillisec(2000);
+}
+
+void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
+{
+    const auto isValidChat = [](const MegaTextChat* chat) -> bool
+    {
+        if (!chat) { return false; }
+
+        return chat->isGroup()
+                && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
+                && chat->getScheduledMeetingList()
+                && chat->getScheduledMeetingList()->size();
+    };
+
+    const MegaTextChat* chat = nullptr;
+    auto it = mApi[apiIndex].chats.find(chatid);
+    if (chatid == UNDEF
+            || it == mApi[apiIndex].chats.end()
+            || !isValidChat(it->second.get()))
+    {
+        for (auto &auxit: mApi[apiIndex].chats)
+        {
+            if (isValidChat(auxit.second.get()))
+            {
+                chat = auxit.second.get();
+                break;
+            }
+        }
+    }
+    else
+    {
+        chat = it->second.get();
+    }
+
+    ASSERT_NE(chat, nullptr) << "Invalid chat";
+    const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
+    ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
+    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
+    megaApi[apiIndex]->removeScheduledMeeting(aux->chatid(), aux->schedId(), tracker.get());
+    tracker->waitForResult();
+    WaitMillisec(2000);
+}
+
 #endif
 
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
@@ -10717,6 +10818,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
  *      UpdatedSharedNode (combined with previous one)
  *      DeletedShare
  *      ContactChange  --  contact deleted
+ *      NewScheduledMeeting
+ *      DeletedScheduledMeeting
+ *      UpdatedScheduledMeeting
  *
  * Not generated:
  *      UpdatedPendingContactIncoming   skipped (requires a 2 week wait)
@@ -10841,8 +10945,67 @@ TEST_F(SdkTest, SdkUserAlerts)
             expectedAlert = true;
         }
     }
+    // UpdateScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+    A1dtls.userUpdated = false;
+    mApi[apiIndex].chatid = UNDEF;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    updateScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
 
-    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting creation";
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting update not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
+    count = 0;
+
+    expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_UPDATED)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
+
+    // DeleteScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+    A1dtls.userUpdated = false;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
+    deleteScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
+
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
+    count = 0;
+
+    expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_DELETED)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
 
     // ContactChange  --  contact request accepted
     //--------------------------------------------
