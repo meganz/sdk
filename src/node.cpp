@@ -34,6 +34,8 @@
 
 namespace mega {
 
+const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
+
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
@@ -215,19 +217,27 @@ bool Node::hasChildWithName(const string& name) const
     return client->childnodebyname(this, name.c_str()) ? true : false;
 }
 
-uint64_t Node::getDBFlag() const
+Node::Flags Node::getDBFlagsBitset() const
 {
-    std::bitset<FLAGS_SIZE> flags;
+    Flags flags;
     flags.set(FLAGS_IS_VERSION, parent && parent->type == FILENODE);
     flags.set(FLAGS_IS_IN_RUBBISH, isAncestor(client->mNodeManager.getRootNodeRubbish()));
-    return flags.to_ulong();
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isMarkedSensitive());
+    return flags;
 }
 
-uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion)
+uint64_t Node::getDBFlags() const
 {
-    std::bitset<FLAGS_SIZE> flags = oldFlags;
+    return getDBFlagsBitset().to_ulong();
+}
+
+//static
+uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
+{
+    Flags flags = oldFlags;
     flags.set(FLAGS_IS_VERSION, isVersion);
     flags.set(FLAGS_IS_IN_RUBBISH, isInRubbish);
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isSensitive);
     return flags.to_ulong();
 }
 
@@ -827,12 +837,11 @@ bool Node::serialize(string* d)
 
     if (numshares)
     {
-
         if (sharekey)
         {
             d->append((char*)sharekey->key, SymmCipher::KEYLENGTH);
         }
-        else
+        else // with ^!keys, shares may not receive the sharekey along with the share's data
         {
             d->append(SymmCipher::KEYLENGTH, '\0');
         }
@@ -995,6 +1004,7 @@ void Node::setattr()
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
+        changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
         setfingerprint();
 
@@ -1008,6 +1018,62 @@ nameid Node::sdsId()
 {
     constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
     return nid;
+}
+
+bool Node::isMarkedSensitive() const
+{
+    return attrs.getBool("sen");
+}
+
+bool Node::isSensitiveInherited() const
+{
+    if (isMarkedSensitive())
+        return true;
+    Node* p = parent;
+    while (p)
+    {
+        if (p->isMarkedSensitive())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
+}
+
+bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags) const
+{
+    if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
+        return false;
+    if (requiredFlags.any() || excludeFlags.any()) 
+    {
+        Node::Flags flags = getDBFlagsBitset();
+        if ((flags & excludeFlags).any())
+            return false;
+        if ((flags & requiredFlags) != requiredFlags)
+            return false;
+    }
+    return true;
+}
+
+bool Node::anyExcludeRecursiveFlag(Node::Flags excludeRecursiveFlags) const
+{
+    if ((getDBFlagsBitset() & excludeRecursiveFlags).any())
+        return true;
+
+    const Node* p = parent;
+    while (p)
+    {
+        Node::Flags flags = p->getDBFlagsBitset();
+        if ((excludeRecursiveFlags & flags).any())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
 }
 
 vector<pair<handle, int>> Node::getSdsBackups() const
@@ -1362,9 +1428,22 @@ bool Node::applykey()
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
+        std::string undecryptedKey = nodekeydata;
         client->mAppliedKeyNodeCount++;
         nodekeydata.assign((const char*)key, keylength);
         setattr();
+        if (attrstring)
+        {
+            if (foreignkey)
+            {
+                // Decryption with a foreign share key failed.
+                // Restoring the undecrypted node key because an updated
+                // share key can be received later.
+                client->mAppliedKeyNodeCount--;
+                nodekeydata = undecryptedKey;
+            }
+            LOG_warn << "Failed to decrypt attributes for node: " << toNodeHandle(nodehandle);
+        }
     }
 
     bool applied = keyApplied();
@@ -1376,9 +1455,52 @@ bool Node::applykey()
         // and user C adds some files, which will be undecryptable for user B.
         // The ticket SDK-1959 aims to mitigate the problem. Uncomment next line when done:
         // assert(applied);
+        // This can also happen due to a race condition between the creation / destruction of shares
+        // the retrieval keys using "pk" and the update of the "^!keys" attribute.
+        // If a folder is shared / unshared / shared, it's possible to reach this code with the old share
+        // key, that could be in "mNewKeyRepository" (not in n->sharekey because Node::testShareKey is
+        // used to prevent it).
     }
 
     return applied;
+}
+
+bool Node::testShareKey(const byte *shareKey)
+{
+    if (keyApplied() || !attrstring)
+    {
+        return true;
+    }
+
+    std::string mark = toNodeHandle(nodehandle) + ":";
+    size_t p = nodekeydata.find(mark);
+    if (p == string::npos)
+    {
+        return true;
+    }
+
+    byte key[FILENODEKEYLENGTH];
+    unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
+    const char* k = nodekeydata.c_str() + p + mark.size();
+    SymmCipher *sc = client->getRecycledTemporaryNodeCipher(shareKey);
+    if (!client->decryptkey(k, key, keylength, sc, 0, UNDEF))
+    {
+        // This should never happen (malformed key)
+        LOG_err << "Malformed node key detected";
+        assert(false);
+        return true; // The share key could be OK
+    }
+
+    sc = client->getRecycledTemporaryNodeCipher(key);
+    byte* buf = Node::decryptattr(sc, attrstring->c_str(), attrstring->size());
+    if (!buf)
+    {
+        LOG_warn << "Outdated / incorrect share key detected for " << toNodeHandle(nodehandle);
+        return false;
+    }
+
+    delete [] buf;
+    return true;
 }
 
 NodeCounter Node::getCounter() const

@@ -46,6 +46,8 @@ struct MEGA_API AttrMap
 {
     attr_map map;
 
+    bool getBool(const char* name) const;
+
     // compute rough storage size
     unsigned storagesize(int) const;
 
