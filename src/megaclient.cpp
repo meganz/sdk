@@ -586,7 +586,7 @@ node_vector MegaClient::getVerifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && !mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -604,7 +604,7 @@ node_vector MegaClient::getUnverifiedInShares()
         for (auto &share : it.second.sharing)
         {
             Node *n = nodebyhandle(share);
-            if (n && !n->parent && !n->sharekey)    // top-level inshare have parent==nullptr
+            if (n && !n->parent && mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -1150,19 +1150,14 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {
-        nameid favnid = AttrMap::string2nameid("fav");
-        auto it = previousNode->attrs.map.find(favnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[favnid] = it->second;
-        }
-
-        nameid lblnid = AttrMap::string2nameid("lbl");
-        it = previousNode->attrs.map.find(lblnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[lblnid] = it->second;
+    {        
+        for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
+            nameid id = AttrMap::string2nameid(attr.c_str());
+            auto it = previousNode->attrs.map.find(id);
+            if (it != previousNode->attrs.map.end())
+            {
+                attrs.map[id] = it->second;
+            }
         }
     }
 }
@@ -6261,7 +6256,7 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
-                if (mKeyManager.isSecure() && mKeyManager.generation()) // Same logic as below but without using the key
+                if (!k || (mKeyManager.isSecure() && mKeyManager.generation())) // Same logic as below but without using the key
                 {
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
@@ -6339,24 +6334,6 @@ bool MegaClient::sc_shares()
                         //Returns false because as this is a new share, the node
                         //could not have been received yet
                         return false;
-                    }
-                }
-                else
-                {
-                    // Outshare or pending outshare
-                    if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
-                    {
-                        handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
-                        {
-                            User* u = finduser(peer);
-                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
-                        }
-
-                        // share revocation or share without key
-                        newshares.push_back(new NewShare(h, outbound,
-                                                         peer, r, 0, NULL, NULL, p, false, okremoved));
-                        return r == ACCESS_UNKNOWN;
                     }
                 }
 
@@ -7605,15 +7582,11 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->id;
-
-                        // remove scheduled meetings occurrences and children
-                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
-
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                         createDeletedSMAlert(ou, chatid, schedId);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
@@ -7635,10 +7608,12 @@ void MegaClient::sc_delscheduledmeeting()
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
 void MegaClient::sc_scheduledmeetings()
 {
+    handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
-    handle ou = UNDEF;
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs);
+    handle_set childMeetingsDeleted;
+
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -7654,25 +7629,19 @@ void MegaClient::sc_scheduledmeetings()
             LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
             continue;
         }
-
-        // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-
-        // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-
-        // remove all child scheduled meeting occurrences
-        // API currently just supports 1 level in scheduled meetings hierarchy
-        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
-        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
-        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
-
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+
+        // remove child scheduled meetings in cmd (child meetings deleted) array
+        chat->removeSchedMeetingsList(childMeetingsDeleted);
+
+        // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
+
+        if (res || !childMeetingsDeleted.empty())
         {
             if (!res)
             {
@@ -7684,14 +7653,18 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            for_each(begin(deletedChildren), end(deletedChildren),
+            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
                 else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
+
+        // fetch for fresh scheduled meetings occurrences
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
@@ -8089,6 +8062,7 @@ void MegaClient::notifypurge(void)
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
             chat->mSchedMeetingsChanged.clear();
+            chat->mUpdatedOcurrences.clear();
         }
 
         chatnotify.clear();
@@ -8463,6 +8437,8 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     {
         return API_EACCESS;
     }
+    
+    n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);
@@ -11369,6 +11345,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     {
         LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
         completion(API_EKEY, writable);
+        if (user && user->isTemporary) delete user;
         return;
     }
 
@@ -11383,6 +11360,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         if (!(n = nodebyhandle(nodehandle)))
         {
             completion(API_ENOENT, writable);
+            if (user && user->isTemporary) delete user;
             return;
         }
 
@@ -12417,12 +12395,8 @@ void MegaClient::procmcsm(JSON *j)
         }
 
         // add scheduled meeting
-        handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
-
-        // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 #endif
@@ -14670,11 +14644,16 @@ error MegaClient::resetCredentials(handle uh)
 
 bool MegaClient::areCredentialsVerified(handle uh)
 {
+    if (uh == me)
+    {
+        return false;
+    }
+
     AuthRingsMap::const_iterator itCu = mAuthRings.find(ATTR_AUTHCU255);
     bool cuAuthringFound = itCu != mAuthRings.end();
     if (!cuAuthringFound || !itCu->second.areCredentialsVerified(uh))
     {
-        LOG_debug << "Failed to verify Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
+        LOG_err << "Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
         return false;
     }
 
@@ -14682,7 +14661,7 @@ bool MegaClient::areCredentialsVerified(handle uh)
     bool edAuthringFound = it != mAuthRings.end();
     if (!edAuthringFound || !it->second.areCredentialsVerified(uh))
     {
-        LOG_debug << "Failed to verify Ed25519 for " << toHandle(uh) << ": " << (!edAuthringFound ? "authring missing" : "fingerprint not verified");
+        if (!edAuthringFound) LOG_err << "Ed25519 for " << toHandle(uh) << ": " << "authring missing";
         return false;
     }
 
@@ -18381,7 +18360,8 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce,
-                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
+                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
+                                         handle_set* childMeetingsDeleted)
 {
     JSON* auxJson = j
             ? j         // custom Json provided
@@ -18617,6 +18597,19 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         parseScheduledMeetingChangeset(auxJson, cs);
                         auxJson->leaveobject();
+                    }
+                    break;
+                }
+                case MAKENAMEID3('c', 'm', 'd'):
+                {
+                    assert(childMeetingsDeleted);
+                    if (auxJson->enterarray() && childMeetingsDeleted)
+                    {
+                        while(auxJson->ishandle())
+                        {
+                            childMeetingsDeleted->insert(auxJson->gethandle());
+                        }
+                        auxJson->leavearray();
                     }
                     break;
                 }
@@ -20158,7 +20151,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         string prRSABin = Base64::atob(prRSA);
         AsymmCipher ac;
 
-        LOG_verbose << prRSA << "\n\n" << Utils::stringToHex(prRSABin);
         if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
         {
             LOG_err << "Priv RSA key problem during KeyManager initialization.";
@@ -20169,7 +20161,6 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
             // Store it in the short format (3 Ints): pqd.
             ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
         }
-        LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
     }
     else
     {
@@ -20688,26 +20679,49 @@ bool KeyManager::promotePendingShares()
     return attributeUpdated;
 }
 
-bool KeyManager::isUnverifiedOutShare(handle nodeHandle, handle userHandle)
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
 {
-    if (ISUNDEF(userHandle))
-    {
-        return true;
-    }
-
     auto it = mPendingOutShares.find(nodeHandle);
     if (it == mPendingOutShares.end())
     {
         return false;
     }
 
-    for (const auto& uid : it->second)
+    for (const auto& uidIt : it->second)
     {
-        User *u = mClient.finduser(uid.c_str(), 0);
-        if (u && u->userhandle == userHandle)
+        if (uidIt == uid)
         {
             return true;
         }
+
+        // if 'uid' is a userhandle, try to match by email
+        // (in case of pending outshare that later upgrades to outshare by
+        // sharee accepting the PCR, the 'uid' in 'keys.pendingoutshares' will
+        // keep the email, but we already know the userHandle)
+        if (uid.find("@") == uid.npos)
+        {
+            User* u = mClient.finduser(uid.c_str(), 0);
+            if (u && uidIt == u->email)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
+{
+    auto it = mPendingInShares.find(toNodeHandle(nodeHandle));
+    if (it == mPendingInShares.end())
+    {
+        return false;
+    }
+
+    if (it->second.first == userHandle)
+    {
+        return true;
     }
     return false;
 }

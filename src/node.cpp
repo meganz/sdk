@@ -34,6 +34,8 @@
 
 namespace mega {
 
+const vector<string> Node::attributesToCopyIntoPreviousVersions{ "fav", "lbl", "sen" };
+
 Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
@@ -215,19 +217,27 @@ bool Node::hasChildWithName(const string& name) const
     return client->childnodebyname(this, name.c_str()) ? true : false;
 }
 
-uint64_t Node::getDBFlag() const
+Node::Flags Node::getDBFlagsBitset() const
 {
-    std::bitset<FLAGS_SIZE> flags;
+    Flags flags;
     flags.set(FLAGS_IS_VERSION, parent && parent->type == FILENODE);
     flags.set(FLAGS_IS_IN_RUBBISH, isAncestor(client->mNodeManager.getRootNodeRubbish()));
-    return flags.to_ulong();
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isMarkedSensitive());
+    return flags;
 }
 
-uint64_t Node::getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion)
+uint64_t Node::getDBFlags() const
 {
-    std::bitset<FLAGS_SIZE> flags = oldFlags;
+    return getDBFlagsBitset().to_ulong();
+}
+
+//static
+uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive)
+{
+    Flags flags = oldFlags;
     flags.set(FLAGS_IS_VERSION, isVersion);
     flags.set(FLAGS_IS_IN_RUBBISH, isInRubbish);
+    flags.set(FLAGS_IS_MARKED_SENSTIVE, isSensitive);
     return flags.to_ulong();
 }
 
@@ -994,6 +1004,7 @@ void Node::setattr()
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
+        changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
         setfingerprint();
 
@@ -1007,6 +1018,62 @@ nameid Node::sdsId()
 {
     constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
     return nid;
+}
+
+bool Node::isMarkedSensitive() const
+{
+    return attrs.getBool("sen");
+}
+
+bool Node::isSensitiveInherited() const
+{
+    if (isMarkedSensitive())
+        return true;
+    Node* p = parent;
+    while (p)
+    {
+        if (p->isMarkedSensitive())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
+}
+
+bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags) const
+{
+    if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
+        return false;
+    if (requiredFlags.any() || excludeFlags.any()) 
+    {
+        Node::Flags flags = getDBFlagsBitset();
+        if ((flags & excludeFlags).any())
+            return false;
+        if ((flags & requiredFlags) != requiredFlags)
+            return false;
+    }
+    return true;
+}
+
+bool Node::anyExcludeRecursiveFlag(Node::Flags excludeRecursiveFlags) const
+{
+    if ((getDBFlagsBitset() & excludeRecursiveFlags).any())
+        return true;
+
+    const Node* p = parent;
+    while (p)
+    {
+        Node::Flags flags = p->getDBFlagsBitset();
+        if ((excludeRecursiveFlags & flags).any())
+        {
+            return true;
+        }
+        p = p->parent;
+    }
+
+    return false;
 }
 
 vector<pair<handle, int>> Node::getSdsBackups() const

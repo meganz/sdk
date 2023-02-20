@@ -1787,23 +1787,26 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     return n;
 }
 
-static void listnodeshares(Node* n)
+static void listnodeshares(Node* n, bool printLinks)
 {
     if(n->outshares)
     {
         for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
-            cout << "\t" << n->displayname();
+            assert(!it->second->pcr);
 
-            if (it->first)
+            if (printLinks && !it->second->user)
             {
-                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
-                     << (n->client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->user->userhandle) ? " (unverified)" : "")
-                     << endl;
-            }
-            else
-            {
+                cout << "\t" << n->displayname();
                 cout << ", shared as exported folder link" << endl;
+            }
+
+            if (!printLinks && it->second->user)
+            {
+                cout << "\t" << n->displayname();
+                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
+                     << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->second->user->userhandle)) ? " (unverified)" : "")
+                     << endl;
             }
         }
     }
@@ -1817,25 +1820,27 @@ static void listnodependingshares(Node* n)
         {
             cout << "\t" << n->displayname();
 
-            if (it->first)
-            {
-                cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")";
-            }
+            assert(it->second->pcr);
+            assert(!it->second->user);
 
-            cout << endl;
+            cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")"
+                 << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->pcr->targetemail) ? " (unverified)" : "")
+                 << endl;
         }
     }
 }
 
 static void listallshares()
 {
-    cout << "Shared folders:" << endl;
+    cout << "Outgoing shared folders:" << endl;
 
     node_vector outshares = client->mNodeManager.getNodesWithOutShares();
     for (auto& share : outshares)
     {
-        listnodeshares(share);
+        listnodeshares(share, false);
     }
+
+    cout << "Incoming shared folders:" << endl;
 
     for (user_map::iterator uit = client->users.begin();
         uit != client->users.end(); uit++)
@@ -1854,14 +1859,14 @@ static void listallshares()
                 {
                     cout << "\t" << n->displayname() << " ("
                         << getAccessLevelStr(n->inshare->access) << ")"
-                        << (n->sharekey ? "" : " (unverified)")
+                        << (client->mKeyManager.isUnverifiedInShare(n->nodehandle, u->userhandle) ? " (unverified)" : "")
                         << endl;
                 }
             }
         }
     }
 
-    cout << "Pending shared folders:" << endl;
+    cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
     node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
@@ -1869,6 +1874,15 @@ static void listallshares()
     {
         listnodependingshares(share);
     }
+
+    cout << "Public folder links:" << endl;
+
+    node_vector links = client->mNodeManager.getNodesWithLinks();
+    for (auto& share : links)
+    {
+        listnodeshares(share, true);
+    }
+
 }
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
@@ -4134,7 +4148,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
-    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive"))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -4251,6 +4265,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
+    p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -5978,7 +5993,7 @@ void exec_share(autocomplete::ACState& s)
         {
             if (s.words.size() == 2)
             {
-                listnodeshares(n);
+                listnodeshares(n, false);
             }
             else
             {
@@ -6067,7 +6082,7 @@ void exec_users(autocomplete::ACState& s)
         {
             if (it->second.email.size())
             {
-                cout << "\t" << it->second.email;
+                cout << "\t" << it->second.email << " (" << toHandle(it->second.userhandle) << ")";
 
                 if (it->second.userhandle == client->me)
                 {
@@ -6092,6 +6107,11 @@ void exec_users(autocomplete::ACState& s)
                 else
                 {
                     cout << ", unknown visibility (" << it->second.show << ")";
+                }
+
+                if (it->second.userhandle != client->me && client->areCredentialsVerified(it->second.userhandle))
+                {
+                    cout << ", credentials verified";
                 }
 
                 if (it->second.sharing.size())
@@ -10989,6 +11009,7 @@ void exec_searchbyname(autocomplete::ACState &s)
     if (s.words.size() >= 2)
     {
         bool recursive = !s.extractflag("-norecursive");
+        bool noSensitive = s.extractflag("-nosensitive");
 
         NodeHandle nodeHandle;
         if (s.words.size() == 3)
@@ -11004,13 +11025,28 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-
         std::string searchString = s.words[1].s;
-        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), CancelToken(), recursive);
+        Node::Flags exclusiveRecuriveFlags;
+        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
 
         for (const auto& node : nodes)
         {
             cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
         }
     }
+}
+
+void exec_secure(autocomplete::ACState &s)
+{
+    if (s.extractflag("-on"))
+    {
+        client->mKeyManager.setSecureFlag(true);
+    }
+    else if (s.extractflag("-off"))
+    {
+        client->mKeyManager.setSecureFlag(false);
+    }
+
+    cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
 }

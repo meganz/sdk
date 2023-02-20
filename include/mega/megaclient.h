@@ -309,7 +309,8 @@ public:
     void setPrivRSA(std::string privRSA);
     std::string getPrivRSA();
     bool promotePendingShares();
-    bool isUnverifiedOutShare(handle nodeHandle, handle userHandle);
+    bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
+    bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
 
     void cacheShareKeys();
     void loadShareKeys();
@@ -1096,7 +1097,8 @@ public:
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
                                  bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
-                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
+                                 handle_set* childMeetingsDeleted = nullptr);
 #endif
 
     // get mega achievements

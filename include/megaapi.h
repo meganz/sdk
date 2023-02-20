@@ -529,7 +529,8 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
-            CHANGE_TYPE_COUNTER            = 0x2000,
+            CHANGE_TYPE_COUNTER         = 0x2000,
+            CHANGE_TYPE_SENSITIVE       = 0x4000
         };
 
         static const int INVALID_DURATION = -1;
@@ -692,11 +693,21 @@ class MegaNode
         virtual int getVideocodecid();
 
         /**
-         * @brief Get the attribute of the node representing if node is marked as favourite.
+         * @brief Return if the node is marked as favourite.
          *
          * @return True if node is marked as favourite, otherwise return false (attribute is not set).
          */
         virtual bool isFavourite();
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive 
+        *
+        * see MegaApi::isSensitiveInherit to see if the node is marked sensitive
+        *   or as descendent of a node that is marked sensitive
+        *
+        * @param node node to inspect
+        */
+        virtual bool isMarkedSensitive();
 
         /**
          * @brief Get the attribute of the node representing its label.
@@ -2506,7 +2517,7 @@ public:
         CHANGE_TYPE_MODE                = 0x04,
         CHANGE_TYPE_CHAT_OPTIONS        = 0x08,
         CHANGE_TYPE_SCHED_MEETING       = 0x10,
-        CHANGE_TYPE_SCHED_OCURR         = 0x20,
+        CHANGE_TYPE_SCHED_REPLACE_OCURR = 0x20,
         CHANGE_TYPE_SCHED_APPEND_OCURR  = 0x40,
     };
 
@@ -2700,16 +2711,6 @@ public:
      * @return The list of the scheduled meetings.
      */
     virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
-
-    /**
-     * @brief Returns the scheduled meetings occurrences list.
-     *
-     * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
-     * be only valid until the MegaTextChat is deleted.
-     *
-     * @return The list of the scheduled meetings occurrences.
-     */
-    virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
 
     /**
      * @brief Returns a list with updated the scheduled meetings occurrences.
@@ -3290,19 +3291,6 @@ public:
     virtual MegaIntegerMap* copy() const;
 
     /**
-     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
-     * Returns true if index is < map size, otherwise returns false
-     * If index is not out of range, key will be copied in first parameter (key)
-     * If index is not out of range, value will be copied in second parameter (value)
-     *
-     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
-     * @param key Key of the string that you want to get from the map
-     * @param value The value associated to the key will be copied in this param
-     * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
-     */
-    virtual bool at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const;
-
-    /**
      * @brief Returns the list of keys in the MegaIntegerMap
      *
      * You take the ownership of the returned value
@@ -3310,6 +3298,16 @@ public:
      * @return A MegaIntegerList containing the keys present in the MegaIntegerMap
      */
     virtual MegaIntegerList* getKeys() const;
+
+    /**
+     * @brief Returns a list of values for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list of values for the provided key
+     */
+    virtual MegaIntegerList* get(int64_t key) const;
 
     /**
      * @brief Sets a value in the map for the given key.
@@ -3320,13 +3318,13 @@ public:
      * @param key The key in the map.
      * @param value The new value for the key in the map.
      */
-    virtual void set(const long long& /*key*/, const long long& /*value*/);
+    virtual void set(int64_t key, int64_t value);
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map
      * @return Number of pairs in the map
      */
-    virtual unsigned long long size() const;
+    virtual int64_t size() const;
 };
 
 /**
@@ -8903,8 +8901,9 @@ class MegaApi
             NODE_ATTR_COORDINATES = 1,
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
-            NODE_ATTR_FAV = 4,
+            NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
+            NODE_ATTR_SEN = 6 // "sen"
         };
 
         enum {
@@ -12502,6 +12501,33 @@ class MegaApi
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Mark a node as sensitive
+         * 
+         * @note Descendants will inherit the sensitive property.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+         *
+         * @param node Node that will receive the information.
+         * @param sensitive if true set node as sensitive, otherwise remove the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener = NULL);
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive or a descendent of such
+        *
+        * see MegaNode::isMarkedSensitive to see if the node is sensitive
+        *
+        * @param node node to inspect
+        */
+        bool isSensitiveInherited(MegaNode* node);
+
+        /**
          * @brief Get a list of favourite nodes.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
@@ -16067,6 +16093,8 @@ class MegaApi
         /**
          * @brief Get a list with all active inbound sharings from one MegaUser
          *
+         * This method returns both verified and not verified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16081,6 +16109,8 @@ class MegaApi
         /**
          * @brief Get a list with all active inbound sharings
          *
+         * This method returns both verified and not verified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16093,6 +16123,8 @@ class MegaApi
 
         /**
          * @brief Get a list with all active inbound sharings
+         *
+         * This method returns verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -16187,6 +16219,8 @@ class MegaApi
         /**
          * @brief Get a list with all active and pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16200,6 +16234,8 @@ class MegaApi
         /**
          * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
+         * This method returns both, verified and unverified shares.
+         *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
          * You take the ownership of the returned value
@@ -16212,6 +16248,8 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
@@ -16221,6 +16259,8 @@ class MegaApi
 
         /**
          * @brief Get a list with all pending outbound sharings
+         *
+         * This method returns both, verified and unverified shares.
          *
          * You take the ownership of the returned value
          *
@@ -17413,7 +17453,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
