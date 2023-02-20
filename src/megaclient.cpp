@@ -14538,13 +14538,11 @@ error MegaClient::verifyCredentials(handle uh)
         return API_EINTERNAL;
     }
 
-    AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
-    AuthMethod authMethod = authring.getAuthMethod(uh);
+    AuthMethod authMethod = itEd->second.getAuthMethod(uh);
     switch (authMethod)
     {
     case AUTH_METHOD_SEEN:
         LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
-        authring.update(uh, AUTH_METHOD_FINGERPRINT);
         break;
 
     case AUTH_METHOD_FINGERPRINT:
@@ -14561,9 +14559,7 @@ error MegaClient::verifyCredentials(handle uh)
         const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
         if (pubKey)
         {
-            string keyFingerprint = AuthRing::fingerprint(*pubKey);
             LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
-            authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
         }
         else
         {
@@ -14575,11 +14571,60 @@ error MegaClient::verifyCredentials(handle uh)
     }
 
     int tag = reqtag;
-    std::string serializedAuthring = authring.serializeForJS();
     mKeyManager.commit(
-    [this, serializedAuthring]()
+    [this, uh, uid]()
     {
         // Changes to apply in the commit
+        auto itEd = mAuthRings.find(ATTR_AUTHRING);
+        auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+        if (itEd == mAuthRings.end() || itCu == mAuthRings.end())
+        {
+            LOG_warn << "Failed to verify public Ed25519 key for user " << uid
+                     << ": authring(s) not available during commit";
+            return;
+        }
+
+        if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+        {
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << ": signature of Cu25519 public key is not verified during commit";
+            return;
+        }
+
+        AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        switch (authMethod)
+        {
+        case AUTH_METHOD_SEEN:
+            authring.update(uh, AUTH_METHOD_FINGERPRINT);
+            break;
+        case AUTH_METHOD_UNKNOWN:
+        {
+            User *user = finduser(uh);
+            const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
+            if (pubKey)
+            {
+                string keyFingerprint = AuthRing::fingerprint(*pubKey);
+                LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid
+                         << ": key is not tracked yet during commit";
+                authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
+                break;
+            }
+            else
+            {
+                LOG_err << "Failed to verify credentials for user " << uid
+                        << ": key not tracked and not available during commit";
+                return;
+            }
+            break;
+        }
+        default:
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
     [this, tag]()
@@ -14607,8 +14652,7 @@ error MegaClient::resetCredentials(handle uh)
         return API_ETEMPUNAVAIL;
     }
 
-    AuthRing authring = it->second; // copy, do not update cached authring yet
-    AuthMethod authMethod = authring.getAuthMethod(uh);
+    AuthMethod authMethod = it->second.getAuthMethod(uh);
     if (authMethod == AUTH_METHOD_SEEN)
     {
         LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
@@ -14620,15 +14664,32 @@ error MegaClient::resetCredentials(handle uh)
         return API_ENOENT;
     }
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
-
     LOG_debug << "Reseting credentials for user " << uid << "...";
-    authring.update(uh, AUTH_METHOD_SEEN);
 
     int tag = reqtag;
-    string serializedAuthring = authring.serializeForJS();
     mKeyManager.commit(
-    [this, serializedAuthring]()
+    [this, uh, uid]()
     {
+        auto it = mAuthRings.find(ATTR_AUTHRING);
+        if (it == mAuthRings.end())
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << ": authring not available during commit";
+            return;
+        }
+
+        AuthRing authring = it->second; // copy, do not update cached authring yet
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        if (authMethod != AUTH_METHOD_FINGERPRINT)
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        authring.update(uh, AUTH_METHOD_SEEN);
+        string serializedAuthring = authring.serializeForJS();
+
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
