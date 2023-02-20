@@ -20880,7 +20880,7 @@ void KeyManager::nextCommit()
     if (nextQueue.size())
     {
         LOG_debug << "[keymgr] Initializing a new commit"
-                  << " with " << activeQueue.size() << " updates";
+                  << " with " << nextQueue.size() << " updates";
         activeQueue = move(nextQueue);
         nextQueue = {};
         tryCommit(API_EINCOMPLETE, [this]() { nextCommit(); });
