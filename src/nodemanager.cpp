@@ -95,6 +95,7 @@ void NodeManager::notifyNode(Node* n)
             changed |= n->changed.newnode << 10;
             changed |= n->changed.name << 11;
             changed |= n->changed.favourite << 12;
+            changed |= n->changed.sensitive << 13;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
@@ -437,7 +438,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag, bool recursive)
+node_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     node_vector nodes;
     if (!mTable || mNodes.empty())
@@ -453,11 +454,22 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
     }
     else
     {
-        assert(!nodeHandle.isUndef());
-        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, nodeHandle, cancelFlag);
+        assert(!ancestorHandle.isUndef());
+        mTable->searchForNodesByNameNoRecursive(searchString, nodesFromTable, ancestorHandle, cancelFlag);
     }
 
-    nodes = processUnserializedNodes(nodesFromTable, nodeHandle, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
+    if (requiredFlags.any() || excludeFlags.any() || excludeRecursiveFlags.any())
+    {
+        node_vector isnodes;
+        for (Node* node : nodes)
+        {
+            if (!node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
+                continue;
+            isnodes.push_back(node);
+        }
+        return isnodes;
+    }
 
     return nodes;
 }
@@ -728,7 +740,7 @@ node_vector NodeManager::getNodesWithLinks()
     return getNodesWithSharesOrLink(ShareType_t::LINK);
 }
 
-node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
+node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     if (!mTable || mNodes.empty())
     {
@@ -737,7 +749,14 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+    if (excludeRecursiveFlags.none())
+    {
+        mTable->getNodesByMimetype(mimeType, nodesFromTable, requiredFlags, excludeFlags, cancelFlag);
+    }
+    else
+    {
+        mTable->getNodesByMimetypeExclusiveRecursive(mimeType, nodesFromTable, requiredFlags, excludeFlags, excludeRecursiveFlags, ancestorHandle, cancelFlag);
+    }
 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
@@ -811,7 +830,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     {
         nodeType = node->type;
         nodeSize = node->size;
-        flags = node->getDBFlag();
+        flags = node->getDBFlags();
     }
     else
     {
@@ -820,8 +839,8 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
             assert(false);
             return nc;
         }
-
-        flags = Node::getDBFlag(flags, isInRubbish, parentType == FILENODE);
+        std::bitset<Node::FLAGS_SIZE> bitset(flags);
+        flags = Node::getDBFlags(flags, isInRubbish, parentType == FILENODE, bitset.test(Node::FLAGS_IS_MARKED_SENSTIVE));
     }
 
     const nodePtr_map* children = nullptr;
@@ -1218,6 +1237,17 @@ void NodeManager::notifyPurge()
                 {
                     n->inshare->user->sharing.erase(n->nodehandle);
                     mClient.notifyuser(n->inshare->user);
+                }
+
+                // The node is permanently deleted, so the references in ^!keys, if any
+                handle nodehandle = n->nodehandle;
+                if (mClient.mKeyManager.generation() && mClient.mKeyManager.removeShare(nodehandle))
+                {
+                    LOG_debug << "Removing share keys related to " << toNodeHandle(nodehandle) << " due to node deletion";
+                    mClient.mKeyManager.commit([this, nodehandle]()
+                    {
+                        mClient.mKeyManager.removeShare(nodehandle);
+                    }); // No completion callback
                 }
             }
             else

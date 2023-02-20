@@ -654,7 +654,7 @@ int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
     int ret = decodeintarray(key, numints, data, len);
-    if (numints == PRIVKEY && ret && !isvalid(numints)) return 0;
+    if ((numints == PRIVKEY || numints == PRIVKEY_SHORT) && ret && !isvalid(numints)) return 0;
     padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
     return ret;
 }
@@ -706,7 +706,7 @@ void AsymmCipher::serializekey(string* d, int keytype)
 void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool headers)
 {
     unsigned size = 0;
-    char c;
+    unsigned char c;
 
     for (int i = numints; i--;)
     {
@@ -724,17 +724,18 @@ void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool hea
     {
         if (headers)
         {
-            c = static_cast<char>(t[i].BitCount() >> 8);
-            d->append(&c, sizeof c);
+            unsigned int bitCount = t[i].ByteCount() * 8;
+            c = (bitCount & 0x0000FF00) >> 8;
+            d->append((char*)(&c), sizeof c);
 
-            c = (char)t[i].BitCount();
-            d->append(&c, sizeof c);
+            c = bitCount & 0x000000FF;
+            d->append((char*)&c, sizeof c);
         }
 
         for (int j = t[i].ByteCount(); j--;)
         {
             c = t[i].GetByte(j);
-            d->append(&c, sizeof c);
+            d->append((char*)&c, sizeof c);
         }
     }
 }
@@ -765,6 +766,12 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
         p += n;
     }
 
+    // If u is not present, calculate it.
+    if (numints == PRIVKEY_SHORT)
+    {
+        t[PRIV_U] = t[PRIV_P].InverseMod(t[PRIV_Q]);
+    }
+
     return i == numints && len - p < 16;
 }
 
@@ -775,7 +782,7 @@ int AsymmCipher::isvalid(int keytype)
         return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
     }
 
-    if (keytype == PRIVKEY)
+    if (keytype == PRIVKEY || keytype == PRIVKEY_SHORT)
     {
         // detect private key blob corruption - prevent API-exploitable RSA oracle requiring 500+ logins
         return key[PRIV_P].BitCount() > 1000 &&

@@ -40,6 +40,8 @@ typedef NS_ENUM(NSUInteger, Event) {
 #endif
     EventReqStatProgress = 15,
     EventReloading = 16,
+    EventReload = 17,
+    EventUpgradeSecurity = 18,
 };
 
 /**
