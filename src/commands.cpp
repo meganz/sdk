@@ -6638,18 +6638,18 @@ bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, const vector<byte>& authKey)
 {
     cmd("us");
     arg("user", email);
-    arg("uh", (byte*)&emailhash, sizeof emailhash);
+    arg("uh", authKey.data(), (int)authKey.size());
 
     tag = client->reqtag;
 }
 
 bool CommandValidatePassword::procresult(Result r)
 {
-    if (r.wasError(API_OK))
+    if (r.wasErrorOrOK())
     {
         client->app->validatepassword_result(r.errorOrOK());
         return true;

@@ -996,7 +996,7 @@ class MEGA_API CommandValidatePassword : public Command
 public:
     bool procresult(Result) override;
 
-    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+    CommandValidatePassword(MegaClient*, const char*, const vector<byte>&);
 };
 
 class MEGA_API CommandGetEmailLink : public Command

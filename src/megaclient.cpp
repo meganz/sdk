@@ -10420,6 +10420,45 @@ void MegaClient::login(string session)
 }
 
 // check password's integrity
+error MegaClient::validatepwd(const char* pswd)
+{
+    User *u = finduser(me);
+    if (!u)
+    {
+        return API_EACCESS;
+    }
+
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(pswd, pwkey);
+
+        SymmCipher pwcipher(pwkey);
+        pwcipher.setkey((byte*)pwkey);
+
+        string lcemail(u->email);
+        uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+        vector<byte> eh((byte*)&emailhash, (byte*)&emailhash + sizeof(emailhash) / sizeof(byte));
+
+        reqs.add(new CommandValidatePassword(this, lcemail.c_str(), eh));
+
+        return API_OK;
+
+    }
+    else if (accountversion == 2)
+    {
+        vector<byte> dk = deriveKey(pswd, accountsalt);
+        dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
+        reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
+
+        return API_OK;
+    }
+    else
+    {
+        return API_ENOENT;
+    }
+}
+
 bool MegaClient::validatepwdlocally(const char* pswd)
 {
     if (!pswd || !pswd[0] || k.size() != SymmCipher::KEYLENGTH)
@@ -10461,25 +10500,6 @@ bool MegaClient::validatepwdlocally(const char* pswd)
     }
 
     return !memcmp(tmpk.data(), key.key, SymmCipher::KEYLENGTH);
-}
-
-error MegaClient::validatepwd(const byte *pwkey)
-{
-    User *u = finduser(me);
-    if (!u)
-    {
-        return API_EACCESS;
-    }
-
-    SymmCipher pwcipher(pwkey);
-    pwcipher.setkey((byte*)pwkey);
-
-    string lcemail(u->email.c_str());
-    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
-
-    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
-
-    return API_OK;
 }
 
 int MegaClient::dumpsession(string& session)
@@ -13117,6 +13137,16 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
     reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
+}
+
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+{
+    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
+        (const byte*)salt.data(), salt.size(), 100000);
+
+    return derivedKey;
 }
 
 // create ephemeral session
