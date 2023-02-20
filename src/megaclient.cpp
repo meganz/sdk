@@ -11345,6 +11345,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     {
         LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
         completion(API_EKEY, writable);
+        if (user && user->isTemporary) delete user;
         return;
     }
 
@@ -11359,6 +11360,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         if (!(n = nodebyhandle(nodehandle)))
         {
             completion(API_ENOENT, writable);
+            if (user && user->isTemporary) delete user;
             return;
         }
 
