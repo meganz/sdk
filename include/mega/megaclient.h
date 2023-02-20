@@ -362,7 +362,7 @@ private:
     SymmCipher mKey;
 
     // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = false;
+    bool mSecure = true;
 
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
