@@ -150,6 +150,15 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // try to resolve node key string
     bool applykey();
 
+    // Returns false if the share key can't correctly decrypt the key and the
+    // attributes of the node. Otherwise, it returns true. There are cases in
+    // which it's not possible to check if the key is valid (for example when
+    // the node is already decrypted). In those cases, this function returns
+    // true, because it is intended to discard outdated share keys that could
+    // make nodes undecryptable until the next full reload. That way, nodes
+    // can be decrypted when the updated share key is received.
+    bool testShareKey(const byte* shareKey);
+
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
 
@@ -302,6 +311,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     int getShareType() const;
 
     bool isAncestor(NodeHandle ancestorHandle) const;
+
+    // true for outshares, pending outshares and folder links (which are shared folders internally)
+    bool isShared() const { return  (outshares && !outshares->empty()) || (pendingshares && !pendingshares->empty()); }
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);

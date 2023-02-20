@@ -92,6 +92,14 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 @property (nonatomic, readonly, getter=isPending) BOOL pending;
 
 /**
+ * @brief Returns YES if the sharing is verified
+ *
+ * A sharing is verified when the keys have been shared with the other user after
+ * verifying his credentials (see MegaApi::verifyCredentials).
+ */
+@property (nonatomic, readonly, getter=isVerified) BOOL verified;
+
+/**
  * @brief Creates a copy of this MEGAShare object.
  *
  * The resulting object is fully independent of the source MEGAShare,

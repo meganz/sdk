@@ -29,8 +29,6 @@ const std::string EdDSA::TLV_KEY = "prEd255";
 
 EdDSA::EdDSA(PrnGen &rng, unsigned char *keySeed)
 {
-    initializationOK = false;
-
     if (sodium_init() == -1)
     {
         LOG_err << "Cannot initialize sodium library.";
@@ -50,6 +48,7 @@ EdDSA::EdDSA(PrnGen &rng, unsigned char *keySeed)
     if (crypto_sign_seed_keypair(this->pubKey, this->privKey, this->keySeed) != 0)
     {
         LOG_err << "Error generating an Ed25519 key pair.";
+        return;
     }
 
     initializationOK = true;
@@ -136,28 +135,38 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
 
 const std::string ECDH::TLV_KEY= "prCu255";
 
-ECDH::ECDH(unsigned char *privKey)
+ECDH::ECDH()
 {
-    initializationOK = false;
-
     if (sodium_init() == -1)
     {
         LOG_err << "Cannot initialize sodium library.";
         return;
     }
 
-    if (privKey)    // then use the value
-    {
-        memcpy(this->privKey, privKey, PRIVATE_KEY_LENGTH);
+    // create a new key pair
+    crypto_box_keypair(this->pubKey, this->privKey);
 
-        // derive public key from privKey
-        crypto_scalarmult_base(this->pubKey, this->privKey);
-    }
-    else
+    initializationOK = true;
+}
+
+ECDH::ECDH(const string& privKey)
+{
+    if (sodium_init() == -1)
     {
-        // no private key specified: create a new key pair
-        crypto_box_keypair(this->pubKey, this->privKey);
+        LOG_err << "Cannot initialize sodium library.";
+        return;
     }
+
+    if (privKey.size() != PRIVATE_KEY_LENGTH)
+    {
+        LOG_err << "Invalid size of private Cu25519 key";
+        return;
+    }
+
+    memcpy(this->privKey, privKey.data(), PRIVATE_KEY_LENGTH);
+
+    // derive public key from privKey
+    crypto_scalarmult_base(this->pubKey, this->privKey);
 
     initializationOK = true;
 }

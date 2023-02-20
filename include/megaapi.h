@@ -2400,6 +2400,16 @@ class MegaShare
          * @return True if the sharing is pending, otherwise false.
          */
         virtual bool isPending();
+
+        /**
+         * @brief Returns true if the sharing is verified
+         *
+         * A sharing is verified when the keys have been shared with the other user after
+         * verifying his credentials (see MegaApi::verifyCredentials).
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isVerified();
 };
 
 #ifdef ENABLE_CHAT
@@ -2496,7 +2506,7 @@ public:
         CHANGE_TYPE_MODE                = 0x04,
         CHANGE_TYPE_CHAT_OPTIONS        = 0x08,
         CHANGE_TYPE_SCHED_MEETING       = 0x10,
-        CHANGE_TYPE_SCHED_OCURR         = 0x20,
+        CHANGE_TYPE_SCHED_REPLACE_OCURR = 0x20,
         CHANGE_TYPE_SCHED_APPEND_OCURR  = 0x40,
     };
 
@@ -2690,16 +2700,6 @@ public:
      * @return The list of the scheduled meetings.
      */
     virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
-
-    /**
-     * @brief Returns the scheduled meetings occurrences list.
-     *
-     * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
-     * be only valid until the MegaTextChat is deleted.
-     *
-     * @return The list of the scheduled meetings occurrences.
-     */
-    virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
 
     /**
      * @brief Returns a list with updated the scheduled meetings occurrences.
@@ -4211,7 +4211,9 @@ class MegaRequest
             TYPE_DEL_SCHEDULED_MEETING                                      = 159,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 160,
             TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES                        = 161,
-            TOTAL_OF_REQUEST_TYPES                                          = 162,
+            TYPE_OPEN_SHARE_DIALOG                                          = 162,
+            TYPE_UPGRADE_SECURITY                                           = 163,
+            TOTAL_OF_REQUEST_TYPES                                          = 164,
         };
 
         virtual ~MegaRequest();
@@ -5080,6 +5082,8 @@ public:
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
         EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
+        EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
@@ -7967,6 +7971,13 @@ class MegaGlobalListener
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
          *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -8555,6 +8566,13 @@ class MegaListener
          *
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
+         *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -11001,8 +11019,7 @@ class MegaApi
         /**
          * @brief Reset credentials of a given user
          *
-         * Call this function to forget the existing authentication of keys and signatures for a given
-         * user. A full reload of the account will start the authentication process again.
+         * Call this function to undo the verification of credentials done by MegaApi::verifyCrendentials
          *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:
@@ -11450,10 +11467,62 @@ class MegaApi
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Upgrade cryptographic security
+         *
+         * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+         * proceed with the cryptographic upgrade process.
+         * This should happen only once per account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPGRADE_SECURITY
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Allows to change the hardcoded value of the "secure" flag
+         *
+         * With this feature flag set, the client will manage encryption keys for
+         * shared folders in a secure way. Legacy clients won't be able to decrypt
+         * shared folders created with this flag enabled.
+         *
+         * Manual verification of credentials of users (both sharers AND sharees) is
+         * required in order to decrypt shared folders correctly.
+         *
+         * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+         * result on unexpected behavior.
+         *
+         * @param enable New value of the flag
+         */
+        void setSecureFlag(bool enable);
+
+        /**
+         * @brief Creates a new share key for the node if there is no share key already created.
+         *
+         * Apps should call it before starting any new share (MegaApi::share). Otherwise, the
+         * share request may fail.
+         *
+         * Note that it's safe to call this method for the same node multiple times.
+         *
+        * The associated request type with this request is MegaRequest::TYPE_OPEN_SHARE_DIALOG
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MegaRequest::getNodeHandle - Returns the handle of the node to share
+        *
+         * @param node The folder to share. It must be a non-root folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
@@ -11485,6 +11554,11 @@ class MegaApi
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
@@ -15981,7 +16055,9 @@ class MegaApi
         int getNumUnreadUserAlerts();
 
         /**
-         * @brief Get a list with all inbound sharings from one MegaUser
+         * @brief Get a list with all active inbound sharings from one MegaUser
+         *
+         * This method returns both verified and not verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15995,7 +16071,9 @@ class MegaApi
         MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all inboud sharings
+         * @brief Get a list with all active inbound sharings
+         *
+         * This method returns both verified and not verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -16008,7 +16086,9 @@ class MegaApi
         MegaNodeList *getInShares(int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all active inboud sharings
+         * @brief Get a list with all active inbound sharings
+         *
+         * This method returns verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -16019,6 +16099,16 @@ class MegaApi
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getInSharesList(int order = ORDER_NONE);
+
+        /**
+         * @brief Get a list with all unverified inbound sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects that other users are sharing with this account
+         */
+        MegaShareList *getUnverifiedInShares(int order = ORDER_NONE);
 
         /**
          * @brief Get the user relative to an incoming share
@@ -16093,6 +16183,8 @@ class MegaApi
         /**
          * @brief Get a list with all active and pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16106,6 +16198,8 @@ class MegaApi
         /**
          * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
+         * This method returns both, verified and unverified shares.
+         *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
          * You take the ownership of the returned value
@@ -16118,6 +16212,8 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
@@ -16128,12 +16224,24 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * You take the ownership of the returned value
          *
          * @deprecated Use MegaNode::getOutShares instead of this function
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
+
+        /**
+         * @brief Get a list with all unverified sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects
+         */
+        MegaShareList *getUnverifiedOutShares(int order = ORDER_NONE);
 
         /**
          * @brief Check if a node belongs to your own cloud
