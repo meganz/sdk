@@ -908,19 +908,16 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)salt.data(), salt.size(), 100000);
+        vector<byte> derivedKey = deriveKey(password, salt);
 
         string hashedauthkey;
-        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
         hasher.add(authkey, SymmCipher::KEYLENGTH);
         hasher.get(&hashedauthkey);
         hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
         SymmCipher cipher;
-        cipher.setkey(derivedKey);
+        cipher.setkey(derivedKey.data());
 
         if (masterkeyptr)
         {
@@ -10287,12 +10284,9 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, bsalt);
 
-    login2(email, derivedKey, pin);
+    login2(email, derivedKey.data(), pin);
 }
 
 void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
@@ -12815,9 +12809,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     handle ph = MemAccess::get<handle>(ptr);
     ptr += 6;
 
-    byte salt[32];
-    memcpy((char*)salt, ptr, 32);
-    ptr += sizeof salt;
+    string salt(ptr, 32);
+    ptr += salt.size();
 
     string encKey;
     encKey.resize(encKeyLen);
@@ -12829,26 +12822,20 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    byte derivedKey[64];
-    unsigned int iterations = 100000;
-    PBKDF2_HMAC_SHA512 pbkdf2;
-    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                     (byte*) pwd, strlen(pwd),
-                     salt, sizeof salt,
-                     iterations);
+    vector<byte> derivedKey = deriveKey(pwd, salt);
 
     byte hmacComputed[32];
     if (algorithm == 1)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
-        hmacsha256.add(derivedKey + 32, 32);
+        hmacsha256.add(derivedKey.data() + 32, 32);
         hmacsha256.get(hmacComputed);
     }
     else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
         hmacsha256.add((byte *)linkBin.data(), unsigned(40 + encKeyLen));
         hmacsha256.get(hmacComputed);
     }
@@ -12890,15 +12877,9 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
-        byte derivedKey[64];
-        byte salt[32];
-        rng.genblock(salt, 32);
-        unsigned int iterations = 100000;
-        PBKDF2_HMAC_SHA512 pbkdf2;
-        pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                         (byte*) pwd, strlen(pwd),
-                         salt, sizeof salt,
-                         iterations);
+        string salt(32u, '\0');
+        rng.genblock((byte*)salt.data(), salt.size());
+        vector<byte> derivedKey = deriveKey(pwd, salt);
 
         // Prepare encryption key
         string encKey;
@@ -12915,7 +12896,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         payload.append((char*) &algorithm, sizeof algorithm);
         payload.append((char*) &type, sizeof type);
         payload.append((char*) &ph, NODEHANDLE);
-        payload.append((char*) salt, sizeof salt);
+        payload.append(salt);
         payload.append(encKey);
 
 
@@ -12924,12 +12905,12 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         if (algorithm == 1)
         {
             HMACSHA256 hmacsha256((byte *)payload.data(), payload.size());
-            hmacsha256.add(derivedKey + 32, 32);
+            hmacsha256.add(derivedKey.data() + 32, 32);
             hmacsha256.get(hmac);
         }
         else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
         {
-            HMACSHA256 hmacsha256(derivedKey + 32, 32);
+            HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
             hmacsha256.add((byte *)payload.data(), unsigned(payload.size()));
             hmacsha256.get(hmac);
         }
@@ -12944,7 +12925,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encLinkBytes.append((char*) &algorithm, sizeof algorithm);
         encLinkBytes.append((char*) &type, sizeof type);
         encLinkBytes.append((char*) &ph, NODEHANDLE);
-        encLinkBytes.append((char*) salt, sizeof salt);
+        encLinkBytes.append(salt);
         encLinkBytes.append(encKey);
         encLinkBytes.append((char*) hmac, sizeof hmac);
 
@@ -13118,18 +13099,15 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -13210,18 +13188,15 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -13229,7 +13204,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     accountversion = 2;
     accountsalt = salt;
     reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
-    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+    return string((const char*)derivedKey.data(), derivedKey.size());
 }
 
 void MegaClient::resendsignuplink2(const char *email, const char *name)
