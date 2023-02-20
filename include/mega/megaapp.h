@@ -122,6 +122,12 @@ struct MEGA_API MegaApp
     // notify about a modified key
     virtual void key_modified(handle, attr_t) { }
 
+    // notify about cyptographyc security upgrade
+    virtual void upgrading_security() { }
+
+    // notify about detection of attempt to downgrade ^!keys
+    virtual void downgrade_attack() { }
+
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };

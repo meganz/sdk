@@ -1,4 +1,4 @@
-/**
+/** 
  * @file tests/sdk_test.cpp
  * @brief Mega SDK test file
  *
@@ -24,6 +24,7 @@
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
+#include "mega/node.h"
 #include <algorithm>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
@@ -1008,6 +1009,16 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     }
     ASSERT_FALSE(anyFetchnodesFailed);
 
+
+    if (gSecureFlag)
+    {
+        // Ensure accounts are migrated.
+        for (unsigned index = 0; index < howMany; ++index)
+        {
+            EXPECT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+        }
+    }
+
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
     out() << "Test setup done, test starts";
@@ -1031,6 +1042,11 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
 
     megaApi[index]->setLoggingName(to_string(index).c_str());
     megaApi[index]->addListener(this);    // TODO: really should be per api
+
+    if (gSecureFlag)
+    {
+        megaApi[index]->setSecureFlag(true);
+    }
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -1094,10 +1110,40 @@ void SdkTest::removeContact(string email, int timeout)
     delete u;
 }
 
+void SdkTest::verifyCredentials(unsigned apiIndex, string email)
+{
+    unique_ptr<MegaUser> usr(megaApi[apiIndex]->getContact(email.c_str()));
+    ASSERT_NE(nullptr, usr.get()) << "User " << email << " not found at apiIndex " << apiIndex;
+    ASSERT_EQ(MegaError::API_OK, synchronousVerifyCredentials(apiIndex, usr.get()));
+}
+
+void SdkTest::resetCredentials(unsigned apiIndex, string email)
+{
+    unique_ptr<MegaUser> usr(megaApi[apiIndex]->getContact(email.c_str()));
+    ASSERT_NE(nullptr, usr.get()) << "User " << email << " not found at apiIndex " << apiIndex;
+    ASSERT_EQ(MegaError::API_OK, synchronousResetCredentials(apiIndex, usr.get()));
+}
+
+bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
+{
+    unique_ptr<MegaUser> usr(megaApi[apiIndex]->getContact(email.c_str()));
+    EXPECT_NE(nullptr, usr.get()) << "User " << email << " not found at apiIndex " << apiIndex;
+    return megaApi[apiIndex]->areCredentialsVerified(usr.get());
+}
+
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
 {
     int apiIndex = 0;
-    ASSERT_EQ(API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
+    auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
+    if (shareFolderErr == API_EKEY)
+    {
+        ASSERT_EQ(API_OK, doOpenShareDialog(apiIndex, n)) << "Creating new share key failed. " << "User: " << email << " Action: " << action;
+        ASSERT_EQ(API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed (share key created!). " << "User: " << email << " Action: " << action;
+    }
+    else
+    {
+        ASSERT_EQ(API_OK, shareFolderErr) << "Folder sharing failed. " << "User: " << email << " Action: " << action;
+    }
 }
 
 string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
@@ -1943,7 +1989,7 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
 TEST_F(SdkTest, SdkTestResumeSession)
 {
     LOG_info << "___TEST Resume session___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     unique_ptr<char[]> session(dumpSession());
 
@@ -1972,7 +2018,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
     LOG_info <<  "___TEST Node operations___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // --- Create a new folder ---
 
@@ -2084,7 +2130,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 TEST_F(SdkTest, SdkTestTransfers)
 {
     LOG_info << "___TEST Transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     LOG_info << cwd();
 
@@ -2680,6 +2726,8 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
  * - Share a folder with User2
  * - Check the outgoing share from User1
  * - Check the incoming share to User2
+ * - Check that User2 (sharee) cannot tag the incoming share as favourite
+ * - Check that User1 (sharer) can tag the outgoing share as favourite
  * - Get file name and fingerprint from User1
  * - Search by file name for User2
  * - Search by fingerprint for User2
@@ -2800,6 +2848,17 @@ TEST_F(SdkTest, SdkTestShares2)
     ASSERT_EQ(MegaError::API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
+
+
+    // --- Check that User2 (sharee) cannot tag the incoming share as favourite ---
+
+    auto errU2SetFavourite = synchronousSetNodeFavourite(1, n, true);
+    ASSERT_EQ(API_EACCESS, errU2SetFavourite) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
+
+    // --- Check that User1 (sharer) can tag the outgoing share as favourite ---
+
+    auto errU1SetFavourite = synchronousSetNodeFavourite(0, n, true);
+    ASSERT_EQ(API_OK, errU1SetFavourite) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
 
 
     // --- Get file name and fingerprint from User1 account ---
@@ -3627,8 +3686,8 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     // --- User1 shares Folder1 with UserB, and Folder1_1 with UserC ---
 
-    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
-    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, n1_1.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1_1.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
 
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
                                        && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
@@ -3731,6 +3790,19 @@ TEST_F(SdkTest, SdkTestShareKeys)
     LOG_info << "___TEST ShareKeys___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
 
+    // make sure users B and C have no inshares (since before this test was started)
+    for (int apiIdx = 1; apiIdx <= 2; ++apiIdx)
+    {
+        unique_ptr<MegaShareList> inShares(megaApi[apiIdx]->getInSharesList());
+        for (int i = 0; i < inShares->size(); ++i)
+        {
+            // leave share
+            MegaShare* s = inShares->get(i);
+            unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(s->getNodeHandle()));
+            ASSERT_EQ(API_OK, synchronousRemove(apiIdx, n.get()));
+        }
+    }
+
     // Three user scenario, with nested shares and new nodes created that need keys to be shared to the other users.
     // User A creates folder and shares it with user B
     // User A creates folders / subfolder and shares it with user C
@@ -3770,10 +3842,10 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 0u);
 
-    ASSERT_EQ(API_OK, synchronousShare(0, shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
 
-    ASSERT_EQ(API_OK, synchronousShare(0, subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_NO_FATAL_FAILURE(shareFolder(subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
@@ -3834,8 +3906,6 @@ TEST_F(SdkTest, SdkTestFolderIteration)
 TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
 #endif
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-
     for (int testcombination = 0; testcombination < 2; testcombination++)
     {
         bool openWithNameOrUseFileAccess = testcombination == 0;
@@ -4116,7 +4186,7 @@ bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 
 TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     using namespace autocomplete;
 
     {
@@ -4898,7 +4968,7 @@ public:
 TEST_F(SdkTest, SdkTestFingerprint)
 {
     LOG_info << "___TEST fingerprint stream/file___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
     string expected[] = {
@@ -5104,7 +5174,7 @@ namespace mega
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -5265,8 +5335,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-    LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    LOG_info << "___TEST Cloudraid transfers with connection failures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -5324,8 +5394,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-    LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    LOG_info << "___TEST Cloudraid transfers with single channel timeouts___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -5381,7 +5451,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     //for (int i = 0; i < 1000; ++i) {
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -5471,7 +5541,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -5640,7 +5710,7 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -5804,7 +5874,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 TEST_F(SdkTest, SdkRecentsTest)
 {
     LOG_info << "___TEST SdkRecentsTest___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
@@ -6266,7 +6336,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!subFolderA);
 
-    string filename1 = UPFILE;
+    string filename1 = IMAGEFILE;
     ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
 
     MegaHandle h = UNDEF;
@@ -6294,6 +6364,300 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
+}
+
+TEST_F(SdkTest, SdkSensitiveNodes)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    LOG_info << "___TEST SDKSensitive___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+
+    ASSERT_TRUE(rootnodeA);
+        
+    // /
+    //    folder-A/
+    //        amega.jpeg
+    //        asenstive.jpeg   <- sensitive
+    //        sub-folder-A/   <- sensitive
+    //             alogo.png
+
+    string folderAName = "folder-A";
+    MegaHandle nh = createFolder(0, folderAName.c_str(), rootnodeA.get());
+    ASSERT_NE(nh, UNDEF);
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_TRUE(!!folderA);
+
+    string subFolderAName = "sub-folder-A";
+    MegaHandle snh = createFolder(0, subFolderAName.c_str(), folderA.get());
+    ASSERT_NE(snh, UNDEF);
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(snh));
+    ASSERT_TRUE(!!subFolderA);
+
+    // all 3 files have "a" in the name
+    string filename1 = "alogo.png";
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
+    MegaHandle fh = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, filename1.c_str(),
+        subFolderA.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> thefile(megaApi[0]->getNodeByHandle(fh));
+    bool null_pointer = (thefile.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    string nsfilename = "amega.jpeg";
+    ASSERT_TRUE(createFile(nsfilename, false)) << "Couldn't create " << nsfilename;
+    MegaHandle fh2 = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh2, nsfilename.c_str(),
+        folderA.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> nsfile(megaApi[0]->getNodeByHandle(fh2));
+
+    string sfilename = "asensitive.jpeg";
+    ASSERT_TRUE(createFile(sfilename, false)) << "Couldn't create " << sfilename;
+    MegaHandle fh3 = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh3, sfilename.c_str(),
+        folderA.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> sfile(megaApi[0]->getNodeByHandle(fh3));
+
+    // setuip sharing from 
+    ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkTestShareKeys contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1; }, 60000));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+    ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
+    ASSERT_EQ(API_OK, synchronousShare(0, folderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
+    ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
+    unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+
+    synchronousSetNodeSensitive(0, sfile.get(), true);
+    synchronousSetNodeSensitive(0, subFolderA.get(), true);
+
+    WaitMillisec(3000);
+    // wait for shared attrib action packets to propgate
+
+    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+    ASSERT_EQ(nl2->size(), 1);
+    unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
+    
+    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false); 
+    ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true);// share has to attributes
+
+  /*
+    time_t start = time(nullptr);
+    while (time(nullptr) < start + 300) {
+        //SdkTest::fetchnodes(0);
+        subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
+        if (subFolderA.get() != nullptr && subFolderA->isMarkedSensitive())
+            break;
+
+        Sleep(5000); // @todo: portable
+    }
+    time_t secs = time(nullptr) - start;
+    secs;
+  */
+    subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
+    ASSERT_TRUE(!!subFolderA);
+    ASSERT_TRUE(subFolderA->isMarkedSensitive());
+
+    bool msen = subFolderA->isMarkedSensitive();
+    ASSERT_EQ(msen, true);
+    bool sen = megaApi[0]->isSensitiveInherited(subFolderA.get());
+    ASSERT_EQ(sen, true);
+    sen = megaApi[0]->isSensitiveInherited(thefile.get());
+    ASSERT_EQ(sen, true);
+    sen = megaApi[0]->isSensitiveInherited(sfile.get());
+    ASSERT_EQ(sen, true);
+    sen = megaApi[0]->isSensitiveInherited(nsfile.get());
+    ASSERT_EQ(sen, false);
+    sen = megaApi[0]->isSensitiveInherited(folderA.get());
+    ASSERT_EQ(sen, false);
+    sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
+    ASSERT_EQ(sen, false);
+
+    /*
+    MegaApiImpl::searchWithFlags
+        MegaApiImpl::searchInNodeManager
+            NodeManager::getNodesByMimeType                                 search = ""
+                @SqliteAccountState::getNodesByMimetype
+                @SqliteAccountState::getNodesByMimetypeExclusiveRecursive   excludeRecursiveFlags
+            NodeManager::search
+                @SqliteAccountState::getNodesByName
+
+    node specfied
+        @recursive
+           searchInNodeManager
+        @non recursive                
+    no node
+        SEARCH_TARGET_ROOTNODE
+            @recursive
+            @not recursive            *
+        SEARCH_TARGET_INSHARE
+            @recursive
+            @not recursive            *
+        @SEARCH_TARGET_ALL            default when
+             searchInNodeManager
+        SEARCH_TARGET_OUTSHARE
+            @recursive
+            @not recursive            *
+        @SEARCH_TARGET_PUBLICLINK     *
+        */
+
+    typedef ::mega::Node Node;
+    typedef ::mega::Node::Flags Flags;
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaApiImpl* impl1 = *((MegaApiImpl**)(((char*)megaApi[1].get()) + sizeof(*megaApi[1].get())) - 1);
+
+    // inherited sensitive flag
+    // specifeid searh string
+    MegaNodeList* list = megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true);
+    ASSERT_EQ(list->size(), 1);
+    list = megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, false);
+    ASSERT_EQ(list->size(), 0);
+
+    // inherited sensitive flag
+    // no specifeid searh string
+    list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true);
+    ASSERT_EQ(list->size(), 3);
+    list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false);
+    ASSERT_EQ(list->size(), 1);
+
+    // inherited sensitive flag
+    // no node, specifeid searh string: SEARCH_TARGET_ALL
+    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true);
+    ASSERT_EQ(list->size(), 3);
+    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false);
+    ASSERT_EQ(list->size(), 1);
+    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false);
+    ASSERT_EQ(list->size(), 0);
+
+    // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
+
+    // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimetypeExclusiveRecursive()
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non senstive, non recusrive exclude and recusrive exclude 
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 0); // senstive, non recusrive required and recusrive exclude
+
+    // no node, specifid search string: SEARCH_TARGET_ROOTNODE: getNodesByName()
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
+
+    // no node, specifid search string: main non recursive
+    // folderA
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 2);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), sfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 1); // non senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
+
+    // no node, specifid search string: main non recursive
+    // subfolderA
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 0); // non sensitive files (recursvie exclude)
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 1); // non senstive
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0); // the file itself does not have the senditvei flag it's parent fodler does
+    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 0); // senstive, but the file itself is not marked sensitvei it'sparent folder is
+
+    // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
+
+    // no node, specifid search string: SEARCH_TARGET_OUTSHARE: getNodesByName()
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags());
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
+    ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
+    ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
+    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
+    ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
@@ -6658,7 +7022,7 @@ TEST_F(SdkTest, SdkUserAlias)
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     getCountryCallingCodes();
     ASSERT_NE(nullptr, stringListMap);
@@ -6677,7 +7041,7 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
 TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     const std::string js1 = "+0000000010";
     const std::string js2 = "+0000000011";
@@ -6719,7 +7083,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
 TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
@@ -7007,7 +7371,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 TEST_F(SdkTest, RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // this one used to cause a double-delete
 
@@ -7546,7 +7910,7 @@ struct MegaListenerDeregisterer
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
@@ -7566,8 +7930,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 
-    SyncListener syncListener0, syncListener1;
-    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0), mld2(megaApi[1].get(), &syncListener1);
+    SyncListener syncListener0;
+    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0);
 
     fs::create_directories(sync1Path);
     fs::create_directories(sync2Path);
@@ -7756,7 +8120,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     std::this_thread::sleep_for(std::chrono::seconds{5});
 
     ASSERT_FALSE(syncListener0.hasAnyErrors());
-    ASSERT_FALSE(syncListener1.hasAnyErrors());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
@@ -8275,14 +8638,14 @@ TEST_F(SdkTest, SyncOQTransitions)
 
     LOG_verbose << "SyncOQTransitions :  Share big files folder with another account.";
 
-    ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkTestShareKeys contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SyncOQTransitions contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(WaitFor([this]()
     {
         return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1;
     }, 60*1000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    ASSERT_EQ(API_OK, synchronousShare(0, remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL)) << "Folder sharing failed";
+    ASSERT_NO_FATAL_FAILURE(shareFolder(remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(WaitFor([this]()
     {
         return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1;
@@ -8851,6 +9214,440 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 }
 #endif
 
+
+/**
+ * @brief TEST_F EnhancedSecurityShares
+ *
+ * Test shares with enhanced security
+ *
+ */
+TEST_F(SdkTest, EnhancedSecurityShares)
+{
+    // What we are going to test here:
+    // 1: Create a share between A and B, being A and B already contacts in the following scenarios:
+    //    1-1: A and B credentials already verified by both.
+    //    1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
+    //    1-3: None are verified. Then A verifies B and later B verifies A.
+    // 2: Create a share between A and B, being A and B no contacts.
+
+    LOG_info << "___TEST EnhancedSecurityShares___";
+
+    gSecureFlag = true;
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    gSecureFlag = false;
+
+    // Define all folers needed for the tests.
+    string folder11 = "EnhancedSecurityShares-1";
+    string folder12 = "EnhancedSecurityShares-21";
+    string folder13 = "EnhancedSecurityShares-22";
+    string folder2 = "EnhancedSecurityShares-23";
+
+    // Auxiliar function to create a share ensuring node changes are notified.
+    auto createShareAtoB = [this](MegaNode* node, bool waitForA = true, bool waitForB = true)
+    {
+        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
+        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_INSHARE, mApi[1].nodeUpdated);
+        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
+        if (waitForA) { ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds"; }
+        if (waitForB) { ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds"; }
+        resetOnNodeUpdateCompletionCBs();
+        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    };
+
+    // Auxiliar function to remove a share ensuring node changes are notified.
+    auto removeShareAtoB = [this](MegaNode* node)
+    {
+        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, mApi[0].nodeUpdated);
+        mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(), MegaNode::CHANGE_TYPE_REMOVED, mApi[1].nodeUpdated);
+        ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
+        ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
+        mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    };
+
+    // Auxiliar function to reset both accounts credentials verification
+    auto resetAllCredentials = [this]()
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
+        ASSERT_FALSE(areCredentialsVerified(0, mApi[1].email));
+        ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+    };
+
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+
+    //
+    // 1: Create a share between A and B, being A and B already contacts.
+    //
+
+    // Make accounts contacts
+    LOG_verbose << "EnhancedSecurityShares :  Make account contacts";
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(0, mApi[1].email, "EnhancedSecurityShares contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Accepting contact timeout: " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
+
+    mApi[0].cr.reset();
+    mApi[1].cr.reset();
+
+    // Ensure no account has the other verified from previous unfinished tests.
+    if (areCredentialsVerified(0, mApi[1].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));
+    }
+    if (areCredentialsVerified(1, mApi[0].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));
+    }
+
+    //
+    // 1-1: A and B credentials already verified by both.
+    //
+
+    fs::path basePath = fs::u8path(folder11.c_str());
+
+    MegaHandle nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // Verify credentials:
+    LOG_verbose << "EnhancedSecurityShares :  Verify A and B credentials";
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
+    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
+    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
+
+    // Create share.
+    // B should end with a new inshare and able to decrypt the new node.
+    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    std::unique_ptr<MegaNode> inshareNode(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Share the same node again
+    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Reset credentials
+    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+    // Established share remains in the same status.
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    //
+    // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
+    //
+
+    basePath = fs::u8path(folder12.c_str()); // Use a different node
+
+    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // Verify credentials
+    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials:";
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
+    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
+    ASSERT_FALSE(areCredentialsVerified(1, mApi[0].email));
+
+    // Create share
+    // B should end with an unverified inshare and be unable to decrypt the node.
+    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Share the same node again
+    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Verify A credentials in B account
+    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
+    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated); // file name is set when decrypted.
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
+    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Reset credentials:
+    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+
+
+    //
+    // 1-3: None are verified. Then A verifies B and later B verifies A.
+    //
+
+    basePath = fs::u8path(folder13.c_str()); // Use a different node
+
+    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // Create share.
+    // A should end with an unverified outshare and B should have an unverified inshare and unable to decrypt the new node.
+    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Share the same node again
+    LOG_verbose << "EnhancedSecurityShares :  Share again the same folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Verify B credentials in A account
+    // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
+    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials";
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
+    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Verify A credentials in B account
+    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
+    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
+    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Reset credentials
+    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+
+    // Delete contacts
+    LOG_verbose << "EnhancedSecurityShares :  Remove Contact";
+    mApi[0].userUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
+    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
+            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    unique_ptr<MegaUser> user(megaApi[0]->getContact(mApi[1].email.c_str()));
+    ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
+    ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
+
+    //
+    // 2: Create a share between A and B, being A and B no contacts.
+    //
+
+    basePath = fs::u8path(folder2.c_str()); // Use a different node
+
+    nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
+    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // Create share.
+    // Since are no contacts, B should receive a contact request.
+    LOG_verbose << "EnhancedSecurityShares :  Share a folder from A to B";
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(remoteBaseNode.get(), false, false));
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Inviting contact timeout: " << maxTimeout << " seconds.";
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Waiting for invitation timeout: " << maxTimeout << " seconds.";
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // B accepts the contact request.
+    // Now B should end with an inshare without 'pk' yet, so "verified".
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated)) << "Accepting contact timeout: " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated)) << "Waiting for invitation acceptance timeout: " << maxTimeout << " seconds";
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+
+    // Verify B credentials in A account
+    // Unverified outshare in A should disappear and be a regular outshare. No changes expected in B, the share should still be unverified.
+    LOG_verbose << "EnhancedSecurityShares :  Verify B credentials";
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));
+    ASSERT_TRUE(areCredentialsVerified(0, mApi[1].email));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 1; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_FALSE(inshareNode->isNodeKeyDecrypted()) << "Inshare is decrypted in B account, and it should be not.";
+
+    // Verify A credentials in B account
+    // B unverified inshare should end as a functional inshare. It should be able to decrypt the new node.
+    LOG_verbose << "EnhancedSecurityShares :  Verify A credentials";
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_NAME, mApi[1].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));
+    ASSERT_TRUE(areCredentialsVerified(1, mApi[0].email));
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_NE(inshareNode.get(), nullptr);
+    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+
+    // Remove share
+    LOG_verbose << "EnhancedSecurityShares :  Remove shared folder from A to B";
+    ASSERT_NO_FATAL_FAILURE(removeShareAtoB(remoteBaseNode.get()));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 0; }, 60*1000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+    ASSERT_EQ(inshareNode.get(), nullptr);
+
+    // Reset credentials
+    LOG_verbose << "EnhancedSecurityShares :  Reset credentials";
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+
+    // Delete contacts
+    LOG_verbose << "EnhancedSecurityShares :  Remove Contact";
+    mApi[0].userUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
+    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
+            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    user.reset(megaApi[0]->getContact(mApi[1].email.c_str()));
+    ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
+    ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
+}
+
+
 /**
  * ___SdkNodesOnDemand___
  * Steps:
@@ -9340,8 +10137,10 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload a test file";
-
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fh));
+    synchronousSetNodeSensitive(0, nodeFile.get(), true);
+    synchronousSetNodeFavourite(0, nodeFile.get(), true);
+
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
     long long size1 = nodeFile->getSize();
     waitForResponse(&check1); // Wait until receive nodes updated at client 1
@@ -9379,6 +10178,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     deleteFile(fileName);
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+
+    nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
+    unique_ptr<MegaNodeList> list(megaApi[0]->getChildren(nodeFile.get())); // null
+    unique_ptr<MegaNodeList> vlist(megaApi[0]->getVersions(nodeFile.get()));
+    MegaNode *n0 = vlist->get(0);
+    MegaNode* n1 = vlist->get(1);
+    ASSERT_TRUE(n0->isFavourite());
+    ASSERT_TRUE(n0->isMarkedSensitive());
+    ASSERT_TRUE(n1->isFavourite());
+    ASSERT_TRUE(n1->isMarkedSensitive());
 
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     std::unique_ptr<MegaFolderInfo> initialFolderInfo1(mApi[0].mFolderInfo->copy());

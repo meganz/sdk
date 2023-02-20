@@ -134,6 +134,21 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
 @property (readonly, nonatomic) uint64_t nodeHandle;
 
 /**
+ * @brief Returns the handle of a Pending Contact Request related to the alert
+ *
+ * This value is valid for user related alerts:
+ *  MEGAUserAlertTypeIncomingPendingContactRequest
+ *  MEGAUserAlertTypeIncomingPendingContactCancelled
+ *  MEGAUserAlertTypeIncomingPendingContactReminder
+ *
+ * This value is also valid for the following alerts:
+ *  MEGAUserAlertTypeScheduledMeetingNew
+ *
+ * @return the relevant node handle, or UNDEF if this alert does not have one.
+ */
+@property (readonly, nonatomic) uint64_t pendingContactRequestHandle;
+
+/**
  * @brief An email related to the alert
  *
  * This value is valid for alerts that relate to another user, provided the

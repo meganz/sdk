@@ -730,7 +730,7 @@ typedef enum {
     ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
-    ATTR_AUTHRSA = 28,                      // private - byte array
+    //ATTR_AUTHRSA = 28,                    // (deprecated) private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
@@ -739,6 +739,7 @@ typedef enum {
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
     //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
