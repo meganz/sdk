@@ -18666,8 +18666,13 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     if (!auxMeet->isValid() || schedParseErr)
                     {
                         // this object is malformed, so we don't want to store it
+                        std::string errMsg = "Ill-formed sched meeting";
+                        errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->chatid()))
+                              .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->schedId()));
+
+                        sendevent(99471, errMsg.c_str());
+                        LOG_err << errMsg;
                         assert(false);
-                        LOG_err << "Invalid scheduled meeting received from API";
                     }
                     else
                     {
