@@ -12382,37 +12382,25 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         }
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
-            // Search on public links
             // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find public links themselves
+            node_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search under each public link
             node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
-            set<handle> uniqueLinks;
-            for (auto& pl : publicLinks) uniqueLinks.insert(pl->nodehandle);
-            set<handle> matchedUniqueLinks;
-            for (auto it = publicLinks.begin(); it != publicLinks.end()
-                && !cancelToken.isCancelled(); it++)
+            for (const auto& p : publicLinks)
             {
-                // find descendants
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                for (auto& l : nodeVector)
+                Node* node = client->nodebyhandle(p->nodehandle);
+                assert(node);
+                if (node)
                 {
-                    if (matchedUniqueLinks.find(l->nodehandle) == matchedUniqueLinks.end()) // if not found yet
-                    {
-                        matchedUniqueLinks.insert(l->nodehandle);
-                        result.push_back(l);
-                    }
-                }
-                // find public links themselves
-                nodeVector = searchInNodeManager((*it)->parenthandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                for (auto& l : nodeVector)
-                {
-                    if (uniqueLinks.find(l->nodehandle) != uniqueLinks.end() && matchedUniqueLinks.find(l->nodehandle) == matchedUniqueLinks.end())
-                    {
-                        matchedUniqueLinks.insert(l->nodehandle);
-                        result.push_back(l);
-                    }
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
             }
-
         }
         else
         {
