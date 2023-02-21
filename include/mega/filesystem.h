@@ -499,7 +499,7 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
-    // return a description oh operating system error,
+    // return a description of OS error,
     // errno on unix. Defaults to the number itself.
     virtual std::string getErrorMessage(int error) const;
 

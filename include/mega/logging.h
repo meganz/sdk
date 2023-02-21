@@ -660,7 +660,7 @@ std::ostream& operator <<(std::ostream&, const std::error_code&);
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
-// LOG_err if the condition is true otherwise LOG_debug
+// LOG_err if the condition is true otherwise LOG_warning
 // condition may be evaluated twice
 #define LOG_err_if(condition) \
     if (::mega::SimpleLogger::logCurrentLevel >= ((condition) ? ::mega::logError : ::mega::logWarning)) \

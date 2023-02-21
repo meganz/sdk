@@ -709,7 +709,8 @@ std::string PosixFileAccess::getErrorMessage(int error) const
     return strerror(error);
 }
 
-bool PosixFileAccess::isErrorFileNotFound(int error) const {
+bool PosixFileAccess::isErrorFileNotFound(int error) const
+{
     return error == ENOENT;
 }
 
