@@ -18758,7 +18758,6 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                         << "| new " << fieldMsg << "|" << cs.newValue <<"|";
 
                 e = API_EEXIST;
-                keepParsing = false;
             }
          }
          j->leavearray();
@@ -18793,7 +18792,6 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                         << "| new " << fieldMsg << "|" << cs.newValue <<"|";
 
                 e = API_EEXIST;
-                keepParsing = false;
             }
          }
          j->leavearray();
