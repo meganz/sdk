@@ -10589,6 +10589,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
+    // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    MegaHandle hDummyFolder = createFolder(0, "DummyFolder_TriggerDbCommit", rootnode.get());
+    ASSERT_NE(hDummyFolder, INVALID_HANDLE);
+
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
