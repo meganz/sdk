@@ -18631,7 +18631,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     assert(cs);
                     if (auxJson->enterobject())
                     {
-                        parseScheduledMeetingChangeset(auxJson, cs);
+                        if (parseScheduledMeetingChangeset(auxJson, cs) != API_OK)
+                        {
+                            assert(false);
+                            LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+                        }
                         auxJson->leaveobject();
                     }
                     break;
@@ -18753,7 +18757,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                         << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
                         << "| new " << fieldMsg << "|" << cs.newValue <<"|";
 
-                e = API_EINTERNAL;
+                e = API_EEXIST;
                 keepParsing = false;
             }
          }
@@ -18788,7 +18792,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                         << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
                         << "| new " << fieldMsg << "|" << cs.newValue <<"|";
 
-                e = API_EINTERNAL;
+                e = API_EEXIST;
                 keepParsing = false;
             }
          }
@@ -18805,9 +18809,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('t'):
             {
                 Changeset::StrChangeset tCs;
-                if (getOldNewStrValues(tCs, "Title") == API_OK)
+                auto err = getOldNewStrValues(tCs, "Title");
+                if (err == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -18829,9 +18838,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID2('t', 'z'):
             {
                 Changeset::StrChangeset tzCs;
-                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
+                auto err = getOldNewStrValues(tzCs, "TimeZone");
+                if (err == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -18839,9 +18853,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('s'):
             {
                 Changeset::TsChangeset sdCs;
-                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
+                auto err = getOldNewTsValues(sdCs, "StartDateTime");
+                if (err == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -18849,9 +18868,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('e'):
             {
                 Changeset::TsChangeset edCs;
-                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
+                auto err = getOldNewTsValues(edCs, "EndDateTime");
+                if (err == API_OK)
                 {
                     auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
