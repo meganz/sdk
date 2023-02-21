@@ -1613,6 +1613,18 @@ using namespace mega;
     }
 }
 
+- (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->openShareDialog(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setShareSecureFlag:(BOOL)enable {
+    if (self.megaApi) {
+        self.megaApi->setSecureFlag(enable);
+    }
+}
+
 #pragma mark - Attributes Requests
 
 - (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
@@ -2364,6 +2376,12 @@ using namespace mega;
     return self.megaApi->platformSetRLimitNumFile((int)fileCount);
 }
 
+- (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->upgradeSecurity([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {
@@ -2751,6 +2769,11 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList((int)order) cMemoryOwn:YES];
 }
 
+- (MEGAShareList *)getUnverifiedInShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedInShares((int)order) cMemoryOwn:YES];
+}
+
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
     if (self.megaApi == nil) return nil;
     return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node.getCPtr) cMemoryOwn:YES];
@@ -2770,6 +2793,11 @@ using namespace mega;
 - (MEGAShareList *)outShares:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((int)order) cMemoryOwn:YES];
+}
+
+- (MEGAShareList *)getUnverifiedOutShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedOutShares((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
