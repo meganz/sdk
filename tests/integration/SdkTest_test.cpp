@@ -11649,17 +11649,24 @@ TEST_F(SdkTest, SdkGetNodesByName)
     // --- Test strings with UTF-8 characters
 
     stringSearch = "Ñ";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
     stringSearch = "ñ";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
+    // No recursive search
+    stringSearch = "Ñ";
+    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+
     stringSearch = "ú";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 }
