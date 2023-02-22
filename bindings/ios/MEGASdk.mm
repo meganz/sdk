@@ -1524,11 +1524,11 @@ using namespace mega;
     return self.megaApi->getSetCover(sid);
 }
 
-- (MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
+- (nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSetElement *element = self.megaApi->getSetElement(sid, eid);
-    MEGASetElement *setElement = setElement ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
+    MEGASetElement *setElement = element ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
     
     delete element;
     

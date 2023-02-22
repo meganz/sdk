@@ -3706,7 +3706,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return requested Element, or nil if not found
  */
--(MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
+-(nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
 
 /**
  * @brief Get all Elements in the Set with given id, for current user.
