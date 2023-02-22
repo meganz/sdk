@@ -20873,7 +20873,7 @@ void KeyManager::loadShareKeys()
 
 void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
 {
-    LOG_debug << "[keymgr] New commit requested";
+    LOG_debug << "[keymgr] New update requested";
     if (mVersion == 0)
     {
         LOG_err << "Not initialized yet. Cancelling the update.";
@@ -20882,10 +20882,10 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
         return;
     }
 
-    commitQueue.emplace(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
-    if (activeCommit)
+    nextQueue.push_back(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
+    if (activeQueue.size())
     {
-        LOG_debug << "[keymgr] Another commit is in progress. Waiting...";
+        LOG_debug << "[keymgr] Another commit is in progress. Queued updates: " << nextQueue.size();
         return;
     }
 
@@ -20994,16 +20994,18 @@ string KeyManager::pendingInsharesToString(const KeyManager& km)
 
 void KeyManager::nextCommit()
 {
-    assert(!activeCommit);
-    if (commitQueue.size())
+    assert(activeQueue.empty());
+    if (nextQueue.size())
     {
-        LOG_debug << "[keymgr] Initializing a new commit.";
-        activeCommit = &commitQueue.front();
+        LOG_debug << "[keymgr] Initializing a new commit"
+                  << " with " << nextQueue.size() << " updates";
+        activeQueue = move(nextQueue);
+        nextQueue = {};
         tryCommit(API_EINCOMPLETE, [this]() { nextCommit(); });
     }
     else
     {
-        LOG_debug << "[keymgr] No more commits in the queue.";
+        LOG_debug << "[keymgr] No more updates in the queue.";
     }
 }
 
@@ -21013,22 +21015,29 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
     {
         LOG_debug << (!e
                      ? "[keymgr] Commit completed"
-                     : "[keymgr] Commit aborted (downgrade attack)");
-        if (activeCommit->second)
+                     : "[keymgr] Commit aborted (downgrade attack)")
+                  << " with " << activeQueue.size() << " updates";
+        for (auto &activeCommit : activeQueue)
         {
-            activeCommit->second(); // Run commit completion callback
+            if (activeCommit.second)
+            {
+                activeCommit.second(); // Run update completion callback
+            }
         }
-        activeCommit = nullptr;
-        commitQueue.pop();
+        activeQueue = {};
 
         completion();
         return;
     }
 
-    LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying") << " commit";
-    if (activeCommit->first)
+    LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying")
+              << " commit with " << activeQueue.size() << " updates";
+    for (auto &activeCommit : activeQueue)
     {
-        activeCommit->first(); // Apply commit changes
+        if (activeCommit.first)
+        {
+            activeCommit.first(); // Apply commit changes
+        }
     }
     updateAttribute([this, completion](Error e)
     {

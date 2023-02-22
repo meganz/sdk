@@ -325,9 +325,8 @@ public:
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
 protected:
-
-    std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
-    std::pair<std::function<void()>, std::function<void()>> *activeCommit = nullptr;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
