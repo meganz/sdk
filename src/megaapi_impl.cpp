@@ -3467,6 +3467,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
     this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
     this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
+    this->mMegaIntegerList.reset(request->mMegaIntegerList ? request->mMegaIntegerList->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -3633,7 +3634,7 @@ void MegaRequestPrivate::setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUplo
     backgroundMediaUpload = p;
 }
 
-void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
+void MegaRequestPrivate::setMegaStringList(const MegaStringList* stringList)
 {
     mStringList.reset();
 
@@ -4047,7 +4048,7 @@ MegaSet* MegaRequestPrivate::getMegaSet() const
 
 void MegaRequestPrivate::setMegaSet(std::unique_ptr<MegaSet> s)
 {
-    return mMegaSet.swap(s);
+    mMegaSet.swap(s);
 }
 
 MegaSetElementList* MegaRequestPrivate::getMegaSetElementList() const
@@ -4057,7 +4058,17 @@ MegaSetElementList* MegaRequestPrivate::getMegaSetElementList() const
 
 void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaSetElementList> els)
 {
-    return mMegaSetElementList.swap(els);
+    mMegaSetElementList.swap(els);
+}
+
+const MegaIntegerList* MegaRequestPrivate::getMegaIntegerList() const
+{
+    return mMegaIntegerList.get();
+}
+
+void MegaRequestPrivate::setMegaIntegerList(std::unique_ptr<MegaIntegerList> ints)
+{
+    mMegaIntegerList.swap(ints);
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -4217,6 +4228,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_SET: return "PUT_SET";
         case TYPE_REMOVE_SET: return "REMOVE_SET";
         case TYPE_FETCH_SET: return "FETCH_SET";
+        case TYPE_PUT_SET_ELEMENTS: return "PUT_SET_ELEMENTS";
         case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
         case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
         case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
@@ -12327,75 +12339,80 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 }
             }
 
-        } else if (target == MegaApi::SEARCH_TARGET_INSHARE)
+        }
+        else if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
-            if (recursive)
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find in-shares themselves
+            node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search in each inshare
+            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
-                // Search on inshares
-                unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
                 {
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    assert(node);
-                    if (node)
-                    {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                    }
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
             }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
-
         }
         else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
-            if (recursive)
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find out-shares themselves
+            node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search in each outshare
+            std::set<MegaHandle> outsharesHandles;
+            unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
-                // Search on outshares
-                std::set<MegaHandle> outsharesHandles;
-                unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
                 {
-                    handle h = shares->get(i)->getNodeHandle();
-                    if (outsharesHandles.find(h) != outsharesHandles.end())
-                    {
-                        // shares list includes an item per outshare AND per sharee/user
-                        continue;   // avoid duplicates
-                    }
-                    outsharesHandles.insert(h);
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    assert(node);
-                    if (node)
-                    {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                    }
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
+                {
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
             }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
-        } 
+        }
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
-            // Search on public links
             // always recursive
-            node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
-            for (auto it = publicLinks.begin(); it != publicLinks.end()
-                && !cancelToken.isCancelled(); it++)
-            {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
+            // find public links themselves
+            node_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search under each public link
+            node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+            for (const auto& p : publicLinks)
+            {
+                Node* node = client->nodebyhandle(p->nodehandle);
+                assert(node);
+                if (node)
+                {
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                }
+            }
         }
         else
         {
@@ -24089,6 +24106,54 @@ void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
     request->setParentHandle(sid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+{
+    assert(!nodes.empty() && (!names || names->size() == static_cast<int>(nodes.size())));
+
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENTS, listener);
+    request->setTotalBytes(sid);
+    request->setMegaHandleList(nodes);
+    request->setMegaStringList(names);
+
+    request->performRequest = [this, request]()
+    {
+        MegaHandleList* nodes = request->getMegaHandleList();
+        MegaStringList* names = request->getMegaStringList();
+        vector<SetElement> els(nodes->size());
+        for (size_t i = 0u; i < els.size(); ++i)
+        {
+            SetElement& el = els[i];
+            el.setSet(request->getTotalBytes());
+            el.setNode(nodes->get(static_cast<int>(i)));
+            if (names)
+            {
+                el.setName(names->get(static_cast<int>(i)));
+            }
+        }
+
+        client->putSetElements(move(els), [this, request](Error e, const vector<const SetElement*>* retEls, const vector<int64_t>* elErrs)
+            {
+                if (e == API_OK)
+                {
+                    if (retEls)
+                    {
+                        request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(retEls->data(), static_cast<int>(retEls->size())));
+                    }
+                    if (elErrs)
+                    {
+                        request->setMegaIntegerList(::mega::make_unique<MegaIntegerListPrivate>(*elErrs));
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }

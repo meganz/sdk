@@ -325,9 +325,8 @@ public:
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
 protected:
-
-    std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
-    std::pair<std::function<void()>, std::function<void()>> *activeCommit = nullptr;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
@@ -363,7 +362,7 @@ private:
     SymmCipher mKey;
 
     // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = false;
+    bool mSecure = true;
 
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
@@ -2292,6 +2291,9 @@ public:
 
     // generate "aft" command
     void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+
+    // generate "aepb" command
+    void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
 
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);

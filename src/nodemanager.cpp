@@ -506,6 +506,22 @@ node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelTo
     return nodes;
 }
 
+node_vector NodeManager::getPublicLinksWithName(const char* searchString, CancelToken cancelFlag)
+{
+    node_vector nodes;
+    if (!mTable || mNodes.empty())
+    {
+        assert(false);
+        return nodes;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->searchInShareOrOutShareByName(searchString, nodesFromTable, ShareType_t::LINK, cancelFlag);
+    nodes = processUnserializedNodes(nodesFromTable, NodeHandle(), cancelFlag);
+
+    return nodes;
+}
+
 node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 {
     node_vector nodes;
