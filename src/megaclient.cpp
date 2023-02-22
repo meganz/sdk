@@ -7780,15 +7780,6 @@ void MegaClient::sc_pk()
     if (!mKeyManager.generation())
     {
         LOG_debug << "Account not upgraded yet";
-        if (mKeyManager.promotePendingShares())
-        {
-            LOG_warn << "Promoting pending shares without new keys (received before contact keys?)";
-            mKeyManager.commit([this]()
-            {
-                // Changes to apply in the commit
-                mKeyManager.promotePendingShares();
-            }); // No completion callback in this case
-        }
         return;
     }
 
@@ -7798,6 +7789,16 @@ void MegaClient::sc_pk()
         if (e)
         {
             LOG_debug << "No share keys: " << e;
+
+            if (mKeyManager.promotePendingShares())
+            {
+                LOG_warn << "Promoting pending shares without new keys (received before contact keys?)";
+                mKeyManager.commit([this]()
+                {
+                    // Changes to apply in the commit
+                    mKeyManager.promotePendingShares();
+                }); // No completion callback in this case
+            }
             return;
         }
 
@@ -21514,8 +21515,10 @@ string KeyManager::computeSymmetricKey(handle user)
     if (!cachedav)
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
-        if (!mClient.statecurrent && mClient.mAuthRingsTemp.find(ATTR_CU25519_PUBK) == mClient.mAuthRingsTemp.end())
+        if (mClient.statecurrent && mClient.mAuthRingsTemp.find(ATTR_CU25519_PUBK) == mClient.mAuthRingsTemp.end())
         {
+            // if statecurrent=true -> contact keys should have been fetched
+            // if no temporal authring for Cu25519 -> contact keys should be in cache
             LOG_warn << "Public key not cached with the authring already updated.";
             assert(false);
             mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
