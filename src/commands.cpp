@@ -9485,20 +9485,26 @@ CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&
 {
     cmd("aepb");
 
-    arg("s", (byte*)&mElements->front().set(), MegaClient::SETHANDLE);
+    const byte* setHandleBytes = reinterpret_cast<const byte*>(&mElements->front().set());
+    arg("s", setHandleBytes, MegaClient::SETHANDLE);
 
     beginarray("e");
 
     for (size_t i = 0; i < mElements->size(); ++i)
     {
         beginobject();
-        auto& el = mElements->at(i);
-        arg("h", (byte*)&el.node(), MegaClient::NODEHANDLE);
+
+        const byte* nodeHandleBytes = reinterpret_cast<const byte*>(&mElements->at(i).node());
+        arg("h", nodeHandleBytes, MegaClient::NODEHANDLE);
+
         auto& ed = encrDetails[i];
-        arg("k", (byte*)ed.second.c_str(), (int)ed.second.size());
+        const byte* keyBytes = reinterpret_cast<const byte*>(ed.second.c_str());
+        arg("k", keyBytes, static_cast<int>(ed.second.size()));
+
         if (!ed.first.empty())
         {
-            arg("at", (byte*)ed.first.c_str(), (int)ed.first.size());
+            const byte* attrBytes = reinterpret_cast<const byte*>(ed.first.c_str());
+            arg("at", attrBytes, static_cast<int>(ed.first.size()));
         }
         endobject();
     }
@@ -9552,9 +9558,6 @@ bool CommandPutSetElements::procresult(Result r)
                 break;
             }
 
-            // TODO: enable the assert below after the API has been fixed to send "s" in the response
-            // for each added element.
-            //assert(setId == el.getSet());
             SetElement& el = mElements->at(elCount);
             el.setId(elementId);
             el.setTs(ts);

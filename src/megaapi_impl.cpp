@@ -24107,7 +24107,7 @@ void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 
 void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
-    assert(!nodes.empty() && (!names || names->size() == int(nodes.size())));
+    assert(!nodes.empty() && (!names || names->size() == static_cast<int>(nodes.size())));
 
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENTS, listener);
     request->setTotalBytes(sid);
@@ -24123,10 +24123,10 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes
         {
             SetElement& el = els[i];
             el.setSet(request->getTotalBytes());
-            el.setNode(nodes->get((int)i));
+            el.setNode(nodes->get(static_cast<int>(i)));
             if (names)
             {
-                el.setName(names->get((int)i));
+                el.setName(names->get(static_cast<int>(i)));
             }
         }
 
@@ -24136,7 +24136,7 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes
                 {
                     if (retEls)
                     {
-                        request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(retEls->data(), (int)retEls->size()));
+                        request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(retEls->data(), static_cast<int>(retEls->size())));
                     }
                     if (elErrs)
                     {

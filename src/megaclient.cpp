@@ -19138,7 +19138,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
             tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
 
             auto& ed = encrDetails[i];
-            ed.second.assign((char*)encryptBuffer, sizeof(encryptBuffer));
+            ed.second.assign(reinterpret_cast<char*>(encryptBuffer), sizeof(encryptBuffer));
 
             if (el.hasAttrs())
             {
