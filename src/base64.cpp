@@ -427,8 +427,8 @@ void URLCodec::escape(string *plain, string *escaped)
         }
         else
         {
-            escaped->resize(escapedIndex + 3);
-            sprintf((char *)escaped->c_str() + escapedIndex, "%%%02x", c);
+            escaped->resize(escapedIndex + 4); // include space for %12\0
+            snprintf(const_cast<char *>(escaped->data()) + escapedIndex, 4, "%%%02x", c);
             escapedIndex += 3;
         }
     }

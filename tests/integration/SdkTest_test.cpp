@@ -3448,7 +3448,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     char emailfake[64];
     srand(unsigned(time(NULL)));
-    sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
+    snprintf(emailfake, sizeof emailfake, "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
     n = megaApi[0]->getNodeByHandle(hfolder2);
@@ -6013,7 +6013,6 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     int64_t fileSize = 1304;
     const char* outputImage = "newlogo.png";
     synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage, THUMBNAIL.c_str(), PREVIEW.c_str());
-
 }
 
 TEST_F(SdkTest, SdkMediaUploadTest)
@@ -6817,7 +6816,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
         // Create file with unescaped character ex: f%5cf
         char unescapedName[6];
-        sprintf(unescapedName, "f%%%02xf", i);
+        snprintf(unescapedName, sizeof unescapedName, "f%%%02xf", i);
         if (createLocalFile(uploadPath, unescapedName))
         {
             const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
@@ -6834,7 +6833,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         }
 
         char escapedName[4];
-        sprintf(escapedName, "f%cf", i);
+        snprintf(escapedName, sizeof escapedName, "f%cf", i);
         const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
         if (escapedFileName && !strcmp(escapedName, escapedFileName))
         {

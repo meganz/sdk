@@ -18900,7 +18900,7 @@ static void appendFileAttribute(string& s, int n, MegaHandle h)
         }
 
         char buf[64];
-        sprintf(buf, "%u*", n);
+        snprintf(buf, sizeof buf, "%u*", n);
         Base64::btoa((byte*)&h, sizeof(h), strchr(buf + 2, 0));
         s += buf;
     }
@@ -30763,7 +30763,7 @@ void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
         bool exec = (curperm >> 0) & 0x1;
 
         char rwx[4];
-        sprintf(rwx,"%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
+        snprintf(rwx,sizeof rwx, "%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
         rwx[3]='\0';
         ps = rwx + ps;
     }
@@ -30822,7 +30822,8 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     strftime(timebuff,80,"%b %d %H:%M",&time);
 
     char toprint[3000];
-    sprintf(toprint,
+    snprintf(toprint,
+            sizeof toprint,
             "%c%s %5d %4d %4d %8"
             PRId64
             " %s %s",
@@ -31743,7 +31744,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (ftpctx->command == FTP_CMD_PASV)
             {
                 char url[30];
-                sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
+                snprintf(url, sizeof url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
                 response = "227 Entering Passive Mode (";
                 response.append(url);
                 response.append(")");
@@ -31751,7 +31752,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             else // FTP_CMD_EPSV
             {
                 char url[30];
-                sprintf(url, "%d", ftpctx->pasiveport);
+                snprintf(url, sizeof url, "%d", ftpctx->pasiveport);
                 response = "229 Entering Extended Passive Mode (|||";
                 response.append(url);
                 response.append("|)");

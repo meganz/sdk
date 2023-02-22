@@ -1182,7 +1182,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
     ret = vsnprintf(s, n, format, args);
     va_end(args);
 
-    s[n - 1] = '\0';
+    s[n - 1] = '\0'; // correct in snpritnf() in VS 2019
     return ret;
 }
 #endif

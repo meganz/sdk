@@ -296,7 +296,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
     char buf[64];
 
-    sprintf(buf, "%u*", t);
+    snprintf(buf, sizeof buf, "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
 
@@ -2773,7 +2773,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
 {
     string sprice;
     sprice.resize(128);
-    sprintf((char *)sprice.data(), "%.2f", price/100.0);
+    snprintf(const_cast<char*>(sprice.data()), sprice.length(), "%.2f", price/100.0);
     replace( sprice.begin(), sprice.end(), ',', '.');
     cmd("uts");
     arg("it", itemclass);

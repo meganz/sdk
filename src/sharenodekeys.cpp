@@ -65,7 +65,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int 
     do {
         if (sn->sharekey)
         {
-            sprintf(buf, ",%d,%d,\"", addshare(sn), (int)items.size());
+            snprintf(buf, sizeof buf, ",%d,%d,\"", addshare(sn), (int)items.size());
 
             sn->sharekey->ecb_encrypt((byte*)nodekey.data(), key, nodekey.size());
 
