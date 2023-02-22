@@ -4061,7 +4061,7 @@ void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaSetElementLis
     mMegaSetElementList.swap(els);
 }
 
-MegaIntegerList* MegaRequestPrivate::getMegaIntegerList() const
+const MegaIntegerList* MegaRequestPrivate::getMegaIntegerList() const
 {
     return mMegaIntegerList.get();
 }

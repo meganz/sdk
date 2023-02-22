@@ -1132,7 +1132,7 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
-MegaIntegerList* MegaRequest::getMegaIntegerList() const
+const MegaIntegerList* MegaRequest::getMegaIntegerList() const
 {
     return nullptr;
 }

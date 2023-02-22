@@ -5043,7 +5043,7 @@ class MegaRequest
          *
          * @return list of integers associated with this request (can be null)
          */
-        virtual MegaIntegerList* getMegaIntegerList() const;
+        virtual const MegaIntegerList* getMegaIntegerList() const;
 
          /**
          * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)

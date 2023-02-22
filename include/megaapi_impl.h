@@ -1514,7 +1514,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaSetElementList* getMegaSetElementList() const override;
         void setMegaSetElementList(std::unique_ptr<MegaSetElementList> els);
 
-        MegaIntegerList* getMegaIntegerList() const override;
+        const MegaIntegerList* getMegaIntegerList() const override;
         void setMegaIntegerList(std::unique_ptr<MegaIntegerList> ints);
 
 protected:
