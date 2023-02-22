@@ -2293,6 +2293,9 @@ public:
     // generate "aft" command
     void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
 
+    // generate "aepb" command
+    void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
+
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
