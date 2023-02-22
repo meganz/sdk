@@ -41,6 +41,7 @@
 #include "sync.h"
 #include "drivenotify.h"
 #include "setandelement.h"
+#include "nodemanager.h"
 
 namespace mega {
 
@@ -259,278 +260,185 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
 
 class MegaClient;
 
-/**
- * @brief The NodeManager class
- *
- * This class encapsulates the access to nodes. It hides the details to
- * access to the Node object: in case it's not loaded in RAM, it will
- * load it from the "nodes" DB table.
- *
- * The same DB file is used for the "statecache" and the "nodes" table, and
- * both tables need to follow the same domain for transactions: a commit is
- * triggered by the reception of a sequence-number in the actionpacket (scsn).
- */
-class MEGA_API NodeManager
+
+class MEGA_API KeyManager
 {
 public:
-    NodeManager(MegaClient& client);
+    KeyManager(MegaClient& client) : mClient(client) {}
 
-    // set interface to access to "nodes" table
-    void setTable(DBTableNodes *table);
+    // it's called to initialize the ^!keys attribute, since it does not exist yet
+    // prRSA is expected in base64 and 4 Ints format: pqdu
+    void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
 
-    // set interface to access to "nodes" table to nullptr, it's called just after sctable.reset()
+    // it derives master key and sets mKey
+    void setKey(const SymmCipher& masterKey);
+
+    // decrypts and decodes the ^!keys attribute
+    bool fromKeysContainer(const string& data);
+
+    // encodes and encrypts the ^!keys attribute
+    string toKeysContainer();
+
+    // --- Getters / Setters ----
+
+    bool isSecure() const { return mSecure; }
+    uint32_t generation() const;
+    string privEd25519() const;
+    string privCu25519() const;
+
+    void setPostRegistration(bool postRegistration);
+    bool getPostRegistration() const;
+
+    bool addPendingOutShare(handle sharehandle, std::string uid);
+    bool addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey);
+    bool removePendingOutShare(handle sharehandle, std::string uid);
+    bool removePendingInShare(std::string shareHandle);
+    bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
+    string getShareKey(handle sharehandle) const;
+    bool isShareKeyTrusted(handle sharehandle) const;
+    bool removeShare(handle sharehandle);
+
+    // return empty string if the user's credentials are not verified (or if fail to encrypt)
+    std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
+
+    // return empty string if the user's credentials are not verified (or if fail to decrypt)
+    std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
+
+    void setAuthRing(std::string authring);
+    void setAuthCU255(std::string authring);
+    void setPrivRSA(std::string privRSA);
+    std::string getPrivRSA();
+    bool promotePendingShares();
+    bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
+    bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
+
+    void cacheShareKeys();
+    void loadShareKeys();
+
+    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
     void reset();
 
-    // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false);
-    bool updateNode(Node* node);
-    // removeNode() --> it's done through notifypurge()
+    // returns a formatted string, for logging purposes
+    string toString() const;
 
-    // if a node is received before its parent, it needs to be updated when received
-    void addNodeWithMissingParent(Node *node);
+    // this method allows to change the feature-flag for testing purposes
+    void setSecureFlag(bool enabled) { mSecure = enabled; }
 
-    // if node is not available in memory, it's loaded from DB
-    Node *getNodeByHandle(NodeHandle handle);
+protected:
 
-    // read children from DB and load them in memory
-    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+    std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
+    std::pair<std::function<void()>, std::function<void()>> *activeCommit = nullptr;
 
-    // read children from type (folder or file) from DB and load them in memory
-    node_vector getChildrenFromType(const Node *parent, nodetype_t type, CancelToken cancelToken);
-
-    // get up to "maxcount" nodes, not older than "since", ordered by creation time
-    // Note: nodes are read from DB and loaded in memory
-    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
-
-    // Search nodes containing 'searchString' in its name
-    // Returned nodes are children of 'nodeHandle' (at any level)
-    // If 'nodeHandle' is UNDEF, search includes the whole account
-    // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
-
-    node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
-    node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
-    Node *getNodeByFingerprint(FileFingerprint &fingerprint);
-
-    // Return a first level child node whose name matches with 'name'
-    // Valid values for nodeType: FILENODE, FOLDERNODE
-    // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
-    // Hint: ensure all children are loaded if this method is called for all children of a folder
-    Node* childNodeByNameType(const Node *parent, const std::string& name, nodetype_t nodeType);
-
-    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
-    // Load from DB if it's necessary
-    node_vector getRootNodes();
-
-    node_vector getNodesWithInShares(); // both, top-level and nested ones
-    node_vector getNodesWithOutShares();
-    node_vector getNodesWithPendingOutShares();
-    node_vector getNodesWithLinks();
-
-    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag);
-
-    std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
-    size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
-
-    // Returns the number of children nodes of specific node type with a query to DB
-    // Valid types are FILENODE and FOLDERNODE
-    size_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType);
-
-    // true if 'node' is a child node of 'ancestor', false otherwise.
-    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag);
-
-    // Clean 'changed' flag from all nodes
-    void removeChanges();
-
-    // Remove all nodes from all caches
-    void cleanNodes();
-
-    // Use blob received as parameter to generate a node
-    // Used to generate nodes from old cache
-    Node* getNodeFromBlob(const string* nodeSerialized);
-
-    // attempt to apply received keys to decrypt node's keys
-    void applyKeys(uint32_t appliedKeys);
-
-    // add node to the notification queue
-    void notifyNode(Node* node);
-
-    // process notified/changed nodes from 'mNodeNotify': dump changes to DB
-    void notifyPurge();
-
-    size_t nodeNotifySize() const;
-
-    // Returns if cache has been loaded
-    bool hasCacheLoaded();
-
-    // Load rootnodes (ROOTNODE, INCOMING, RUBBISH), its first-level children
-    // and root of incoming shares. Return true if success, false if error
-    bool loadNodes();
-
-    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), including versions
-    uint64_t getNodeCount();
-
-    // return the counter for all root nodes (cloud+inbox+rubbish)
-    NodeCounter getCounterOfRootNodes();
-
-    // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
-    void updateCounter(Node &n, Node *oldParent);
-
-    // true if 'h' is a rootnode: cloud, inbox or rubbish bin
-    bool isRootNode(NodeHandle h) const;
-
-    // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
-    bool setrootnode(Node* node);
-
-    // Add fingerprint to mFingerprint. If node isn't going to keep in RAM
-    // node isn't added
-    FingerprintPosition insertFingerprint(Node* node);
-    // Remove fingerprint from mFingerprint
-    void removeFingerprint(Node* node);
-    FingerprintPosition invalidFingerprintPos();
-
-    // Node has received last updates and it's ready to store in DB
-    void saveNodeInDb(Node *node);
-
-    // write all nodes into DB (used for migration from legacy to NOD DB schema)
-    void dumpNodes();
-
-    // This method only can be used in Megacli for testing purposes
-    uint64_t getNumberNodesInRam() const;
-
-    // Add new relationship between parent and child
-    void addChild(NodeHandle parent, NodeHandle child, Node *node);
-    // remove relationship between parent and child
-    void removeChild(Node *parent, NodeHandle child);
-
-    // Returns the number of versions for a node (including the current version)
-    int getNumVersions(NodeHandle nodeHandle);
-
-    // Returns true if a node has versions
-    bool hasVersion(NodeHandle nodeHandle);
-
-    NodeHandle getRootNodeFiles() {
-        return rootnodes.files;
-    }
-    NodeHandle getRootNodeVault() {
-        return rootnodes.vault;
-    }
-    NodeHandle getRootNodeRubbish() {
-        return rootnodes.rubbish;
-    }
-    void setRootNodeFiles(NodeHandle h) {
-        rootnodes.files = h;
-    }
-    void setRootNodeVault(NodeHandle h) {
-        rootnodes.vault = h;
-    }
-    void setRootNodeRubbish(NodeHandle h) {
-        rootnodes.rubbish = h;
-    }
-
-    // Check if there are orphan nodes and clear mNodesWithMissingParent
-    // In case of orphans send an event
-    void checkOrphanNodes();
-
-    // This method is called when initial fetch nodes is finished
-    // Initialize node counters and create indexes at DB
-    void initCompleted();
-
-    // This method should be called when no recoverable error is detected
-    // This error are called mainly due an error in DB
-    // This method notify to app that an error has been detected
-    void fatalError(ReasonsToReload reloadReason);
-
-    // This flag is set true when failure at DB is detected and app reload
-    // has been requested
-    bool accountShouldBeReloaded() const;
+    void nextCommit();
+    void tryCommit(Error e, std::function<void ()> completion);
+    void updateAttribute(std::function<void (Error)> completion);
 
 private:
+
+    // Tags used by TLV blob
+    enum {
+        TAG_VERSION = 1,
+        TAG_CREATION_TIME = 2,
+        TAG_IDENTITY = 3,
+        TAG_GENERATION = 4,
+        TAG_ATTR = 5,
+        TAG_PRIV_ED25519 = 16,
+        TAG_PRIV_CU25519 = 17,
+        TAG_PRIV_RSA = 18,
+        TAG_AUTHRING_ED25519 = 32,
+        TAG_AUTHRING_CU25519 = 33,
+        TAG_SHAREKEYS = 48,
+        TAG_PENDING_OUTSHARES = 64,
+        TAG_PENDING_INSHARES = 65,
+        TAG_BACKUPS = 80,
+        TAG_WARNINGS = 96,
+    };
+
+    static const uint8_t IV_LEN = 12;
+    static const std::string SVCRYPTO_PAIRWISE_KEY;
+
     MegaClient& mClient;
 
-    // interface to handle accesses to "nodes" table
-    DBTableNodes* mTable = nullptr;
+    // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
+    SymmCipher mKey;
 
-    // root nodes (files, vault, rubbish)
-    struct Rootnodes
-    {
-        NodeHandle files;
-        NodeHandle vault;
-        NodeHandle rubbish;
+    // client is considered to exchange keys in a secure way (requires credential's verification)
+    bool mSecure = false;
 
-        // returns true if the 'h' provided matches any of the rootnodes.
-        // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
-    } rootnodes;
+    // enable / disable logs related to the contents of ^!keys
+    static const bool mDebugContents = false;
 
-    class FingerprintContainer : public fingerprint_set
-    {
-    public:
-        bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
-        void setAllFingerprintLoaded(const FileFingerprint *fingerprint);
-        void clear();
+    // true when the account is being created -> don't show warning to user "updading security",
+    // false when the account is being upgraded to ^!keys -> show the warning
+    bool mPostRegistration = false;
 
-    private:
-        // it stores all FileFingerprint that have been looked up in DB, so it
-        // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
-        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
-    };
+    // if the last known value of generation is greater than a value received in a ^!keys,
+    // then a rogue API could be tampering with the attribute
+    bool mDowngradeAttack = false;
 
-    // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
-    std::map<NodeHandle, NodeManagerNode> mNodes;
+    uint8_t mVersion = 0;
+    uint32_t mCreationTime = 0;
+    handle mIdentity = UNDEF;
+    uint32_t mGeneration = 0;
+    string mAttr;
+    string mPrivEd25519, mPrivCu25519, mPrivRSA;
+    string mAuthEd25519, mAuthCu25519;
+    string mBackups;
+    string mWarnings;
+    string mOther;
 
-    uint64_t mNodesInRam = 0;
+    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
+    map<handle, pair<string, bool>> mShareKeys;
 
-    // nodes that have changed and are pending to notify to app and dump to DB
-    node_vector mNodeNotify;
+    // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
+    map<handle, set<string>> mPendingOutShares;
 
-    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
-    std::map<NodeHandle,  set<Node*>> mNodesWithMissingParent;
+    // maps base64 node handles to pairs of source user handle and share key
+    map<string, pair<handle, string>> mPendingInShares;
 
-    Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
-    node_vector getNodesWithSharesOrLink(ShareType_t shareType);
+    // decode data from the decrypted ^!keys attribute and stores values in `km`
+    // returns false in case of unserializatison isues
+    static bool unserialize(KeyManager& km, const string& keysContainer);
 
-    enum OperationType
-    {
-        INCREASE = 0,
-        DECREASE,
-    };
+    // prepares the header for a new serialized record of type 'tag' and 'len' bytes
+    string tagHeader(const byte tag, size_t len) const;
 
-    // Update a node counter for 'origin' and its subtree (recursively)
-    // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
-    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+    // encode data from the decrypted ^!keys attribute
+    string serialize() const;
 
-    // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
-    Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
+    string serializeShareKeys() const;
+    static bool deserializeShareKeys(KeyManager& km, const string& blob);
+    static string shareKeysToString(const KeyManager& km);
 
-    // reads from DB and loads the node in memory
-    Node* unserializeNode(const string*, bool fromOldCache);
+    string serializePendingOutshares() const;
+    static bool deserializePendingOutshares(KeyManager& km, const string& blob);
+    static string pendingOutsharesToString(const KeyManager& km);
 
-    // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node, bool isInRubbish);
+    string serializePendingInshares() const;
+    static bool deserializePendingInshares(KeyManager& km, const string& blob);
+    static string pendingInsharesToString(const KeyManager& km);
 
-    // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
-    FingerprintContainer mFingerPrints;
+    string serializeBackups() const;
+    static bool deserializeBackups(KeyManager& km, const string& blob);
 
-    // Return a node from Data base, node shouldn't be in RAM previously
-    Node* getNodeFromDataBase(NodeHandle handle);
+    std::string computeSymmetricKey(handle user);
 
-    // Returns root nodes without nested in-shares
-    node_vector getRootNodesAndInshares();
+    // validates data in `km`: ie. downgrade attack, tampered keys...
+    bool isValidKeysContainer(const KeyManager& km);
 
-    // Process unserialized nodes read from DB
-    // Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
-    // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
-    // If a valid object is passed, it must be kept alive until this method returns.
-    node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
+    void updateValues(KeyManager& km);
 
-    // node temporary in memory, which will be removed upon write to DB
-    unique_ptr<Node> mNodeToWriteInDb;
+    // decodes the RSA private key and sets it at MegaClient::asymkey
+    // returns false if it doesn't match the current key or if failed to set the key
+    bool decodeRSAKey();
 
-    // This flag is set true when a failure in DB has been detected. Keep true until app is reload
-    bool mAccountReload = false;
+    // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
+    void updateAuthring(attr_t at, std::string &value);
+
+    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
 };
+
 
 class MEGA_API MegaClient
 {
@@ -590,6 +498,9 @@ public:
     static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
+
+    // method to check if a timestamp (m_time_t) is valid or not
+    static bool isValidMegaTimeStamp(m_time_t val) { return val > mega_invalid_timestamp; }
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -667,9 +578,6 @@ public:
     void reportLoggedInChanges();
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
-
-    // check if logged in a folder link
-    bool loggedinfolderlink();
 
     // check the reason of being blocked
     void whyamiblocked();
@@ -753,7 +661,7 @@ public:
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
 
-    // reset the tracking of public keys in the authrings for a given user
+    // reset the authentication method of Ed25519 key from Fingerprint-verified to Seen for a given user
     error resetCredentials(handle uh);
 
     // check credentials are verified for a given user
@@ -858,10 +766,10 @@ public:
         std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
-    void putua(userattr_map *attrs, int ctag = -1);
+    void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
@@ -880,8 +788,17 @@ public:
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
+    // Migrate the account to start using the new ^!keys attr.
+    void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Creates a new share key for the node if there is no share key already created.
+    void openShareDialog(Node* n, std::function<void (Error)> completion);
+
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+        int tag, std::function<void(Error, bool writable)> completion);
+
+    void setShareCompletion(Node*, User*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
@@ -1121,7 +1038,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -1180,7 +1097,8 @@ public:
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
                                  bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
-                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
+                                 handle_set* childMeetingsDeleted = nullptr);
 #endif
 
     // get mega achievements
@@ -1481,17 +1399,17 @@ public:
     void sc_chatflags();
     void sc_scheduledmeetings();
     void sc_delscheduledmeeting();
-
-    void createNewSMAlert(const handle&, handle schedId);
-    void createDeletedSMAlert(const handle&, handle schedId);
-    void createUpdatedSMAlert(const handle&, handle schedId,
-                              UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
+    void createNewSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId, m_time_t startDateTime);
+    void createDeletedSMAlert(const handle&, handle chatid, handle schedId);
+    void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
+                               m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
     void sc_la();
     void sc_ub();
     void sc_sqac();
+    void sc_pk();
 
     void init();
 
@@ -1544,7 +1462,7 @@ public:
     struct MegaApp* app;
 
     // event waiter
-    Waiter* waiter;
+    shared_ptr<Waiter> waiter;
 
     // HTTP access
     HttpIO* httpio;
@@ -1690,6 +1608,7 @@ public:
     dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried
     dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
+    void removeAppData(void* t); // remove appdata (usually a MegaTransfer*) from every DirectRead
 
     // merge newly received share into nodes
     void mergenewshares(bool notify, bool skipWriteInDb = false);
@@ -1698,8 +1617,14 @@ public:
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     node_vector getInShares();
 
+    // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getVerifiedInShares();
+
+    // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getUnverifiedInShares();
+
     // transfer queues (PUT/GET)
-    transfer_map transfers[2];
+    transfer_multimap multi_transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
     uint32_t lastKnownCancelCount = 0;
 
@@ -1707,7 +1632,7 @@ public:
     TransferList transferlist;
 
     // cached transfers (PUT/GET)
-    transfer_map cachedtransfers[2];
+    transfer_multimap multi_cachedtransfers[2];
 
     // cached files and their dbids
     vector<string> cachedfiles;
@@ -1733,6 +1658,7 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
+    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
     handle_vector sharekeyrewrite;
@@ -1820,6 +1746,12 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
+
+    // functions for determining whether we can clone a node instead of upload
+    // or whether two files are the same so we can just upload/download the data once
+    bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
+    bool treatAsIfFileDataEqual(const FileFingerprint& fp1, const string& filenameExtensionLowercaseNoDot1,
+                                const FileFingerprint& fp2, const string& filenameExtensionLowercaseNoDot2);
 
 #ifdef ENABLE_SYNC
 
@@ -1982,6 +1914,11 @@ public:
     dstime disconnecttimestamp;
     dstime nextDispatchTransfersDs = 0;
 
+#ifdef ENABLE_CHAT
+    // SFU id to specify the SFU server where all chat calls will be started
+    int mSfuid = sfu_invalid_id;
+#endif
+
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
@@ -2047,6 +1984,8 @@ public:
     void proccr(JSON*);
     void procsr(JSON*);
 
+    KeyManager mKeyManager;
+
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
@@ -2073,8 +2012,8 @@ public:
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
 
-    // true while authrings are being fetched
-    bool mFetchingAuthrings;
+    // number of authrings being fetched
+    unsigned short mFetchingAuthrings = 0;
 
     // actual state of keys
     bool fetchingkeys;
@@ -2116,6 +2055,7 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
+    User *getUserForSharing(const char *uid);
     void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
@@ -2304,7 +2244,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
@@ -2334,6 +2274,9 @@ private:
 
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
+
+    error changePasswordV1(User* u, const char* password, const char* pin);
+    error changePasswordV2(const char* password, const char* pin);
 
 
 //
@@ -2429,6 +2372,7 @@ private:
 // -------- end of Sets and Elements
 
 };
+
 } // namespace
 
 #if __cplusplus < 201100L

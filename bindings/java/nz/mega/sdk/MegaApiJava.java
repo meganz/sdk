@@ -3108,6 +3108,50 @@ public class MegaApiJava {
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
     }
+    
+    /**
+     * Upgrade cryptographic security
+     *
+     * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+     * proceed with the cryptographic upgrade process.
+     * This should happen only once per account.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void upgradeSecurity(MegaRequestListenerInterface listener) {
+        megaApi.upgradeSecurity(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Allows to change the hardcoded value of the "secure" flag
+     *
+     * With this feature flag set, the client will manage encryption keys for
+     * shared folders in a secure way. Legacy clients won't be able to decrypt
+     * shared folders created with this flag enabled.
+     *
+     * Manual verification of credentials of users (both sharers AND sharees) is
+     * required in order to decrypt shared folders correctly.
+     *
+     * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+     * result on unexpected behavior.
+     *
+     * @param enable New value of the flag
+     */
+    public void setSecureFlag(boolean enable) {
+        megaApi.setSecureFlag(enable);
+    }
+
+    /**
+     * Creates a new share key for the node if there is no share key already created.
+     *
+     * Call it before starting any new share.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void openShareDialog(MegaNode node, MegaRequestListenerInterface listener) {
+        megaApi.openShareDialog(node, createDelegateRequestListener(listener));
+    }
 
     /**
      * Share or stop sharing a folder in MEGA with another user using a MegaUser
@@ -8227,6 +8271,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a list with all unverified inbound sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public ArrayList<MegaShare> getUnverifiedIncomingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedInShares(order));
+    }
+
+    /**
      * Get the user relative to an incoming share
      * <p>
      * This function will return NULL if the node is not found
@@ -8317,6 +8373,18 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
+    }
+
+    /**
+     * Get a list with all unverified sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects
+     */
+    public ArrayList<MegaShare> getUnverifiedOutgoingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedOutShares(order));
     }
 
     /**
@@ -11895,6 +11963,27 @@ public class MegaApiJava {
     }
 
     /**
+     * Get Element count of the Set with the given id, for current user.
+     *
+     * @param sid the id of the Set to get Element count for
+     * @return Element count of requested Set, or 0 if not found
+     */
+    public long getSetElementCount(long sid) {
+        return megaApi.getSetElementCount(sid);
+    }
+
+    /**
+     * Get Element count of the Set with the given id, for current user.
+     *
+     * @param sid                         the id of the Set to get Element count for
+     * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return Element count of requested Set, or 0 if not found
+     */
+    public long getSetElementCount(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElementCount(sid, includeElementsInRubbishBin);
+    }
+
+    /**
      * Get all Elements in the Set with given id, for current user.
      * <p>
      * The response value is stored as a MegaSetElementList.
@@ -11906,6 +11995,21 @@ public class MegaApiJava {
      */
     public MegaSetElementList getSetElements(long sid) {
         return megaApi.getSetElements(sid);
+    }
+
+    /**
+     * Get all Elements in the Set with given id, for current user.
+     * <p>
+     * The response value is stored as a MegaSetElementList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid                         the id of the Set owning the Elements
+     * @param includeElementsInRubbishBin includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return all Elements in that Set, or null if not found or none added
+     */
+    public MegaSetElementList getSetElements(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElements(sid, includeElementsInRubbishBin);
     }
 
     /**

@@ -125,17 +125,14 @@ bool JSON::storeobject(string* s)
 bool JSON::storeKeyValueFromObject(string& key, string& value)
 {
     // this one can be used when the key is not a nameid
-    if (!storeobject(&key))
+    if (!storeobject(&key) || *pos != ':')
     {
         return false;
     }
-    if (*pos != ':') return false;
+
     ++pos;
-    if (!storeobject(&value))
-    {
-        return false;
-    }
-    return true;
+
+    return storeobject(&value);
 }
 
 bool JSON::skipnullvalue()
@@ -208,6 +205,16 @@ nameid JSON::getnameid(const char* ptr) const
     return id;
 }
 
+nameid JSON::getnameid()
+{
+    return getNameidSkipNull(true);
+}
+
+nameid JSON::getnameidvalue()
+{
+    return getNameidSkipNull(false);
+}
+
 std::string JSON::getname()
 {
     const char* ptr = pos;
@@ -257,7 +264,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid()
+nameid JSON::getNameidSkipNull(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
@@ -288,7 +295,7 @@ nameid JSON::getnameid()
         }
     }
 
-    bool skippedNull = id && skipnullvalue();
+    bool skippedNull = id && skipnullvalues && skipnullvalue();
 
     return skippedNull ? getnameid() : id;
 }

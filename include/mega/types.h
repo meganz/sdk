@@ -152,6 +152,7 @@ class AuthRing;
 // Our own version of time_t which we can be sure is 64 bit.
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
+constexpr m_time_t mega_invalid_timestamp = 0;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -473,7 +474,7 @@ enum SyncError {
     LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
     REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
     STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
-    ACCOUNT_EXPIRED = 10,                   // Account expired (business or Pro Flexi)
+    ACCOUNT_EXPIRED = 10,                   // Your plan has expired
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
@@ -552,7 +553,7 @@ typedef list<struct TransferSlot*> transferslot_list;
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_multimap;
 
 template <class T, class E>
 class deque_with_lazy_bulk_erase
@@ -630,9 +631,6 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
-
-// map an upload handle to the corresponding transfer
-typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
 typedef map<NodeHandle, unique_ptr<Node>> node_map;
@@ -732,15 +730,16 @@ typedef enum {
     ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
-    ATTR_AUTHRSA = 28,                      // private - byte array
+    //ATTR_AUTHRSA = 28,                    // (deprecated) private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -1181,7 +1180,10 @@ public:
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
-} // namespace
+#ifdef ENABLE_CHAT
+static constexpr int sfu_invalid_id = -1;
+#endif
+} // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
     class_name(const class_name&) = delete; \

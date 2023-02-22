@@ -52,6 +52,7 @@ public:
     MegaClient* client; // non-owning
 
     int tag;
+    string commandStr;
 
     bool persistent;
 
@@ -145,12 +146,18 @@ public:
 
     virtual bool procresult(Result) = 0;
 
-    const char* getstring();
+    // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
+    virtual const char* getJSON(MegaClient* client);
 
     Command();
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
+
+#ifdef ENABLE_CHAT
+    // create json structure for scheduled meetings (mcsmp command)
+    void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -313,8 +320,11 @@ class MEGA_API CommandPutMultipleUAVer : public Command
 {
     userattr_map attrs;  // attribute values
 
+    std::function<void(Error)> mCompletion;
+
 public:
-    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int,
+                            std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -498,6 +508,8 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool incrementedCount = false;
+    const char* getJSON(MegaClient* client) override;
 public:
     using Completion = std::function<void(error)>;
 
@@ -638,7 +650,6 @@ public:
 class MEGA_API CommandSetShare : public Command
 {
     handle sh;
-    User* user;
     accesslevel_t access;
     string msg;
     string personal_representation;
@@ -654,6 +665,26 @@ public:
 
     CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, bool, const char*, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> f);
+};
+
+using CommandPendingKeysReadCompletion = std::function<void(Error, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)>;
+class MEGA_API CommandPendingKeys : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    // Read pending keys
+    CommandPendingKeys(MegaClient*, CommandPendingKeysReadCompletion);
+
+    // Delete pending keys
+    CommandPendingKeys(MegaClient*, std::string, std::function<void(Error)>);
+
+    // Send key
+    CommandPendingKeys(MegaClient*, handle user, handle share, byte *key, std::function<void(Error)>);
+
+protected:
+    std::function<void(Error)> mCompletion;
+    CommandPendingKeysReadCompletion mReadCompletion;
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -1011,10 +1042,11 @@ class MEGA_API CommandChatCreate : public Command
     string mUnifiedKey;
     bool mMeeting;
     ChatOptions mChatOptions;
+    std::unique_ptr<ScheduledMeeting> mSchedMeeting;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
 };
 
 typedef std::function<void(Error)> CommandSetChatOptionsCompletion;
@@ -1631,11 +1663,12 @@ typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMee
 class MEGA_API CommandScheduledMeetingFetchEvents : public Command
 {
     handle mChatId;
+    bool mByDemand;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, unsigned int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, bool, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 

@@ -230,6 +230,9 @@ struct DemoApp : public MegaApp
     bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
+    void upgrading_security() override;
+    void downgrade_attack() override;
+
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
@@ -321,6 +324,7 @@ void exec_du(autocomplete::ACState& s);
 void exec_nodecounter(autocomplete::ACState& s);
 void exec_numberofnodes(autocomplete::ACState& s);
 void exec_numberofchildren(autocomplete::ACState& s);
+void exec_searchbyname(autocomplete::ACState &s);
 void exec_export(autocomplete::ACState& s);
 void exec_encryptLink(autocomplete::ACState& s);
 void exec_decryptLink(autocomplete::ACState& s);
@@ -340,6 +344,7 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
+void exec_secure(autocomplete::ACState& s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
 void exec_recover(autocomplete::ACState& s);

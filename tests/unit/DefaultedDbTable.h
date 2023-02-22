@@ -90,6 +90,14 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+    bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::NodeHandle parentHandle, mega::CancelToken cancelFlag)
+    {
+        return false;
+    }
+    bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::ShareType_t shareType, mega::CancelToken cancelFlag) override
+    {
+        return false;
+    }
     bool getRecentNodes(unsigned maxcount, mega::m_time_t since, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
@@ -118,7 +126,13 @@ public:
     {
       return 0;
     }
-    bool getNodesByMimetype(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::CancelToken cancelFlag) override
+    bool getNodesByMimetype(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, mega::Node::Flags requiredFlags, mega::Node::Flags excludeFlags, mega::CancelToken cancelFlag) override
+    {
+        return false;
+    }
+
+    bool getNodesByMimetypeExclusiveRecursive(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::Node::Flags requiredFlags, mega::Node::Flags excludeFlags, mega::Node::Flags excludeRecursiveFlags, mega::NodeHandle anscestorHandle, mega::CancelToken cancelFlag) override
+
     {
         return false;
     }

@@ -338,6 +338,7 @@ public:
     enum { PUB_PQ, PUB_E };
 
     static const int PRIVKEY = 4;
+    static const int PRIVKEY_SHORT = 3;
     static const int PUBKEY = 2;
 
     CryptoPP::Integer key[PRIVKEY];
