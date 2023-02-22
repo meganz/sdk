@@ -20472,14 +20472,15 @@ class MegaApi
          * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all requested Elements
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
+         * - MegaError::API_ENOENT - Set could not be found.
          * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
          * - MegaError::API_EARGS - Malformed (from API).
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param sid the id of the Set that will own the new Elements
          * @param nodes the handles of the file-nodes that will be represented by the new Elements
-         * @param names the names that should be given to the new Elements (either null or of same size as nodes)
+         * @param names the names that should be given to the new Elements (param names must be either null or have
+         * the same size() as param nodes)
          * @param listener MegaRequestListener to track this request
          */
         void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
