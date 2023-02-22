@@ -11381,7 +11381,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     }
 }
 
-
 /**
  * ___SdkGetNodesByName___
  * Steps:
