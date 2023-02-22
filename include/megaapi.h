@@ -5037,7 +5037,7 @@ class MegaRequest
          * @brief Returns a list of integers associated with this request
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
-
+         *
          * This value is valid for these requests:
          * - MegaApi::createSetElements -> error codes for all requested Elements
          *
