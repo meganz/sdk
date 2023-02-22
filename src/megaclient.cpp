@@ -5045,7 +5045,6 @@ bool MegaClient::procsc()
                         // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
                         if (loggedin() == FULLACCOUNT)
                         {
-                            fetchContactsKeys();
                             if (!mKeyManager.generation())
                             {
                                 assert(!mKeyManager.getPostRegistration());
@@ -5067,6 +5066,7 @@ bool MegaClient::procsc()
                             }
                             else
                             {
+                                fetchContactsKeys();
                                 sc_pk();
                             }
                         }
@@ -10121,7 +10121,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         }
                         else if (u->show == VISIBILITY_UNKNOWN && v == VISIBLE
                                  && uh != me
-                                 && !fetchingnodes)
+                                 && statecurrent)  // otherwise, fetched when statecurrent is set
                         {
                             // new user --> fetch keys
                             fetchContactKeys(u);
@@ -14146,6 +14146,8 @@ void MegaClient::loadAuthrings()
                     else
                     {
                         LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
+                        getua(ownUser, at, 0);
+                        ++mFetchingAuthrings;
                     }
                 }
                 else
@@ -14155,13 +14157,14 @@ void MegaClient::loadAuthrings()
                     ++mFetchingAuthrings;
                 }
             }
-        }   // --> end if(!mKeyManager.generation())
 
-        // if all authrings were loaded from cache...
-        if (mFetchingAuthrings == 0)
-        {
-            fetchContactsKeys();
-        }
+            // if all authrings were loaded from cache...
+            if (mFetchingAuthrings == 0)
+            {
+                fetchContactsKeys();
+            }
+
+        }   // --> end if(!mKeyManager.generation())
     }
 }
 
@@ -20841,7 +20844,10 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
     {
         LOG_err << "Not initialized yet. Cancelling the update.";
         assert(false);
-        completion();
+        if (completion)
+        {
+            completion();
+        }
         return;
     }
 
