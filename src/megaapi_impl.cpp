@@ -12327,75 +12327,80 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 }
             }
 
-        } else if (target == MegaApi::SEARCH_TARGET_INSHARE)
+        }
+        else if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
-            if (recursive)
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find in-shares themselves
+            node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search in each inshare
+            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
-                // Search on inshares
-                unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
                 {
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    assert(node);
-                    if (node)
-                    {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                    }
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
             }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
-
         }
         else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
-            if (recursive)
+            // always recursive
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
+
+            // find out-shares themselves
+            node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search in each outshare
+            std::set<MegaHandle> outsharesHandles;
+            unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
-                // Search on outshares
-                std::set<MegaHandle> outsharesHandles;
-                unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
-                for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
                 {
-                    handle h = shares->get(i)->getNodeHandle();
-                    if (outsharesHandles.find(h) != outsharesHandles.end())
-                    {
-                        // shares list includes an item per outshare AND per sharee/user
-                        continue;   // avoid duplicates
-                    }
-                    outsharesHandles.insert(h);
-                    Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-                    assert(node);
-                    if (node)
-                    {
-                        node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                        result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-                    }
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
+                Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+                assert(node);
+                if (node)
+                {
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
             }
-            else
-            {
-                // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
-                node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
-        } 
+        }
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
-            // Search on public links
             // always recursive
-            node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
-            for (auto it = publicLinks.begin(); it != publicLinks.end()
-                && !cancelToken.isCancelled(); it++)
-            {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
-                result.insert(result.end(), nodeVector.begin(), nodeVector.end());
-            }
+            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
+            // find public links themselves
+            node_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
+            result.swap(nodeVector);
+
+            // Search under each public link
+            node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+            for (const auto& p : publicLinks)
+            {
+                Node* node = client->nodebyhandle(p->nodehandle);
+                assert(node);
+                if (node)
+                {
+                    nodeVector = searchInNodeManager(node->nodehandle, searchString, mimeType, true, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelToken);
+                    result.insert(result.end(), nodeVector.begin(), nodeVector.end());
+                }
+            }
         }
         else
         {
