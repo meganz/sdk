@@ -11048,12 +11048,6 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
-    if (mKeyManager.isSecure())
-    {
-        LOG_debug << "Skipped to rewrite foreign keys (secured client)";
-        return;
-    }
-
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
 
