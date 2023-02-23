@@ -24179,7 +24179,7 @@ void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle
 
     request->performRequest = [this, request]()
     {
-        MegaHandleList* eidsList = request->getMegaHandleList();
+        const MegaHandleList* eidsList = request->getMegaHandleList();
         if (!eidsList)
         {
             return API_ENOENT;

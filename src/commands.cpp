@@ -9702,7 +9702,7 @@ bool CommandRemoveSetElements::procresult(Result r)
         if (errs[elCount] == API_OK && !client->deleteSetElement(mSetId, mElemIds[elCount]))
         {
             LOG_err << "Sets: Failed to remove Element in `aerb` command response";
-            errs.back() = API_ENOENT;
+            errs[elCount] = API_ENOENT;
         }
     }
 

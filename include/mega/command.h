@@ -1600,7 +1600,7 @@ public:
 
 private:
     handle mSetId = UNDEF;
-    vector<handle> mElemIds;
+    handle_vector mElemIds;
     std::function<void(Error, const vector<int64_t>*)> mCompletion;
 };
 
