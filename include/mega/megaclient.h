@@ -559,7 +559,8 @@ public:
     void login(string session);
 
     // check password
-    error validatepwd(const byte *);
+    error validatepwd(const char* pswd);
+    bool validatepwdlocally(const char* pswd);
 
     // get user data
     void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
@@ -2276,6 +2277,8 @@ private:
 
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
+
+    static vector<byte> deriveKey(const char* password, const string& salt);
 
 
 //
