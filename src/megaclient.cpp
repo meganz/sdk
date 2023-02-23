@@ -138,15 +138,20 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
         delete[] buf;
 
-        if (!ISUNDEF(node))
+        // RSA-encrypted nodekeys shall no longer be rewritten
+        // by clients with secure=true
+        if (!mKeyManager.isSecure())
         {
-            if (type)
+            if (!ISUNDEF(node))
             {
-                sharekeyrewrite.push_back(node);
-            }
-            else
-            {
-                nodekeyrewrite.push_back(node);
+                if (type == FOLDERNODE)
+                {
+                    sharekeyrewrite.push_back(node);
+                }
+                else // FILENODE
+                {
+                    nodekeyrewrite.push_back(node);
+                }
             }
         }
     }
@@ -9972,9 +9977,13 @@ void MegaClient::sendkeyrewrites()
 {
     if (mKeyManager.isSecure())
     {
-        LOG_debug << "Skipped to send key rewrites (secured client)";
-        sharekeyrewrite.clear();
-        nodekeyrewrite.clear();
+        if (sharekeyrewrite.size() || nodekeyrewrite.size())
+        {
+            LOG_err << "Skipped to send key rewrites (secured client)";
+            assert(false);
+            sharekeyrewrite.clear();
+            nodekeyrewrite.clear();
+        }
         return;
     }
 
