@@ -26,6 +26,7 @@
 #include "filefingerprint.h"
 #include "file.h"
 #include "attrmap.h"
+#include <bitset>
 
 namespace mega {
 
@@ -150,6 +151,15 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // try to resolve node key string
     bool applykey();
 
+    // Returns false if the share key can't correctly decrypt the key and the
+    // attributes of the node. Otherwise, it returns true. There are cases in
+    // which it's not possible to check if the key is valid (for example when
+    // the node is already decrypted). In those cases, this function returns
+    // true, because it is intended to discard outdated share keys that could
+    // make nodes undecryptable until the next full reload. That way, nodes
+    // can be decrypted when the updated share key is received.
+    bool testShareKey(const byte* shareKey);
+
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
 
@@ -173,6 +183,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // node attributes
     AttrMap attrs;
+
+    static const vector<string> attributesToCopyIntoPreviousVersions;
+    
+    // 'sen' attribute
+    bool isMarkedSensitive() const;
+    bool isSensitiveInherited() const;
 
     // {backup-id, state} pairs received in "sds" node attribute
     vector<pair<handle, int>> getSdsBackups() const;
@@ -236,6 +252,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool syncdown_node_matched_here : 1;
 #endif
         bool counter : 1;
+        bool sensitive : 1;
 
         // this field also only used internally, for reporting new NO_KEY occurrences
         bool modifiedByThisClient : 1;
@@ -256,6 +273,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setCounter(const NodeCounter &counter, bool notify);
 
     // parent
+    // nullptr if is root node or top node of an inshare
     Node* parent = nullptr;
 
     // own position in NodeManager::mFingerPrints (only valid for file nodes)
@@ -303,6 +321,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     bool isAncestor(NodeHandle ancestorHandle) const;
 
+    // true for outshares, pending outshares and folder links (which are shared folders internally)
+    bool isShared() const { return  (outshares && !outshares->empty()) || (pendingshares && !pendingshares->empty()); }
+
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
@@ -310,9 +331,37 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
 
-    uint64_t getDBFlag() const;
 
-    static uint64_t getDBFlag(uint64_t oldFlags, bool isInRubbish, bool isVersion);
+    // values that are used to populate the flags column in the database
+    // for efficent searching
+    enum
+    {
+        FLAGS_IS_VERSION = 0,        // This bit is active if node is a version
+        // i.e. the parent is a file not a folder
+        FLAGS_IS_IN_RUBBISH = 1,     // This bit is active if node is in rubbish bin
+        // i.e. the root ansestor is the rubbish bin
+        FLAGS_IS_MARKED_SENSTIVE = 2,// This bit is active if node is marked as sensitive
+        // that is it and every descendent is to be considered
+        // sensitive
+        // i.e. the 'sen' attribute is set
+        FLAGS_SIZE = 3
+    };
+
+    typedef std::bitset<FLAGS_SIZE> Flags; 
+
+    // check if any of the flags are set in any of the anesestors
+    bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
+
+    // should we keep the node
+    // requiredFlags are flags that must be set
+    // excludeFlags are flags that must not be set
+    // excludeRecursiveFlags are flags that must not be set or set in a ansestor
+    bool areFlagsValid(Flags requiredFlags, Flags excludeFlags, Flags excludeRecursiveFlags = Flags()) const;
+
+    Flags getDBFlagsBitset() const;
+    uint64_t getDBFlags() const;
+
+    static uint64_t getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
@@ -330,14 +379,6 @@ private:
     bool isDocument(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
-
- public:
-    enum
-    {
-        FLAGS_IS_VERSION = 0,  // This bit is active if node is a version
-        FLAGS_IS_IN_RUBBISH = 1, // This bit is active if node is in rubbish bin
-        FLAGS_SIZE = 2,
-    } Flags;
 };
 
 inline const string& Node::nodekey() const
