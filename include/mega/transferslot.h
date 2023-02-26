@@ -106,7 +106,8 @@ struct MEGA_API TransferSlot
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
 
-    bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
+    //bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart);
+    bool initCloudRaid(MegaClient* client, DBTableTransactionCommitter& committer);
     shared_ptr<CloudRaid> getcloudRaidPtr()
     {
         return cloudRaid;
@@ -123,7 +124,8 @@ struct MEGA_API TransferSlot
     void doio(MegaClient*, DBTableTransactionCommitter&);
 
     // Process CloudRaid Request
-    off_t processRaidReq(const std::shared_ptr<HttpReqXfer>&);
+    //off_t processRaidReq(const std::shared_ptr<HttpReqXfer>&);
+    m_off_t processRaidReq(size_t connection = 0);
 
     // Prepare a transfer request for POST
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus = true);
@@ -160,6 +162,8 @@ struct MEGA_API TransferSlot
 
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
+
+    std::chrono::time_point<std::chrono::system_clock> downloadStartTime;
 
     TransferSlot(Transfer*);
     ~TransferSlot();

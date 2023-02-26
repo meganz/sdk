@@ -312,7 +312,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     if (hasUltoken < 0 || hasUltoken > 2
             || (ptr + ll + sizeof(unsigned short) > end))
     {
-        LOG_err << "Transfer unserialization failed - invalid ultoken";
+        LOG_err << "Transfer unserialization failed - invalid ultoken [hasUltoken = " << (int)hasUltoken << "]";
         return NULL;
     }
 

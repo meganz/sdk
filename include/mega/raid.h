@@ -265,7 +265,7 @@ namespace mega {
 
     public:
         CloudRaid();
-        CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
+        CloudRaid(TransferSlot* tslot, MegaClient* client, DBTableTransactionCommitter& committer, int connections);
         ~CloudRaid();
 
         /* Instance control functionality */
@@ -284,12 +284,14 @@ namespace mega {
         std::pair<bool, size_t> getRaidMaxChunksPerRead() const;
 
         /* RaidProxy functionality for TransferSlot */
-        bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
-        bool balancedRequest(MegaClient* client, DBTableTransactionCommitter& committer, int notifyfd = -1);
-        bool removeRaidReq();
+        bool init(TransferSlot* tslot, MegaClient* client, DBTableTransactionCommitter& committer, int connections);
+        bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart, int notifyfd = -1);
+        bool removeRaidReq(int connection);
+        bool resumeAllConnections();
+        bool pauseTransferSlotFunctionality();
+        bool resumeTransferSlotFunctionality();
 
-        m_off_t read_data(byte* buf, off_t len);
-        m_off_t send_data(byte* outbuf, off_t len); // Not really valid for uploads...
+        m_off_t read_data(int connection, byte* buf, off_t len);
     };
 
 } // namespace
