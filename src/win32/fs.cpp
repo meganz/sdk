@@ -258,6 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -266,7 +267,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     errorcode = 0;
     if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
     {
-        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname.toPath();
+        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname;
     }
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -288,7 +289,7 @@ bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-
+    
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -301,7 +302,8 @@ bool WinFileAccess::sysopen(bool async)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        errorcode = e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -596,13 +598,21 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         {
             if (SimpleLogger::logCurrentLevel >= logDebug)
             {
-                LOG_debug << "Excluded: " << namePath.toPath() << "   Attributes: " << fad.dwFileAttributes;
+                LOG_debug << "Excluded: " << namePath << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;
         }
 
         type = (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+
+        if (fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            if (WinFileSystemAccess::checkForSymlink(namePath))
+            {
+                mIsSymLink = true;
+            }
+        }
     }
 
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
@@ -622,7 +632,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file. Error code: " << e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -705,9 +716,9 @@ bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& tar
     if (!CreateHardLinkW(target.localpath.c_str(), source.localpath.c_str(), nullptr))
     {
         LOG_warn << "Unable to create hard link from "
-                 << source.toPath()
+                 << source
                  << " to "
-                 << target.toPath()
+                 << target
                  << ". Error code was: "
                  << GetLastError();
 
@@ -763,7 +774,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.toPath().c_str() << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath << ". Error code: " << e;
         sname.clear();
         return false;
     }
@@ -799,8 +810,8 @@ bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalP
 
         if (!target_exists || !skip_targetexists_errorreport)
         {
-            LOG_warn << "Unable to move file: " << oldnamePath.toPath() <<
-                        " to " << newnamePath.toPath() << ". Error code: " << e;
+            LOG_warn << "Unable to move file: " << oldnamePath <<
+                        " to " << newnamePath << ". Error code: " << e;
         }
     }
 
@@ -965,7 +976,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
 
         if (!target_exists || logAlreadyExistsError)
         {
-            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath.toPath();
+            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath;
         }
     }
     else if (hidden)
@@ -1056,9 +1067,9 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::strin
     return false;
 }
 
-bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
-    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL); 
+    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL);
     // just get size including NUL terminator
     if (len <= 0)
     {
@@ -1169,7 +1180,7 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            LocalPath::local2path(&localdata, &utf8data);
+            LocalPath::local2path(&localdata, &utf8data, true);  // true becuase that was the case historically
             id->append(utf8data);
         }
         RegCloseKey(hKey);
@@ -1606,7 +1617,7 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     }
 
     string utf8fsname;
-    LocalPath::local2path(&fsname, &utf8fsname);
+    LocalPath::local2path(&fsname, &utf8fsname, false);
     LOG_debug << "Filesystem type: " << utf8fsname;
 
     return result;
@@ -1626,7 +1637,7 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
-bool  WinFileSystemAccess::CheckForSymlink(const LocalPath& lp)
+bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
 {
 
     ScopedFileHandle rightTypeHandle = CreateFileW(lp.localpath.c_str(),
@@ -1770,7 +1781,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fsid = (handle)info->FileId.QuadPart;
                     result.type = TYPE_SPECIAL;
 
-                    if (CheckForSymlink(filePath))
+                    if (checkForSymlink(filePath))
                     {
                         result.isSymlink = true;
                     }
@@ -1892,7 +1903,11 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*");
+            if (!name.empty() && name.back() != L'\\')
+            {
+                name.append(L"\\");
+            }
+            name.append(L"*");
         }
 
         hFind = FindFirstFileW(name.c_str(), &ffd);
@@ -2019,7 +2034,7 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = GetLastError();
 
         LOG_warn << "Unable to retrieve available disk space for: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 
@@ -2030,6 +2045,15 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         return maximumBytes;
 
     return (m_off_t)numBytes.QuadPart;
+}
+
+std::string WinFileAccess::getErrorMessage(int error) const
+{
+    return winErrorMessage(error);
+}
+
+bool WinFileAccess::isErrorFileNotFound(int error) const {
+    return error == ERROR_FILE_NOT_FOUND;
 }
 
 } // namespace

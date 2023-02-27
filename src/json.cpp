@@ -122,6 +122,19 @@ bool JSON::storeobject(string* s)
     }
 }
 
+bool JSON::storeKeyValueFromObject(string& key, string& value)
+{
+    // this one can be used when the key is not a nameid
+    if (!storeobject(&key) || *pos != ':')
+    {
+        return false;
+    }
+
+    ++pos;
+
+    return storeobject(&value);
+}
+
 bool JSON::skipnullvalue()
 {
     // this applies only to values, after ':'
@@ -143,6 +156,8 @@ bool JSON::skipnullvalue()
     case 'n':
         if (strncmp(pos, "null", 4))
             return false; // not enough information to skip it
+
+        assert(false); // the MEGA servers should never send null.  Investigation needed.
 
         // let's peak at what's after "null"
         switch (*(pos + 4))
@@ -188,6 +203,16 @@ nameid JSON::getnameid(const char* ptr) const
     }
 
     return id;
+}
+
+nameid JSON::getnameid()
+{
+    return getNameidSkipNull(true);
+}
+
+nameid JSON::getnameidvalue()
+{
+    return getNameidSkipNull(false);
 }
 
 std::string JSON::getname()
@@ -239,7 +264,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid()
+nameid JSON::getNameidSkipNull(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
@@ -270,7 +295,7 @@ nameid JSON::getnameid()
         }
     }
 
-    bool skippedNull = id && skipnullvalue();
+    bool skippedNull = id && skipnullvalues && skipnullvalue();
 
     return skippedNull ? getnameid() : id;
 }

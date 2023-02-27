@@ -53,7 +53,6 @@ struct MEGA_API User : public Cacheable
     {
         bool keyring : 1;   // private keys
         bool authring : 1;  // authentication information of the contact (signing key)
-        bool authrsa : 1;   // authentication information of the contact (RSA key)
         bool authcu255 : 1; // authentication information of the contact (Cu25519 key)
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
@@ -81,11 +80,12 @@ struct MEGA_API User : public Cacheable
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
-        bool devicenames : 1; // device names
+        bool devicenames : 1; // device or external drive names
         bool myBackupsFolder : 1; // target folder for My Backups
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
         bool jsonSyncConfigData : 1;
         bool drivenames : 1;    // drive names
+        bool keys : 1;
     } changed;
 
     // user's public key
@@ -160,12 +160,17 @@ public:
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
     static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
+    static string attributePrefixInTLV(attr_t type, bool modifier);
 };
 
 class AuthRing
 {
 public:
+    // create authring of 'type' from the encrypted TLV container
     AuthRing(attr_t type, const TLVstore &authring);
+
+    // create authring of 'type' from the TLV value (undecrypted already, no Type nor Length)
+    AuthRing(attr_t type, const string& authring);
 
     // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
     void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
@@ -173,11 +178,11 @@ public:
     // assumes the key is already tracked for uh (otherwise, it will throw)
     void update(handle uh, AuthMethod authMethod);
 
-    // return false if uh was not tracked
-    bool remove(handle uh);
-
-    // return the authring as tlv container, ready to set as user's attribute
+    // return the authring as tlv container, ready to set as user's attribute [*!authring | *!authCu255 | *!authRSA]
     std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // return a binary buffer compatible with Webclient, to store authrings in user's attribute ^!keys
+    std::string serializeForJS() const;
 
     // false if uh is not tracked in the authring
     bool isTracked(handle uh) const;
@@ -212,10 +217,19 @@ public:
     // returns a human-friendly string for a given authentication method
     static string authMethodToStr(AuthMethod authMethod);
 
+    static string toString(const AuthRing& authRing);
+
+    bool needsUpdate() const { return mNeedsUpdate; }
+
 private:
     attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
+
+    // indicates if the authring has changed and needs to update value in server
+    bool mNeedsUpdate = false;
+
+    bool deserialize(const std::string &authValue);
 };
 
 } // namespace

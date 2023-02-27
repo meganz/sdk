@@ -35,10 +35,6 @@ public:
 
     DefaultedFileSystemAccess()
     {
-#ifdef ENABLE_SYNC
-        notifyerr = false;
-        notifyfailed = true;
-#endif   // ENABLE_SYNC
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
@@ -88,7 +84,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool expanselocalpath(mega::LocalPath& path, mega::LocalPath& absolutepath) override
+    bool expanselocalpath(const mega::LocalPath& path, mega::LocalPath& absolutepath) override
     {
         throw NotImplemented{__func__};
     }

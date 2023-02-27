@@ -29,6 +29,9 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
+
+mutex File::localname_mutex;
+
 File::File()
 {
     transfer = NULL;
@@ -36,6 +39,7 @@ File::File()
     hprivate = true;
     hforeign = false;
     syncxfer = false;
+    fromInsycShare = false;
     temporaryfile = false;
     tag = 0;
 }
@@ -48,6 +52,18 @@ File::~File()
         transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
+}
+
+LocalPath File::getLocalname() const
+{
+    lock_guard<mutex> g(localname_mutex);
+    return localname_multithreaded;
+}
+
+void File::setLocalname(const LocalPath& ln)
+{
+    lock_guard<mutex> g(localname_mutex);
+    localname_multithreaded = ln;
 }
 
 bool File::serialize(string *d)
@@ -68,7 +84,7 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    auto tmpstr = localname.platformEncoded();
+    auto tmpstr = getLocalname().platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -207,7 +223,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen));
+    file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -274,7 +290,8 @@ File *File::unserialize(string *d)
 
 void File::prepare(FileSystemAccess&)
 {
-    transfer->localfilename = localname;
+    transfer->localfilename = getLocalname();
+    assert(transfer->localfilename.isAbsolute());
 }
 
 void File::start()
@@ -292,15 +309,15 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr);
+        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
     }
 }
 
 
-void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        LocalNode* l, const m_time_t* overrideMtime)
+                        LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
 {
     assert(!!l == syncxfer);
 
@@ -309,6 +326,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
     // build new node
     newnode->source = NEW_UPLOAD;
+    newnode->canChangeVault = canChangeVault;
 
     // upload handle required to retrieve/include pending file attributes
     newnode->uploadhandle = fileAttrMatchHandle;
@@ -350,7 +368,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
     if (targetuser.size())
     {
-        // drop file into targetuser's inbox
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
         client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
     }
     else
@@ -364,7 +382,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
             {
                 if (client->versions_disabled)
                 {
-                    client->movetosyncdebris(l->node, l->sync->inshare);
+                    client->movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
                     client->execsyncdeletions();
                 }
                 else
@@ -393,9 +411,68 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
                                              mVersioningOption,
                                              move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion)));
+                                             source, nullptr, move(completion), canChangeVault));
     }
 }
+
+void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
+                    putsource_t source, NodeHandle ovHandle,
+                    std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                    bool canChangeVault)
+{
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_NODE;
+    newnode->canChangeVault = canChangeVault;
+    newnode->nodehandle = nodeToClone->nodehandle;
+
+    // file's crypto key
+    newnode->nodekey = nodeToClone->nodekey();
+    assert(newnode->nodekey.size() == FILENODEKEYLENGTH);
+
+    // copy attrs
+    AttrMap attrs;
+    attrs.map = nodeToClone->attrs.map;
+    attr_map::iterator it = attrs.map.find(AttrMap::string2nameid("rr"));
+    if (it != attrs.map.end())
+    {
+        LOG_debug << "Removing rr attribute for clone";
+        attrs.map.erase(it);
+    }
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+
+    // store filename
+    attrs.map['n'] = name;
+
+    string tattrstring;
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher((byte*)newnode->nodekey.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+        assert(syncxfer);
+        newnode->ovhandle = ovHandle;
+        client->reqs.add(new CommandPutNodes(client,
+                                             th, NULL,
+                                             mVersioningOption,
+                                             move(newnodes),
+                                             tag,
+                                             source, nullptr, move(completion), canChangeVault));
+    }
+}
+
 
 void File::terminated(error)
 {
@@ -453,17 +530,19 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname, bool fromInshare)
 {
     sync = csync;
 
     n = cn;
     h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
-    localname = clocalname;
 
     syncxfer = true;
+    fromInsycShare = fromInshare;
     n->syncget = this;
+
+    setLocalname(clocalname);
 
     sync->threadSafeState->transferBegin(GET, size);
 }
@@ -522,7 +601,7 @@ void SyncFileGet::prepare(FileSystemAccess&)
         }
         else
         {
-            transfer->localfilename = sync->localroot->localname;
+            transfer->localfilename = sync->localroot->getLocalname();
         }
 
         LocalPath tmpfilename = LocalPath::tmpNameLocal();
@@ -553,7 +632,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
+            n->parent->client->movetosyncdebris(n, fromInsycShare, n->parent->localnode->sync->isBackup());
         }
     }
 
@@ -578,8 +657,9 @@ void SyncFileGet::updatelocalname()
     {
         if (n->parent && n->parent->localnode)
         {
-            localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            LocalPath ln = n->parent->localnode->getLocalPath();
+            ln.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            setLocalname(ln);
         }
     }
 }
@@ -589,7 +669,8 @@ void SyncFileGet::completed(Transfer*, putsource_t source)
 {
     sync->threadSafeState->transferComplete(GET, size);
 
-    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
+    LocalPath ln = getLocalname();
+    LocalNode *ll = sync->checkpath(NULL, &ln, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {

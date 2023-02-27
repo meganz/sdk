@@ -46,7 +46,7 @@ set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video fi
 set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
-set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
+set (USE_PDFIUM 1 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
@@ -482,17 +482,14 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_FREEIMAGE)
             ImportStdVcpkgLibrary(freeimage             FreeImaged       FreeImage      libFreeImaged       libFreeImage       )
-            ImportStdVcpkgLibrary(freeimage_Iex         Iex-2_5_d        Iex-2_5        libIex-2_5_d        libIex-2_5         )
-            ImportStdVcpkgLibrary(freeimage_IexMath     IexMath-2_5_d    IexMath-2_5    libIexMath-2_5_d    libIexMath-2_5     )
-            ImportStdVcpkgLibrary(freeimage_IlmImf      IlmImf-2_5_d     IlmImf-2_5     libIlmImf-2_5_d     libIlmImf-2_5      )
-            ImportStdVcpkgLibrary(freeimage_IlmImfUtil  IlmImfUtil-2_5_d IlmImfUtil-2_5 libIlmImfUtil-2_5_d libIlmImfUtil-2_5  )
-            ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
-            ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
+            ImportStdVcpkgLibrary(freeimage_Iex         Iex-3_1_d        Iex-3_1        libIex-3_1_d        libIex-3_1         )
+            ImportStdVcpkgLibrary(freeimage_OpenEXR     OpenEXR-3_1_d    OpenEXR-3_1    libOpenEXR-3_1_d    libOpenEXR-3_1     )
+            ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-3_1_d  IlmThread-3_1  libIlmThread-3_1_d  libIlmThread-3_1   )
+            ImportStdVcpkgLibrary(freeimage_Imath       Imath-3_1_d      Imath-3_1      libImath-3_1_d      libImath-3_1       )
             ImportStdVcpkgLibrary(freeimage_jpeg        jpeg             jpeg           libjpeg             libjpeg            )
             ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
-            ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
-            ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
+            ImportStdVcpkgLibrary(freeimage_lzma        lzma             lzma           liblzma             liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
             ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
@@ -501,10 +498,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             target_link_libraries(freeimage INTERFACE
                                             freeimage_Iex
-                                            freeimage_IlmImf
-                                            freeimage_IlmImfUtil
+                                            freeimage_OpenEXR
                                             freeimage_IlmThread
-                                            freeimage_half
                                             libpng
                                             libraw
                                             liblcms
@@ -734,6 +729,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/http.h
             ${MegaDir}/include/mega/useralerts.h
             ${MegaDir}/include/mega/pendingcontactrequest.h
+            ${MegaDir}/include/mega/textchat.h
             ${MegaDir}/include/mega/megaapp.h
             ${MegaDir}/include/mega/wincurl/megafs.h
             ${MegaDir}/include/mega/wincurl/meganet.h
@@ -748,6 +744,8 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/megaclient.h
             ${MegaDir}/include/mega/autocomplete.h
             ${MegaDir}/include/mega/serialize64.h
+            ${MegaDir}/include/mega/nodemanager.h
+            ${MegaDir}/include/mega/setandelement.h
             ${MegaDir}/include/mega/posix/megafs.h
             ${MegaDir}/include/mega/posix/meganet.h
             ${MegaDir}/include/mega/posix/megaconsolewaiter.h
@@ -833,11 +831,14 @@ add_library(Mega STATIC
             ${MegaDir}/src/megaclient.cpp
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
+            ${MegaDir}/src/textchat.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
+            ${MegaDir}/src/nodemanager.cpp
+            ${MegaDir}/src/setandelement.cpp
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp
@@ -1044,14 +1045,6 @@ add_executable(test_integration
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
 
-if(APPLE)
-    add_executable(test_integration_fsevents_loader
-        ${MegaDir}/tests/integration/fsevents_loader_main.cpp
-    )
-
-    add_dependencies(test_integration_fsevents_loader test_integration)
-endif()
-
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )
@@ -1098,9 +1091,6 @@ configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-if (APPLE)
-    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
-endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})

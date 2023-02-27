@@ -50,37 +50,22 @@ void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
     }
 }
 
-// total disk space / node count
-TreeProcDU::TreeProcDU()
-{
-    numbytes = 0;
-    numfiles = 0;
-    numfolders = 0;
-}
-
-void TreeProcDU::proc(MegaClient*, Node* n)
-{
-    if (n->type == FILENODE)
-    {
-        numbytes += n->size;
-        numfiles++;
-    }
-    else
-    {
-        numfolders++;
-    }
-}
-
 // mark node as removed and notify
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
     n->changed.removed = true;
-    n->tag = client->reqtag;
     client->notifynode(n);
-    if (n->owner != client->me)
+    handle userHandle = ISUNDEF(mOriginatingUser) ? n->owner : mOriginatingUser;
+
+    if (userHandle != client->me)
     {
-        client->useralerts.noteSharedNode(n->owner, n->type, 0, NULL);
+        client->useralerts.noteSharedNode(userHandle, n->type, 0, n);
     }
+}
+
+void TreeProcDel::setOriginatingUser(const handle &handle)
+{
+    mOriginatingUser = handle;
 }
 
 void TreeProcApplyKey::proc(MegaClient *client, Node *n)

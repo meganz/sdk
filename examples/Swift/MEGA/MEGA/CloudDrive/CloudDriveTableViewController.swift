@@ -259,10 +259,8 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             let attributes = [FileAttributeKey.modificationDate : modificationTime]
             try? FileManager.default.setAttributes(attributes, ofItemAtPath: localFilePath.path)
             
-            if self.parentNode != nil {
-                self.megaapi.startUpload(withLocalPath: localFilePath.path, parent: self.parentNode)
-            } else {
-                self.megaapi.startUpload(withLocalPath: localFilePath.path, parent: self.megaapi.rootNode)
+            if let parentNode = self.parentNode {
+                self.megaapi.startUpload(withLocalPath: localFilePath.path, parent: parentNode, fileName: nil, appData: nil, isSourceTemporary: false, startFirst: false, cancelToken: MEGACancelToken())
             }
             
             self.dismiss(animated: true, completion: nil)

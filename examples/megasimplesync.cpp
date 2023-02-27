@@ -113,9 +113,9 @@ MegaClient* client;
 // Path naming conventions:
 // path is relative to cwd
 // /path is relative to ROOT
-// //in is in INBOX
+// //in is in VAULT (formerly INBOX)
 // //bin is in RUBBISH
-// X: is user X's INBOX
+// X: is user X's VAULT (formerly INBOX)
 // X:SHARE is share SHARE from user X
 // : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
@@ -260,11 +260,11 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.inbox);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodeByHandle(client->rootnodes.rubbish);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                 }
                 else
                 {
@@ -275,7 +275,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             }
             else
             {
-                n = client->nodeByHandle(client->rootnodes.files);
+                n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
 
                 l = 1;
             }
@@ -411,7 +411,7 @@ void SyncApp::fetchnodes_result(const Error &e)
         initial_fetch = false;
         if (ISUNDEF(cwd))
         {
-            cwd = client->rootnodes.files.as8byte();
+            cwd = client->mNodeManager.getRootNodeFiles().as8byte();
         }
 
         Node* n = nodebypath(remote_folder.c_str());
@@ -431,7 +431,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
-                client->addsync(syncConfig, false,
+                client->addsync(move(syncConfig), false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
@@ -490,7 +490,7 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
+    LOG_info << "Sync - state change of node " << lp << " to " << treestatename(ts);
 }
 
 #endif
@@ -525,24 +525,25 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Needed so we can get our hands on the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
-    // Where are we?
     LocalPath currentDir;
-    bool result = fsAccess->cwd(currentDir);
 
-    if (!result)
+    // Determine the current working directory.
     {
-        cerr << "Unable to determine current working directory." << endl;
-        return EXIT_FAILURE;
+        // Needed so we can get our hands on the cwd.
+        auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+        // Where are we?
+        if (!fsAccess->cwd(currentDir))
+        {
+            cerr << "Unable to determine current working directory." << endl;
+            return EXIT_FAILURE;
+        }
     }
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app,
-                            new WAIT_CLASS,
+                            shared_ptr<Waiter>(new WAIT_CLASS),
                             new HTTPIO_CLASS,
-                            move(fsAccess),
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),
                         #else

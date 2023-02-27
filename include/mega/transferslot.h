@@ -47,7 +47,7 @@ public:
     inline operator FileAccess* () { return fa.get(); }
 };
 
-class DBTableTransactionCommitter;
+class TransferDbCommitter;
 
 // active transfer
 struct MEGA_API TransferSlot
@@ -107,7 +107,7 @@ struct MEGA_API TransferSlot
     TransferBufferManager transferbuf;
 
     //bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart);
-    bool initCloudRaid(MegaClient* client, DBTableTransactionCommitter& committer);
+    bool initCloudRaid(MegaClient* client, TransferDbCommitter& committer);
     shared_ptr<CloudRaid> getcloudRaidPtr()
     {
         return cloudRaid;
@@ -121,20 +121,19 @@ struct MEGA_API TransferSlot
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
-    void doio(MegaClient*, DBTableTransactionCommitter&);
+    void doio(MegaClient*, TransferDbCommitter&);
 
     // Process CloudRaid Request
-    //off_t processRaidReq(const std::shared_ptr<HttpReqXfer>&);
     m_off_t processRaidReq(size_t connection = 0);
 
     // Prepare a transfer request for POST
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus = true);
 
     // Process a request in REQ_FAILURE state
-    void processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);
+    void processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
-    bool createconnectionsonce(MegaClient* client, DBTableTransactionCommitter& committer);
+    bool createconnectionsonce(MegaClient* client, TransferDbCommitter& committer);
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
@@ -175,7 +174,7 @@ private:
 
 
     void toggleport(HttpReqXfer* req);
-    bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkDownloadTransferFinished(TransferDbCommitter& committer, MegaClient* client);
     bool checkMetaMacWithMissingLateEntries();
     bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
 

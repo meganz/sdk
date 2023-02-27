@@ -140,7 +140,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 #endif
 }
 
-bool TransferSlot::createconnectionsonce(MegaClient* client, DBTableTransactionCommitter& committer)
+bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter& committer)
 {
     // delay creating these until we know if it's raid or non-raid
     if (!(connections || reqs.size() || asyncIO))
@@ -305,8 +305,7 @@ TransferSlot::~TransferSlot()
 
     if (transfer->asyncopencontext)
     {
-        delete transfer->asyncopencontext;
-        transfer->asyncopencontext = NULL;
+        transfer->asyncopencontext.reset();
         transfer->client->asyncfopens--;
     }
 
@@ -435,7 +434,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     return false;
 }
 
-bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
+bool TransferSlot::checkDownloadTransferFinished(TransferDbCommitter& committer, MegaClient* client)
 {
     if (transfer->progresscompleted == transfer->size)
     {
@@ -523,7 +522,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
 }
 
 // file transfer state machine
-void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
+void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 {
     CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
 
@@ -567,15 +566,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
 
-    // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
-    transfer->removeCancelledTransferFiles(&committer);
-    if (transfer->files.empty())
-    {
-        transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
-        return;
-    }
-
-    if (!createconnectionsonce(client, committer))   // don't use connections, reqs, or asyncIO before this point.
+    if (!createconnectionsonce(client, committer))  // don't use connections, reqs, or asyncIO before this point.
     {
         return;
     }
@@ -583,7 +574,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     if (transferbuf.isNewRaid() && cloudRaid)
     {
         // Resume connections after httpio::doio
-        //cloudRaid->resumeAllConnections();
         std::cout << "CALL RESUME FUNC: cloudRaid->resumeTransferSlotFunctionality()" << std::endl;
        cloudRaid->resumeTransferSlotFunctionality();
     }
@@ -1432,7 +1422,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     }
 }
 
-void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
+void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
     std::cout << "Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel << std::endl;
     LOG_warn << "Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
@@ -1445,7 +1435,6 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
 
         client->sendevent(99436, "Automatic change to HTTPS", 0);
 
-        //if (transferbuf.isNewRaid()) cloudRaid->removeRaidReq();
         return transfer->failed(API_EAGAIN, committer);
     }
 
@@ -1455,7 +1444,6 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
 
         dstime new_backoff = client->overTransferQuotaBackoff(httpReq.get());
 
-        //if (transferbuf.isNewRaid()) cloudRaid->removeRaidReq();
         return transfer->failed(API_EOVERQUOTA, committer, new_backoff);
     }
     else if (httpReq->httpstatus == 429)
@@ -1583,7 +1571,7 @@ m_off_t TransferSlot::updatecontiguousprogress()
     return contiguousProgress;
 }
 
-bool TransferSlot::initCloudRaid(MegaClient* client, DBTableTransactionCommitter& committer)
+bool TransferSlot::initCloudRaid(MegaClient* client, TransferDbCommitter& committer)
 {
     assert(transferbuf.isNewRaid());
     if (!transferbuf.isNewRaid())

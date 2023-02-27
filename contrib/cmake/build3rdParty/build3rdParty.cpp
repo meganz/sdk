@@ -131,7 +131,7 @@ try
                     fs::remove_all(vcpkgDir / "ports" / portname);
                     #endif
                 }
-                if (portversion.size() == 40)
+                if (portversion.size() == 40) // length of git hash
                 {
                     fs::current_path(cloneDir);
                     execute("git checkout --force --quiet " + portversion);
@@ -364,8 +364,8 @@ bool readCommandLine(int argc, char* argv[])
         if (hashpos != string::npos) s.erase(hashpos);
 
         // remove whitespace
-        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(0, 1);
-        while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
+        s.erase(0, s.find_first_not_of(" \n\r\t"));
+        s.erase(s.find_last_not_of(" \n\r\t")+1);
         if (s.empty()) continue;
 
         vector<string> platformExpressions = split(s, ' ');

@@ -26,6 +26,8 @@ namespace mega {
 
 struct Notification;
 struct UnifiedSync;
+class Set;
+class SetElement;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -81,6 +83,12 @@ struct MEGA_API MegaApp
     // remove versions result
     virtual void unlinkversions_result(error) { }
 
+    // sets have been updated
+    virtual void sets_updated(Set**, int) { }
+
+    // set-elements have been updated
+    virtual void setelements_updated(SetElement**, int) { }
+
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
 
@@ -114,6 +122,12 @@ struct MEGA_API MegaApp
     // notify about a modified key
     virtual void key_modified(handle, attr_t) { }
 
+    // notify about cyptographyc security upgrade
+    virtual void upgrading_security() { }
+
+    // notify about detection of attempt to downgrade ^!keys
+    virtual void downgrade_attack() { }
+
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };
@@ -123,7 +137,7 @@ struct MEGA_API MegaApp
 #endif // ! NDEBUG
 
     // node addition has failed
-    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
+    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) { }
 
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
@@ -274,7 +288,7 @@ struct MEGA_API MegaApp
 
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
-    virtual void syncupdate_active(const SyncConfig& config, bool) { }
+    virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
@@ -300,20 +314,23 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all (enabled) syncs have been restored on startup
-    virtual void syncs_restored() { }
+    // after all sync configs have been loaded on startup
+    virtual void syncs_restored(SyncError) { }
 
     // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
-    // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) { }
+    // the sync could be auto-loaded on start, or one the user added
+    virtual void sync_added(const SyncConfig& config) { }
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
 
     // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*) { }
+    virtual void reload(const char*, ReasonsToReload) { }
+
+    // reload forced automatically by server
+    virtual void reloading() { }
 
     // wipe all users, nodes and shares
     virtual void clearing() { }
@@ -387,12 +404,14 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
 
     virtual void dismissbanner_result(error) { }
+
+    // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
+    virtual void reqstat_progress(int) { }
 
     virtual ~MegaApp() { }
 

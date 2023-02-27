@@ -435,7 +435,7 @@ public:
                     i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), static_cast<int>(i));
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
             }
         }
         for (auto &s: mCopiedParts)
@@ -659,6 +659,12 @@ std::ostream& operator <<(std::ostream&, const std::error_code&);
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+// LOG_err if the condition is true otherwise LOG_warning
+// condition may be evaluated twice
+#define LOG_err_if(condition) \
+    if (::mega::SimpleLogger::logCurrentLevel >= ((condition) ? ::mega::logError : ::mega::logWarning)) \
+        ::mega::SimpleLogger((condition) ? ::mega::logError : ::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)

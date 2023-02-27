@@ -26,7 +26,8 @@
 
 namespace mega {
 
-// file to be transferred
+// File is the base class for an upload or download, as managed by the SDK core.
+// Each Transfer consists of a list of File that all have the same content and fingerprint
 struct MEGA_API File: public FileFingerprint
 {
     // set localfilename in attached transfer
@@ -51,10 +52,15 @@ struct MEGA_API File: public FileFingerprint
     // update localname
     virtual void updatelocalname() { }
 
-    void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+    void sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                       const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion,
-                      LocalNode* l, const m_time_t* overrideMtime);
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                      LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault);
+
+    void sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
+                      putsource_t source, NodeHandle ovHandle,
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
+                      bool canChangeVault);
 
     // generic filename for this transfer
     void displayname(string*);
@@ -64,7 +70,11 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    LocalPath localname;
+    // now able to be updated from the syncs thread, should the nodes move during upload/download
+    static mutex localname_mutex;
+    LocalPath localname_multithreaded;
+    LocalPath getLocalname() const;
+    void setLocalname(const LocalPath&);
 
     // source/target node handle
     NodeHandle h;
@@ -86,6 +96,8 @@ struct MEGA_API File: public FileFingerprint
         // is the source file temporary?
         bool temporaryfile : 1;
 
+        // remember if the sync is from an inshare
+        bool fromInsycShare : 1;
     };
 
     VersioningOption mVersioningOption = NoVersioning;
@@ -142,7 +154,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated(error e) override;
 
-    SyncFileGet(Sync*, Node*, const LocalPath&);
+    SyncFileGet(Sync*, Node*, const LocalPath&, bool fromInshare);
     ~SyncFileGet();
 };
 

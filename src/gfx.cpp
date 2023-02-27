@@ -215,29 +215,10 @@ int GfxProc::checkevents(Waiter *)
                 }
                 else
                 {
-                    Transfer *transfer = NULL;
-                    uploadhandletransfer_map::iterator htit = client->faputcompletion.find(job->h.uploadHandle());
-                    if (htit != client->faputcompletion.end())
-                    {
-                        transfer = htit->second;
-                    }
-                    else
-                    {
-                        // check if the failed attribute belongs to an active upload
-                        for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
-                        {
-                            if (it->second->uploadhandle == job->h.uploadHandle())
-                            {
-                                transfer = it->second;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (transfer)
+                    if (auto it = client->fileAttributesUploading.lookupExisting(job->h.uploadHandle()))
                     {
                         // reduce the number of required attributes to let the upload continue
-                        transfer->minfa--;
+                        it->pendingfa.erase(job->imagetypes[i]);
                         client->checkfacompletion(job->h.uploadHandle());
                     }
                     else
@@ -313,26 +294,26 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     job->h = th;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = localfilename;
+
+    int generatingAttrs = 0;
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))
         {
             job->imagetypes.push_back(i);
+            generatingAttrs += 1 << i;
         }
     }
 
-    if (!job->imagetypes.size())
+    if (!generatingAttrs)
     {
         delete job;
         return 0;
     }
 
-    // get the count before it might be popped off and processed already
-    auto count = int(job->imagetypes.size());
-
     requests.push(job);
     waiter.notify();
-    return count;
+    return generatingAttrs;
 }
 
 bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)

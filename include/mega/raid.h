@@ -265,7 +265,7 @@ namespace mega {
 
     public:
         CloudRaid();
-        CloudRaid(TransferSlot* tslot, MegaClient* client, DBTableTransactionCommitter& committer, int connections);
+        CloudRaid(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
         ~CloudRaid();
 
         /* Instance control functionality */
@@ -284,7 +284,7 @@ namespace mega {
         std::pair<bool, size_t> getRaidMaxChunksPerRead() const;
 
         /* RaidProxy functionality for TransferSlot */
-        bool init(TransferSlot* tslot, MegaClient* client, DBTableTransactionCommitter& committer, int connections);
+        bool init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
         bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart, int notifyfd = -1);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();

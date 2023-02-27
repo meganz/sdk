@@ -6,6 +6,7 @@
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #ifdef WIN32
+    #include <winhttp.h>
     #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
     #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
@@ -15,7 +16,7 @@ using namespace ::mega;
 
 bool gRunningInCI = false;
 bool gResumeSessions = false;
-bool gTestingInvalidArgs = false;
+bool gScanOnly = false; // will be used in SRW
 bool gOutputToCout = false;
 
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
@@ -43,6 +44,189 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
+string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
+{
+    FILE* pPipe =
+#ifdef _WIN32
+        _popen(command.c_str(), "rt");
+#else
+        popen(command.c_str(), "r");
+#endif
+
+    if (!pPipe)
+    {
+        LOG_err << "Failed to run command\n" << command;
+        return string();
+    }
+
+    // Read pipe until file ends or error occurs.
+    string output;
+    char   psBuffer[128];
+
+    while (!feof(pPipe) && !ferror(pPipe))
+    {
+        switch (ot)
+        {
+        case PROG_OUTPUT_TYPE::TEXT:
+        {
+            if (fgets(psBuffer, 128, pPipe))
+            {
+                output += psBuffer;
+            }
+            break;
+        }
+
+        case PROG_OUTPUT_TYPE::BINARY:
+        {
+            size_t lastRead = fread(psBuffer, 1, sizeof(psBuffer), pPipe);
+            if (lastRead)
+            {
+                output.append(psBuffer, lastRead);
+            }
+        }
+        } // end switch()
+    }
+
+    if (ferror(pPipe))
+    {
+        LOG_err << "Failed to read full command output.";
+    }
+
+#ifdef _WIN32
+    _pclose(pPipe);
+#else
+    pclose(pPipe); // docs don't _guarantee_ handling null stream
+#endif
+
+    return output;
+}
+
+string loadfile(const string& filename)
+{
+    string filedata;
+    ifstream f(filename, ios::binary);
+    f.seekg(0, std::ios::end);
+    filedata.resize(unsigned(f.tellg()));
+    f.seekg(0, std::ios::beg);
+    f.read(const_cast<char*>(filedata.data()), static_cast<std::streamsize>(filedata.size()));
+    return filedata;
+}
+
+#ifdef WIN32
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata)
+{
+    LOG_info << "Sending file to " << url << ", size: " << senddata.size();
+
+    BOOL  bResults = TRUE;
+    HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
+
+    // Use WinHttpOpen to obtain a session handle.
+    hSession = WinHttpOpen(L"testmega/1.0",
+        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+        WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS, 0);
+
+    WCHAR szURL[8192];
+    WCHAR szHost[256];
+    URL_COMPONENTS urlComp = { sizeof urlComp };
+
+    urlComp.lpszHostName = szHost;
+    urlComp.dwHostNameLength = sizeof szHost / sizeof *szHost;
+    urlComp.dwUrlPathLength = (DWORD)-1;
+    urlComp.dwSchemeLength = (DWORD)-1;
+
+    if (MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, szURL,
+        sizeof szURL / sizeof *szURL)
+        && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
+    {
+        if ((hConnect = WinHttpConnect(hSession, szHost, urlComp.nPort, 0)))
+        {
+            hRequest = WinHttpOpenRequest(hConnect, L"POST",
+                urlComp.lpszUrlPath, NULL,
+                WINHTTP_NO_REFERER,
+                WINHTTP_DEFAULT_ACCEPT_TYPES,
+                (urlComp.nScheme == INTERNET_SCHEME_HTTPS)
+                ? WINHTTP_FLAG_SECURE
+                : 0);
+        }
+    }
+
+    // Send a Request.
+    if (hRequest)
+    {
+        WinHttpSetTimeouts(hRequest, 58000, 58000, 0, 0);
+
+        LPCWSTR pwszHeaders = L"Content-Type: application/octet-stream";
+
+        // HTTPS connection: ignore certificate errors, send no data yet
+        DWORD flags = SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+            | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
+            | SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+
+        WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS, &flags, sizeof flags);
+
+        if (WinHttpSendRequest(hRequest, pwszHeaders,
+            DWORD(wcslen(pwszHeaders)),
+            (LPVOID)senddata.data(),
+            (DWORD)senddata.size(),
+            (DWORD)senddata.size(),
+            NULL))
+        {
+        }
+    }
+
+    DWORD dwSize = 0;
+
+    // End the request.
+    if (bResults)
+        bResults = WinHttpReceiveResponse(hRequest, NULL);
+
+    // Continue to verify data until there is nothing left.
+    if (bResults)
+        do
+        {
+            // Verify available data.
+            dwSize = 0;
+            if (!WinHttpQueryDataAvailable(hRequest, &dwSize))
+                printf("Error %u in WinHttpQueryDataAvailable.\n",
+                    GetLastError());
+
+            size_t offset = responsedata.size();
+            responsedata.resize(offset + dwSize);
+
+            ZeroMemory(responsedata.data() + offset, dwSize);
+
+            DWORD dwDownloaded = 0;
+            if (!WinHttpReadData(hRequest, responsedata.data() + offset, dwSize, &dwDownloaded))
+                printf("Error %u in WinHttpReadData.\n", GetLastError());
+
+        } while (dwSize > 0);
+
+    // Report errors.
+    if (!bResults)
+        printf("Error %d has occurred.\n", GetLastError());
+
+    // Close open handles.
+    if (hRequest) WinHttpCloseHandle(hRequest);
+    if (hConnect) WinHttpCloseHandle(hConnect);
+    if (hSession) WinHttpCloseHandle(hSession);
+}
+#endif
+
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata)
+{
+#ifdef WIN32
+    synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
+#else
+#ifdef __APPLE__
+    // tbd
+#else
+    string command = "curl -s --data-binary @";
+    command.append(filepath).append(" ").append(url.c_str());
+    responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
+#endif
+#endif
+}
 
 LogStream::~LogStream()
 {
@@ -57,7 +241,7 @@ LogStream::~LogStream()
     }
 }
 
-std::string getCurrentTimestamp()
+std::string getCurrentTimestamp(bool includeDate = false)
 {
     using std::chrono::system_clock;
     auto currentTime = std::chrono::system_clock::now();
@@ -71,7 +255,9 @@ std::string getCurrentTimestamp()
     std::time_t tt;
     tt = system_clock::to_time_t ( currentTime );
     auto timeinfo = localtime (&tt);
-    size_t timeStrSz = strftime (buffer, buffSz,"%H:%M:%S",timeinfo);
+    string fmt = "%H:%M:%S";
+    if (includeDate) fmt = "%Y-%m-%d_" + fmt;
+    size_t timeStrSz = strftime (buffer, buffSz, fmt.c_str(),timeinfo);
     snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
 
     return std::string(buffer);
@@ -138,14 +324,6 @@ public:
 
                 {
                     std::cout << os.str() << std::flush;
-                }
-
-                if (!gTestingInvalidArgs)
-                {
-                    if (loglevel <= logError)
-                    {
-                        ASSERT_GT(loglevel, logError) << os.str();
-                    }
                 }
             }
 
@@ -268,6 +446,11 @@ int main (int argc, char *argv[])
             gOutputToCout = true;
             argc -= 1;
         }
+        else if (std::string(*it) == "--SCANONLY")
+        {
+            gScanOnly = true;
+            argc -= 1;
+        }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             std::lock_guard<std::mutex> g(g_APIURL_default_mutex);
@@ -342,6 +525,18 @@ int main (int argc, char *argv[])
     if (startOneSecLogger) one_sec_logger.join();
 
     //SimpleLogger::setOutputClass(nullptr);
+
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
+#endif
 
     return ret;
 }
@@ -432,11 +627,26 @@ void moveToTrash(const fs::path& p)
     fs::path trashpath(TestFS::GetTrashFolder());
     fs::create_directory(trashpath);
     fs::path newpath = trashpath / p.filename();
-    for (int i = 2; fs::exists(newpath); ++i)
+    int errcount = 0;
+    for (int i = 2; errcount < 20; ++i)
     {
+        if (!fs::exists(p)) break;
+
         newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+
+        if (!fs::exists(newpath))
+        {
+            std::error_code e;
+            fs::rename(p, newpath, e);
+            if (e)
+            {
+                LOG_err << "Failed to trash-rename " << p.u8string() << " to " << newpath.u8string() << ": " << e.message();
+                WaitMillisec(500);
+                errcount += 1;
+            }
+            else break;
+        }
     }
-    fs::rename(p, newpath);
 }
 
 fs::path makeNewTestRoot()
@@ -447,17 +657,12 @@ fs::path makeNewTestRoot()
     {
         moveToTrash(p);
     }
-    #ifndef NDEBUG
-    bool b =
-    #endif
-    fs::create_directories(p);
+
+    std::error_code e;
+    bool b = fs::create_directories(p, e);
+    if (!b) { out() << "Failed to create base directory for test at: " << p.u8string() << ", error: " << e.message(); }
     assert(b);
     return p;
-}
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
-{
-    return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
 fs::path makeReusableClientFolder(const string& subfolder)

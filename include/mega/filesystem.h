@@ -134,9 +134,9 @@ class MEGA_API LocalPath
     // there is still at least one use from outside this class
 public:
     static void path2local(const string*, string*);
-    static void local2path(const string*, string*);
+    static void local2path(const string*, string*, bool normalize);
 #if defined(_WIN32)
-    static void local2path(const std::wstring*, string*);
+    static void local2path(const std::wstring*, string*, bool normalize);
     static void path2local(const string*, std::wstring*);
 #endif
 
@@ -165,6 +165,31 @@ public:
     void clear();
     void truncate(size_t bytePos);
     LocalPath leafName() const;
+
+    /*
+    * Return the last component of the path (internally uses absolute path, no matter how the instance was initialized)
+    * that could be used as an actual name.
+    *
+    * Examples:
+    *   "D:\\foo\\bar.txt"  "bar.txt"
+    *   "D:\\foo\\"         "foo"
+    *   "D:\\foo"           "foo"
+    *   "D:\\"              "D"
+    *   "D:"                "D"
+    *   "D"                 "D"
+    *   "D:\\.\\"           "D"
+    *   "D:\\."             "D"
+    *   ".\\foo\\"          "foo"
+    *   ".\\foo"            "foo"
+    *   ".\\"               (as in "C:\\foo\\bar\\.\\")                             "bar"
+    *   "."                 (as in "C:\\foo\\bar\\.")                               "bar"
+    *   "..\\..\\"          (as in "C:\\foo\\bar\\..\\..\\")                        "C"
+    *   "..\\.."            (as in "C:\\foo\\bar\\..\\..")                          "C"
+    *   "..\\..\\.."        (as in "C:\\foo\\bar\\..\\..\\..", thus too far back)   "C"
+    *   "/" (*nix)          ""
+    */
+    string leafOrParentName() const;
+
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
     void prependWithSeparator(const LocalPath& additionalPath);
@@ -195,7 +220,7 @@ public:
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    string toPath() const;
+    string toPath(bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
@@ -226,6 +251,99 @@ public:
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
+
+inline std::ostream& operator<<(std::ostream& os, const LocalPath& p) 
+{
+    return os << p.toPath(false);
+}
+
+class RemotePath
+{
+public:
+    // Create an empty path.
+    RemotePath() = default;
+
+    // Create a remote path from a string.
+    RemotePath(const string& path);
+
+    MEGA_DEFAULT_COPY_MOVE(RemotePath);
+
+    // For convenience.
+    RemotePath& operator=(const string& rhs);
+
+    // Compare this path against another.
+    bool operator==(const RemotePath& rhs) const;
+    bool operator==(const string& rhs) const;
+
+    // Return a string representing this path.
+    operator const string&() const;
+
+    // Add a component to the end of this path.
+    void appendWithSeparator(const RemotePath& component, bool always);
+    void appendWithSeparator(const string& component, bool always);
+
+    // Query whether the path begins with a separator.
+    bool beginsWithSeparator() const;
+
+    // Clear the path.
+    void clear();
+
+    // Query whether the path is empty.
+    bool empty() const;
+
+    // Query whether the path ends with a separator.
+    bool endsInSeparator() const;
+
+    // Locate the next path separator.
+    bool findNextSeparator(size_t& index) const;
+
+    // Query whether the path has any further components.
+    bool hasNextPathComponent(size_t index) const;
+
+    // Retrieve the next path component.
+    bool nextPathComponent(size_t& index, RemotePath& component) const;
+
+    // Add a path component to the start of this path.
+    void prependWithSeparator(const RemotePath& component);
+
+    // Return a string representing this path.
+    const string& str() const;
+
+    // Create a new path based on a portion of another.
+    RemotePath subpathFrom(size_t index) const;
+    RemotePath subpathTo(size_t index) const;
+
+    // For compatibility with LocalPath.
+    //
+    // Useful when we're metaprogramming and don't knwo whether the type
+    // provided by the caller is a local or remote path.
+    const string &toName(const FileSystemAccess&) const;
+
+private:
+    string mPath;
+}; // RemotePath
+
+// For convenience.  first = leaf name only   second = relative path
+using RemotePathPair = pair<RemotePath, RemotePath>;
+
+// For metaprogramming.
+template<typename T>
+struct IsPath
+  : public std::false_type
+{
+}; // IsPath<T>
+
+template<>
+struct IsPath<LocalPath>
+    : public std::true_type
+{
+}; // IsPath<LocalPath>
+
+template<>
+struct IsPath<RemotePath>
+  : public std::true_type
+{
+}; // IsPath<RemotePath>
 
 struct NameConflict {
     string cloudPath;
@@ -319,7 +437,7 @@ struct MEGA_API FileAccess
     // if the open failed, retry indicates a potentially transient reason
     bool retry = false;
 
-    //error code related to the last call to fopen() without parameters
+    // OS error code related to the last call to fopen() without parameters
     int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
@@ -381,6 +499,12 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    // return a description of OS error,
+    // errno on unix. Defaults to the number itself.
+    virtual std::string getErrorMessage(int error) const;
+
+    // error is errno on unix or a DWORD on windows
+    virtual bool isErrorFileNotFound(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
@@ -583,7 +707,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
-    virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;
+    virtual bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) = 0;
 
     // default permissions for new files
     int getdefaultfilepermissions() { return 0600; }
@@ -653,7 +777,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
-    handle fsidOf(const LocalPath& path, bool follow);
+    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck);
 
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
@@ -686,8 +810,6 @@ public:
 
     virtual void anomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath) = 0;
 }; // FilenameAnomalyReporter
-
-bool isCaseInsensitive(const FileSystemType type);
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
@@ -723,9 +845,6 @@ bool isReservedName(const string& name, nodetype_t type = FILENODE);
 // - If no anomalies were detected.
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
-#ifdef ENABLE_SYNC
-FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
-#endif
 
 struct MEGA_API FSNode
 {
@@ -779,19 +898,34 @@ struct MEGA_API FSNode
 
     // Same as the above but useful in situations where we don't have an FA handy.
     static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+
+    const string& toName_of_localname(const FileSystemAccess& fsaccess)
+    {
+        // Although FSNode wouldn't naturally have a utf8 and normalized version of localname,
+        // we need to compare such a string during sorting operations.
+        // Using a caching mechanism like this avoids execessive conversions, normalization, and computing that if it's not used.
+        if (toName_of_localname_cached.empty())
+        {
+            toName_of_localname_cached = localname.toName(fsaccess);
+        }
+        return toName_of_localname_cached;
+    }
+
+private:
+    string toName_of_localname_cached;
 };
 
 class MEGA_API ScanService
 {
 public:
-    ScanService(Waiter& waiter);
+    ScanService();
     ~ScanService();
 
     // Concrete representation of a scan request.
     class ScanRequest
     {
     public:
-        ScanRequest(Waiter& waiter,
+        ScanRequest(shared_ptr<Waiter> waiter,
             bool followSymlinks,
             LocalPath targetPath,
             handle expectedFsid,
@@ -823,7 +957,7 @@ public:
         friend class ScanService;
 
         // Waiter to notify when done
-        Waiter& mWaiter;
+        shared_ptr<Waiter> mWaiter;
 
         // Whether the scan request is complete.
         std::atomic<ScanResult> mScanResult; // SCAN_INPROGRESS;
@@ -849,7 +983,7 @@ public:
     using RequestPtr = std::shared_ptr<ScanRequest>;
 
     // Issue a scan for the given target.
-    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter);
 
     // Track performance (debug only)
     static CodeCounter::ScopeStats syncScanTime;
@@ -891,8 +1025,6 @@ private:
         // Worker threads.
         std::vector<std::thread> mThreads;
     }; // Worker
-
-    Waiter& mWaiter;
 
     // How many services are currently active.
     static std::atomic<size_t> mNumServices;

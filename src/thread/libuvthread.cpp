@@ -56,6 +56,10 @@ uint64_t LibUVThread::currentThreadId()
     return (uint64_t) uv_thread_self();
 }
 
+bool LibUVThread::isCurrentThread() {
+    return uv_thread_self() == *thread;
+}
+
 LibUVThread::~LibUVThread()
 {
     delete thread;

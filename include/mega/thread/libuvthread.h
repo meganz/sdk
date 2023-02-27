@@ -35,6 +35,7 @@ public:
     LibUVThread();
     void start(void *(*start_routine)(void*), void *parameter);
     void join();
+    virtual bool isCurrentThread();
     virtual ~LibUVThread();
 
     void *(*start_routine)(void*);

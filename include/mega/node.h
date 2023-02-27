@@ -26,18 +26,11 @@
 #include "filefingerprint.h"
 #include "file.h"
 #include "attrmap.h"
+#include <bitset>
 
 namespace mega {
 
-struct LocalPathPtrCmp
-{
-    bool operator()(const LocalPath* a, const LocalPath* b) const
-    {
-        return *a < *b;
-    }
-};
-
-typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
+typedef map<LocalPath, LocalNode*> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
 struct MEGA_API NodeCore
@@ -50,6 +43,9 @@ struct MEGA_API NodeCore
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
+
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle parentHandle() const { return NodeHandle().set6byte(parenthandle); }
 
     // node type
     nodetype_t type = TYPE_UNKNOWN;
@@ -80,6 +76,7 @@ struct MEGA_API NewNode : public NodeCore
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
     bool added = false;           // set true when the actionpacket arrives
+    bool canChangeVault = false;
     handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
@@ -97,27 +94,33 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
-// Container storing FileFingerprint* (Node* in practice) ordered by fingerprint.
-struct Fingerprints
+struct NodeCounter
 {
-    // maps FileFingerprints to node
-    using fingerprint_set = std::multiset<FileFingerprint*, FileFingerprintCmp>;
-    using iterator = fingerprint_set::iterator;
-
-    void newnode(Node* n);
-    void add(Node* n);
-    void remove(Node* n);
-    void clear();
-    m_off_t getSumSizes();
-
-    Node* nodebyfingerprint(FileFingerprint* fingerprint);
-    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
-
-private:
-    fingerprint_set mFingerprints;
-    m_off_t mSumSizes = 0;
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+    std::string serialize() const;
+    NodeCounter(const std::string& blob);
+    NodeCounter() = default;
 };
 
+typedef std::multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
+typedef fingerprint_set::iterator FingerprintPosition;
+
+
+class NodeManagerNode
+{
+public:
+    // Instances of this class cannot be copied
+    std::unique_ptr<Node> mNode;
+    std::unique_ptr<std::map<NodeHandle, Node*>> mChildren;
+    bool mAllChildrenHandleLoaded = false;
+};
+typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
 
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
@@ -133,8 +136,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the key is present and is the correct size for this node
     bool keyApplied() const;
 
-    // change parent node association
-    bool setparent(Node*);
+    // change parent node association. updateNodeCounters is false when called from NodeManager::unserializeNode
+    bool setparent(Node*, bool updateNodeCounters = true);
 
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
@@ -142,13 +145,25 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // If this is a file, and has a file for a parent, it's not the latest version
     const Node* latestFileVersion() const;
 
+    // Node's depth, counting from the cloud root.
+    unsigned depth() const;
+
     // try to resolve node key string
     bool applykey();
+
+    // Returns false if the share key can't correctly decrypt the key and the
+    // attributes of the node. Otherwise, it returns true. There are cases in
+    // which it's not possible to check if the key is valid (for example when
+    // the node is already decrypted). In those cases, this function returns
+    // true, because it is intended to discard outdated share keys that could
+    // make nodes undecryptable until the next full reload. That way, nodes
+    // can be decrypted when the updated share key is received.
+    bool testShareKey(const byte* shareKey);
 
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
 
-    // decrypt attribute string and set fileattrs
+    // decrypt attribute string, set fileattrs and save fingerprint
     void setattr();
 
     // display name (UTF-8)
@@ -157,11 +172,28 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
 
+    // check if this node has a name.
+    bool hasName() const;
+
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 
+    // return mimetype type
+    MimeType_t getMimeType(bool checkPreview = false) const;
+
     // node attributes
     AttrMap attrs;
+
+    static const vector<string> attributesToCopyIntoPreviousVersions;
+    
+    // 'sen' attribute
+    bool isMarkedSensitive() const;
+    bool isSensitiveInherited() const;
+
+    // {backup-id, state} pairs received in "sds" node attribute
+    vector<pair<handle, int>> getSdsBackups() const;
+    static nameid sdsId();
+    static string toSdsString(const vector<pair<handle, int>>&);
 
     // owner
     handle owner = mega::UNDEF;
@@ -219,6 +251,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        bool counter : 1;
+        bool sensitive : 1;
+
+        // this field also only used internally, for reporting new NO_KEY occurrences
+        bool modifiedByThisClient : 1;
 
     } changed;
 
@@ -226,23 +263,26 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setkeyfromjson(const char*);
 
+    void setUndecryptedKey(const std::string &undecryptedKey);
+
     void setfingerprint();
 
     void faspec(string*);
 
-    NodeCounter subnodeCounts() const;
+    NodeCounter getCounter() const;
+    void setCounter(const NodeCounter &counter, bool notify);
 
     // parent
+    // nullptr if is root node or top node of an inshare
     Node* parent = nullptr;
 
-    // children
-    node_list children;
-
-    // own position in parent's children
-    node_list::iterator child_it;
-
-    // own position in fingerprint set (only valid for file nodes)
-    Fingerprints::iterator fingerprint_it;
+    // own position in NodeManager::mFingerPrints (only valid for file nodes)
+    // It's used for speeding up node removing at NodeManager::removeFingerprint
+    FingerprintPosition mFingerPrintPosition;
+    // own position in NodeManager::mNodes. The map can have an element of type NodeManagerNode
+    // previously Node exists
+    // It's used for speeding up get children when Node parent is known
+    NodePosition mNodePosition;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
@@ -255,15 +295,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
-    node_set::iterator todebris_it;
+    unlink_or_debris_set::iterator todebris_it;
 
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
+    unlink_or_debris_set::iterator tounlink_it;
 #endif
-
-    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
-    int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;
@@ -275,25 +312,78 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
-    static Node* unserialize(MegaClient*, const string*, node_vector*);
+    static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
-    Node(MegaClient*, vector<Node*>*, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+    int getShareType() const;
+
+    bool isAncestor(NodeHandle ancestorHandle) const;
+
+    // true for outshares, pending outshares and folder links (which are shared folders internally)
+    bool isShared() const { return  (outshares && !outshares->empty()) || (pendingshares && !pendingshares->empty()); }
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC
+
+    // Returns true if this node has a child with the given name.
+    bool hasChildWithName(const string& name) const;
+
+
+    // values that are used to populate the flags column in the database
+    // for efficent searching
+    enum
+    {
+        FLAGS_IS_VERSION = 0,        // This bit is active if node is a version
+        // i.e. the parent is a file not a folder
+        FLAGS_IS_IN_RUBBISH = 1,     // This bit is active if node is in rubbish bin
+        // i.e. the root ansestor is the rubbish bin
+        FLAGS_IS_MARKED_SENSTIVE = 2,// This bit is active if node is marked as sensitive
+        // that is it and every descendent is to be considered
+        // sensitive
+        // i.e. the 'sen' attribute is set
+        FLAGS_SIZE = 3
+    };
+
+    typedef std::bitset<FLAGS_SIZE> Flags; 
+
+    // check if any of the flags are set in any of the anesestors
+    bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
+
+    // should we keep the node
+    // requiredFlags are flags that must be set
+    // excludeFlags are flags that must not be set
+    // excludeRecursiveFlags are flags that must not be set or set in a ansestor
+    bool areFlagsValid(Flags requiredFlags, Flags excludeFlags, Flags excludeRecursiveFlags = Flags()) const;
+
+    Flags getDBFlagsBitset() const;
+    uint64_t getDBFlags() const;
+
+    static uint64_t getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    // keeps track of counts of files, folder, versions, storage and version's storage
+    NodeCounter mCounter;
+
+    bool getExtension(std::string& ext) const;
+    bool isPhoto(const std::string& ext, bool checkPreview) const;
+    bool isVideo(const std::string& ext) const;
+    bool isAudio(const std::string& ext) const;
+    bool isDocument(const std::string& ext) const;
+
+    static nameid getExtensionNameId(const std::string& ext);
 };
 
 inline const string& Node::nodekey() const
 {
-    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    assert(keyApplied() || type == ROOTNODE || type == VAULTNODE || type == RUBBISHNODE);
     return nodekeydata;
 }
 
@@ -394,7 +484,10 @@ struct MEGA_API LocalNode : public File
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
 
-    // return child node by name
+    // For debugging duplicate LocalNodes from older SDK versions
+    string debugGetParentList();
+
+    // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);
 
 #ifdef USE_INOTIFY
@@ -434,7 +527,9 @@ template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNod
 template <> inline Node*& crossref_other_ptr_ref<LocalNode, Node>(LocalNode* p) { return p->node.ptr; }
 template <> inline LocalNode*& crossref_other_ptr_ref<Node, LocalNode>(Node* p) { return p->localnode.ptr; }
 
-#endif
+#endif  // ENABLE_SYNC
+
+bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot);
 
 } // namespace
 

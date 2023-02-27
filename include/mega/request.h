@@ -41,13 +41,13 @@ public:
 
     size_t size() const;
 
-    void get(string*, bool& suppressSID) const;
+    void get(string*, bool& suppressSID, MegaClient* client) const;
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
-    bool processCmdJSON(Command* cmd);
+    bool processCmdJSON(Command* cmd, bool couldBeError);
 
     void clear();
     bool empty() const;
@@ -56,6 +56,8 @@ public:
 
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
+
+    Command* getCurrentCommand();
 };
 
 
@@ -80,13 +82,18 @@ public:
     void add(Command*);
 
     bool cmdspending() const;
+    bool cmdsInflight() const;
+
+    Command* getCurrentCommand(bool currSeqtagSeen);
+
+    bool cmdsinflight() const { return inflightreq.size(); }
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
      * @param suppressSID
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes);
+    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
@@ -95,10 +102,12 @@ public:
 
     void clear();
 
-#ifdef MEGA_MEASURE_CODE
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
     Request deferredRequests;
     std::function<bool(Command*)> deferRequests;
     void sendDeferred();
+#endif
+#ifdef MEGA_MEASURE_CODE
     uint64_t csRequestsSent = 0, csRequestsCompleted = 0;
     uint64_t csBatchesSent = 0, csBatchesReceived = 0;
 #endif

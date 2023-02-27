@@ -59,6 +59,12 @@ struct MEGA_API JSON
 
     nameid getnameid();
     nameid getnameid(const char*) const;
+
+private:
+    nameid getNameidSkipNull(bool skipnullvalues);
+public:
+    nameid getnameidvalue();
+
     string getname();
     string getnameWithoutAdvance() const;
 
@@ -77,6 +83,8 @@ struct MEGA_API JSON
 
     bool enterobject();
     bool leaveobject();
+
+    bool storeKeyValueFromObject(string& key, string& value);
 
     bool storeobject(string* = NULL);
     bool skipnullvalue();

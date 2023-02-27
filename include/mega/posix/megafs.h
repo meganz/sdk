@@ -109,7 +109,7 @@ public:
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, std::string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
     int checkevents(Waiter*) override;
@@ -197,6 +197,9 @@ public:
     void asyncsyswrite(AsyncIOContext* context) override;
 
     ~PosixFileAccess();
+
+    std::string getErrorMessage(int error) const override;
+    bool isErrorFileNotFound(int error) const override;
 
 #ifdef HAVE_AIO_RT
 protected:

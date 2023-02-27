@@ -27,6 +27,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "textchat.h"
 
 namespace mega {
 
@@ -51,6 +52,7 @@ public:
     MegaClient* client; // non-owning
 
     int tag;
+    string commandStr;
 
     bool persistent;
 
@@ -86,7 +88,6 @@ public:
     void closeobject();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
-                    //CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
                     CmdItem };           // The reply was none of the above - so a string
@@ -97,46 +98,46 @@ public:
         Error mError = API_OK;
         Result(Outcome o, Error e = API_OK) : mOutcome(o), mError(e) {}
 
-        bool succeeded()
+        bool succeeded() const
         {
             return mOutcome != CmdError || error(mError) == API_OK;
         }
 
-        bool hasJsonArray()
+        bool hasJsonArray() const
         {
             // true if there is JSON Array to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdArray;
         }
 
-        bool hasJsonObject()
+        bool hasJsonObject() const
         {
             // true if there is JSON Object to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdObject;
         }
 
-        bool hasJsonItem()
+        bool hasJsonItem() const
         {
             // true if there is JSON to process but it's not an object or array (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdItem;
         }
 
-        Error errorOrOK()
+        Error errorOrOK() const
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : Error(API_EINTERNAL);
         }
 
-        bool wasErrorOrOK()
+        bool wasErrorOrOK() const
         {
             return mOutcome == CmdError;
         }
 
-        bool wasError(error e)
+        bool wasError(error e) const
         {
             return mOutcome == CmdError && error(mError) == e;
         }
 
-        bool wasStrictlyError()
+        bool wasStrictlyError() const
         {
             return mOutcome == CmdError && error(mError) != API_OK;
         }
@@ -145,12 +146,18 @@ public:
 
     virtual bool procresult(Result) = 0;
 
-    const char* getstring();
+    // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
+    virtual const char* getJSON(MegaClient* client);
 
     Command();
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
+
+#ifdef ENABLE_CHAT
+    // create json structure for scheduled meetings (mcsmp command)
+    void createSchedMeetingJson(const ScheduledMeeting* schedMeeting);
+#endif
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -313,8 +320,11 @@ class MEGA_API CommandPutMultipleUAVer : public Command
 {
     userattr_map attrs;  // attribute values
 
+    std::function<void(Error)> mCompletion;
+
 public:
-    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int,
+                            std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -448,13 +458,14 @@ private:
     NodeHandle pp;  // previous parent
     NodeHandle np;  // new parent
     bool syncop;
+    bool mCanChangeVault;
     syncdel_t syncdel;
     Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -473,7 +484,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool canChangeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -497,6 +508,8 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool incrementedCount = false;
+    const char* getJSON(MegaClient* client) override;
 public:
     using Completion = std::function<void(error)>;
 
@@ -570,8 +583,6 @@ class MEGA_API CommandGetPutUrl : public Command
     using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
-    string* result;
-
 public:
     bool procresult(Result) override;
 
@@ -600,7 +611,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
 public:
-    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>;
+    using Completion = std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>;
 
 private:
     friend class MegaClient;
@@ -612,12 +623,13 @@ private:
     Completion mResultFunction;
 
     void removePendingDBRecordsAndTempFiles();
+    void performAppCallback(Error e, vector<NewNode>&, bool targetOverride = false);
 
 public:
 
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool canChangeVault);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -627,20 +639,17 @@ public:
 
 private:
     NodeHandle h;
-    string pa;
-    bool syncop;
 
     Completion completion;
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command
 {
     handle sh;
-    User* user;
     accesslevel_t access;
     string msg;
     string personal_representation;
@@ -656,6 +665,26 @@ public:
 
     CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, bool, const char*, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> f);
+};
+
+using CommandPendingKeysReadCompletion = std::function<void(Error, std::string, std::shared_ptr<std::map<handle, std::map<handle, std::string>>>)>;
+class MEGA_API CommandPendingKeys : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    // Read pending keys
+    CommandPendingKeys(MegaClient*, CommandPendingKeysReadCompletion);
+
+    // Delete pending keys
+    CommandPendingKeys(MegaClient*, std::string, std::function<void(Error)>);
+
+    // Send key
+    CommandPendingKeys(MegaClient*, handle user, handle share, byte *key, std::function<void(Error)>);
+
+protected:
+    std::function<void(Error)> mCompletion;
+    CommandPendingKeysReadCompletion mReadCompletion;
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -769,6 +798,7 @@ class MEGA_API CommandSetPH : public Command
     handle h;
     m_time_t ets;
     bool mWritable = false;
+    bool mDeleting = false;
     std::function<void(Error, handle, handle)> completion;
 
 public:
@@ -813,14 +843,6 @@ public:
     bool procresult(Result) override;
 
     CommandEnumerateQuotaItems(MegaClient*);
-};
-
-class MEGA_API CommandReportEvent : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandReportEvent(MegaClient*, const char*, const char*);
 };
 
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
@@ -881,12 +903,12 @@ public:
     CommandGetPaymentMethods(MegaClient*);
 };
 
-class MEGA_API CommandUserFeedbackStore : public Command
+class MEGA_API CommandSendReport : public Command
 {
 public:
     bool procresult(Result) override;
 
-    CommandUserFeedbackStore(MegaClient*, const char *, const char *, const char *);
+    CommandSendReport(MegaClient*, const char *, const char *, const char *);
 };
 
 class MEGA_API CommandSendEvent : public Command
@@ -974,7 +996,7 @@ class MEGA_API CommandValidatePassword : public Command
 public:
     bool procresult(Result) override;
 
-    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+    CommandValidatePassword(MegaClient*, const char*, const vector<byte>&);
 };
 
 class MEGA_API CommandGetEmailLink : public Command
@@ -1019,10 +1041,25 @@ class MEGA_API CommandChatCreate : public Command
     string mTitle;
     string mUnifiedKey;
     bool mMeeting;
+    ChatOptions mChatOptions;
+    std::unique_ptr<ScheduledMeeting> mSchedMeeting;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty, const ScheduledMeeting* schedMeeting = nullptr);
+};
+
+typedef std::function<void(Error)> CommandSetChatOptionsCompletion;
+class MEGA_API CommandSetChatOptions : public Command
+{
+    handle mChatid;
+    int mOption;
+    bool mEnabled;
+    CommandSetChatOptionsCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandSetChatOptions(MegaClient*, handle, int option, bool enabled, CommandSetChatOptionsCompletion completion);
 };
 
 class MEGA_API CommandChatInvite : public Command
@@ -1378,6 +1415,7 @@ public:
         PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
+        DELETED = 8,            // Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
     };
 
     struct BackupInfo
@@ -1403,11 +1441,12 @@ public:
 class MEGA_API CommandBackupRemove : public Command
 {
     handle mBackupId;
+    std::function<void(const Error&)> mCompletion;
 
 public:
     bool procresult(Result) override;
 
-    CommandBackupRemove(MegaClient* client, handle backupId);
+    CommandBackupRemove(MegaClient* client, handle backupId, std::function<void(Error)> completion);
 };
 
 class MEGA_API CommandBackupPutHeartBeat : public Command
@@ -1477,6 +1516,97 @@ public:
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
+
+//
+// Sets and Elements
+//
+
+class CommandSE : public Command // intermediary class to avoid code duplication
+{
+protected:
+    bool procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
+    bool procerrorcode(const Result& r, Error& e) const;
+};
+
+class Set;
+
+class MEGA_API CommandPutSet : public CommandSE
+{
+public:
+    CommandPutSet(MegaClient*, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
+                  std::function<void(Error, const Set*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<Set> mSet; // use a pointer to avoid defining Set in this header
+    std::function<void(Error, const Set*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSet : public CommandSE
+{
+public:
+    CommandRemoveSet(MegaClient*, handle id, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+class SetElement;
+
+class MEGA_API CommandFetchSet : public CommandSE
+{
+public:
+    CommandFetchSet(MegaClient*, handle id, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    std::function<void(Error, Set*, map<handle, SetElement>*)> mCompletion;
+};
+
+class SetElement;
+
+class MEGA_API CommandPutSetElements : public CommandSE
+{
+public:
+    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<pair<string, string>>&& encrDetails,
+                         std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<vector<SetElement>> mElements; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> mCompletion;
+};
+
+class MEGA_API CommandPutSetElement : public CommandSE
+{
+public:
+    CommandPutSetElement(MegaClient*, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
+                         std::function<void(Error, const SetElement*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, const SetElement*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSetElement : public CommandSE
+{
+public:
+    CommandRemoveSetElement(MegaClient*, handle sid, handle eid, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    handle mElementId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+// -------- end of Sets and Elements
+
+
 #ifdef ENABLE_CHAT
 typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;
 class MEGA_API CommandMeetingStart : public Command
@@ -1485,7 +1615,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
@@ -1508,6 +1638,51 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
+typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
+class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
+{
+    std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
+    CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+};
+
+typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
+class MEGA_API CommandScheduledMeetingRemove : public Command
+{
+    handle mChatId;
+    handle mSchedId;
+    CommandScheduledMeetingRemoveCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingRemove(MegaClient *, handle, handle, CommandScheduledMeetingRemoveCompletion completion);
+};
+
+typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchCompletion;
+class MEGA_API CommandScheduledMeetingFetch : public Command
+{
+    handle mChatId;
+    CommandScheduledMeetingFetchCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingFetch(MegaClient *, handle, handle, CommandScheduledMeetingFetchCompletion completion);
+};
+
+typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchEventsCompletion;
+class MEGA_API CommandScheduledMeetingFetchEvents : public Command
+{
+    handle mChatId;
+    bool mByDemand;
+    CommandScheduledMeetingFetchEventsCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, m_time_t, m_time_t, unsigned int, bool, CommandScheduledMeetingFetchEventsCompletion completion);
+};
 #endif
 
 } // namespace

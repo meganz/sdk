@@ -2007,11 +2007,11 @@ public class MegaApiJava {
      * - MegaApi::ACCOUNT_NOT_BLOCKED = 0
      * Account is not blocked in any way.
      * <p>
-     * - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-     * Suspension message for any type of suspension, but copyright suspension.
-     * <p>
-     * - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+     * - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
      * Suspension only for multiple copyright violations.
+     * <p>
+     * - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+     * Suspension message for any type of suspension, but copyright suspension.
      * <p>
      * - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
      * Subuser of the business account has been disabled.
@@ -2049,11 +2049,11 @@ public class MegaApiJava {
      * - MegaApi::ACCOUNT_NOT_BLOCKED = 0
      * Account is not blocked in any way.
      * <p>
-     * - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-     * Suspension message for any type of suspension, but copyright suspension.
-     * <p>
-     * - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+     * - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
      * Suspension only for multiple copyright violations.
+     * <p>
+     * - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+     * Suspension message for any type of suspension, but copyright suspension.
      * <p>
      * - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
      * Subuser of the business account has been disabled.
@@ -3107,6 +3107,50 @@ public class MegaApiJava {
      */
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Upgrade cryptographic security
+     *
+     * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+     * proceed with the cryptographic upgrade process.
+     * This should happen only once per account.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void upgradeSecurity(MegaRequestListenerInterface listener) {
+        megaApi.upgradeSecurity(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Allows to change the hardcoded value of the "secure" flag
+     *
+     * With this feature flag set, the client will manage encryption keys for
+     * shared folders in a secure way. Legacy clients won't be able to decrypt
+     * shared folders created with this flag enabled.
+     *
+     * Manual verification of credentials of users (both sharers AND sharees) is
+     * required in order to decrypt shared folders correctly.
+     *
+     * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+     * result on unexpected behavior.
+     *
+     * @param enable New value of the flag
+     */
+    public void setSecureFlag(boolean enable) {
+        megaApi.setSecureFlag(enable);
+    }
+
+    /**
+     * Creates a new share key for the node if there is no share key already created.
+     *
+     * Call it before starting any new share.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void openShareDialog(MegaNode node, MegaRequestListenerInterface listener) {
+        megaApi.openShareDialog(node, createDelegateRequestListener(listener));
     }
 
     /**
@@ -7967,90 +8011,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get file and folder children of a MegaNode separately
-     * <p>
-     * If the parent node doesn't exist or it isn't a folder, this function
-     * returns NULL
-     * <p>
-     * You take the ownership of the returned value
-     *
-     * @param parent Parent node
-     * @param order  Order for the returned lists
-     *               Valid values for this parameter are:
-     *               - MegaApi::ORDER_NONE = 0
-     *               Undefined order
-     *               <p>
-     *               - MegaApi::ORDER_DEFAULT_ASC = 1
-     *               Folders first in alphabetical order, then files in the same order
-     *               <p>
-     *               - MegaApi::ORDER_DEFAULT_DESC = 2
-     *               Files first in reverse alphabetical order, then folders in the same order
-     *               <p>
-     *               - MegaApi::ORDER_SIZE_ASC = 3
-     *               Sort by size, ascending
-     *               <p>
-     *               - MegaApi::ORDER_SIZE_DESC = 4
-     *               Sort by size, descending
-     *               <p>
-     *               - MegaApi::ORDER_CREATION_ASC = 5
-     *               Sort by creation time in MEGA, ascending
-     *               <p>
-     *               - MegaApi::ORDER_CREATION_DESC = 6
-     *               Sort by creation time in MEGA, descending
-     *               <p>
-     *               - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *               Sort by modification time of the original file, ascending
-     *               <p>
-     *               - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *               Sort by modification time of the original file, descending
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *               <p>
-     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *               They will be eventually removed.
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_LABEL_ASC = 17
-     *               Sort by color label, ascending. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_LABEL_DESC = 18
-     *               Sort by color label, descending. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_FAV_ASC = 19
-     *               Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *               <p>
-     *               - MegaApi::ORDER_FAV_DESC = 20
-     *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     * @return Lists with files and folders child MegaNode objects
-     */
-    public MegaChildren getFileFolderChildren(MegaNode parent, int order) {
-        MegaChildren children = new MegaChildren();
-
-        MegaChildrenLists childrenList = megaApi.getFileFolderChildren(parent, order);
-
-        children.setFileList(nodeListToArray(childrenList.getFileList()));
-        children.setFolderList(nodeListToArray(childrenList.getFolderList()));
-
-        return children;
-    }
-
-    /**
      * Returns true if the node has children
      *
      * @return true if the node has children
@@ -8311,6 +8271,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a list with all unverified inbound sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public ArrayList<MegaShare> getUnverifiedIncomingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedInShares(order));
+    }
+
+    /**
      * Get the user relative to an incoming share
      * <p>
      * This function will return NULL if the node is not found
@@ -8401,6 +8373,18 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
+    }
+
+    /**
+     * Get a list with all unverified sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects
+     */
+    public ArrayList<MegaShare> getUnverifiedOutgoingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedOutShares(order));
     }
 
     /**
@@ -9667,35 +9651,6 @@ public class MegaApiJava {
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
                                             @NotNull MegaCancelToken cancelToken) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
-    }
-
-    /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     *
-     * @param days     Age of actions since added/modified nodes will be considered (in days)
-     * @param maxnodes Maximum amount of nodes to be considered
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions(long days, long maxnodes) {
-        return recentActionsToArray(megaApi.getRecentActions(days, maxnodes));
-    }
-
-    /**
-     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
-     * <p>
-     * Each bucket contains files that were added/modified in a set, by a single user.
-     * <p>
-     * This function uses the default parameters for the MEGA apps, which consider (currently)
-     * interactions during the last 30 days and max 10.000 nodes.
-     * <p>
-     * You take the ownership of the returned value.
-     *
-     * @return List of buckets containing nodes that were added/modified as a set
-     */
-    public ArrayList<MegaRecentActionBucket> getRecentActions() {
-        return recentActionsToArray(megaApi.getRecentActions());
     }
 
     /**
@@ -11071,17 +11026,40 @@ public class MegaApiJava {
         return result;
     }
 
-    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
-        if (recentActionList == null) {
+    static ArrayList<MegaSet> megaSetListToArray(MegaSetList megaSetList) {
+        if (megaSetList == null) {
             return null;
         }
 
-        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
-        for (int i = 0; i < recentActionList.size(); i++) {
-            result.add(recentActionList.get(i).copy());
+        ArrayList<MegaSet> result = new ArrayList<>((int) megaSetList.size());
+        for (int i = 0; i < megaSetList.size(); i++) {
+            result.add(megaSetList.get(i).copy());
         }
 
         return result;
+    }
+
+    static ArrayList<MegaSetElement> megaSetElementListToArray(MegaSetElementList megaSetElementList) {
+        if (megaSetElementList == null) {
+            return null;
+        }
+
+        ArrayList<MegaSetElement> result = new ArrayList<>((int) megaSetElementList.size());
+        for (int i = 0; i < megaSetElementList.size(); i++) {
+            result.add(megaSetElementList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    /**
+     * Creates a copy of MegaRecentActionBucket required for its usage in the app.
+     *
+     * @param bucket The MegaRecentActionBucket received.
+     * @return A copy of MegaRecentActionBucket.
+     */
+    public MegaRecentActionBucket copyBucket(MegaRecentActionBucket bucket) {
+        return bucket.copy();
     }
 
     /**
@@ -11469,81 +11447,583 @@ public class MegaApiJava {
     }
 
     /**
-     * Set My Backups folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     * <p>
-     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     * the request will fail with the error code MegaError::API_EACCESS.
+     * @brief Creates the special folder for backups ("My backups")
      *
-     * @param nodehandle MegaHandle of the node to be used as target folder
-     * @param listener   MegaRequestListener to track this request
-     */
-    public void setMyBackupsFolder(long handle, MegaRequestListenerInterface listener) {
-        megaApi.setMyBackupsFolder(handle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Set My Backups folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     * <p>
-     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     * the request will fail with the error code MegaError::API_EACCESS.
+     * It creates a new folder inside the Vault rootnode and later stores the node's
+     * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
      *
-     * @param nodehandle MegaHandle of the node to be used as target folder
-     */
-    public void setMyBackupsFolder(long handle) {
-        megaApi.setMyBackupsFolder(handle);
-    }
-
-    /**
-     * Gets My Backups target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Apps should first check if this folder exists already, by calling
+     * MegaApi::getUserAttribute for the corresponding attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * <p>
+     * - MegaRequest::getText - Returns the name provided as parameter
+     *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
-     * <p>
-     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     * - MegaRequest::getNodehandle - Returns the node handle of the folder created
      *
+     * If the folder for backups already existed, the request will fail with the error API_EACCESS.
+     *
+     * @param localizedName Localized name for "My backups" folder
      * @param listener MegaRequestListener to track this request
      */
-    public void getMyBackupsFolder(MegaRequestListenerInterface listener) {
-        megaApi.getMyBackupsFolder(createDelegateRequestListener(listener));
+    public void setMyBackupsFolder(String localizedName, MegaRequestListenerInterface listener) {
+        megaApi.setMyBackupsFolder(localizedName, createDelegateRequestListener(listener));
     }
 
     /**
-     * Gets My Backups target folder.
+     * Request creation of a new Set
      * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+     * - MegaRequest::getText - Returns name of the Set
+     * - MegaRequest::getParamType - Returns CREATE_SET, possibly combined with OPTION_SET_NAME
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+     * - MegaRequest::getMegaSet - Returns either the new Set, or null if it was not created.
      * <p>
-     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param name     the name that should be given to the new Set
+     * @param listener MegaRequestListener to track this request
      */
-    public void getMyBackupsFolder() {
-        megaApi.getMyBackupsFolder();
+    public void createSet(String name, MegaRequestListenerInterface listener) {
+        megaApi.createSet(name, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request creation of a new Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+     * - MegaRequest::getText - Returns name of the Set
+     * - MegaRequest::getParamType - Returns CREATE_SET, possibly combined with OPTION_SET_NAME
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSet - Returns either the new Set, or null if it was not created.
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param name the name that should be given to the new Set
+     */
+    public void createSet(String name) {
+        megaApi.createSet(name);
+    }
+
+    /**
+     * Request to update the name of a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+     * - MegaRequest::getText - Returns new name of the Set
+     * - MegaRequest::getParamType - Returns OPTION_SET_NAME
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set to be updated
+     * @param name     the new name that should be given to the Set
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateSetName(long sid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetName(sid, name, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to update the name of a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+     * - MegaRequest::getText - Returns new name of the Set
+     * - MegaRequest::getParamType - Returns OPTION_SET_NAME
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid  the id of the Set to be updated
+     * @param name the new name that should be given to the Set
+     */
+    public void updateSetName(long sid, String name) {
+        megaApi.updateSetName(sid, name);
+    }
+
+    /**
+     * Request to update the cover of a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+     * - MegaRequest::getNodeHandle - Returns Element id to be set as the new cover
+     * - MegaRequest::getParamType - Returns OPTION_SET_COVER
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - Given Element id was not part of the current Set; Malformed (from API).
+     * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set to be updated
+     * @param eid      the id of the Element to be set as cover
+     * @param listener MegaRequestListener to track this request
+     */
+    public void putSetCover(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.putSetCover(sid, eid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to update the cover of a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+     * - MegaRequest::getNodeHandle - Returns Element id to be set as the new cover
+     * - MegaRequest::getParamType - Returns OPTION_SET_COVER
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - Given Element id was not part of the current Set; Malformed (from API).
+     * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid the id of the Set to be updated
+     * @param eid the id of the Element to be set as cover
+     */
+    public void putSetCover(long sid, long eid) {
+        megaApi.putSetCover(sid, eid);
+    }
+
+    /**
+     * Request to remove a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be removed
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.removeSet(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to remove a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be removed
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid the id of the Set to be removed
+     */
+    public void removeSet(long sid) {
+        megaApi.removeSet(sid);
+    }
+
+    /**
+     * Request to fetch a Set and its Elements
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSet - Returns the Set
+     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set to be fetched
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.fetchSet(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to fetch a Set and its Elements
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSet - Returns the Set
+     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid the id of the Set to be fetched
+     */
+    public void fetchSet(long sid) {
+        megaApi.fetchSet(sid);
+    }
+
+    /**
+     * Request creation of a new Element for a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns CREATE_ELEMENT, possibly combined with OPTION_ELEMENT_NAME
+     * - MegaRequest::getText - Returns name of the Element
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
+     * - MegaError::API_EKEY - File-node had no key.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that will own the new Element
+     * @param node     the handle of the file-node that will be represented by the new Element
+     * @param name     the name that should be given to the new Element
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSetElement(long sid, long node, String name, MegaRequestListenerInterface listener) {
+        megaApi.createSetElement(sid, node,name, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request creation of a new Element for a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns CREATE_ELEMENT, possibly combined with OPTION_ELEMENT_NAME
+     * - MegaRequest::getText - Returns name of the Element
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
+     * - MegaError::API_EKEY - File-node had no key.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid  the id of the Set that will own the new Element
+     * @param node the handle of the file-node that will be represented by the new Element
+     * @param name the name that should be given to the new Element
+     */
+    public void createSetElement(long sid, long node, String name) {
+        megaApi.createSetElement(sid, node, name);
+    }
+
+    /**
+     * Request creation of a new Element for a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns CREATE_ELEMENT, possibly combined with OPTION_ELEMENT_NAME
+     * - MegaRequest::getText - Returns name of the Element
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
+     * - MegaError::API_EKEY - File-node had no key.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid  the id of the Set that will own the new Element
+     * @param node the handle of the file-node that will be represented by the new Element
+     */
+    public void createSetElement(long sid, long node) {
+        megaApi.createSetElement(sid, node);
+    }
+
+    /**
+     * Request to update the name of an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns OPTION_ELEMENT_NAME
+     * - MegaRequest::getText - Returns name of the Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Element could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that owns the Element
+     * @param eid      the id of the Element that will be updated
+     * @param name     the new name that should be given to the Element
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateSetElementName(long sid, long eid, String name, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementName(sid, eid, name, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to update the name of an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns OPTION_ELEMENT_NAME
+     * - MegaRequest::getText - Returns name of the Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Element could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid  the id of the Set that owns the Element
+     * @param eid  the id of the Element that will be updated
+     * @param name the new name that should be given to the Element
+     */
+    public void updateSetElementName(long sid, long eid, String name) {
+        megaApi.updateSetElementName(sid, eid, name);
+    }
+
+    /**
+     * Request to update the order of an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns OPTION_ELEMENT_ORDER
+     * - MegaRequest::getNumber - Returns order of the Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Element could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that owns the Element
+     * @param eid      the id of the Element that will be updated
+     * @param order    the new order of the Element
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListenerInterface listener) {
+        megaApi.updateSetElementOrder(sid, eid, order, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to update the order of an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getParamType - Returns OPTION_ELEMENT_ORDER
+     * - MegaRequest::getNumber - Returns order of the Element
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Element could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid   the id of the Set that owns the Element
+     * @param eid   the id of the Element that will be updated
+     * @param order the new order of the Element
+     */
+    public void updateSetElementOrder(long sid, long eid, long order) {
+        megaApi.updateSetElementOrder(sid, eid, order);
+    }
+
+    /**
+     * Request to remove an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be removed
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - No Set or no Element with given ids could be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that owns the Element
+     * @param eid      the id of the Element to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeSetElement(long sid, long eid, MegaRequestListenerInterface listener) {
+        megaApi.removeSetElement(sid, eid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to remove an Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns id of the Element to be removed
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - No Set or no Element with given ids could be found (before or after the request).
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid the id of the Set that owns the Element
+     * @param eid the id of the Element to be removed
+     */
+    public void removeSetElement(long sid, long eid) {
+        megaApi.removeSetElement(sid, eid);
+    }
+
+    /**
+     * Get a list of all Sets available for current user.
+     * <p>
+     * The response value is stored as a MegaSetList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @return list of Sets
+     */
+    public MegaSetList getSets() {
+        return megaApi.getSets();
+    }
+
+    /**
+     * Get the Set with the given id, for current user.
+     * <p>
+     * The response value is stored as a MegaSet.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid the id of the Set to be retrieved
+     * @return the requested Set, or null if not found
+     */
+    public MegaSet getSet(long sid) {
+        return megaApi.getSet(sid);
+    }
+
+    /**
+     * Get the cover (Element id) of the Set with the given id, for current user.
+     *
+     * @param sid the id of the Set to retrieve the cover for
+     * @return Element id of the cover, or INVALIDHANDLE if not set or invalid id
+     */
+    public long getSetCover(long sid) {
+        return megaApi.getSetCover(sid);
+    }
+
+    /**
+     * Get Element count of the Set with the given id, for current user.
+     *
+     * @param sid the id of the Set to get Element count for
+     * @return Element count of requested Set, or 0 if not found
+     */
+    public long getSetElementCount(long sid) {
+        return megaApi.getSetElementCount(sid);
+    }
+
+    /**
+     * Get Element count of the Set with the given id, for current user.
+     *
+     * @param sid                         the id of the Set to get Element count for
+     * @param includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return Element count of requested Set, or 0 if not found
+     */
+    public long getSetElementCount(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElementCount(sid, includeElementsInRubbishBin);
+    }
+
+    /**
+     * Get all Elements in the Set with given id, for current user.
+     * <p>
+     * The response value is stored as a MegaSetElementList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid the id of the Set owning the Elements
+     * @return all Elements in that Set, or null if not found or none added
+     */
+    public MegaSetElementList getSetElements(long sid) {
+        return megaApi.getSetElements(sid);
+    }
+
+    /**
+     * Get all Elements in the Set with given id, for current user.
+     * <p>
+     * The response value is stored as a MegaSetElementList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid                         the id of the Set owning the Elements
+     * @param includeElementsInRubbishBin includeElementsInRubbishBin consider or filter out Elements in Rubbish Bin
+     * @return all Elements in that Set, or null if not found or none added
+     */
+    public MegaSetElementList getSetElements(long sid, boolean includeElementsInRubbishBin) {
+        return megaApi.getSetElements(sid, includeElementsInRubbishBin);
+    }
+
+    /**
+     * Get a particular Element in a particular Set, for current user.
+     * <p>
+     * The response value is stored as a MegaSetElement.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @param sid the id of the Set owning the Element
+     * @param eid the id of the Element to be retrieved
+     * @return requested Element, or null if not found
+     */
+    public MegaSetElement getSetElement(long sid, long eid) {
+        return megaApi.getSetElement(sid, eid);
     }
 }

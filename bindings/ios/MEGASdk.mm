@@ -22,6 +22,8 @@
 #import "MEGASdk.h"
 #import "megaapi.h"
 #import "MEGANode+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 #import "MEGAUser+init.h"
 #import "MEGATransfer+init.h"
 #import "MEGATransferList+init.h"
@@ -32,7 +34,6 @@
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
 #import "MEGAContactRequestList+init.h"
-#import "MEGAChildrenLists+init.h"
 #import "MEGARecentActionBucket+init.h"
 #import "MEGABackgroundMediaUpload+init.h"
 #import "DelegateMEGARequestListener.h"
@@ -67,7 +68,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
@@ -282,8 +283,12 @@ using namespace mega;
 }
 
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+    [self addMEGAGlobalDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate queueType:(ListenerQueueType)queueType {
     if (self.megaApi) {
-        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate]);
+        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate queueType:queueType]);
     }
 }
 
@@ -1396,6 +1401,164 @@ using namespace mega;
     }
 }
 
+- (void)createSet:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createSet(name.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                          singleListener:YES
+                                                                               queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->fetchSet(sid, [self createDelegateMEGARequestListener:delegate
+                                                             singleListener:YES
+                                                                  queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)updateSetName:(MEGAHandle)sid name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->updateSetName(sid, name.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                   singleListener:YES
+                                                                                        queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)removeSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->removeSet(sid, [self createDelegateMEGARequestListener:delegate
+                                                              singleListener:YES
+                                                                   queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)putSetCover:(MEGAHandle)sid eid:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->putSetCover(sid, eid, [self createDelegateMEGARequestListener:delegate
+                                                                     singleListener:YES
+                                                                          queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)createSetElement:(MEGAHandle)sid
+                  nodeId:(MEGAHandle)nodeId
+                    name:(NSString *)name
+                delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createSetElement(sid,
+                                       nodeId,
+                                       name.UTF8String,
+                                       [self createDelegateMEGARequestListener:delegate
+                                                                singleListener:YES
+                                                                     queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)updateSetElement:(MEGAHandle)sid
+                     eid:(MEGAHandle)eid
+                    name:(NSString *)name
+                delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->updateSetElementName(sid,
+                                           eid,
+                                           name.UTF8String,
+                                           [self createDelegateMEGARequestListener:delegate
+                                                                    singleListener:YES
+                                                                         queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)updateSetElementOrder:(MEGAHandle)sid
+                          eid:(MEGAHandle)eid
+                        order:(int64_t)order
+                     delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->updateSetElementOrder(sid,
+                                            eid,
+                                            order,
+                                            [self createDelegateMEGARequestListener:delegate
+                                                                     singleListener:YES
+                                                                          queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)removeSetElement:(MEGAHandle)sid
+                     eid:(MEGAHandle)eid
+                delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->removeSetElement(sid, eid, [self createDelegateMEGARequestListener:delegate
+                                                                          singleListener:YES
+                                                                               queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (MEGASet *)setBySid:(MEGAHandle)sid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return nil;
+    
+    MegaSet *set = self.megaApi->getSet(sid);
+    return set ? [[MEGASet alloc] initWithMegaSet:set->copy() cMemoryOwn:YES] : nil;
+}
+
+- (NSArray<MEGASet *> *)megaSets {
+    if (self.megaApi == nil) return nil;
+    
+    MegaSetList *setList = self.megaApi->getSets();
+    int size = setList->size();
+    
+    NSMutableArray *sets = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        MEGASet *megaSet = [[MEGASet alloc] initWithMegaSet:setList->get(i)->copy() cMemoryOwn:YES];
+        [sets addObject:megaSet];
+    }
+    
+    delete setList;
+    
+    return [sets copy];
+}
+
+- (MEGAHandle)megaSetCoverBySid:(MEGAHandle)sid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return ::mega::INVALID_HANDLE;
+    
+    return self.megaApi->getSetCover(sid);
+}
+
+- (nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
+    
+    MegaSetElement *element = self.megaApi->getSetElement(sid, eid);
+    MEGASetElement *setElement = element ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
+    
+    delete element;
+    
+    return setElement;
+}
+
+- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
+    if (self.megaApi == nil) return nil;
+    
+    MegaSetElementList *setElementList = self.megaApi->getSetElements(sid, includeElementsInRubbishBin);
+    int size = setElementList->size();
+    
+    NSMutableArray *setElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
+        [setElements addObject:megaSetElement];
+    }
+    
+    delete setElementList;
+    
+    return [setElements copy];
+}
+
+- (NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return 0;
+    
+    return self.megaApi->getSetElementCount(sid, includeElementsInRubbishBin);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setNodeCoordinates(node.getCPtr, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -1447,6 +1610,18 @@ using namespace mega;
 - (void)disableExportNode:(MEGANode *)node {
     if (self.megaApi) {
         self.megaApi->disableExport(node.getCPtr);
+    }
+}
+
+- (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->openShareDialog(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setShareSecureFlag:(BOOL)enable {
+    if (self.megaApi) {
+        self.megaApi->setSecureFlag(enable);
     }
 }
 
@@ -1541,6 +1716,13 @@ using namespace mega;
         self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
+
+- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->getUserAvatar(emailOrHandle.UTF8String, destinationFilePath.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:queueType]);
+    }
+}
+
 
 - (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath {
     if (self.megaApi) {
@@ -1998,18 +2180,6 @@ using namespace mega;
     }
 }
 
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
-    }
-}
-
-- (void)getMyBackupsFolder {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder();
-    }
-}
-
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2204,6 +2374,12 @@ using namespace mega;
 - (BOOL)setRLimitFileCount:(NSInteger)fileCount {
     if (self.megaApi == nil) return NO;
     return self.megaApi->platformSetRLimitNumFile((int)fileCount);
+}
+
+- (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->upgradeSecurity([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
 }
 
 #pragma mark - Transfer
@@ -2501,16 +2677,6 @@ using namespace mega;
     }
 }
 
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr) cMemoryOwn:YES];
-}
-
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
@@ -2603,6 +2769,11 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList((int)order) cMemoryOwn:YES];
 }
 
+- (MEGAShareList *)getUnverifiedInShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedInShares((int)order) cMemoryOwn:YES];
+}
+
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
     if (self.megaApi == nil) return nil;
     return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node.getCPtr) cMemoryOwn:YES];
@@ -2622,6 +2793,11 @@ using namespace mega;
 - (MEGAShareList *)outShares:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((int)order) cMemoryOwn:YES];
+}
+
+- (MEGAShareList *)getUnverifiedOutShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedOutShares((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
@@ -3361,9 +3537,9 @@ using namespace mega;
     }
 }
 
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, (int)subState, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -3373,9 +3549,9 @@ using namespace mega;
     }
 }
 
-- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
+- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, lastActionDate != nil ? (long long)[lastActionDate timeIntervalSince1970] : (long long)0, lastBackupNode != nil ? lastBackupNode.handle : INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -3467,10 +3643,11 @@ using namespace mega;
     return delegateListener;
 }
 
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate {
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate
+                                               queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate);
+    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeGlobalListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);

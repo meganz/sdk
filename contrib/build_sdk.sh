@@ -60,6 +60,8 @@ openssl_cross_option=""
 status_dir=""
 persistent_path="/opt/persistent"
 warning_as_error=0
+build_gtest=0
+build_tests=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -552,9 +554,9 @@ zlib_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Zlib"
-    local zlib_ver="1.2.12"
+    local zlib_ver="1.2.13"
     local zlib_url="https://zlib.net/fossils/zlib-$zlib_ver.tar.gz"
-    local zlib_md5="5fc414a9726be31427b440b434d05f78"
+    local zlib_md5="9b8aa094c4e5765dabf4da391f00d15c"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
@@ -1018,6 +1020,64 @@ readline_win_pkg() {
     echo $readline_md5 > $status_dir/$name.success
 }
 
+already_built()
+{
+    local hash=$2
+    local name=$1
+    local file=$status_dir/$name.success
+
+    test $incremental -eq 1 \
+         -a "$(cat $file)" = "$hash" \
+      && echo "$name already built" \
+      && return
+
+    rm -f $file
+
+    false
+}
+
+gtest_pkg() {
+    local build_debug=$3
+    local build_directory=$1
+    local hash="e82199374acdfda3f425331028eb4e2a"
+    local install_directory=$2
+    local name="gtest"
+    local version="1.12.1"
+    local file="release-$version.tar.gz"
+    local directory="googletest-${file%.tar.gz}"
+    local uri="https://github.com/google/googletest/archive/refs/tags/$file"
+
+    already_built $name $hash && return
+
+    package_download $name $uri $file $hash
+
+    test $download_only -eq 1 && return
+
+    package_extract $name $file $directory
+
+    rm -f $build_directory/$name
+    ln -rs $directory $build_directory/$name
+
+    build_directory=$build_directory/$name/build
+
+    build_debug="$(test -n "$build_debug" && echo Debug || echo Release)"
+
+    rm -rf $build_directory
+
+    mkdir $build_directory
+    pushd $build_directory
+
+    cmake -D CMAKE_BUILD_TYPE="$build_debug" \
+          -D CMAKE_INSTALL_LIBDIR="$install_directory/lib" \
+          -D CMAKE_INSTALL_PREFIX="$install_directory" \
+          ..
+
+    make
+    make install
+
+    popd
+}
+
 build_sdk() {
     local install_dir=$1
     local debug=$2
@@ -1030,6 +1090,8 @@ build_sdk() {
     local openssl_flags=""
     local sodium_flags="--without-sodium"
     local cwd=$(pwd)
+    local gtest_flags=""
+    local test_flags=""
 
     if [ $incremental -eq 1 ] && [ -e $status_dir/MegaSDK.success ]; then
         echo "MegaSDK already built"
@@ -1095,6 +1157,9 @@ build_sdk() {
         sodium_flags="--with-sodium=$install_dir"
     fi
 
+    test $build_gtest -eq 1 && gtest_flags="--with-gtest=$install_dir"
+    test $build_tests -eq 1 && test_flags="--enable-tests"
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         # Gcc, CLang warnings as errors
         if [ ${warning_as_error} -eq 1 ];
@@ -1123,6 +1188,8 @@ build_sdk() {
             $no_examples \
             $config_opts \
             $mediainfo_flags \
+            $gtest_flags \
+            $test_flags \
             --prefix=$install_dir \
             $debug"
         echo "running: ./configure $configure_flags"
@@ -1150,6 +1217,8 @@ build_sdk() {
             $no_examples \
             $config_opts \
             $mediainfo_flags \
+            $gtest_flags \
+            $test_flags \
             --prefix=$install_dir \
             $debug || exit 1
     fi
@@ -1213,6 +1282,8 @@ display_help() {
     echo " -z : Disable libz"
     echo " -0 : Turn off optimisations (in case of issues on old compilers)"  
     echo " -E : Treat compiler warnings as errors for the SDK code)"
+    echo " -G : Build GoogleTest (if CMake is present)"
+    echo " -T : Build integration tests"
     echo ""
 }
 
@@ -1226,7 +1297,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0E" opt; do
+    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1369,6 +1440,13 @@ main() {
                 display_help $0
                 exit 1
                 ;;
+            G)
+                build_gtest=1
+                ;;
+            T)
+                build_gtest=1
+                build_tests=1
+                ;;
             *)
                 display_help $0
                 exit 1
@@ -1476,6 +1554,22 @@ main() {
         else
            readline_win_pkg  $build_dir $install_dir
        fi
+    fi
+
+    if [ $build_gtest -eq 1 ]; then
+        if ! command -v cmake > /dev/null 2>&1; then
+            build_gtest=0
+            echo "Can't build gtest as cmake isn't present.";
+        fi
+    fi
+
+    test $build_gtest -eq 1 && gtest_pkg $build_dir $install_dir "$debug"
+
+    if [ $build_tests -eq 1 ]; then
+        if [ $build_gtest -eq 0 ]; then
+            build_tests=0
+            echo "Can't build tests as gtest couldn't be built.";
+        fi
     fi
 
     if [ $download_only -eq 0 ] && [ $only_build_dependencies -eq 0 ]; then

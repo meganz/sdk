@@ -70,7 +70,7 @@ struct LogLinkedList
     unsigned mAllocated = 0;
     unsigned mUsed = 0;
     int mLastMessage = -1;
-    int mLastMessageRepeats = 0;
+    unsigned int mLastMessageRepeats = 0;
     bool mOomGap = false;
     DirectLogFunction *mDirectLoggingFunction = nullptr; // we cannot use a non pointer due to the malloc allocation of new entries
     std::promise<void>* mCompletionPromise = nullptr; // we cannot use a unique_ptr due to the malloc allocation of new entries
@@ -324,7 +324,7 @@ private:
                     logsPath, fileName,
                     [this, currentTimestamp, archiveMaxFileAgeSeconds, &archivedTimestampsPathPairs](const LocalPath& logsPath,const LocalPath& leafNamePath)
         {
-            std::string leafName = leafNamePath.toPath();
+            std::string leafName = leafNamePath.toPath(true);
             std::regex rgx(".*\\.([0-9]+)\\.gz");
             std::smatch match;
             if (std::regex_match(leafName, match, rgx)
@@ -439,7 +439,7 @@ private:
 
                 if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    threadErrors += "Error removing log file " + fileNameFullPath.toPath() + "\n";
+                    threadErrors += "Error removing log file " + fileNameFullPath.toPath(true) + "\n";
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
@@ -461,11 +461,11 @@ private:
                 outputFile.close();
                 if (!mFsAccess->unlinklocal(newNameZipping))
                 {
-                    threadErrors += "Failed to unlink log file: " + newNameZipping.toPath() + "\n";
+                    threadErrors += "Failed to unlink log file: " + newNameZipping.toPath(true) + "\n";
                 }
                 if (!mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true))
                 {
-                    threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath() + " to " + newNameZipping.toPath() + "\n";
+                    threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath(true) + " to " + newNameZipping.toPath(true) + "\n";
                 }
 
                 std::thread t([=]() {
@@ -559,6 +559,44 @@ private:
         }
     }
 
+    static std::string currentThreadName()
+    {
+        std::ostringstream s;
+        s << std::this_thread::get_id() << " ";
+        return s.str();
+    };
+
+    static char* filltime(char *s, struct tm *gmt, int microsec)
+    {
+        twodigit(s, gmt->tm_mday);
+        *s++ = '/';
+        twodigit(s, gmt->tm_mon + 1);
+        *s++ = '/';
+        twodigit(s, gmt->tm_year % 100);
+        *s++ = '-';
+        twodigit(s, gmt->tm_hour);
+        *s++ = ':';
+        twodigit(s, gmt->tm_min);
+        *s++ = ':';
+        twodigit(s, gmt->tm_sec);
+        *s++ = '.';
+        s[5] = static_cast<char>(microsec % 10 + '0');
+        s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s += 6;
+        *s++ = ' ';
+        *s = 0;
+        return s;
+    }
+
+    static inline void twodigit(char *&s, int n)
+    {
+        *s++ = static_cast<char>(n / 10 + '0');
+        *s++ = static_cast<char>(n % 10 + '0');
+    }
 };
 
 RotativePerformanceLogger::RotativePerformanceLogger()
@@ -632,89 +670,6 @@ void RotativePerformanceLogger::setArchiveTimestamps(long int maxFileAgeSeconds)
     mLoggingThread->archiveMaxFileAgeSeconds = maxFileAgeSeconds;
 }
 
-
-class RotativePerformanceLoggerHelper
-{
-private:
-    std::mutex mThreadNameMutex;
-    std::map<std::thread::id, std::string> mThreadNames;
-    struct tm mLastTm;
-    time_t mLastT = 0;
-    std::thread::id mLastThreadId;
-    const char* mLastThreadName;
-
-    RotativePerformanceLoggerHelper()
-    {
-    }
-
-public:
-    static RotativePerformanceLoggerHelper& Instance()
-    {
-        static RotativePerformanceLoggerHelper myInstance;
-        return myInstance;
-    }
-
-    void cacheThreadNameAndTimeT(time_t t, struct tm& gmt, const char*& threadname)
-    {
-        std::lock_guard<std::mutex> g(mThreadNameMutex);
-
-        if (t != mLastT)
-        {
-            mLastTm = *std::gmtime(&t);
-            mLastT = t;
-        }
-        gmt = mLastTm;
-
-        if (mLastThreadId == std::this_thread::get_id())
-        {
-            threadname = mLastThreadName;
-            return;
-        }
-
-        auto& entry = mThreadNames[std::this_thread::get_id()];
-        if (entry.empty())
-        {
-            std::ostringstream s;
-            s << std::this_thread::get_id() << " ";
-            entry = s.str();
-        }
-        threadname = mLastThreadName = entry.c_str();
-        mLastThreadId = std::this_thread::get_id();
-    }
-
-    static inline void twodigit(char*& s, int n)
-    {
-        *s++ = static_cast<char>(n / 10 + '0');
-        *s++ = static_cast<char>(n % 10 + '0');
-    }
-
-    static char* filltime(char* s, struct tm*  gmt, int microsec)
-    {
-        twodigit(s, gmt->tm_mday);
-        *s++ = '/';
-        twodigit(s, gmt->tm_mon + 1);
-        *s++ = '/';
-        twodigit(s, gmt->tm_year % 100);
-        *s++ = '-';
-        twodigit(s, gmt->tm_hour);
-        *s++ = ':';
-        twodigit(s, gmt->tm_min);
-        *s++ = ':';
-        twodigit(s, gmt->tm_sec);
-        *s++ = '.';
-        s[5] = static_cast<char>(microsec % 10 + '0');
-        s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s += 6;
-        *s++ = ' ';
-        *s = 0;
-        return s;
-    }
-};
-
 void RotativePerformanceLogger::log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                          , const char **directMessages, size_t *directMessagesSizes, int numberMessages
@@ -736,13 +691,14 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     char timebuf[LOG_TIME_CHARS + 1];
     auto now = std::chrono::system_clock::now();
     time_t t = std::chrono::system_clock::to_time_t(now);
-
     struct tm gmt;
-    const char* threadname;
-    RotativePerformanceLoggerHelper::Instance().cacheThreadNameAndTimeT(t, gmt, threadname);
+    memset(&gmt, 0, sizeof(struct tm));
+    m_gmtime(t, &gmt);
+
+    static thread_local std::string threadname = currentThreadName();
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
-    RotativePerformanceLoggerHelper::filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
+    filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
 
     const char* loglevelstring = "     ";
     switch (loglevel) // keeping these at 4 chars makes nice columns, easy to read
@@ -756,7 +712,7 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     }
 
     auto messageLen = strlen(message);
-    auto threadnameLen = strlen(threadname);
+    auto threadnameLen = threadname.size();
     auto lineLen = LOG_TIME_CHARS + threadnameLen + LOG_LEVEL_CHARS + messageLen;
     bool notify = false;
 
@@ -788,13 +744,14 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                     std::promise<void> promise;
                     mLogListLast->mCompletionPromise = &promise;
                     auto future = mLogListLast->mCompletionPromise->get_future();
-                    DirectLogFunction func = [&timebuf, &threadname, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
+                    auto threadnameCStr = threadname.c_str();
+                    DirectLogFunction func = [&timebuf, threadnameCStr, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
                     {
-                        *oss << timebuf << threadname << loglevelstring;
+                        *oss << timebuf << threadnameCStr << loglevelstring;
 
                         for(int i = 0; i < numberMessages; i++)
                         {
-                            oss->write(directMessages[i], directMessagesSizes[i]);
+                            oss->write(directMessages[i], static_cast<std::streamsize>(directMessagesSizes[i]));
                         }
                         *oss << std::endl;
                     };
@@ -834,12 +791,16 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                     {
                         char repeatbuf[31]; // this one can occur very frequently with many in a row: cURL DEBUG: schannel: failed to decrypt data, need more data
                         int n = snprintf(repeatbuf, 30, "[repeated x%u]\n", reportRepeats);
-                        mLogListLast->append(repeatbuf, n);
+                        assert(n && "Unexpected snprintf failure");
+                        if (n > 0)
+                        {
+                            mLogListLast->append(repeatbuf, static_cast<unsigned int>(n));
+                        }
                     }
                     mLogListLast->append(timebuf, LOG_TIME_CHARS);
-                    mLogListLast->append(threadname, unsigned(threadnameLen));
+                    mLogListLast->append(threadname.c_str(), unsigned(threadnameLen));
                     mLogListLast->append(loglevelstring, LOG_LEVEL_CHARS);
-                    mLogListLast->mLastMessage = mLogListLast->mUsed;
+                    mLogListLast->mLastMessage = static_cast<int>(mLogListLast->mUsed);
                     mLogListLast->append(message, unsigned(messageLen));
                     mLogListLast->append("\n", 1);
                     notify = mLogListLast->mUsed + 1024 > mLogListLast->mAllocated;

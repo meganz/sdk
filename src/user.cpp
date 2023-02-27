@@ -59,7 +59,6 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         if (newValue != currentValue)
         {
             if ((type == ATTR_ALIAS
-                 || type == ATTR_DRIVE_NAMES
                  || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
             {
                 // alias/deviceName/driveName being removed
@@ -290,49 +289,67 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-    if (av)
+    // initialize private Ed25519 and Cu25519 from cache
+    if (u->userhandle == client->me)
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
-        if (tlvRecords)
+        string prEd255, prCu255;
+
+        const string* keys = u->getattr(ATTR_KEYS);
+        if (keys)
         {
-            string edDsaValue;
-            if (tlvRecords->get(EdDSA::TLV_KEY, edDsaValue) && !edDsaValue.empty())
+            client->mKeyManager.setKey(client->key);
+            if (client->mKeyManager.fromKeysContainer(*keys))
             {
-                client->signkey = new EdDSA(client->rng, (unsigned char *) edDsaValue.data());
-                if (!client->signkey->initializationOK)
-                {
-                    delete client->signkey;
-                    client->signkey = NULL;
-                    LOG_warn << "Failed to load chat key from local cache.";
-                }
-                else
-                {
-                    LOG_info << "Signing key loaded from local cache.";
-                }
+                prEd255 = client->mKeyManager.privEd25519();
+                prCu255 = client->mKeyManager.privCu25519();
             }
-
-            string ecdhValue;
-            if (tlvRecords->get(ECDH::TLV_KEY, ecdhValue) && !ecdhValue.empty())
-            {
-                client->chatkey = new ECDH((unsigned char *) ecdhValue.data());
-                if (!client->chatkey->initializationOK)
-                {
-                    delete client->chatkey;
-                    client->chatkey = NULL;
-                    LOG_warn << "Failed to load chat key from local cache.";
-                }
-                else
-                {
-                    LOG_info << "Chat key successfully loaded from local cache.";
-                }
-            }
-
-            delete tlvRecords;
         }
-        else
+
+        if (!client->mKeyManager.generation())
         {
-            LOG_warn << "Failed to decrypt keyring from cache";
+            const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+            if (av)
+            {
+                unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+                if (tlvRecords)
+                {
+                    tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+                    tlvRecords->get(ECDH::TLV_KEY, prCu255);
+                }
+                else
+                {
+                    LOG_warn << "Failed to decrypt keyring from cache";
+                }
+            }
+        }
+
+        if (prEd255.size())
+        {
+            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
+            if (!client->signkey->initializationOK)
+            {
+                delete client->signkey;
+                client->signkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Signing key loaded from local cache.";
+            }
+        }
+        if (prCu255.size())
+        {
+            client->chatkey = new ECDH(prCu255);
+            if (!client->chatkey->initializationOK)
+            {
+                delete client->chatkey;
+                client->chatkey = NULL;
+                LOG_warn << "Failed to load chat key from local cache.";
+            }
+            else
+            {
+                LOG_info << "Chat key successfully loaded from local cache.";
+            }
         }
     }
 
@@ -457,10 +474,6 @@ string User::attr2string(attr_t type)
             attrname = "*!authring";
             break;
 
-        case ATTR_AUTHRSA:
-            attrname = "*!authRSA";
-            break;
-
         case ATTR_AUTHCU255:
             attrname = "*!authCu255";
             break;
@@ -570,7 +583,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_MY_BACKUPS_FOLDER:
-            attrname = "*!bak";
+            attrname = "^!bak";
             break;
 
         case ATTR_COOKIE_SETTINGS:
@@ -581,8 +594,8 @@ string User::attr2string(attr_t type)
             attrname = "*~jscd";
             break;
 
-        case ATTR_DRIVE_NAMES:
-            attrname =  "*!drn";
+        case ATTR_KEYS:
+            attrname =  "^!keys";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -612,10 +625,6 @@ string User::attr2longname(attr_t type)
 
     case ATTR_AUTHRING:
         longname = "AUTHRING";
-        break;
-
-    case ATTR_AUTHRSA:
-        longname = "AUTHRSA";
         break;
 
     case ATTR_AUTHCU255:
@@ -742,9 +751,9 @@ string User::attr2longname(attr_t type)
         longname = "JSON_SYNC_CONFIG_DATA";
         break;
 
-        case ATTR_DRIVE_NAMES:
-            longname = "DRIVE_NAMES";
-            break;
+    case ATTR_KEYS:
+        longname = "KEYS";
+        break;
     }
 
     return longname;
@@ -760,10 +769,6 @@ attr_t User::string2attr(const char* name)
     else if (!strcmp(name, "*!authring"))
     {
         return ATTR_AUTHRING;
-    }
-    else if (!strcmp(name, "*!authRSA"))
-    {
-        return ATTR_AUTHRSA;
     }
     else if (!strcmp(name, "*!authCu255"))
     {
@@ -881,7 +886,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DEVICE_NAMES;
     }
-    else if (!strcmp(name, "*!bak"))
+    else if (!strcmp(name, "^!bak"))
     {
         return ATTR_MY_BACKUPS_FOLDER;
     }
@@ -893,9 +898,9 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_JSON_SYNC_CONFIG_DATA;
     }
-    else if (!strcmp(name, "*!drn"))
+    else if (!strcmp(name, "^!keys"))
     {
-        return ATTR_DRIVE_NAMES;
+        return ATTR_KEYS;
     }
     else
     {
@@ -934,7 +939,6 @@ int User::needversioning(attr_t at)
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
-        case ATTR_AUTHRSA:
         case ATTR_AUTHCU255:
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
@@ -942,8 +946,8 @@ int User::needversioning(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_DRIVE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_KEYS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -959,7 +963,6 @@ char User::scope(attr_t at)
     {
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
-        case ATTR_AUTHRSA:
         case ATTR_AUTHCU255:
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
@@ -969,9 +972,7 @@ char User::scope(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
-        case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_JSON_SYNC_CONFIG_DATA:
-        case ATTR_DRIVE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -991,6 +992,8 @@ char User::scope(attr_t at)
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
+        case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_KEYS:
             return '^';
 
         default:
@@ -1000,7 +1003,7 @@ char User::scope(attr_t at)
 
 bool User::isAuthring(attr_t at)
 {
-    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA);
+    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -1302,10 +1305,6 @@ bool User::setChanged(attr_t at)
             changed.authring = true;
             break;
 
-        case ATTR_AUTHRSA:
-            changed.authrsa = true;
-            break;
-
         case ATTR_AUTHCU255:
             changed.authcu255 = true;
             break;
@@ -1420,8 +1419,8 @@ bool User::setChanged(attr_t at)
             changed.jsonSyncConfigData = true;
             break;
 
-        case ATTR_DRIVE_NAMES:
-            changed.drivenames = true;
+        case ATTR_KEYS:
+            changed.keys = true;
             break;
 
         default:
@@ -1456,38 +1455,80 @@ void User::set(visibility_t v, m_time_t ct)
     ctime = ct;
 }
 
+string User::attributePrefixInTLV(attr_t type, bool modifier)
+{
+    if (type == ATTR_DEVICE_NAMES && modifier)
+    {
+        return "ext:";
+    }
+
+    return string();
+}
+
 AuthRing::AuthRing(attr_t type, const TLVstore &authring)
     : mType(type)
 {
     string authType = "";
     string authValue;
-    if (authring.get(authType, authValue) && !authValue.empty())  // key is an empty string, but may not be there if authring was reset
+    if (authring.get(authType, authValue))
     {
-        handle userhandle;
-        byte authFingerprint[20];
-        signed char authMethod = AUTH_METHOD_UNKNOWN;
-
-        const char *ptr = authValue.data();
-        const char *end = ptr + authValue.size();
-        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
-        while (ptr + recordSize <= end)
+        if (!deserialize(authValue))
         {
-            memcpy(&userhandle, ptr, sizeof(userhandle));
-            ptr += sizeof(userhandle);
-
-            memcpy(authFingerprint, ptr, sizeof(authFingerprint));
-            ptr += sizeof(authFingerprint);
-
-            memcpy(&authMethod, ptr, sizeof(authMethod));
-            ptr += sizeof(authMethod);
-
-            mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
-            mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
+            LOG_warn << "Excess data while deserializing Authring (TLV) of type: " << type;
         }
     }
 }
 
+AuthRing::AuthRing(attr_t type, const std::string &authValue)
+    : mType(type)
+{
+    if (!deserialize(authValue))
+    {
+        LOG_warn << "Excess data while deserializing Authring (string) of type: " << type;
+    }
+}
+
+bool AuthRing::deserialize(const string& authValue)
+{
+    if (authValue.empty()) return true;
+
+    handle userhandle;
+    byte authFingerprint[20];
+    signed char authMethod = AUTH_METHOD_UNKNOWN;
+
+    const char *ptr = authValue.data();
+    const char *end = ptr + authValue.size();
+    unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+    while (ptr + recordSize <= end)
+    {
+        memcpy(&userhandle, ptr, sizeof(userhandle));
+        ptr += sizeof(userhandle);
+
+        memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+        ptr += sizeof(authFingerprint);
+
+        memcpy(&authMethod, ptr, sizeof(authMethod));
+        ptr += sizeof(authMethod);
+
+        mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
+        mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
+    }
+
+    return ptr == end;
+
+}
+
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
+{
+    string buf = serializeForJS();
+
+    TLVstore tlv;
+    tlv.set("", buf);
+
+    return tlv.tlvRecordsToContainer(rng, &key);
+}
+
+string AuthRing::serializeForJS() const
 {
     string buf;
 
@@ -1502,10 +1543,7 @@ std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
         buf.append((const char *)&itAuthMethod->second, 1);
     }
 
-    TLVstore tlv;
-    tlv.set("", buf);
-
-    return tlv.tlvRecordsToContainer(rng, &key);
+    return buf;
 }
 
 bool AuthRing::isTracked(handle uh) const
@@ -1551,16 +1589,13 @@ void AuthRing::add(handle uh, const std::string &fingerprint, AuthMethod authMet
     assert(mAuthMethod.find(uh) == mAuthMethod.end());
     mFingerprint[uh] = fingerprint;
     mAuthMethod[uh] = authMethod;
+    mNeedsUpdate = true;
 }
 
 void AuthRing::update(handle uh, AuthMethod authMethod)
 {
     mAuthMethod.at(uh) = authMethod;
-}
-
-bool AuthRing::remove(handle uh)
-{
-    return mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+    mNeedsUpdate = true;
 }
 
 attr_t AuthRing::keyTypeToAuthringType(attr_t at)
@@ -1573,10 +1608,6 @@ attr_t AuthRing::keyTypeToAuthringType(attr_t at)
     {
         return ATTR_AUTHCU255;
     }
-    else if (at == ATTR_UNKNOWN)   // ATTR_UNKNOWN -> pubk is not a user attribute
-    {
-        return ATTR_AUTHRSA;
-    }
 
     assert(false);
     return ATTR_UNKNOWN;
@@ -1588,10 +1619,6 @@ attr_t AuthRing::signatureTypeToAuthringType(attr_t at)
     {
         return ATTR_AUTHCU255;
     }
-    else if (at == ATTR_SIG_RSA_PUBK)
-    {
-        return ATTR_AUTHRSA;
-    }
 
     assert(false);
     return ATTR_UNKNOWN;
@@ -1602,10 +1629,6 @@ attr_t AuthRing::authringTypeToSignatureType(attr_t at)
     if (at == ATTR_AUTHCU255)
     {
         return ATTR_SIG_CU255_PUBK;
-    }
-    else if (at == ATTR_AUTHRSA)
-    {
-        return ATTR_SIG_RSA_PUBK;
     }
 
     assert(false);
@@ -1628,6 +1651,17 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     }
 
     return "unknown";
+}
+
+string AuthRing::toString(const AuthRing &authRing)
+{
+    auto uhVector = authRing.getTrackedUsers();
+    ostringstream result;
+    for (auto& i : uhVector)
+    {
+        result << "\t[" << toHandle(i) << "] " << Base64::btoa(authRing.getFingerprint(i)) << " | " <<AuthRing::authMethodToStr(authRing.getAuthMethod(i)) << std::endl;
+    }
+    return result.str();
 }
 
 std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
