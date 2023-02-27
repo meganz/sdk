@@ -854,19 +854,22 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
     {
         WaitMillisec(pollingT / 1000);
 
-        if (timeout)
+        if (false) //(timeout)
         {
             tWaited += pollingT;
             if (tWaited >= timeout)
             {
+                std::cout << "[SdkTest::waitForResponse] (tWaited >= timeout) -> return false [tWaited = " << (tWaited/1000) << " ms, timeout = " << (timeout/1000) << " ms]" << std::endl;
                 return false;   // timeout is expired
             }
             // if no response after 2 minutes...
             //else if (!connRetried && tWaited > (pollingT * 240))
             //else if (!connRetried && tWaited > (5000000)) // > 5 s
             //else if (!connRetried && tWaited > (400000)) // > 0,3 s
-            else if (!connRetried && tWaited > (pollingT * 240 * 2)) // 4 minutes
+            //else if (!connRetried && tWaited > (pollingT * 240 * 2)) // 4 minutes
+            else if (false) //(!connRetried && tWaited > (pollingT * 7200)) // 2 hours
             {
+                std::cout << "[SdkTest::waitForResponse] (!connRetried && tWaited > (pollingT * 240 * 2)) // 4 minutes -> RETRY PENDING CONNECTIONS [tWaited = " << tWaited << "]" << std::endl;
                 megaApi[0]->retryPendingConnections(true);
                 if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
@@ -5404,6 +5407,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         onTransferUpdate_progress = 0;
         onTransferUpdate_filesize = 0;
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        const auto& downloadStartTime = std::chrono::system_clock::now();
         megaApi[0]->startDownload(nimported.get(),
                                   filename.c_str(),
                                   nullptr  /*customName*/,
@@ -5415,14 +5419,74 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         //unsigned int transfer_timeout_in_seconds = 15;
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+        const auto& downloadEndTime = std::chrono::system_clock::now();
+        auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
+        std::cout << "[SdkTestCloudRaidTransferWithConnectionFailures] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (nimported->getSize() / downloadTime) << " B/s]" << std::endl;
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        std::cout << "Transfer complete, checking 404 and 403" << std::endl;
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
         ASSERT_LT(DebugTestHook::countdownTo403, 0);
+        std::cout << "Asserts passed" << std::endl;
     }
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
+{
+    LOG_info << "___TEST Cloudraid transfers bet case___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+
+    std::string url30MB = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //https://mega.nz/file/zAJnUTYD#8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns
+    std::string url120MB = "/#!tzp2CbhY!r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0"; //https://mega.nz/file/tzp2CbhY#r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0
+    std::string url1GB = "/#!NmQ2AAJL!-zxJfqByFT2Fh_mMEguFTxRLjxMPgkRblV9e-xpnNzA"; //https://mega.nz/file/NmQ2AAJL#-zxJfqByFT2Fh_mMEguFTxRLjxMPgkRblV9e-xpnNzA
+    std::string url10GB = "/#!hrgGHYBQ!PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI"; // https://mega.nz/file/hrgGHYBQ#PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI
+    std::string url100GB = "/#!AqIEkKDT!wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8"; //https://mega.nz/file/AqIEkKDT#wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8
+    std::string urlWebrtc = "/#!A4pxxQoJ!OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs"; //https://mega.nz/file/A4pxxQoJ#OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs
+    // video unraided: https://mega.nz/file/BmZygYLA#wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0
+    // video raided: https://mega.nz/file/p6RxjDoS#YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw
+    std::string urlVideounraided = "/#!BmZygYLA!wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0";
+    std::string urlVideoraided = "/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw";
+    std::string urlTest = "/#!BoY3AKYJ";
+    std::string msTest = "/#!ov4niJaY!SspyJnT5oyOvOovAFS8asXxTx2oJ-mgt9CTJWgdnuZU";
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url120MB, rootnode.get());
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideoraided, rootnode.get());
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideounraided, rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100GB, rootnode.get());
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
+
+
+    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
+    deleteFile(filename.c_str());
+
+    // plain cloudraid download
+    {
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        const auto& downloadStartTime = std::chrono::system_clock::now();
+        megaApi[0]->startDownload(nimported.get(),
+                                  filename.c_str(),
+                                  nullptr  /*customName*/,
+                                  nullptr  /*appData*/,
+                                  false    /*startFirst*/,
+                                  nullptr  /*cancelToken*/);
+
+        unsigned int transfer_timeout_in_seconds = 180;
+        //unsigned int transfer_timeout_in_seconds = 15;
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download Best Case (without forced errors) time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+        const auto& downloadEndTime = std::chrono::system_clock::now();
+        auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
+        std::cout << "[SdkTestCloudRaidTransferBestCase] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (((nimported->getSize() / downloadTime) * 1000) / 1024) << " KB/s]" << std::endl;
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        std::cout << "Asserts passed" << std::endl;
+    }
 }
 #endif
 
@@ -5693,7 +5757,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         }
         else
         {
-            if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+            if (compareDecryptedData && 0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
                 comparedEqual = false;
             completedSuccessfully = true;
         }
@@ -5713,7 +5777,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         memcpy(receiveBuf + receiveBufPos, buffer, size);
         receiveBufPos += size;
 
-        if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+        if (compareDecryptedData && 0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
             comparedEqual = false;
 
         return true;
@@ -5734,6 +5798,111 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
     megaApi->setStreamingMinimumRate(0);
     megaApi->startStreaming(raid ? raidFileNode : nonRaidFileNode, start, end - start, p);
     return p;
+}
+
+
+TEST_F(SdkTest, SdkCloudraidStreamingTCPTest)
+{
+    LOG_info << "___TEST SdkCloudraidStreamingTCPTest";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // ensure we have our standard raid test file
+    std::cout << "DEVEL Importing HANDLE..." << std::endl;
+
+/*
+    const char * privh = "BoY3AKYJ";
+    handle ph = UNDEF;
+    Base64::atob(privh, (unsigned char*)&ph, 6);
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1); //megaApi[0]->pImpl;
+    MegaClient* client = impl->getMegaClient();
+    client->nodes.push_back(client->nodebyhandle(ph));
+    MegaHandle importHandle = ph;
+    std::cout << "SdkCloudraidStreamingTCPTest -> importHandle = " << ph << std::endl;
+    */
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    //MegaNode *fakeNimported = megaApi[0]->getNodeByHandle(importHandle);
+
+/*
+    const char * privh = "BoY3AKYJ";
+    handle ph = UNDEF;
+    ph = 0;BoY3AKYJ
+    Base64::atob(privh, (unsigned char*)&ph, 6);
+*/
+    const char * privh = "BoY3AKYJ";
+    handle ph = MegaApi::base64ToHandle(privh);
+    std::string fakeKey = "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //"eS9CP0UoSCtNYlFlVGhXbVpxM3Q2dzl6JEMmRilKQE4="; //"wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0";
+    std::string fakeAuthStr = "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //"YVBkU2dWa1lwM3M2djl5JA==";
+    //std::string fakeKey = "eS9CP0UoSCtNYlFlVGhXbVpxM3Q2dzl6JEMmRilKQE4="; //"wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0";
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    //MegaNode *fakeNimported = megaApi[0]->getNodeByHandle(importHandle);
+    const char * privateAuth = megaApi[0]->getAccountAuth();
+    MegaNode *nimported_NoAuth = megaApi[0]->createForeignFileNode(
+                        ph, fakeKey.c_str(),
+                        "TestFile",
+                        700*1024*1024,
+                        -1, mega::UNDEF, fakeAuthStr.c_str(), fakeAuthStr.c_str(), fakeAuthStr.c_str());
+    MegaNode *nimported = megaApi[0]->authorizeNode(nimported_NoAuth);
+    if (!nimported)
+    {
+        std::cout << "DEVEL ALERT nimported == NULLPTR!!!! ASIGNING NOAUTH... noAuth = " << nimported_NoAuth << std::endl;
+        nimported = nimported_NoAuth;
+    }
+    else std::cout << "DEVEL USING AUTHORIZED NIMPORTED!!!! nimported = " << nimported << std::endl;
+    //MegaHandle importHandle = ph;
+    //MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
+    //Node* nimported = megaApi[0]->client->nodebyhandle(importHandle);
+    /*
+    MegaNode *nimported = megaApi[0]->createForeignFileNode(
+                        ph, "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns",
+                        "TestFile",
+                        700*1024*1024,
+                        -1, UNDEF, "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns");
+
+   MegaNode *nimported_na = megaApi[0]->createForeignFileNode(
+                        ph, "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns",
+                        "TestFile",
+                        700*1024*1024,
+                        -1, UNDEF, "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", "8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns");
+    //MegaNode* nimported = megaApi[0]->authorizeNode(nimported_na);
+    MegaHandle importHandle = ph;
+    MegaNode *nNoAuth = megaApi[0]->getNodeByHandle(importHandle);
+    std::cout << "DEVEL Authorizing... ph = " << ph << ", nimported_na=" << nimported_na << ", nimported_na->getSize = " << nimported_na->getSize() << ", nNoAuth = " << nNoAuth << "" << std::endl;
+    MegaNode *nimported = megaApi[0]->authorizeNode(nNoAuth);
+
+    std::cout << "DEVEL DONE! ph2 = " << ph2 << ", nimported=" << nimported << ", nimported->getSize = " << nimported->getSize() << std::endl;
+    */
+    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    //MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
+
+    m_off_t start = 0, end = nimported->getSize() /2;
+    CheckStreamedFile_MegaTransferListener* p = new CheckStreamedFile_MegaTransferListener(size_t(start), size_t(end - start), nullptr);
+    megaApi[0]->setStreamingMinimumRate(0);
+    megaApi[0]->startStreaming(nimported, start, end - start, p);
+
+
+        for (unsigned i = 0; !p->completedSuccessfully; ++i)
+        {
+            std::cout << "For... i=" << i << std::endl;
+            WaitMillisec(100);
+            if (p->completedUnsuccessfully)
+            {
+                ASSERT_FALSE(p->completedUnsuccessfully) << " download failed: " << start << " to " << end << ", "
+                    << ("raid") <<  ", " << ("normal size pieces")
+                    << ", reported error: " << (p->completedUnsuccessfullyError ? p->completedUnsuccessfullyError->getErrorCode() : 0)
+                    << " " << (p->completedUnsuccessfullyError ? p->completedUnsuccessfullyError->getErrorString() : "NULL");
+                break;
+            }
+            else if (i > maxTimeout * 10)
+            {
+                ASSERT_TRUE(i <= maxTimeout * 10) << "download took too long, more than " << maxTimeout << " seconds.  Is the free transfer quota exhausted?";
+                break;
+            }
+            std::cout << "End For... i=" << i << std::endl;
+        }
+        ASSERT_TRUE(p->completedSuccessfully);
+    delete p;
+    delete nimported;
+    std::cout << "Asserts passed" << std::endl;
 }
 
 

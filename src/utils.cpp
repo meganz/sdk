@@ -445,14 +445,17 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 {
     assert(pos > macsmacSoFarPos);
 
+    std::cout << "[chunkmac_map::expandUnprocessedPiece] BEGIN pos = " << pos << ", npos = " << npos << ", filesize = " << fileSize << ", maxReqSize = " << maxReqSize << std::endl;
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
         (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
+        std::cout << "[chunkmac_map::expandUnprocessedPiece] [for] npos -> chunkceil(npos) [pos = " << pos << ", npos = " << npos << ", filesize = " << fileSize << ", size = " << (npos-pos) << ", maxReqSize = " << maxReqSize << "]" << std::endl;
         npos = ChunkedHash::chunkceil(npos, fileSize);
     }
+    std::cout << "[chunkmac_map::expandUnprocessedPiece] [for] END return npos = " << npos << " [pos = " << pos << ", npos = " << npos << ", filesize = " << fileSize << ", size = " << (npos-pos) << ", maxReqSize = " << maxReqSize << "]" << std::endl;
     return npos;
 }
 

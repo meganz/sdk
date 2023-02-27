@@ -455,6 +455,7 @@ void HttpReq::dns(MegaClient *client)
 
 void HttpReq::disconnect()
 {
+    std::cout << "[HttpReq::disconnect] call [this="<<this<<"]" << std::endl;
     if (httpio)
     {
         httpio->cancel(this);
@@ -465,6 +466,7 @@ void HttpReq::disconnect()
 
 HttpReq::HttpReq(bool b)
 {
+    std::cout << "[HttpReq::HttpReq] call [this="<<this<<"]" << std::endl;
     binary = b;
     status = REQ_READY;
     buf = NULL;
@@ -483,6 +485,7 @@ HttpReq::HttpReq(bool b)
 
 HttpReq::~HttpReq()
 {
+    std::cout << "[HttpReq::~HttpReq] call [this="<<this<<"]" << std::endl;
     if (httpio)
     {
         httpio->cancel(this);
@@ -723,6 +726,7 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
         }
         buflen = size;
     }
+    std::cout << "[HttpReqDL::prepare] url='" << (tempurl ? tempurl : "") << "', dlpos=" << dlpos << ", size = " << size << " [prepareRequest]" << std::endl;
 }
 
 
