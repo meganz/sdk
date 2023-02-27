@@ -18761,18 +18761,21 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             return API_EINTERNAL;
         }
 
-        cs.oldValue = j->getint();
-        if (cs.oldValue < 0)
+        auto getTsVal = [&j](m_time_t& out)
         {
-            cs.oldValue = mega_invalid_timestamp;
-        }
+            out = mega_invalid_timestamp;
+            if (j->isnumeric())
+            {
+                auto val = j->getint();
+                if (val >= 0)
+                {
+                    out = val;
+                }
+            }
+        };
 
-        cs.newValue = j->getint();
-        if (cs.newValue < 0)
-        {
-            cs.newValue = mega_invalid_timestamp;
-        }
-
+        getTsVal(cs.oldValue);
+        getTsVal(cs.newValue);
         j->leavearray();
         return API_OK;
     };
