@@ -18792,7 +18792,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tCs, "Title");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    if (!tCs.oldValue.empty() && !tCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18821,7 +18825,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tzCs, "TimeZone");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    if (!tzCs.oldValue.empty() && !tzCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18836,7 +18844,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(sdCs, "StartDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    if (sdCs.oldValue != mega_invalid_timestamp && sdCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18851,7 +18863,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(edCs, "EndDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    if (edCs.oldValue != mega_invalid_timestamp && edCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
