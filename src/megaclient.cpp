@@ -5157,7 +5157,7 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
         {
             if (it.first != fa_media)
             {
-                sprintf(buf, "/%u*", (unsigned)it.first);
+                snprintf(buf, sizeof(buf), "/%u*", (unsigned)it.first);
                 Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
                 fa->append(buf + !fa->size());
                 LOG_debug << "Added file attribute " << it.first << " to putnodes";
@@ -12013,7 +12013,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         nsi = addnode(&rshares, sn);
                         nni = addnode(&rnodes, n);
 
-                        sprintf(buf, "\",%u,%u,\"", nsi, nni);
+                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
                         sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
@@ -15264,7 +15264,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
     struct tm tms;
     char buf[32];
     struct tm* ptm = m_localtime(ts, &tms);
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris
     Node* n;

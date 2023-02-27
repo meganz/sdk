@@ -16983,7 +16983,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
         {
             string buffer(2, '0');
 
-            sprintf(&buffer[0], "%02x", i);
+            snprintf(&buffer[0], 3, "%02x", i);
 
             remoteRootPath.append(1, '/');
             remoteRootPath.append(buffer);

@@ -3052,7 +3052,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     struct tm* ptm = m_localtime(m_time(), &tms);
 
     // first try a subfolder with only the date (we expect that we may have target filename clashes here)
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     LocalPath targetFolder = localdebris;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(buf), true);
 
@@ -3066,7 +3066,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     if (!failedDueToTargetExists) return false;
 
     // next try a subfolder with additional time and sequence - target filename clashes here should not occur
-    sprintf(strchr(buf, 0), " %02d.%02d.%02d.", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec);
+    snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), " %02d.%02d.%02d.", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec);
 
     string datetime = buf;
     bool counterReset = false;
