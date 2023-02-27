@@ -252,6 +252,11 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
+inline std::ostream& operator<<(std::ostream& os, const LocalPath& p) 
+{
+    return os << p.toPath(false);
+}
+
 class RemotePath
 {
 public:
@@ -432,7 +437,7 @@ struct MEGA_API FileAccess
     // if the open failed, retry indicates a potentially transient reason
     bool retry = false;
 
-    //error code related to the last call to fopen() without parameters
+    // OS error code related to the last call to fopen() without parameters
     int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
@@ -494,6 +499,12 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
+    // return a description of OS error,
+    // errno on unix. Defaults to the number itself.
+    virtual std::string getErrorMessage(int error) const;
+
+    // error is errno on unix or a DWORD on windows
+    virtual bool isErrorFileNotFound(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
@@ -907,14 +918,14 @@ private:
 class MEGA_API ScanService
 {
 public:
-    ScanService(Waiter& waiter);
+    ScanService();
     ~ScanService();
 
     // Concrete representation of a scan request.
     class ScanRequest
     {
     public:
-        ScanRequest(Waiter& waiter,
+        ScanRequest(shared_ptr<Waiter> waiter,
             bool followSymlinks,
             LocalPath targetPath,
             handle expectedFsid,
@@ -946,7 +957,7 @@ public:
         friend class ScanService;
 
         // Waiter to notify when done
-        Waiter& mWaiter;
+        shared_ptr<Waiter> mWaiter;
 
         // Whether the scan request is complete.
         std::atomic<ScanResult> mScanResult; // SCAN_INPROGRESS;
@@ -972,7 +983,7 @@ public:
     using RequestPtr = std::shared_ptr<ScanRequest>;
 
     // Issue a scan for the given target.
-    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren);
+    RequestPtr queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter);
 
     // Track performance (debug only)
     static CodeCounter::ScopeStats syncScanTime;
@@ -1014,8 +1025,6 @@ private:
         // Worker threads.
         std::vector<std::thread> mThreads;
     }; // Worker
-
-    Waiter& mWaiter;
 
     // How many services are currently active.
     static std::atomic<size_t> mNumServices;

@@ -673,7 +673,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case STORAGE_OVERQUOTA:
         return "Reached storage quota limit";
     case ACCOUNT_EXPIRED:
-        return "Account expired (business or Pro Flexi)";
+        return "Your plan has expired";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
     case REMOTE_PATH_HAS_CHANGED:
@@ -875,7 +875,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localroot->setnode(remotenode);
 
     // notifications may be queueing from this moment
-    dirnotify.reset(syncs.fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
+    dirnotify.reset(syncs.fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter.get(), localroot.get()));
     assert(dirnotify->sync == this);
 
     // order issue - localroot->init() couldn't do this until dirnotify is created but that needs

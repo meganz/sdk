@@ -598,6 +598,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getDuration() override;
         int getWidth() override;
         bool isFavourite() override;
+        bool isMarkedSensitive() override;
         int getLabel() override;
         int getHeight() override;
         int getShortformat() override;
@@ -702,6 +703,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNodeList *children;
         MegaHandle owner;
         bool mFavourite;
+        bool mMarkedSensitive = false; // sensitive attribute set on this node
         nodelabel_t mLabel;
         bool mIsNodeKeyDecrypted = false;
 };
@@ -783,7 +785,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements);
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
@@ -848,6 +850,10 @@ public:
 #ifdef ENABLE_CHAT
     MegaHandle getSchedId() const override;
     bool hasSchedMeetingChanged(int changeType) const override;
+    MegaStringList* getUpdatedTitle() const override;
+    MegaStringList* getUpdatedTimeZone() const override;
+    MegaIntegerList* getUpdatedStartDate() const override;
+    MegaIntegerList* getUpdatedEndDate() const override;
 #endif
     bool isOwnChange() const override;
     bool isRemoved() const override;
@@ -916,7 +922,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool verified);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -924,9 +930,10 @@ class MegaSharePrivate : public MegaShare
         virtual int getAccess();
         virtual int64_t getTimestamp();
         virtual bool isPending();
+        virtual bool isVerified();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool verified);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -934,6 +941,7 @@ class MegaSharePrivate : public MegaShare
 		int access;
 		int64_t ts;
         bool pending;
+        bool mVerified;
 };
 
 class MegaCancelTokenPrivate : public MegaCancelToken
@@ -1473,8 +1481,6 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
         MegaScheduledMeetingList* getMegaScheduledMeetingList() const override;
-        MegaScheduledMeeting *getScheduledMeeting() const override;
-        void setScheduledMeeting(const MegaScheduledMeeting *scheduledMeeting);
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
@@ -1488,7 +1494,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
-        void setMegaStringList(MegaStringList* stringList);
+        void setMegaStringList(const MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
         void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
 
@@ -1507,6 +1513,9 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaSetElementList* getMegaSetElementList() const override;
         void setMegaSetElementList(std::unique_ptr<MegaSetElementList> els);
+
+        const MegaIntegerList* getMegaIntegerList() const override;
+        void setMegaIntegerList(std::unique_ptr<MegaIntegerList> ints);
 
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
@@ -1545,7 +1554,6 @@ protected:
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
-        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
         unique_ptr<MegaScheduledMeetingList> mScheduledMeetingList;
 #endif
         MegaStringMap *stringMap;
@@ -1562,6 +1570,7 @@ protected:
         unique_ptr<MegaBannerListPrivate> mBannerList;
         unique_ptr<MegaSet> mMegaSet;
         unique_ptr<MegaSetElementList> mMegaSetElementList;
+        unique_ptr<MegaIntegerList> mMegaIntegerList;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -1874,7 +1883,7 @@ public:
     int getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
-    const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
+    const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
@@ -1901,8 +1910,8 @@ private:
     // list of scheduled meetings Id's that have changed
     std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
 
-    // list of scheduled meetings occurrences
-    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
+    // list of updated scheduled meetings occurrences (just in case app requested manually for more occurrences)
+    std::unique_ptr<MegaScheduledMeetingList> mUpdatedOcurrences;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -1982,10 +1991,10 @@ public:
     virtual ~MegaIntegerMapPrivate();
     MegaSmallIntMap* toByteMap() const;
     MegaIntegerMap* copy() const override;
-    bool at(size_t index, long long& key, long long& value) const override;
     MegaIntegerList* getKeys() const override;
-    unsigned long long size() const override;
-    void set(const long long& key, const long long& value) override;
+    MegaIntegerList* get(int64_t key) const override;
+    int64_t size() const override;
+    void set(int64_t key, int64_t value) override;
     const integer_map* getMap() const;
 private:
     MegaIntegerMapPrivate(const MegaIntegerMapPrivate &megaIntegerMap);
@@ -2100,7 +2109,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, byte *verified, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
@@ -2502,6 +2511,9 @@ class MegaApiImpl : public MegaApp
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+        void setSecureFlag(bool enable);
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
@@ -2550,6 +2562,7 @@ class MegaApiImpl : public MegaApp
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
+        void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -2645,16 +2658,20 @@ class MegaApiImpl : public MegaApp
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void putSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
-        unsigned getSetElementCount(MegaHandle sid);
-        MegaSetElementList* getSetElements(MegaHandle sid);
+        unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin);
+        MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+    private:
+        bool nodeInRubbishCheck(handle) const;
 
+    public:
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
@@ -2667,7 +2684,6 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener *listener = NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
         MegaSyncList *getSyncs();
@@ -2694,6 +2710,8 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
 #endif // ENABLE_SYNC
+
+        void moveOrRemoveDeconfiguredBackupNodes(MegaHandle deconfiguredBackupRoot, MegaHandle backupDestination, MegaRequestListener* listener = NULL);
 
         MegaScheduledCopy *getScheduledCopyByTag(int tag);
         MegaScheduledCopy *getScheduledCopyByNode(MegaNode *node);
@@ -2727,6 +2745,7 @@ class MegaApiImpl : public MegaApp
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
+        bool isSensitiveInherited(MegaNode* node);
         MegaNodeList* getChildrenFromType(MegaNode* p, int type, int order = 1, CancelToken cancelToken = CancelToken());
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
@@ -2744,12 +2763,14 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
+        MegaShareList *getUnverifiedInShares(int order);
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
+        MegaShareList *getUnverifiedOutShares(int order);
         bool isPrivateNode(MegaHandle h);
         bool isForeignNode(MegaHandle h);
         MegaNodeList *getPublicLinks(int order);
@@ -2800,7 +2821,9 @@ class MegaApiImpl : public MegaApp
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
-        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
+        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
+
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
@@ -2971,7 +2994,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, const MegaScheduledMeeting* scheduledMeeting = nullptr, MegaRequestListener* listener = NULL);
         void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
@@ -3007,10 +3030,11 @@ class MegaApiImpl : public MegaApp
         void startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+        void setSFUid(int sfuid);
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
-        void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, unsigned int count, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -3064,7 +3088,7 @@ class MegaApiImpl : public MegaApp
         bool requestStatusMonitorEnabled();
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
@@ -3131,7 +3155,9 @@ protected:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
-        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, CancelToken cancelToken);
+        // if seachString == "" type must not be default
+        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
+
         bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;
@@ -3139,7 +3165,7 @@ protected:
         std::thread::id threadId;
         MegaClient *client;
         MegaHttpIO *httpio;
-        MegaWaiter *waiter;
+        shared_ptr<MegaWaiter> waiter;
         unique_ptr<MegaFileSystemAccess> fsAccess;
         MegaDbAccess *dbAccess;
         GfxProc *gfxAccess;
@@ -3313,6 +3339,8 @@ protected:
         void nodes_current() override;
         void catchup_result() override;
         void key_modified(handle, attr_t) override;
+        void upgrading_security() override;
+        void downgrade_attack() override;
 
         void fetchnodes_result(const Error&) override;
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag) override;
@@ -4164,7 +4192,7 @@ class MegaScheduledRulesPrivate : public MegaScheduledRules
 public:
     MegaScheduledRulesPrivate(int freq,
                                   int interval = INTERVAL_INVALID,
-                                  const char* until = nullptr,
+                                  MegaTimeStamp until = MEGA_INVALID_TIMESTAMP,
                                   const mega::MegaIntegerList* byWeekDay = nullptr,
                                   const mega::MegaIntegerList* byMonthDay = nullptr,
                                   const mega::MegaIntegerMap* byMonthWeekDay = nullptr);
@@ -4176,12 +4204,13 @@ public:
     MegaScheduledRulesPrivate* copy() const override;
     int freq() const override;
     int interval() const override;
-    const char* until() const override;
+    MegaTimeStamp until() const override;
     const mega::MegaIntegerList* byWeekDay() const override;
     const mega::MegaIntegerList* byMonthDay() const override;
     const mega::MegaIntegerMap* byMonthWeekDay() const override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+    static bool isValidUntil(m_time_t until) { return until > static_cast<m_time_t>(MEGA_INVALID_TIMESTAMP); }
     ScheduledRules* getSdkScheduledRules() const;
 
 private:
@@ -4192,7 +4221,7 @@ private:
     int mInterval = INTERVAL_INVALID;
 
     // specifies when the repetitions should end
-    std::string mUntil;
+    m_time_t mUntil;
 
     // allows us to specify that an event will only occur on given week day/s
     std::unique_ptr<mega::MegaIntegerList> mByWeekDay;
@@ -4209,8 +4238,8 @@ class MegaScheduledMeetingPrivate: public MegaScheduledMeeting
 public:
     MegaScheduledMeetingPrivate(MegaHandle chatid,
                                     const char* timezone,
-                                    const char* startDateTime,
-                                    const char* endDateTime,
+                                    MegaTimeStamp startDateTime,
+                                    MegaTimeStamp endDateTime,
                                     const char* title,
                                     const char* description,
                                     MegaHandle schedId = INVALID_HANDLE,
@@ -4218,7 +4247,7 @@ public:
                                     MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
-                                    const char* overrides = nullptr,
+                                    MegaTimeStamp overrides = MEGA_INVALID_TIMESTAMP,
                                     MegaScheduledFlags* flags = nullptr,
                                     MegaScheduledRules* rules = nullptr);
 
@@ -4233,12 +4262,12 @@ public:
     MegaHandle parentSchedId() const override;
     MegaHandle organizerUserid() const override;
     const char* timezone() const override;
-    const char* startDateTime() const override;
-    const char* endDateTime() const override;
+    MegaTimeStamp startDateTime() const override;
+    MegaTimeStamp endDateTime() const override;
     const char* title() const override;
     const char* description() const override;
     const char* attributes() const override;
-    const char* overrides() const override;
+    MegaTimeStamp overrides() const override;
     int cancelled() const override;
     MegaScheduledFlags* flags() const override;
     MegaScheduledRules* rules() const override;

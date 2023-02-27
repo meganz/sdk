@@ -133,6 +133,7 @@ std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 // external drive id, used for name filtering
+static string allExtDrives = "*";
 string b64driveid;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
@@ -366,7 +367,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
     assert(t->type == PUT);
 
     auto onCompleted_foward = onCompleted;
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+    sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
         [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)
@@ -1092,7 +1093,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        if (client->loggedinfolderlink())
+        if (client->loggedIntoFolder())
         {
             if (client->isValidFolderLink())
             {
@@ -1291,6 +1292,11 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
              << "\tadvertising: " << bs[3] << endl
              << "\tthird party: " << bs[4] << endl;
     }
+
+    if (type == ATTR_KEYS)
+    {
+        cout << client->mKeyManager.toString();
+    }
 }
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
@@ -1307,6 +1313,13 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        if (type == ATTR_DEVICE_NAMES)
+        {
+            cout << '(' << (b64driveid.empty() ? "Printing only Device names" :
+                (b64driveid == allExtDrives ? "Printing only External-Drive names" :
+                    "Printing name of the specified External-Drive only")) << ')' << endl;
+        }
+
         bool printDriveId = false;
 
         unique_ptr<vector<string>> keys(tlv->getKeys());
@@ -1317,7 +1330,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             // external drive names can be filtered
             if (type == ATTR_DEVICE_NAMES)
             {
-                printDriveId = b64driveid.empty() || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid;
+                bool isExtDrive = key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0; // starts with "ext:" prefix
+                // print all device names, OR all ext-drive names, OR the name of the selected ext-drive
+                printDriveId = (b64driveid.empty() && !isExtDrive) || // device name
+                               (isExtDrive && (b64driveid == allExtDrives || key == User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + b64driveid));
                 if (!printDriveId)
                 {
                     continue;
@@ -1337,11 +1353,6 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                 {
                     // Values that are known to contain only printable characters are ok to display directly.
                     cout << value << " (real text value)";
-
-                    if (key.rfind(User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true), 0) == 0) // starts with "ext:" prefix
-                    {
-                        cout << " (external drive)";
-                    }
                 }
                 else
                 {
@@ -1776,25 +1787,102 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     return n;
 }
 
-static void listnodeshares(Node* n)
+static void listnodeshares(Node* n, bool printLinks)
 {
     if(n->outshares)
     {
         for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
         {
-            cout << "\t" << n->displayname();
+            assert(!it->second->pcr);
 
-            if (it->first)
+            if (printLinks && !it->second->user)
             {
-                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
-                     << endl;
-            }
-            else
-            {
+                cout << "\t" << n->displayname();
                 cout << ", shared as exported folder link" << endl;
+            }
+
+            if (!printLinks && it->second->user)
+            {
+                cout << "\t" << n->displayname();
+                cout << ", shared with " << it->second->user->email << " (" << getAccessLevelStr(it->second->access) << ")"
+                     << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(it->second->user->userhandle)) ? " (unverified)" : "")
+                     << endl;
             }
         }
     }
+}
+
+static void listnodependingshares(Node* n)
+{
+    if(n->pendingshares)
+    {
+        for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+        {
+            cout << "\t" << n->displayname();
+
+            assert(it->second->pcr);
+            assert(!it->second->user);
+
+            cout << ", pending share with " << it->second->pcr->targetemail << " (" << getAccessLevelStr(it->second->access) << ")"
+                 << (client->mKeyManager.isUnverifiedOutShare(n->nodehandle, it->second->pcr->targetemail) ? " (unverified)" : "")
+                 << endl;
+        }
+    }
+}
+
+static void listallshares()
+{
+    cout << "Outgoing shared folders:" << endl;
+
+    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    for (auto& share : outshares)
+    {
+        listnodeshares(share, false);
+    }
+
+    cout << "Incoming shared folders:" << endl;
+
+    for (user_map::iterator uit = client->users.begin();
+        uit != client->users.end(); uit++)
+    {
+        User* u = &uit->second;
+        Node* n;
+
+        if (u->show == VISIBLE && u->sharing.size())
+        {
+            cout << "From " << u->email << ":" << endl;
+
+            for (handle_set::iterator sit = u->sharing.begin();
+                sit != u->sharing.end(); sit++)
+            {
+                if ((n = client->nodebyhandle(*sit)))
+                {
+                    cout << "\t" << n->displayname() << " ("
+                        << getAccessLevelStr(n->inshare->access) << ")"
+                        << (client->mKeyManager.isUnverifiedInShare(n->nodehandle, u->userhandle) ? " (unverified)" : "")
+                        << endl;
+                }
+            }
+        }
+    }
+
+    cout << "Pending outgoing shared folders:" << endl;
+
+    // pending outgoing
+    node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+    for (auto& share : pendingoutshares)
+    {
+        listnodependingshares(share);
+    }
+
+    cout << "Public folder links:" << endl;
+
+    node_vector links = client->mNodeManager.getNodesWithLinks();
+    for (auto& share : links)
+    {
+        listnodeshares(share, true);
+    }
+
 }
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
@@ -3051,7 +3139,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 t->serialize(&serialized);
 
                 // put the transfer in cachedtransfers so we can resume it
-                Transfer::unserialize(client, &serialized, client->cachedtransfers);
+                Transfer::unserialize(client, &serialized, client->multi_cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
                 auto fpstr = t->files.front()->getLocalname().toPath(false);
@@ -3537,6 +3625,7 @@ void exec_getdevicename(autocomplete::ACState& s)
         cout << "Must be logged in to query own attributes." << endl;
         return;
     }
+    b64driveid.clear(); // filter out all external drives
 
     client->getua(u, ATTR_DEVICE_NAMES);
 }
@@ -3580,11 +3669,10 @@ void exec_getextdrivename(autocomplete::ACState& s)
 
     bool idFlag = s.extractflag("-id");
     bool pathFlag = s.extractflag("-path");
+    b64driveid = allExtDrives; // list all external drives
 
     if (s.words.size() == 2)
     {
-        b64driveid.clear();
-
         if (idFlag)
         {
             b64driveid = s.words[1].s;
@@ -4057,9 +4145,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
 
 
 #ifdef ENABLE_SYNC
@@ -4176,6 +4265,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
+    p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -4486,12 +4576,12 @@ static void process_line(char* l)
         else if (recoverycode.size())   // cancelling account --> check password
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else
         {
@@ -4539,7 +4629,10 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                string buf = client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                cout << endl <<  "Updating derived key of ephemeral session, session ID: ";
+                cout << Base64Str<MegaClient::USERHANDLE>(client->me) << "#";
+                cout << Base64Str<SymmCipher::KEYLENGTH>((const byte*)buf.data()) << endl;
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -4693,18 +4786,11 @@ void exec_rm(autocomplete::ACState& s)
 
         for (auto d : v)
         {
-            if (client->checkaccess(d, FULL))
-            {
-                error e = client->unlink(d, false, 0, false);
+            error e = client->unlink(d, false, 0, false);
 
-                if (e)
-                {
-                    cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                }
-            }
-            else
+            if (e)
             {
-                cout << d->displaypath() << ": Access denied" << endl;
+                cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
             }
         }
     }
@@ -5012,6 +5098,8 @@ void exec_cp(autocomplete::ACState& s)
 
 void exec_du(autocomplete::ACState &s)
 {
+    bool listfolders = s.extractflag("-listfolders");
+
     Node *n;
 
     if (s.words.size() > 1)
@@ -5025,16 +5113,40 @@ void exec_du(autocomplete::ACState &s)
     else
     {
         n = client->nodeByHandle(cwd);
+        if (!n)
+        {
+            cout << "cwd not set" << endl;
+            return;
+        }
     }
 
-    NodeCounter nc = n->getCounter();
+    if (listfolders)
+    {
+        auto list = client->getChildren(n);
+        vector<Node*> vec(list.begin(), list.end());
+        std::sort(vec.begin(), vec.end(), [](Node* a, Node* b){
+            return a->getCounter().files + a->getCounter().folders <
+                   b->getCounter().files + b->getCounter().folders; });
+        for (Node* f : vec)
+        {
+            if (f->type == FOLDERNODE)
+            {
+                NodeCounter nc = f->getCounter();
+                cout << "folders:" << nc.folders << " files: " << nc.files << " versions: " << nc.versions << " storage: " << (nc.storage + nc.versionStorage) << " " << f->displayname() << endl;
+            }
+        }
+    }
+    else
+    {
+        NodeCounter nc = n->getCounter();
 
-    cout << "Total storage used: " << nc.storage << endl;
-    cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
+        cout << "Total storage used: " << nc.storage << endl;
+        cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;
 
-    cout << "Total # of files: " << nc.files << endl;
-    cout << "Total # of folders: " << nc.folders << endl;
-    cout << "Total # of versions: " << nc.versions << endl;
+        cout << "Total # of files: " << nc.files << endl;
+        cout << "Total # of folders: " << nc.folders << endl;
+        cout << "Total # of versions: " << nc.versions << endl;
+    }
 }
 
 void exec_get(autocomplete::ACState& s)
@@ -5351,8 +5463,8 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
         return;
     }
 
-    ScanService s(*client->waiter);
-    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+    ScanService s;
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {}, client->waiter);
 
     while (!r->completed())
     {
@@ -5868,37 +5980,9 @@ void exec_share(autocomplete::ACState& s)
 
     switch (s.words.size())
     {
-    case 1:		// list all shares (incoming and outgoing)
+    case 1:		// list all shares (incoming, outgoing and pending outgoing)
     {
-        cout << "Shared folders:" << endl;
-
-        node_vector outshares = client->mNodeManager.getNodesWithOutShares();
-        for (auto& share : outshares)
-        {
-            listnodeshares(share);
-        }
-
-        for (user_map::iterator uit = client->users.begin();
-            uit != client->users.end(); uit++)
-        {
-            User* u = &uit->second;
-            Node* n;
-
-            if (u->show == VISIBLE && u->sharing.size())
-            {
-                cout << "From " << u->email << ":" << endl;
-
-                for (handle_set::iterator sit = u->sharing.begin();
-                    sit != u->sharing.end(); sit++)
-                {
-                    if ((n = client->nodebyhandle(*sit)))
-                    {
-                        cout << "\t" << n->displayname() << " ("
-                            << getAccessLevelStr(n->inshare->access) << ")" << endl;
-                    }
-                }
-            }
-        }
+        listallshares();
     }
     break;
 
@@ -5910,7 +5994,7 @@ void exec_share(autocomplete::ACState& s)
         {
             if (s.words.size() == 2)
             {
-                listnodeshares(n);
+                listnodeshares(n, false);
             }
             else
             {
@@ -5943,16 +6027,44 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
-                    if (e)
+                handle nodehandle = n->nodehandle;
+                std::function<void()> completeShare = [nodehandle, s, a, writable, personal_representation]()
+                {
+                    Node* n = client->nodebyhandle(nodehandle);
+                    if (!n)
                     {
-                        cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                        cout << "Node not found." << endl;
+                        return;
                     }
-                    else
+
+                    client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool)
                     {
-                        cout << "Share creation/modification succeeded." << endl;
-                    }
-                });
+                        if (e)
+                        {
+                            cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
+                        }
+                        else
+                        {
+                            cout << "Share creation/modification succeeded." << endl;
+                        }
+                    });
+                };
+
+                if (a != ACCESS_UNKNOWN)
+                {
+                    client->openShareDialog(n, [completeShare](Error e)
+                    {
+                        if (e)
+                        {
+                            cout << "Error creating share key (" << errorstring(e) << ")" << endl;
+                            return;
+                        }
+
+                        completeShare();
+                    });
+                    return;
+                }
+                completeShare();
             }
         }
         else
@@ -5971,7 +6083,7 @@ void exec_users(autocomplete::ACState& s)
         {
             if (it->second.email.size())
             {
-                cout << "\t" << it->second.email;
+                cout << "\t" << it->second.email << " (" << toHandle(it->second.userhandle) << ")";
 
                 if (it->second.userhandle == client->me)
                 {
@@ -5996,6 +6108,11 @@ void exec_users(autocomplete::ACState& s)
                 else
                 {
                     cout << ", unknown visibility (" << it->second.show << ")";
+                }
+
+                if (it->second.userhandle != client->me && client->areCredentialsVerified(it->second.userhandle))
+                {
+                    cout << ", credentials verified";
                 }
 
                 if (it->second.sharing.size())
@@ -8581,6 +8698,33 @@ void DemoApp::whyamiblocked_result(int code)
     }
 }
 
+void DemoApp::upgrading_security()
+{
+    cout << "We are upgrading the cryptographic resilience of your account. You will see this message only once. "
+         << "If you see it again in the future, you may be under attack by us. If you have seen it in the past, do not proceed." << endl;
+
+    cout << "You are currently sharing the following folders." << endl;
+    listallshares();
+    cout << "------------------------------------------------" << endl;
+
+    client->upgradeSecurity([](Error e) {
+        if (e)
+        {
+            cout << "Security upgrade failed (" << errorstring(e) << ")" << endl;
+            exit(1);
+        }
+        else
+        {
+            cout << "Security upgrade succeeded." << endl;
+        }
+    });
+}
+
+void DemoApp::downgrade_attack()
+{
+    cout << "A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.";
+}
+
 // password change result
 void DemoApp::changepw_result(error e)
 {
@@ -9769,9 +9913,9 @@ int main(int argc, char* argv[])
     auto httpIO = new HTTPIO_CLASS;
 
 #ifdef WIN32
-    auto waiter = new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console));
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
 #else
-    auto waiter = new CONSOLE_WAIT_CLASS;
+    auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>();
 #endif
 
     auto demoApp = new DemoApp;
@@ -9809,7 +9953,6 @@ int main(int argc, char* argv[])
     megacli();
 
     delete client;
-    delete waiter;
     delete httpIO;
     delete gfx;
     delete demoApp;
@@ -9819,7 +9962,15 @@ int main(int argc, char* argv[])
     startDir.reset();
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    delete CurlHttpIO::sslMutexes;
+    if (CurlHttpIO::sslMutexes)
+    {
+        int numLocks = CRYPTO_num_locks();
+        for (int i = 0; i < numLocks; ++i)
+        {
+            delete CurlHttpIO::sslMutexes[i];
+        }
+        delete [] CurlHttpIO::sslMutexes;
+    }
 #endif
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -10818,7 +10969,7 @@ void exec_numberofnodes(autocomplete::ACState &s)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish
-    if (!client->loggedinfolderlink())
+    if (!client->loggedIntoFolder())
     {
         numberOfNodes += 3;
     }
@@ -10852,4 +11003,51 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
+}
+
+void exec_searchbyname(autocomplete::ACState &s)
+{
+    if (s.words.size() >= 2)
+    {
+        bool recursive = !s.extractflag("-norecursive");
+        bool noSensitive = s.extractflag("-nosensitive");
+
+        NodeHandle nodeHandle;
+        if (s.words.size() == 3)
+        {
+            handle h;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+            nodeHandle.set6byte(h);
+        }
+
+        if (!recursive && nodeHandle.isUndef())
+        {
+            cout << "Search no recursive need node handle" << endl;
+            return;
+        }
+
+        std::string searchString = s.words[1].s;
+        Node::Flags exclusiveRecuriveFlags;
+        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
+        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+
+        for (const auto& node : nodes)
+        {
+            cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
+        }
+    }
+}
+
+void exec_secure(autocomplete::ACState &s)
+{
+    if (s.extractflag("-on"))
+    {
+        client->mKeyManager.setSecureFlag(true);
+    }
+    else if (s.extractflag("-off"))
+    {
+        client->mKeyManager.setSecureFlag(false);
+    }
+
+    cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
 }

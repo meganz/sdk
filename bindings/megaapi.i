@@ -14,7 +14,6 @@
 #include "webrtc/rtc_base/logging.h"
 #include "webrtc/rtc_base/ssl_adapter.h"
 #include "webrtc/sdk/android/native_api/base/init.h"
-#include "webrtc/sdk/android/src/jni/class_reference_holder.h"
 #include "webrtc/sdk/android/src/jni/jni_generator_helper.h"
 #include "webrtc/sdk/android/src/jni/jni_helpers.h"
 #include "webrtc/sdk/android/native_api/jni/class_loader.h"

@@ -913,7 +913,12 @@ bool FileAccess::fopen(const LocalPath& name)
 {
     updatelocalname(name, true);
 
-    return sysstat(&mtime, &size);
+    bool r = sysstat(&mtime, &size);
+    if (!r) 
+    {
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+    }
+    return r;
 }
 
 bool FileAccess::isfile(const LocalPath& path)
@@ -940,9 +945,8 @@ bool FileAccess::openf()
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening sync file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysstat) '"
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -954,7 +958,13 @@ bool FileAccess::openf()
         return false;
     }
 
-    return sysopen();
+    bool r = sysopen();
+    if (!r) {
+        // file may have been deleted just now
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysopen) '"
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+    }
+    return r;
 }
 
 void FileAccess::closef()
@@ -1013,9 +1023,7 @@ bool FileAccess::asyncopenf()
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening async file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -1035,7 +1043,7 @@ bool FileAccess::asyncopenf()
     }
     else
     {
-        LOG_warn << "Error opening async file handle (sysopen)";
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1204,6 +1212,11 @@ AsyncIOContext::~AsyncIOContext()
     {
         fa->asyncclosef();
     }
+}
+
+std::string FileAccess::getErrorMessage(int error) const
+{
+    return std::to_string(error);
 }
 
 void AsyncIOContext::finish()
@@ -1850,8 +1863,7 @@ std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
 
-ScanService::ScanService(Waiter& waiter)
-    : mWaiter(waiter)
+ScanService::ScanService()
 {
     // Locking here, rather than in the if statement, ensures that the
     // worker is fully constructed when control leaves the constructor.
@@ -1872,10 +1884,10 @@ ScanService::~ScanService()
     }
 }
 
-auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
+auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter) -> RequestPtr
 {
     // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
+    auto request = std::make_shared<ScanRequest>(move(waiter), followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
 
     // Queue request for processing.
     mWorker->queue(request);
@@ -1883,7 +1895,7 @@ auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool foll
     return request;
 }
 
-ScanService::ScanRequest::ScanRequest(Waiter& waiter,
+ScanService::ScanRequest::ScanRequest(shared_ptr<Waiter> waiter,
     bool followSymLinks,
     LocalPath targetPath,
     handle expectedFsid,
@@ -1966,7 +1978,7 @@ void ScanService::Worker::queue(ScanRequestPtr request)
 void ScanService::Worker::loop()
 {
     // We're ready when we have some work to do.
-    auto ready = [this]() { return mPending.size(); };
+    auto ready = [this]() { return !mPending.empty(); };
 
     for ( ; ; )
     {
@@ -1976,6 +1988,8 @@ void ScanService::Worker::loop()
             // Wait for something to do.
             std::unique_lock<std::mutex> lock(mPendingLock);
             mPendingNotifier.wait(lock, ready);
+
+            assert(ready()); // condition variable should have taken care of this
 
             // Are we being told to terminate?
             if (!mPending.front())
@@ -2010,7 +2024,7 @@ void ScanService::Worker::loop()
         }
 
         request->mScanResult = result;
-        request->mWaiter.notify();
+        request->mWaiter->notify();
     }
 }
 
