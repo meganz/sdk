@@ -746,7 +746,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
     }
 
     m_off_t filesize = fa->size;
-    size_t totalBytesRead = 0, jumps = 0;
+    size_t totalBytesRead = 0;
     mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
     m_time_t startTime = 0;
@@ -819,7 +819,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
         {
             readpos = requestPos;
             mi.Open_Buffer_Init(filesize, readpos);
-            jumps += 1;
         }
     }
 

@@ -1336,7 +1336,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 {
     char buf[24];
 
-    sprintf(buf, ":%u*", t);
+    snprintf(buf, sizeof(buf), ":%u*", t);
     return static_cast<int>(fileattrstring->find(buf) + 1);
 }
 
