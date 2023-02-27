@@ -262,7 +262,7 @@ void AttrMap::getjson(string* s) const
 
                             default:
                                 s->append("u00");
-                                sprintf(buf, "%02x", (unsigned char)*ptr);
+                                snprintf(buf, sizeof(buf), "%02x", (unsigned char)*ptr);
                                 s->append(buf);
                         }
 
