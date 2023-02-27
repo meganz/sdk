@@ -720,7 +720,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
-            sprintf(buf, "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", c);
             name->replace(i, 1, buf);
             // Logging these at such a low level is too frequent and verbose
             //LOG_debug << "Escape incompatible character for filesystem type "
@@ -1743,9 +1743,9 @@ LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
 #ifdef WIN32
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
 #else
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
 #endif
     return LocalPath::fromRelativePath(buf);
 }

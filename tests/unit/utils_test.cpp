@@ -437,6 +437,16 @@ TEST(Conversion, HexVal)
     }
 }
 
+TEST(URLCodec, Escape)
+{
+    string input = "abc123!@#$%^&*()";
+    string output;
+
+    URLCodec::escape(&input, &output);
+    EXPECT_EQ(output, "abc123%21%40%23%24%25%5e%26%2a%28%29");
+}
+
+
 TEST(URLCodec, Unescape)
 {
     string input = "a%4a%4Bc";

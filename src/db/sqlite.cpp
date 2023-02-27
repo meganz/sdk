@@ -701,7 +701,7 @@ bool SqliteAccountState::remove(NodeHandle nodehandle)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
+    snprintf(buf, sizeof(buf), "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     int sqlResult = sqlite3_exec(db, buf, 0, 0, NULL);
     if (sqlResult == SQLITE_ERROR)
