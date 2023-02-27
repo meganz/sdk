@@ -26,7 +26,7 @@
 #import <MobileCoreServices/UTType.h>
 #import <QuickLookThumbnailing/QuickLookThumbnailing.h>
 
-const float COMP = 0.8f;
+const CGFloat COMPRESSION_QUALITY = 0.8f;
 const int THUMBNAIL_MIN_SIZE = 200;
 
 NSURL *sourceURL;
@@ -43,10 +43,7 @@ GfxProviderCG::GfxProviderCG()
                                                 &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue);
     CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue);
-
-    CFNumberRef compression = CFNumberCreate(kCFAllocatorDefault, kCFNumberFloatType, &COMP);
-    imageParams = CFDictionaryCreate(kCFAllocatorDefault, (const void **)&kCGImageDestinationLossyCompressionQuality, (const void **)&compression, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFRelease(compression);
+    
     semaphore = dispatch_semaphore_create(0);
 }
 
@@ -54,9 +51,6 @@ GfxProviderCG::~GfxProviderCG() {
     freebitmap();
     if (thumbnailParams) {
         CFRelease(thumbnailParams);
-    }
-    if (imageParams) {
-        CFRelease(imageParams);
     }
 }
 
@@ -175,7 +169,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
             LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
         } else {
             if (isThumbnail) {
-                NSData *imageData = UIImageJPEGRepresentation(thumbnail.UIImage, COMP);
+                NSData *imageData = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
                 
                 imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
                 
@@ -189,7 +183,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
                     CFRelease(newImage);
                 }
             } else {
-                data = UIImageJPEGRepresentation(thumbnail.UIImage, COMP);
+                data = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
             }
         }
         dispatch_semaphore_signal(semaphore);

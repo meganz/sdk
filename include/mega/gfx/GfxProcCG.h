@@ -30,7 +30,6 @@
 class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
     CGImageSourceRef imageSource;
-    CFDictionaryRef imageParams;
     CFMutableDictionaryRef thumbnailParams;
     dispatch_semaphore_t semaphore;
     CGImageRef createThumbnailWithMaxSize(int size);
