@@ -650,7 +650,6 @@ public:
 class MEGA_API CommandSetShare : public Command
 {
     handle sh;
-    User* user;
     accesslevel_t access;
     string msg;
     string personal_representation;
