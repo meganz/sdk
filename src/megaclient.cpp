@@ -18736,32 +18736,17 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        j->storeobject(&cs.oldValue);
-        bool updated = j->storeobject(&cs.newValue);
-        if (!updated)
-        {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
-            {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EEXIST;
-            }
-         }
-         j->leavearray();
-         return e;
+        if (!j->storeobject(&cs.oldValue)) { cs.oldValue.clear(); }
+        if (!j->storeobject(&cs.newValue)) { cs.newValue.clear(); }
+        j->leavearray();
+        return API_OK;
     };
 
     auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
@@ -18769,33 +18754,27 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
         cs.oldValue = j->getint();
-        cs.newValue = j->getint();
-        bool updated = cs.newValue > 0;
-        if (!updated)
+        if (cs.oldValue < 0)
         {
-            e = API_ENOENT;
+            cs.oldValue = mega_invalid_timestamp;
         }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
-            {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
 
-                e = API_EEXIST;
-            }
-         }
-         j->leavearray();
-         return e;
+        cs.newValue = j->getint();
+        if (cs.newValue < 0)
+        {
+            cs.newValue = mega_invalid_timestamp;
+        }
+
+        j->leavearray();
+        return API_OK;
     };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
