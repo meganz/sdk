@@ -18767,7 +18767,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             if (j->isnumeric())
             {
                 auto val = j->getint();
-                if (val >= 0)
+                if (val > -1)
                 {
                     out = val;
                 }
