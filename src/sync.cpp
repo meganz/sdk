@@ -415,7 +415,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case STORAGE_OVERQUOTA:
         return "Reached storage quota limit";
     case ACCOUNT_EXPIRED:
-        return "Account expired (business or Pro Flexi)";
+        return "Your plan has expired";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
     case REMOTE_PATH_HAS_CHANGED:

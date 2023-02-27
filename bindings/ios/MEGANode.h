@@ -503,6 +503,18 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  */
 - (BOOL)isForeign;
 
+/**
+ * @brief Returns true if the node key is decrypted
+ *
+ * For nodes in shared folders, there could be missing keys. Also, faulty
+ * clients might create invalid keys. In those cases, the node's key might
+ * not be decrypted successfully.
+ *
+ * @return True if the node key is decrypted
+ */
+- (BOOL)isNodeKeyDecrypted;
+
+
 + (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end

@@ -3681,6 +3681,13 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
 
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.upgradeSecurity(pb); }, __FILE__, __LINE__);
+    if (!waitonresults(&p1))
+    {
+        out() << "upgrading security failed";
+        return false;
+    }
+
     if (resetBaseCloudFolder)
     {
         if (deleteTestBaseFolder(true) == 0)
@@ -4027,6 +4034,9 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     if (!waitonresults(&p2)) return false;
 
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.upgradeSecurity(pb); }, __FILE__, __LINE__);
+    if (!waitonresults(&p2)) return false;
 
     p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
@@ -4512,6 +4522,72 @@ bool StandardClient::iscontact(const string& email)
     return result.get();
 }
 
+bool StandardClient::isverified(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        User* u = client.client.finduser(email.c_str());
+        if (u) {
+            result->set_value(client.client.areCredentialsVerified(u->userhandle));
+        }
+        else
+        {
+            result->set_value(false);
+        }
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+bool StandardClient::verifyCredentials(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        User* u = client.client.finduser(email.c_str());
+        if (u) {
+            result->set_value(client.client.verifyCredentials(u->userhandle) == API_OK);
+        }
+        else
+        {
+            result->set_value(false);
+        }
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+bool StandardClient::resetCredentials(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        User* u = client.client.finduser(email.c_str());
+        if (u) {
+            result->set_value(client.client.resetCredentials(u->userhandle) == API_OK);
+        }
+        else
+        {
+            result->set_value(false);
+        }
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
 void StandardClient::rmcontact(const string& email, PromiseBoolSP result)
 {
     client.removecontact(email.c_str(), HIDDEN, [=](error e) {
@@ -4541,7 +4617,32 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
         return result->set_value(false);
 
     auto completion = [=](Error e, bool) {
-        result->set_value(!e);
+        if (e == API_EKEY)
+        {
+            // create share key and try again
+            client.openShareDialog(node, [=](Error osdErr)
+                {
+                    if (osdErr == API_OK)
+                    {
+                        client.setshare(node,
+                            email.c_str(),
+                            permissions,
+                            false,
+                            nullptr,
+                            ++next_request_tag,
+                            [result](Error e2, bool) {result->set_value(!e2);});
+                    }
+                    else
+                    {
+                        result->set_value(false);
+                    }
+                }
+            );
+        }
+        else
+        {
+            result->set_value(!e);
+        }
     };
 
     client.setshare(node,
@@ -4565,7 +4666,15 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
     if (status == future_status::timeout)
         return false;
 
-    return result.get();
+    bool r = result.get();
+    return r;
+}
+
+void StandardClient::upgradeSecurity(PromiseBoolSP result)
+{
+    client.upgradeSecurity([=](error e) {
+        result->set_value(!e);
+    });
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
@@ -11859,10 +11968,20 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Make sure our "contacts" know about each other.
     {
-        // Convenience predicate.
+        // Convenience predicates.
         auto contactRequestReceived = [](handle id) {
             return [id](StandardClient& client) {
                 return client.ipcr(id);
+            };
+        };
+        auto contactRequestFnished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return !client.opcr(email);
+            };
+        };
+        auto contactVerificationFinished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return client.isverified(email);
             };
         };
 
@@ -11870,6 +11989,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         auto contactAdd = [&](StandardClient& client, const string& name) {
             // Get our hands on the contact's email.
             string email = getenv(name.c_str());
+            // Get main client email.
+            string email0 = getenv("MEGA_EMAIL");
 
             // Are we already associated with this contact?
             if (client0.iscontact(email))
@@ -11893,6 +12014,23 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             // Accept the contact request.
             ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
+
+            // Wait for the response to reach first client
+            ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
+
+            // Verify contact credentials if they are not
+            if (!client0.isverified(email))
+            {
+                ASSERT_TRUE(client0.verifyCredentials(email));
+            }
+            if (!client.isverified(email0))
+            {
+                ASSERT_TRUE(client.verifyCredentials(email0));
+            }
+
+            // Wait for contact verification
+            ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
+            ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
         };
 
         // Introduce the contacts to each other.

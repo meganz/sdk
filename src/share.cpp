@@ -92,7 +92,8 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     upgrade_pending_to_full = cupgrade_pending_to_full;
     remove_key = okremoved;
 
-    if (ckey)
+    static const std::vector<byte> zeroKey(SymmCipher::BLOCKSIZE, 0);
+    if (ckey && memcmp(ckey, zeroKey.data(), zeroKey.size()))
     {
         memcpy(key, ckey, sizeof key);
         have_key = 1;

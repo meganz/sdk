@@ -537,6 +537,11 @@ bool MegaNode::isRemoved()
     return false;
 }
 
+bool MegaNode::isMarkedSensitive() 
+{
+    return false;
+}
+
 bool MegaNode::hasChanged(int /*changeType*/)
 {
     return false;
@@ -879,6 +884,11 @@ bool MegaShare::isPending()
     return false;
 }
 
+bool MegaShare::isVerified()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
@@ -1118,6 +1128,11 @@ MegaBannerList* MegaRequest::getMegaBannerList() const
 }
 
 MegaStringList* MegaRequest::getMegaStringList() const
+{
+    return nullptr;
+}
+
+const MegaIntegerList* MegaRequest::getMegaIntegerList() const
 {
     return nullptr;
 }
@@ -2512,6 +2527,31 @@ void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListe
     pImpl->sendFileToUser(node, email, listener);
 }
 
+void MegaApi::upgradeSecurity(MegaRequestListener* listener)
+{
+    pImpl->upgradeSecurity(listener);
+}
+
+void MegaApi::setSecureFlag(bool enable)
+{
+    pImpl->setSecureFlag(enable);
+}
+
+void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->openShareDialog(node, listener);
+}
+
+MegaShareList *MegaApi::getUnverifiedInShares(int order)
+{
+    return pImpl->getUnverifiedInShares(order);
+}
+
+MegaShareList *MegaApi::getUnverifiedOutShares(int order)
+{
+    return pImpl->getUnverifiedOutShares(order);
+}
+
 void MegaApi::share(MegaNode* node, MegaUser *user, int access, MegaRequestListener *listener)
 {
     pImpl->share(node, user, access, listener);
@@ -2740,6 +2780,11 @@ void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *li
 void MegaApi::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
 {
     pImpl->getFavourites(node, count, listener);
+}
+
+void MegaApi::setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener)
+{
+    pImpl->setNodeSensitive(node, sensitive, listener);
 }
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
@@ -3748,6 +3793,11 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
+bool MegaApi::isSensitiveInherited(MegaNode* node)
+{
+    return pImpl->isSensitiveInherited(node);
+}
+
 bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
@@ -4128,9 +4178,9 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
 {
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target, includeSensitive);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -5746,6 +5796,11 @@ void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->fetchSet(sid, listener);
 }
 
+void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+{
+    pImpl->putSetElements(sid, nodes, names, listener);
+}
+
 void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
@@ -6800,11 +6855,6 @@ const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingList() const
     return NULL;
 }
 
-const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingOccurrencesList() const
-{
-    return NULL;
-}
-
 const MegaScheduledMeetingList* MegaTextChat::getUpdatedOccurrencesList() const
 {
     return NULL;
@@ -6912,22 +6962,22 @@ MegaIntegerMap* MegaIntegerMap::copy() const
     return NULL;
 }
 
-bool MegaIntegerMap::at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const
-{
-    return false;
-}
-
 MegaIntegerList* MegaIntegerMap::getKeys() const
 {
     return NULL;
 }
 
-void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
+MegaIntegerList* MegaIntegerMap::get(int64_t key) const
+{
+    return NULL;
+}
+
+void MegaIntegerMap::set(int64_t /*key*/, int64_t /*value*/)
 {
 
 }
 
-unsigned long long MegaIntegerMap::size() const
+int64_t MegaIntegerMap::size() const
 {
     return 0;
 }

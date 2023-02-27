@@ -3706,7 +3706,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return requested Element, or nil if not found
  */
--(MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
+-(nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
 
 /**
  * @brief Get all Elements in the Set with given id, for current user.
@@ -3909,6 +3909,33 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param node MEGANode to stop sharing.
  */
 - (void)disableExportNode:(MEGANode *)node;
+
+/**
+ * @brief Creates a new share key for the node if there is no share key already created.
+ *
+ * Call it before starting any new share.
+ *
+ * @param node The folder to share. It must be a non-root folder
+ * @param delegate Delegate to track this request.
+ */
+- (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Allows to change the hardcoded value of the "secure" flag
+ *
+ * With this feature flag set, the client will manage encryption keys for
+ * shared folders in a secure way. Legacy clients won't be able to decrypt
+ * shared folders created with this flag enabled.
+ *
+ * Manual verification of credentials of users (both sharers AND sharees) is
+ * required in order to decrypt shared folders correctly.
+ *
+ * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+ * result on unexpected behavior.
+ *
+ * @param enable New value of the flag
+ */
+- (void)setShareSecureFlag:(BOOL)enable;
 
 #pragma mark - Attributes Requests
 
@@ -6270,6 +6297,17 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (BOOL)setRLimitFileCount:(NSInteger)fileCount;
 
+/**
+ * @brief Upgrade cryptographic security
+ *
+ * This should be called only after MEGAEvents EventUpgradeSecurity is received to effectively
+ * proceed with the cryptographic upgrade process.
+ * This should happen only once per account.
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Transfers
 
 /**
@@ -7342,6 +7380,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (MEGAShareList *)inSharesList:(MEGASortOrderType)order;
 
 /**
+ * @brief Get a list with all unverified inbound sharings
+ *
+ * You take the ownership of the returned value
+ *
+ * @param order Sorting order to use
+ * @return List of MegaShare objects that other users are sharing with this account
+ */
+- (MEGAShareList *)getUnverifiedInShares:(MEGASortOrderType)order;
+
+/**
  * @brief Get the user relative to an incoming share
  *
  * This function will return nil if the node is not found or doesn't represent
@@ -7389,6 +7437,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return List of MegaShare objects
  */
 - (MEGAShareList *)outShares:(MEGASortOrderType)order;
+
+/**
+ * @brief Get a list with all unverified sharings
+ *
+ * You take the ownership of the returned value
+ *
+ * @param order Sorting order to use
+ * @return List of MegaShare objects
+ */
+- (MEGAShareList *)getUnverifiedOutShares:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with the active outbound sharings for a MEGANode.

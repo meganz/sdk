@@ -267,6 +267,188 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
     }
 };
 
+
+class MegaClient;
+
+
+class MEGA_API KeyManager
+{
+public:
+    KeyManager(MegaClient& client) : mClient(client) {}
+
+    // it's called to initialize the ^!keys attribute, since it does not exist yet
+    // prRSA is expected in base64 and 4 Ints format: pqdu
+    void init(const string& prEd25519, const string& prCu25519, const string& prRSA);
+
+    // it derives master key and sets mKey
+    void setKey(const SymmCipher& masterKey);
+
+    // decrypts and decodes the ^!keys attribute
+    bool fromKeysContainer(const string& data);
+
+    // encodes and encrypts the ^!keys attribute
+    string toKeysContainer();
+
+    // --- Getters / Setters ----
+
+    bool isSecure() const { return mSecure; }
+    uint32_t generation() const;
+    string privEd25519() const;
+    string privCu25519() const;
+
+    void setPostRegistration(bool postRegistration);
+    bool getPostRegistration() const;
+
+    bool addPendingOutShare(handle sharehandle, std::string uid);
+    bool addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey);
+    bool removePendingOutShare(handle sharehandle, std::string uid);
+    bool removePendingInShare(std::string shareHandle);
+    bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
+    string getShareKey(handle sharehandle) const;
+    bool isShareKeyTrusted(handle sharehandle) const;
+    bool removeShare(handle sharehandle);
+
+    // return empty string if the user's credentials are not verified (or if fail to encrypt)
+    std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
+
+    // return empty string if the user's credentials are not verified (or if fail to decrypt)
+    std::string decryptShareKeyFrom(handle userhandle, std::string shareKey);
+
+    void setAuthRing(std::string authring);
+    void setAuthCU255(std::string authring);
+    void setPrivRSA(std::string privRSA);
+    std::string getPrivRSA();
+    bool promotePendingShares();
+    bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
+    bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
+
+    void cacheShareKeys();
+    void loadShareKeys();
+
+    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void reset();
+
+    // returns a formatted string, for logging purposes
+    string toString() const;
+
+    // this method allows to change the feature-flag for testing purposes
+    void setSecureFlag(bool enabled) { mSecure = enabled; }
+
+protected:
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
+
+    void nextCommit();
+    void tryCommit(Error e, std::function<void ()> completion);
+    void updateAttribute(std::function<void (Error)> completion);
+
+private:
+
+    // Tags used by TLV blob
+    enum {
+        TAG_VERSION = 1,
+        TAG_CREATION_TIME = 2,
+        TAG_IDENTITY = 3,
+        TAG_GENERATION = 4,
+        TAG_ATTR = 5,
+        TAG_PRIV_ED25519 = 16,
+        TAG_PRIV_CU25519 = 17,
+        TAG_PRIV_RSA = 18,
+        TAG_AUTHRING_ED25519 = 32,
+        TAG_AUTHRING_CU25519 = 33,
+        TAG_SHAREKEYS = 48,
+        TAG_PENDING_OUTSHARES = 64,
+        TAG_PENDING_INSHARES = 65,
+        TAG_BACKUPS = 80,
+        TAG_WARNINGS = 96,
+    };
+
+    static const uint8_t IV_LEN = 12;
+    static const std::string SVCRYPTO_PAIRWISE_KEY;
+
+    MegaClient& mClient;
+
+    // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
+    SymmCipher mKey;
+
+    // client is considered to exchange keys in a secure way (requires credential's verification)
+    bool mSecure = true;
+
+    // enable / disable logs related to the contents of ^!keys
+    static const bool mDebugContents = false;
+
+    // true when the account is being created -> don't show warning to user "updading security",
+    // false when the account is being upgraded to ^!keys -> show the warning
+    bool mPostRegistration = false;
+
+    // if the last known value of generation is greater than a value received in a ^!keys,
+    // then a rogue API could be tampering with the attribute
+    bool mDowngradeAttack = false;
+
+    uint8_t mVersion = 0;
+    uint32_t mCreationTime = 0;
+    handle mIdentity = UNDEF;
+    uint32_t mGeneration = 0;
+    string mAttr;
+    string mPrivEd25519, mPrivCu25519, mPrivRSA;
+    string mAuthEd25519, mAuthCu25519;
+    string mBackups;
+    string mWarnings;
+    string mOther;
+
+    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
+    map<handle, pair<string, bool>> mShareKeys;
+
+    // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
+    map<handle, set<string>> mPendingOutShares;
+
+    // maps base64 node handles to pairs of source user handle and share key
+    map<string, pair<handle, string>> mPendingInShares;
+
+    // decode data from the decrypted ^!keys attribute and stores values in `km`
+    // returns false in case of unserializatison isues
+    static bool unserialize(KeyManager& km, const string& keysContainer);
+
+    // prepares the header for a new serialized record of type 'tag' and 'len' bytes
+    string tagHeader(const byte tag, size_t len) const;
+
+    // encode data from the decrypted ^!keys attribute
+    string serialize() const;
+
+    string serializeShareKeys() const;
+    static bool deserializeShareKeys(KeyManager& km, const string& blob);
+    static string shareKeysToString(const KeyManager& km);
+
+    string serializePendingOutshares() const;
+    static bool deserializePendingOutshares(KeyManager& km, const string& blob);
+    static string pendingOutsharesToString(const KeyManager& km);
+
+    string serializePendingInshares() const;
+    static bool deserializePendingInshares(KeyManager& km, const string& blob);
+    static string pendingInsharesToString(const KeyManager& km);
+
+    string serializeBackups() const;
+    static bool deserializeBackups(KeyManager& km, const string& blob);
+
+    std::string computeSymmetricKey(handle user);
+
+    // validates data in `km`: ie. downgrade attack, tampered keys...
+    bool isValidKeysContainer(const KeyManager& km);
+
+    void updateValues(KeyManager& km);
+
+    // decodes the RSA private key and sets it at MegaClient::asymkey
+    // returns false if it doesn't match the current key or if failed to set the key
+    bool decodeRSAKey();
+
+    // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
+    void updateAuthring(attr_t at, std::string &value);
+
+    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -387,7 +569,8 @@ public:
     void login(string session);
 
     // check password
-    error validatepwd(const byte *);
+    error validatepwd(const char* pswd);
+    bool validatepwdlocally(const char* pswd);
 
     // get user data
     void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
@@ -488,7 +671,7 @@ public:
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
 
-    // reset the tracking of public keys in the authrings for a given user
+    // reset the authentication method of Ed25519 key from Fingerprint-verified to Seen for a given user
     error resetCredentials(handle uh);
 
     // check credentials are verified for a given user
@@ -593,10 +776,10 @@ public:
         std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
-    void putua(userattr_map *attrs, int ctag = -1);
+    void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
@@ -615,8 +798,17 @@ public:
     // delete or block an existing contact
     error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
+    // Migrate the account to start using the new ^!keys attr.
+    void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Creates a new share key for the node if there is no share key already created.
+    void openShareDialog(Node* n, std::function<void (Error)> completion);
+
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+        int tag, std::function<void(Error, bool writable)> completion);
+
+    void setShareCompletion(Node*, User*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
@@ -911,7 +1103,8 @@ public:
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
                                  bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
-                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr);
+                                 UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
+                                 handle_set* childMeetingsDeleted = nullptr);
 #endif
 
     // get mega achievements
@@ -1219,6 +1412,7 @@ public:
     void sc_la();
     void sc_ub();
     void sc_sqac();
+    void sc_pk();
 
     void init();
 
@@ -1447,6 +1641,12 @@ public:
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
     node_vector getInShares();
 
+    // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getVerifiedInShares();
+
+    // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
+    node_vector getUnverifiedInShares();
+
     // transfer queues (PUT/GET)
     transfer_multimap multi_transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
@@ -1486,6 +1686,7 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
+    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
     handle_vector sharekeyrewrite;
@@ -1707,6 +1908,8 @@ public:
     void proccr(JSON*);
     void procsr(JSON*);
 
+    KeyManager mKeyManager;
+
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
@@ -1733,8 +1936,8 @@ public:
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
 
-    // true while authrings are being fetched
-    bool mFetchingAuthrings;
+    // number of authrings being fetched
+    unsigned short mFetchingAuthrings = 0;
 
     // actual state of keys
     bool fetchingkeys;
@@ -1776,6 +1979,7 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
+    User *getUserForSharing(const char *uid);
     void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
@@ -2014,6 +2218,8 @@ private:
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
 
+    static vector<byte> deriveKey(const char* password, const string& salt);
+
 
 //
 // Sets and Elements
@@ -2028,6 +2234,9 @@ public:
 
     // generate "aft" command
     void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+
+    // generate "aepb" command
+    void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
 
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
@@ -2108,6 +2317,7 @@ private:
 // -------- end of Sets and Elements
 
 };
+
 } // namespace
 
 #if __cplusplus < 201100L
