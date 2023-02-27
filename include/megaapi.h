@@ -16038,6 +16038,29 @@ class MegaApi
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
 
         /**
+         * @brief Get the MegaNode of the specified type, in a specific path in the MEGA account
+         *
+         * The path separator character is '/'
+         * The Root node is /
+         * The Vault root node is //in/
+         * The Rubbish root node is //bin/
+         *
+         * Paths with names containing '/', '\' or ':' aren't compatible
+         * with this function.
+         *
+         * It is needed to be logged in and to have successfully completed a fetchNodes
+         * request before calling this function. Otherwise, it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param path Path to check
+         * @param n Base node if the path is relative
+         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER, TYPE_UNKNOWN (any type, folder has precedence)
+         * @return The MegaNode object in the path, otherwise NULL
+         */
+        MegaNode* getNodeByPathOfType(const char *path, MegaNode *n = nullptr, int type = MegaNode::TYPE_UNKNOWN);
+
+        /**
          * @brief Get the MegaNode that has a specific handle
          *
          * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle

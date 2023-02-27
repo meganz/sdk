@@ -8596,6 +8596,103 @@ TEST_F(SdkTest, SyncPaths)
 }
 
 /**
+ * @brief TEST_F SearchByPathOfType
+ *
+ * Testing search nodes by path of specified type
+ */
+TEST_F(SdkTest, SearchByPathOfType)
+{
+    LOG_info << "___TEST SearchByPathOfType___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{ megaApi[0]->getRootNode() };
+    string duplicateName = "fileAndFolderName";
+
+    // Upload test file
+    MegaHandle fileInRoot = INVALID_HANDLE;
+    ASSERT_TRUE(createFile(duplicateName, false)) << "Couldn't create file " << duplicateName;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileInRoot, duplicateName.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    // Test not found cases:
+    {
+        for (auto type : {MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER, MegaNode::TYPE_UNKNOWN})
+        {
+            for (auto pathToNonExisting : {"this/does/not/exist", "/this/does/not/exist", "./thisdoesnotexist", "thisdoesnotexist"})
+            {
+                std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(pathToNonExisting, nullptr, type)};
+                ASSERT_FALSE(fileNode);
+            }
+        }
+    }
+
+    // Test file search using relative path
+    std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_FALSE(fileNode) << "Found node for file while explicitly searching for folder " << duplicateName;
+
+    // Create test folder
+    auto folderInRoot = createFolder(0, duplicateName.c_str(), rootNode.get());
+    ASSERT_NE(folderInRoot, INVALID_HANDLE) << "Error creating remote folder " << duplicateName;
+
+    // Test search using relative path
+    std::unique_ptr<MegaNode> folderNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    // Test search using absolute path
+    string absolutePath = '/' + duplicateName;
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str()));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << absolutePath;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+}
+
+/**
  * @brief TEST_F SyncOQTransitions
  *
  * Testing OQ Transitions

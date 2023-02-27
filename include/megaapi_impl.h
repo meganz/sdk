@@ -2754,6 +2754,7 @@ class MegaApiImpl : public MegaApp
         char *getNodePath(MegaNode *node);
         char *getNodePathByNodeHandle(MegaHandle handle);
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
+        MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();

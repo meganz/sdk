@@ -4432,6 +4432,11 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
+MegaNode* MegaApi::getNodeByPathOfType(const char* path, MegaNode* n, int type)
+{
+    return pImpl->getNodeByPathOfType(path, n, type);
+}
+
 MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
     return pImpl->getNodeByHandle(h);
