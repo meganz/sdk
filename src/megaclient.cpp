@@ -20749,14 +20749,6 @@ bool KeyManager::isShareKeyTrusted(handle sharehandle) const
     return it != mShareKeys.end() && it->second.second;
 }
 
-bool KeyManager::removeShare(handle sharehandle)
-{
-    bool removed = mShareKeys.erase(sharehandle);
-    removed |= mPendingOutShares.erase(sharehandle) != 0;
-    removed |= removePendingInShare(toNodeHandle(sharehandle)) != 0;
-    return removed;
-}
-
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 {
     if (!mClient.areCredentialsVerified(userhandle))
