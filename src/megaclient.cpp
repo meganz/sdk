@@ -2072,7 +2072,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit 2";
+                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
                                     assert(!sctable->inTransaction());
                                     sctable->begin();
@@ -4913,6 +4913,7 @@ bool MegaClient::procsc()
                     {
                         if (!pendingcs && !csretrying && !reqs.cmdspending())
                         {
+                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
                             assert(!sctable->inTransaction());
                             sctable->begin();
@@ -4934,7 +4935,7 @@ bool MegaClient::procsc()
                     }
 
 
-                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
+                    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
@@ -4945,6 +4946,7 @@ bool MegaClient::procsc()
                             notifypurge();
                             if (sctable)
                             {
+                                LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 assert(!sctable->inTransaction());
                                 sctable->begin();
@@ -5078,7 +5080,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
-                        LOG_debug << "Processing action packets";
+                        LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
                         break;
                     }
@@ -5532,10 +5534,14 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
 
@@ -5543,6 +5549,7 @@ void MegaClient::initsc()
         {
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             assert(!sctable->inTransaction());
             sctable->begin();
@@ -5678,9 +5685,13 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -13412,6 +13423,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mNodeManager.dumpNodes();
 
         // and force commit, since old DB has been upgraded to new schema for NOD
+        LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
         sctable->commit();
         sctable->begin();
     }
@@ -19413,6 +19425,29 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
 }
 
+void MegaClient::removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(sid != UNDEF && !eids.empty());
+
+    // make sure Set id is valid
+    const Set* existingSet = (eids.empty() || sid == UNDEF) ? nullptr : getSet(sid);
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Invalid request data when removing bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr);
+        }
+        return;
+    }
+
+    // Do not validate Element ids here. Let the API return error for invalid ones,
+    // to allow valid ones to be removed.
+
+    reqs.add(new CommandRemoveSetElements(this, sid, move(eids), completion));
+}
+
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
 {
     if (!getSetElement(sid, eid))
@@ -20224,7 +20259,7 @@ bool MegaClient::updatescsetelements()
                 continue;
             }
 
-            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            LOG_verbose << (e->hasChanged(SetElement::CH_EL_NEW) ? "Adding" : "Updating") << " SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSETELEMENT, e, &key))
             {
                 return false;

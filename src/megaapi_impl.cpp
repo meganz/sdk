@@ -24155,6 +24155,43 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     waiter->notify();
 }
 
+void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
+    request->setTotalBytes(sid);
+    request->setMegaHandleList(eids);
+
+    request->performRequest = [this, request]()
+    {
+        const MegaHandleList* eidsList = request->getMegaHandleList();
+        if (!eidsList)
+        {
+            return API_ENOENT;
+        }
+
+        std::vector<handle> eids(eidsList->size());
+        for (size_t i = 0u; i < eids.size(); ++i)
+        {
+            eids[i] = eidsList->get(static_cast<int>(i));
+        }
+
+        client->removeSetElements(request->getTotalBytes(), move(eids),
+            [this, request](Error e, const vector<int64_t>* elErrs)
+            {
+                if (e == API_OK && elErrs)
+                {
+                    request->setMegaIntegerList(::mega::make_unique<MegaIntegerListPrivate>(*elErrs));
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
