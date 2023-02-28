@@ -18769,7 +18769,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     assert(childMeetingsDeleted);
                     if (auxJson->enterarray() && childMeetingsDeleted)
                     {
-                        while(auxJson->ishandle())
+                        while(auxJson->ishandle(MegaClient::CHATHANDLE))
                         {
                             childMeetingsDeleted->insert(auxJson->gethandle());
                         }
@@ -18860,32 +18860,17 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        j->storeobject(&cs.oldValue);
-        bool updated = j->storeobject(&cs.newValue);
-        if (!updated)
-        {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
-            {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EEXIST;
-            }
-         }
-         j->leavearray();
-         return e;
+        if (!j->storeobject(&cs.oldValue)) { cs.oldValue.clear(); }
+        if (!j->storeobject(&cs.newValue)) { cs.newValue.clear(); }
+        j->leavearray();
+        return API_OK;
     };
 
     auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
@@ -18893,33 +18878,30 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        cs.oldValue = j->getint();
-        cs.newValue = j->getint();
-        bool updated = cs.newValue > 0;
-        if (!updated)
+        auto getTsVal = [&j](m_time_t& out)
         {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
+            out = mega_invalid_timestamp;
+            if (j->isnumeric())
             {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EEXIST;
+                auto val = j->getint();
+                if (val > -1)
+                {
+                    out = val;
+                }
             }
-         }
-         j->leavearray();
-         return e;
+        };
+
+        getTsVal(cs.oldValue);
+        getTsVal(cs.newValue);
+        j->leavearray();
+        return API_OK;
     };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
@@ -18934,7 +18916,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tCs, "Title");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    if (!tCs.oldValue.empty() && !tCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18963,7 +18949,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tzCs, "TimeZone");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    if (!tzCs.oldValue.empty() && !tzCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18978,7 +18968,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(sdCs, "StartDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    if (sdCs.oldValue != mega_invalid_timestamp && sdCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18993,7 +18987,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(edCs, "EndDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    if (edCs.oldValue != mega_invalid_timestamp && edCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
