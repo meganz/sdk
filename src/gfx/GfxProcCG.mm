@@ -84,22 +84,19 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
 
     w = h = 0;
 
-    CFStringRef fileExtension = (__bridge CFStringRef)[sourcePath pathExtension];
-    CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
-    if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
-        AVAsset *asset = [AVAsset assetWithURL:[NSURL fileURLWithPath:sourcePath]];
+    NSString *fileExtension = [sourcePath pathExtension];
+    UTType *type = [UTType typeWithFilenameExtension:fileExtension];
+    
+    if ([type conformsToType:UTTypeMovie]) {
+        AVAsset *asset = [AVAsset assetWithURL:sourceURL];
         AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
         CGSize naturalSize = videoTrack.naturalSize;
         w = naturalSize.width;
         h = naturalSize.height;
-    } else {
+    } else if ([type conformsToType:UTTypeImage]) {
         UIImage *image = [UIImage imageWithContentsOfFile:sourcePath];
         w = image.size.width;
         h = image.size.height;
-    }
-
-    if (fileUTI) {
-        CFRelease(fileUTI);
     }
 
     if (!(w && h)) {
