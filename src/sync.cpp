@@ -6717,11 +6717,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                     if (childRow.syncNode)
                     {
-                        if (childRow.syncNode->getLocalPath() != fullPath.localPath)
-                        {
-                            auto s = childRow.syncNode->getLocalPath();
-                        }
-
+                        assert(childRow.syncNode->getLocalPath() == fullPath.localPath);
                         childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
                     }
 
