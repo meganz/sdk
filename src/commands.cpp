@@ -9855,7 +9855,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
             {
                 if (client->json.enterarray())
                 {
-                    while(client->json.ishandle())
+                    while(client->json.ishandle(MegaClient::CHATHANDLE))
                     {
                         childMeetingsDeleted.insert(client->json.gethandle());
                     }
