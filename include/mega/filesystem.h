@@ -47,7 +47,8 @@ enum FileSystemType
     FS_CIFS = 10,
     FS_NFS = 11,
     FS_SMB = 12,
-    FS_SMB2 = 13
+    FS_SMB2 = 13,
+    FS_LIFS = 14,
 };
 
 typedef void (*asyncfscallback)(void *);
@@ -418,6 +419,9 @@ struct MEGA_API DirAccess;
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
+    // if true, then size and mtime are valid
+    bool fopenSucceeded = false;
+
     // file size
     m_off_t size = 0;
 
@@ -449,7 +453,11 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) = 0;
+    virtual bool fopen(const LocalPath&, bool read, bool write,
+                DirAccess* iteratingDir = nullptr,
+                bool ignoreAttributes = false,
+                bool skipcasecheck = false,
+                LocalPath* actualLeafNameIfDifferent = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -897,7 +905,10 @@ struct MEGA_API FSNode
     static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
 
     // Same as the above but useful in situations where we don't have an FA handy.
-    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck);
+
+    // Use this in asserts() to check if race conditions may be occurring
+    static bool debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff);
 
     const string& toName_of_localname(const FileSystemAccess& fsaccess)
     {
