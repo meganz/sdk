@@ -1151,7 +1151,7 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {        
+    {
         for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
             nameid id = AttrMap::string2nameid(attr.c_str());
             auto it = previousNode->attrs.map.find(id);
@@ -7619,7 +7619,7 @@ Node* MegaClient::nodeByHandle(NodeHandle h)
     return mNodeManager.getNodeByHandle(h);
 }
 
-Node* MegaClient::nodeByPath(const char* path, Node* node)
+Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
 {
     if (!path) return NULL;
 
@@ -7630,7 +7630,6 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
     const char* bptr = path;
     int remote = 0;
     Node* n = nullptr;
-    Node* nn;
 
     // split path by / or :
     do {
@@ -7802,7 +7801,20 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = childnodebyname(n, c[l].c_str());
+                    Node* nn = nullptr;
+
+                    switch (type)
+                    {
+                    case FILENODE:
+                    case FOLDERNODE:
+                        nn = childnodebynametype(n, c[l].c_str(),
+                            l + 1 < int(c.size()) ? FOLDERNODE : type); // only the last leaf could be a file
+                        break;
+                    case TYPE_UNKNOWN:
+                    default:
+                        nn = childnodebyname(n, c[l].c_str());
+                        break;
+                    }
 
                     if (!nn)
                     {
@@ -7817,7 +7829,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
         l++;
     }
 
-    return n;
+    return (type == TYPE_UNKNOWN || (n && type == n->type)) ? n : nullptr;
 }
 
 // server-client deletion
@@ -18574,14 +18586,6 @@ bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 {
     auto it = mShareKeys.find(sharehandle);
     return it != mShareKeys.end() && it->second.second;
-}
-
-bool KeyManager::removeShare(handle sharehandle)
-{
-    bool removed = mShareKeys.erase(sharehandle);
-    removed |= mPendingOutShares.erase(sharehandle) != 0;
-    removed |= removePendingInShare(toNodeHandle(sharehandle)) != 0;
-    return removed;
 }
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
