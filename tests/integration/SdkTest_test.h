@@ -259,6 +259,7 @@ public:
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
     std::set<int> lastEvents;
+    std::set<MegaApi*> ignoredEventSources;
 
     void resetlastEvent()
     {
@@ -318,6 +319,8 @@ protected:
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
+    void ignoreEventSource(MegaApi* s);
+    void allowEventSource(MegaApi* s);
 
     void resetOnNodeUpdateCompletionCBs();
 

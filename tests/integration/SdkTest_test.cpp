@@ -729,12 +729,31 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 #endif
 
-void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
 {
     std::lock_guard<std::mutex> lock{lastEventMutex};
+
+    if (ignoredEventSources.find(s) != ignoredEventSources.end())
+    {
+        LOG_debug << "Event " << event->getType() << " ignored, based on its source";
+        return;
+    }
+
     lastEvent.reset(event->copy());
     lastEvents.insert(event->getType());
     LOG_debug << "Received event " << event->getType();
+}
+
+void SdkTest::ignoreEventSource(MegaApi* s)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    ignoredEventSources.insert(s);
+}
+
+void SdkTest::allowEventSource(MegaApi* s)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    ignoredEventSources.erase(s);
 }
 
 
@@ -10629,10 +10648,12 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
     // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    ignoreEventSource(&differentApi);
     resetlastEvent();
     MegaHandle hDummyFolder = createFolder(0, "DummyFolder_TriggerDbCommit", rootnode.get());
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&]() { return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
+    allowEventSource(&differentApi);
 
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
