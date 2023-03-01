@@ -2911,5 +2911,44 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     return std::min(1.0, progress);
 }
 
+#ifdef WIN32
+
+// get the Windows error message in UTF-8
+std::string winErrorMessage(DWORD error)
+{
+    if (error == 0xFFFFFFFF)
+        error = GetLastError();
+
+    LPWSTR lpMsgBuf;
+    if (!FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER |
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+        (LPWSTR)&lpMsgBuf, // FORMAT_MESSAGE_ALLOCATE_BUFFER treats the buffer like a pointer
+        0,
+        NULL))
+    {
+        // Handle the error.
+        return "[Unknown error " + std::to_string(error) + "]";
+    }
+
+    std::wstring wstr(lpMsgBuf);
+    // Free the buffer.
+    LocalFree(lpMsgBuf);
+
+    std::string r;
+    LocalPath::local2path(&wstr, &r, false);
+
+    // remove tailing \r\n
+    if (r.length() >= 2 && r[r.length() - 2] == '\r' && r[r.length() - 1] == '\n')
+        r.erase(r.length() - 2);
+
+    return r;
+}
+#endif
+
 } // namespace mega
 

@@ -198,6 +198,9 @@ public:
 
     ~PosixFileAccess();
 
+    std::string getErrorMessage(int error) const override;
+    bool isErrorFileNotFound(int error) const override;
+
 #ifdef HAVE_AIO_RT
 protected:
     virtual AsyncIOContext* newasynccontext();

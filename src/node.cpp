@@ -1380,29 +1380,26 @@ bool Node::applykey()
         else
         {
             // look for share key if not folder access with folder master key
-            if (h != me)
+            // this is a share node handle - check if share key is available at key's repository
+            // if not available, check if the node already has the share key
+            auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+            if (it == client->mNewKeyRepository.end())
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                Node* n;
+                if (!(n = client->nodebyhandle(h)) || !n->sharekey)
                 {
-                    Node* n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
-                    {
-                        continue;
-                    }
-
-                    sc = n->sharekey;
-                }
-                else
-                {
-                    sc = it->second.get();
+                    continue;
                 }
 
-                // this key will be rewritten when the node leaves the outbound share
-                foreignkey = true;
+                sc = n->sharekey;
             }
+            else
+            {
+                sc = it->second.get();
+            }
+
+            // this key will be rewritten when the node leaves the outbound share
+            foreignkey = true;
         }
 
         k = nodekeydata.c_str() + t;

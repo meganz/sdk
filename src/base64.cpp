@@ -415,21 +415,17 @@ void URLCodec::escape(string *plain, string *escaped)
     }
 
     escaped->clear();
-    int len = (int)plain->size();
-    int escapedIndex = 0;
-    for (int i = 0; i < len; i++)
+    for (char c: *plain)
     {
-        unsigned char c = (unsigned char)plain->at(i);
         if (issafe(c))
         {
             escaped->push_back(c);
-            escapedIndex++;
         }
         else
         {
-            escaped->resize(escapedIndex + 4); // include space for %12\0
-            snprintf(const_cast<char *>(escaped->data()) + escapedIndex, 4, "%%%02x", c);
-            escapedIndex += 3;
+            char buf[4];
+            snprintf(buf, sizeof buf, "%%%02x", c);
+            escaped->append(buf);
         }
     }
 }
