@@ -35,23 +35,13 @@ using namespace mega;
 
 #ifndef USE_FREEIMAGE
 
-GfxProviderCG::GfxProviderCG()
-    : imageSource(NULL)
-{
+GfxProviderCG::GfxProviderCG() {
     w = h = 0;
-    thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
-                                                &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue);
-    CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue);
-    
     semaphore = dispatch_semaphore_create(0);
 }
 
 GfxProviderCG::~GfxProviderCG() {
     freebitmap();
-    if (thumbnailParams) {
-        CFRelease(thumbnailParams);
-    }
 }
 
 const char* GfxProviderCG::supportedformats() {
@@ -94,23 +84,37 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
         w = naturalSize.width;
         h = naturalSize.height;
     } else if ([type conformsToType:UTTypeImage]) {
-        UIImage *image = [UIImage imageWithContentsOfFile:sourcePath];
-        w = image.size.width;
-        h = image.size.height;
+        CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
+        CGImageSourceRef imageSource = CGImageSourceCreateWithURL((__bridge CFURLRef)sourceURL, imageOptions);
+        if (imageSource) {
+            CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
+            if (imageProperties) {
+                CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
+                CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
+                if (width && heigth) {
+                    CGFloat value;
+                    if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
+                        w = value;
+                    }
+                    if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                        h = value;
+                    }
+                }
+                CFRelease(imageProperties);
+            }
+            CFRelease(imageSource);
+        }
+        
+        if (imageOptions) {
+            CFRelease(imageOptions);
+        }
     }
 
     if (!(w && h)) {
         w = h = size;
     }
     return w && h;
-}
-
-CGImageRef GfxProviderCG::createThumbnailWithMaxSize(int size) {
-    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
-    CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
-    CFRelease(maxSize);
-
-    return CGImageSourceCreateThumbnailAtIndex(imageSource, 0, thumbnailParams);
 }
 
 static inline CGRect tileRect(size_t w, size_t h)
@@ -184,10 +188,6 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
 }
 
 void GfxProviderCG::freebitmap() {
-    if (imageSource) {
-        CFRelease(imageSource);
-        imageSource = NULL;
-    }
     w = h = 0;
 }
 
