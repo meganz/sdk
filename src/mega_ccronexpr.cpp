@@ -58,9 +58,9 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
 
 #define CRON_MAX_STR_LEN_TO_SPLIT 256
 #define CRON_MAX_NUM_TO_SRING 1000000000
-/* computes number of digits in decimal number, +1 for -ve sign */
-#define CRON_NUM_OF_DIGITS(num) (1 + \
-                                abs(num) < 10 ? 1 : \
+/* computes number of digits in decimal number */
+#define CRON_NUM_OF_DIGITS(num) ((num < 0 ? 1 : 0) + \
+                                (abs(num) < 10 ? 1 : \
                                 (abs(num) < 100 ? 2 : \
                                 (abs(num) < 1000 ? 3 : \
                                 (abs(num) < 10000 ? 4 : \
@@ -68,7 +68,7 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
                                 (abs(num) < 1000000 ? 6 : \
                                 (abs(num) < 10000000 ? 7 : \
                                 (abs(num) < 100000000 ? 8 : \
-                                (abs(num) < 1000000000 ? 9 : 10)))))))))
+                                (abs(num) < 1000000000 ? 9 : 10))))))))))
 
 #ifndef _WIN32
 struct tm *gmtime_r(const time_t *timep, struct tm *result);
