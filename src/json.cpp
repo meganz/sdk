@@ -947,7 +947,7 @@ void JSONWriter::element(int n)
     {
         mJson.append(",");
     }
-    mJson.append(to_string(n));
+    mJson.append(std::to_string(n));
 }
 
 void JSONWriter::element(handle h, int len)
