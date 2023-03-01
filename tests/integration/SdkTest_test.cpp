@@ -1181,14 +1181,25 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
 #ifdef ENABLE_CHAT
 void SdkTest::createChatScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 {
+    MegaHandle secondaryAccountHandle = megaApi[apiIndex + 1]->getMyUser()->getHandle();
     MegaHandle auxChatid = UNDEF;
     for (auto &it: mApi[apiIndex].chats)
     {
-        if (it.second->isGroup()
-                && it.second->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR)
+        if (!it.second->isGroup()
+                || it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR
+                || !it.second->getPeerList())
         {
-            auxChatid = it.first;
-            break;
+            continue;
+        }
+
+        const MegaTextChatPeerList* peerList = it.second->getPeerList();
+        for (int i = 0; i < peerList->size(); ++i)
+        {
+            if (peerList->getPeerHandle(i) == secondaryAccountHandle)
+            {
+                auxChatid = it.first;
+                break;
+            }
         }
     }
 
