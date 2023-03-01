@@ -215,7 +215,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         // unless coming from a trusted source (the local cache)
         bool auth = true;
 
-        if ((!mKeyManager.isSecure() || !mKeyManager.generation()) && s->outgoing > 0)
+        if (s->outgoing > 0)
         {
             // Once secure=true, the "ha" for shares are ignored or set to 0, so
             // comparing against "ha" values is not needed.
@@ -224,7 +224,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 LOG_warn << "Attempt to create dislocated outbound share foiled: " << toNodeHandle(s->h);
                 auth = false;
             }
-            else
+            else if (!mKeyManager.isSecure() || !mKeyManager.generation())
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
