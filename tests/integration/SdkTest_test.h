@@ -240,6 +240,33 @@ public:
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
 #endif
+
+        void receiveEvent(MegaEvent* e)
+        {
+            if (!e) return;
+
+            lock_guard<mutex> g(getEventMutex());
+            lastEvent.reset(e->copy());
+            lastEvents.insert(e->getType());
+        }
+
+        void resetlastEvent()
+        {
+            lock_guard<mutex> g(getEventMutex());
+            lastEvent.reset();
+            lastEvents.clear();
+        }
+
+        bool lastEventsContain(int type)
+        {
+            lock_guard<mutex> g(getEventMutex());
+            return lastEvents.find(type) != lastEvents.end();
+        }
+
+    private:
+        static mutex& getEventMutex() { static mutex evMtx; return evMtx; } // a single mutex will do fine in tests
+        shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
+        set<int> lastEvents;
     };
 
     std::vector<PerApi> mApi;
@@ -255,25 +282,6 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
-
-    std::mutex lastEventMutex;
-    std::unique_ptr<MegaEvent> lastEvent;
-    std::set<int> lastEvents;
-    std::set<MegaApi*> ignoredEventSources;
-
-    void resetlastEvent()
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        lastEvent.reset();
-        lastEvents.clear();
-    }
-
-    bool lastEventsContains(int type)
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        return lastEvents.find(type) != lastEvents.end();
-    }
-
 
     MegaHandle mBackupId = UNDEF;
     unique_ptr<MegaHandleList> mMegaFavNodeList;
@@ -319,8 +327,6 @@ protected:
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
-    void ignoreEventSource(MegaApi* s);
-    void allowEventSource(MegaApi* s);
 
     void resetOnNodeUpdateCompletionCBs();
 
