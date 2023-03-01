@@ -650,7 +650,6 @@ public:
 class MEGA_API CommandSetShare : public Command
 {
     handle sh;
-    User* user;
     accesslevel_t access;
     string msg;
     string personal_representation;
@@ -997,7 +996,7 @@ class MEGA_API CommandValidatePassword : public Command
 public:
     bool procresult(Result) override;
 
-    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+    CommandValidatePassword(MegaClient*, const char*, const vector<byte>&);
 };
 
 class MEGA_API CommandGetEmailLink : public Command
@@ -1525,6 +1524,7 @@ public:
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
+    bool procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
@@ -1568,6 +1568,18 @@ private:
 
 class SetElement;
 
+class MEGA_API CommandPutSetElements : public CommandSE
+{
+public:
+    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<pair<string, string>>&& encrDetails,
+                         std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<vector<SetElement>> mElements; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> mCompletion;
+};
+
 class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:
@@ -1578,6 +1590,18 @@ public:
 private:
     unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
     std::function<void(Error, const SetElement*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSetElements : public CommandSE
+{
+public:
+    CommandRemoveSetElements(MegaClient*, handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    handle_vector mElemIds;
+    std::function<void(Error, const vector<int64_t>*)> mCompletion;
 };
 
 class MEGA_API CommandRemoveSetElement : public CommandSE

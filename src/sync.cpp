@@ -673,7 +673,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case STORAGE_OVERQUOTA:
         return "Reached storage quota limit";
     case ACCOUNT_EXPIRED:
-        return "Account expired (business or Pro Flexi)";
+        return "Your plan has expired";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
     case REMOTE_PATH_HAS_CHANGED:
@@ -2360,11 +2360,11 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
             syncs.fsaccess->mkdirlocal(localdebris, true, false);
         }
 
-        sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+        snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
         if (i >= 0)
         {
-            sprintf(strchr(buf, 0), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
+            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
         }
 
         day = buf;

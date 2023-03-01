@@ -491,7 +491,7 @@ static char* to_string(int num) {
     if (abs(num) >= CRON_MAX_NUM_TO_SRING) return NULL;
     char* str = (char*) cronMalloc(CRON_NUM_OF_DIGITS(num) + 1);
     if (!str) return NULL;
-    int res = sprintf(str, "%d", num);
+    int res = snprintf(str, CRON_NUM_OF_DIGITS(num) + 1, "%d", num);
     if (res < 0) return NULL;
     return str;
 }

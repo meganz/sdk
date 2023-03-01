@@ -1132,6 +1132,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+const MegaIntegerList* MegaRequest::getMegaIntegerList() const
+{
+    return nullptr;
+}
+
 MegaSet* MegaRequest::getMegaSet() const
 {
     return nullptr;
@@ -4427,6 +4432,11 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
+MegaNode* MegaApi::getNodeByPathOfType(const char* path, MegaNode* n, int type)
+{
+    return pImpl->getNodeByPathOfType(path, n, type);
+}
+
 MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
     return pImpl->getNodeByHandle(h);
@@ -5785,6 +5795,11 @@ void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->fetchSet(sid, listener);
 }
 
+void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+{
+    pImpl->putSetElements(sid, nodes, names, listener);
+}
+
 void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
@@ -5799,6 +5814,11 @@ void MegaApi::updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t orde
 void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener)
 {
     pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
+}
+
+void MegaApi::removeSetElements(MegaHandle sid, const vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    pImpl->removeSetElements(sid, eids, listener);
 }
 
 void MegaApi::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
