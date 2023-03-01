@@ -204,6 +204,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         {
             memcpy(s->key, shareKey.data(), sizeof(s->key));
             s->have_key = 1;
+            s->outgoing = s->outgoing > 0 ? -1 : s->outgoing;   // always authenticated when loaded from KeyManager
         }
     }
 
