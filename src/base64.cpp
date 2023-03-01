@@ -415,21 +415,19 @@ void URLCodec::escape(string *plain, string *escaped)
     }
 
     escaped->clear();
-    int len = (int)plain->size();
-    int escapedIndex = 0;
-    for (int i = 0; i < len; i++)
+    size_t len = plain->size();
+    for (size_t i = 0; i < len; i++)
     {
-        unsigned char c = (unsigned char)plain->at(i);
+        unsigned char c = (unsigned char)(*plain)[i];
         if (issafe(c))
         {
             escaped->push_back(c);
-            escapedIndex++;
         }
         else
         {
-            escaped->resize(escapedIndex + 3);
-            sprintf((char *)escaped->c_str() + escapedIndex, "%%%02x", c);
-            escapedIndex += 3;
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%%%02x", c);
+            escaped->append(buf);
         }
     }
 }

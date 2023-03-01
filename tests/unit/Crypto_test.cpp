@@ -189,7 +189,7 @@ TEST(Crypto, Ed25519_Signing)
                           "dcvskHUydAL0qNOqbCwvt1Y7xIQfclR0SQE/AbwuJui0mt3"
                           "PuGjM42T/DQ==";
     string estr         = "AQE=";
-    
+
     string fpRSAstr     = "GN2sWsukWnEarqVPS7mE5sPro38";                            // Base64 url encoded
     string fpRSAhex     = "18ddac5acba45a711aaea54f4bb984e6c3eba37f";
 
@@ -314,12 +314,9 @@ TEST(Crypto, SymmCipher_xorblock_bytes)
 
 TEST(Crypto, SymmCipher_xorblock_block_aligned)
 {
-    size_t alignSrc = 0; // force dest to be word aligned on all platforms
     byte src[SymmCipher::BLOCKSIZE];
     byte n = 0;
     std::generate(src, src + sizeof(src), [&n]() {return n++; });
-    size_t alignDest = 0; // force dest to be word aligned on all platforms
-    alignDest += alignSrc; // force use of vars only existing for alignment
     ASSERT_EQ(ptrdiff_t((ptrdiff_t)src % sizeof(ptrdiff_t)), (ptrdiff_t)0);
 
     byte dest[SymmCipher::BLOCKSIZE];
@@ -337,13 +334,10 @@ TEST(Crypto, SymmCipher_xorblock_block_aligned)
 
 TEST(Crypto, SymmCipher_xorblock_block_unaligned)
 {
-    size_t alignSrc = 0; // force dest to be word aligned on all platforms
     byte src[SymmCipher::BLOCKSIZE + 1];
     byte n = 0;
     std::generate(src, src + sizeof(src), [&n]() {return n++; });
 
-    size_t alignDest = 0; // force dest to be word aligned on all platforms
-    alignDest += alignSrc; // force use of vars only existing for alignment
     byte dest[SymmCipher::BLOCKSIZE];
     n = 100;
     std::generate(dest, dest + sizeof(dest), [&n]() { return n = static_cast<byte>(n + 3); });
@@ -352,6 +346,6 @@ TEST(Crypto, SymmCipher_xorblock_block_unaligned)
     byte* output = result;
     std::transform(src + 1, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
     SymmCipher::xorblock(src + 1, dest); // un-aligned case
-    
+
     ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
 }

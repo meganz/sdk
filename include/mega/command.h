@@ -996,7 +996,7 @@ class MEGA_API CommandValidatePassword : public Command
 public:
     bool procresult(Result) override;
 
-    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+    CommandValidatePassword(MegaClient*, const char*, const vector<byte>&);
 };
 
 class MEGA_API CommandGetEmailLink : public Command
@@ -1590,6 +1590,18 @@ public:
 private:
     unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
     std::function<void(Error, const SetElement*)> mCompletion;
+};
+
+class MEGA_API CommandRemoveSetElements : public CommandSE
+{
+public:
+    CommandRemoveSetElements(MegaClient*, handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    handle_vector mElemIds;
+    std::function<void(Error, const vector<int64_t>*)> mCompletion;
 };
 
 class MEGA_API CommandRemoveSetElement : public CommandSE

@@ -746,12 +746,31 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 #endif
 
-void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
 {
     std::lock_guard<std::mutex> lock{lastEventMutex};
+
+    if (ignoredEventSources.find(s) != ignoredEventSources.end())
+    {
+        LOG_debug << "Event " << event->getType() << " ignored, based on its source";
+        return;
+    }
+
     lastEvent.reset(event->copy());
     lastEvents.insert(event->getType());
     LOG_debug << "Received event " << event->getType();
+}
+
+void SdkTest::ignoreEventSource(MegaApi* s)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    ignoredEventSources.insert(s);
+}
+
+void SdkTest::allowEventSource(MegaApi* s)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    ignoredEventSources.erase(s);
 }
 
 
@@ -3520,7 +3539,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     char emailfake[64];
     srand(unsigned(time(NULL)));
-    sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
+    snprintf(emailfake, sizeof(emailfake), "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
     n = megaApi[0]->getNodeByHandle(hfolder2);
@@ -7218,7 +7237,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
         // Create file with unescaped character ex: f%5cf
         char unescapedName[6];
-        sprintf(unescapedName, "f%%%02xf", i);
+        snprintf(unescapedName, sizeof(unescapedName), "f%%%02xf", i);
         if (createLocalFile(uploadPath, unescapedName))
         {
             const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
@@ -7235,7 +7254,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         }
 
         char escapedName[4];
-        sprintf(escapedName, "f%cf", i);
+        snprintf(escapedName, sizeof(escapedName), "f%cf", i);
         const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
         if (escapedFileName && !strcmp(escapedName, escapedFileName))
         {
@@ -8597,6 +8616,103 @@ TEST_F(SdkTest, SyncPaths)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
+}
+
+/**
+ * @brief TEST_F SearchByPathOfType
+ *
+ * Testing search nodes by path of specified type
+ */
+TEST_F(SdkTest, SearchByPathOfType)
+{
+    LOG_info << "___TEST SearchByPathOfType___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{ megaApi[0]->getRootNode() };
+    string duplicateName = "fileAndFolderName";
+
+    // Upload test file
+    MegaHandle fileInRoot = INVALID_HANDLE;
+    ASSERT_TRUE(createFile(duplicateName, false)) << "Couldn't create file " << duplicateName;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileInRoot, duplicateName.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    // Test not found cases:
+    {
+        for (auto type : {MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER, MegaNode::TYPE_UNKNOWN})
+        {
+            for (auto pathToNonExisting : {"this/does/not/exist", "/this/does/not/exist", "./thisdoesnotexist", "thisdoesnotexist"})
+            {
+                std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(pathToNonExisting, nullptr, type)};
+                ASSERT_FALSE(fileNode);
+            }
+        }
+    }
+
+    // Test file search using relative path
+    std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_FALSE(fileNode) << "Found node for file while explicitly searching for folder " << duplicateName;
+
+    // Create test folder
+    auto folderInRoot = createFolder(0, duplicateName.c_str(), rootNode.get());
+    ASSERT_NE(folderInRoot, INVALID_HANDLE) << "Error creating remote folder " << duplicateName;
+
+    // Test search using relative path
+    std::unique_ptr<MegaNode> folderNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    // Test search using absolute path
+    string absolutePath = '/' + duplicateName;
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str()));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << absolutePath;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
 }
 
 /**
@@ -10606,12 +10722,27 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(newElErrs->size(), 2);
     ASSERT_EQ(newElErrs->get(0), API_OK);
     ASSERT_EQ(newElErrs->get(1), API_ENOENT);
-    unique_ptr<MegaSetElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
-    ASSERT_NE(elp_b4lo, nullptr);
-    ASSERT_EQ(elp_b4lo->id(), eh);
-    ASSERT_EQ(elp_b4lo->name(), elattrs);
+    unique_ptr<MegaSetElement> newEl(megaApi[0]->getSetElement(sh, eh));
+    ASSERT_NE(newEl, nullptr);
+    ASSERT_EQ(newEl->id(), eh);
+    ASSERT_EQ(newEl->name(), elattrs);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
+
+    // Remove 2, only the first one will succeed
+    differentApiDtls.setElementUpdated = false;
+    vector<MegaHandle> removedElIds = { eh, INVALID_HANDLE };
+    MegaIntegerList* removedElErrs = nullptr;
+    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds);
+    elErrs.reset(removedElErrs);
+    ASSERT_EQ(err, API_OK);
+    ASSERT_NE(removedElErrs, nullptr);
+    ASSERT_EQ(removedElErrs->size(), 2);
+    ASSERT_EQ(removedElErrs->get(0), API_OK);
+    ASSERT_EQ(removedElErrs->get(1), API_EARGS); // API_ENOENT was probably better
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
 
     // Add 2 more; both will succeed
     differentApiDtls.setElementUpdated = false;
@@ -10631,21 +10762,27 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(newElls->get(1)->name(), namebulk12);
     MegaHandle ehBulk = newElls->get(1)->id();
     ASSERT_NE(ehBulk, INVALID_HANDLE);
-    ASSERT_EQ(newElls->get(0)->name(), namebulk11);
-    ehBulk = newElls->get(0)->id();
+    const MegaSetElement* elp_b4lo = newElls->get(0);
+    ASSERT_NE(elp_b4lo, nullptr);
+    ASSERT_EQ(elp_b4lo->name(), namebulk11);
+    ehBulk = elp_b4lo->id();
     ASSERT_NE(ehBulk, INVALID_HANDLE);
     ASSERT_NE(newElErrs, nullptr);
     ASSERT_EQ(newElErrs->size(), 2);
     ASSERT_EQ(newElErrs->get(0), API_OK);
     ASSERT_EQ(newElErrs->get(1), API_OK);
     elCount = megaApi[0]->getSetElementCount(sh);
-    ASSERT_EQ(elCount, 3u);
+    ASSERT_EQ(elCount, 2u);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
     // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    ignoreEventSource(&differentApi);
+    resetlastEvent();
     MegaHandle hDummyFolder = createFolder(0, "DummyFolder_TriggerDbCommit", rootnode.get());
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
+    ASSERT_TRUE(WaitFor([&]() { return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
+    allowEventSource(&differentApi);
 
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
@@ -10662,15 +10799,15 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
     elCount = megaApi[0]->getSetElementCount(sh);
-    ASSERT_EQ(elCount, 3u) << "Wrong Element count after resumeSession";
+    ASSERT_EQ(elCount, 2u) << "Wrong Element count after resumeSession";
 
-    unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, ehBulk));
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
     ASSERT_EQ(ellp->setId(), elp_b4lo->setId());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
-    ASSERT_EQ(ellp->name(), elattrs);
+    ASSERT_EQ(ellp->name(), namebulk11);
 
     // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());

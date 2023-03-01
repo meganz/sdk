@@ -4432,6 +4432,11 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
+MegaNode* MegaApi::getNodeByPathOfType(const char* path, MegaNode* n, int type)
+{
+    return pImpl->getNodeByPathOfType(path, n, type);
+}
+
 MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
     return pImpl->getNodeByHandle(h);
@@ -5809,6 +5814,11 @@ void MegaApi::updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t orde
 void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener)
 {
     pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
+}
+
+void MegaApi::removeSetElements(MegaHandle sid, const vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    pImpl->removeSetElements(sid, eids, listener);
 }
 
 void MegaApi::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
