@@ -84,7 +84,10 @@ void DelegateMEGAGlobalListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNod
 
 void DelegateMEGAGlobalListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *setList) {
     if (listener !=nil && [listener respondsToSelector:@selector(onSetsUpdate:sets:)]) {
-        int size = setList->size();
+        int size = 0;
+        if (setList) {
+            size = setList->size();
+        }
         NSMutableArray *sets = [[NSMutableArray alloc] initWithCapacity:size];
         
         for (int i = 0; i < size; i++) {
@@ -103,7 +106,10 @@ void DelegateMEGAGlobalListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetL
 
 void DelegateMEGAGlobalListener::onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList) {
     if (listener !=nil && [listener respondsToSelector:@selector(onSetElementsUpdate:setElements:)]) {
-        int size = setElementList->size();
+        int size = 0;
+        if (setElementList) {
+            size = setElementList->size();
+        }
         NSMutableArray *setsElements = [[NSMutableArray alloc] initWithCapacity:size];
         
         for (int i = 0; i < size; i++) {

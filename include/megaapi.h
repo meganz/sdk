@@ -529,7 +529,8 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
-            CHANGE_TYPE_COUNTER            = 0x2000,
+            CHANGE_TYPE_COUNTER         = 0x2000,
+            CHANGE_TYPE_SENSITIVE       = 0x4000
         };
 
         static const int INVALID_DURATION = -1;
@@ -692,11 +693,21 @@ class MegaNode
         virtual int getVideocodecid();
 
         /**
-         * @brief Get the attribute of the node representing if node is marked as favourite.
+         * @brief Return if the node is marked as favourite.
          *
          * @return True if node is marked as favourite, otherwise return false (attribute is not set).
          */
         virtual bool isFavourite();
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive 
+        *
+        * see MegaApi::isSensitiveInherit to see if the node is marked sensitive
+        *   or as descendent of a node that is marked sensitive
+        *
+        * @param node node to inspect
+        */
+        virtual bool isMarkedSensitive();
 
         /**
          * @brief Get the attribute of the node representing its label.
@@ -2400,6 +2411,16 @@ class MegaShare
          * @return True if the sharing is pending, otherwise false.
          */
         virtual bool isPending();
+
+        /**
+         * @brief Returns true if the sharing is verified
+         *
+         * A sharing is verified when the keys have been shared with the other user after
+         * verifying his credentials (see MegaApi::verifyCredentials).
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isVerified();
 };
 
 #ifdef ENABLE_CHAT
@@ -2491,12 +2512,13 @@ public:
 
     enum
     {
-        CHANGE_TYPE_ATTACHMENT      = 0x01,
-        CHANGE_TYPE_FLAGS           = 0x02,
-        CHANGE_TYPE_MODE            = 0x04,
-        CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
-        CHANGE_TYPE_SCHED_MEETING   = 0x10,
-        CHANGE_TYPE_SCHED_OCURR     = 0x20,
+        CHANGE_TYPE_ATTACHMENT          = 0x01,
+        CHANGE_TYPE_FLAGS               = 0x02,
+        CHANGE_TYPE_MODE                = 0x04,
+        CHANGE_TYPE_CHAT_OPTIONS        = 0x08,
+        CHANGE_TYPE_SCHED_MEETING       = 0x10,
+        CHANGE_TYPE_SCHED_REPLACE_OCURR = 0x20,
+        CHANGE_TYPE_SCHED_APPEND_OCURR  = 0x40,
     };
 
     virtual ~MegaTextChat();
@@ -2627,6 +2649,10 @@ public:
      *
      * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
      * Check if scheduled meetings occurrences have changed
+     * (current ones are automatically discarded)
+     *
+     * CHANGE_TYPE_SCHED_APPEND_OCURR
+     * Check if we have received more scheduled meetings occurrences
      *
      * @return true if this chat has an specific change
      */
@@ -2637,8 +2663,6 @@ public:
      *
      * This value is only useful for chats notified by MegaListener::onChatsUpdate or
      * MegaGlobalListener::onChatsUpdate that can notify about chat modifications.
-     *
-     * @return The returned value is an OR combination of these flags:
      *
      * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
@@ -2657,6 +2681,12 @@ public:
      *
      * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
      * Check if scheduled meetings occurrences have changed
+     * (current ones are automatically discarded)
+     *
+     * CHANGE_TYPE_SCHED_APPEND_OCURR
+     * Check if we have received more scheduled meetings occurrences
+     *
+     * @return The returned value is an OR combination of these flags
      */
     virtual int getChanges() const;
 
@@ -2683,14 +2713,17 @@ public:
     virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
 
     /**
-     * @brief Returns the scheduled meetings occurrences list.
+     * @brief Returns a list with updated the scheduled meetings occurrences.
      *
      * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
      * be only valid until the MegaTextChat is deleted.
      *
-     * @return The list of the scheduled meetings occurrences.
+     * The value returned by this method will only be valid when
+     * MegaTextChat::hasChange(CHANGE_TYPE_SCHED_APPEND_OCURR) returns true
+     *
+     * @return The list of the updated scheduled meetings occurrences.
      */
-    virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
+    virtual const MegaScheduledMeetingList* getUpdatedOccurrencesList() const;
 
     /**
      * @brief Returns a MegaHandleList with the handles of the scheduled meetings that have changed
@@ -3258,19 +3291,6 @@ public:
     virtual MegaIntegerMap* copy() const;
 
     /**
-     * @brief Retrieves a pair of values located at index position, and store them in output parameters key and value.
-     * Returns true if index is < map size, otherwise returns false
-     * If index is not out of range, key will be copied in first parameter (key)
-     * If index is not out of range, value will be copied in second parameter (value)
-     *
-     * @param index indicates the position of the pair of elements we want to access in the map (check std::advance)
-     * @param key Key of the string that you want to get from the map
-     * @param value The value associated to the key will be copied in this param
-     * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
-     */
-    virtual bool at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const;
-
-    /**
      * @brief Returns the list of keys in the MegaIntegerMap
      *
      * You take the ownership of the returned value
@@ -3278,6 +3298,16 @@ public:
      * @return A MegaIntegerList containing the keys present in the MegaIntegerMap
      */
     virtual MegaIntegerList* getKeys() const;
+
+    /**
+     * @brief Returns a list of values for the provided key
+     *
+     * You take the ownership of the returned value
+     *
+     * @param key Key of the element that you want to get from the map
+     * @return A MegaIntegerList containing the list of values for the provided key
+     */
+    virtual MegaIntegerList* get(int64_t key) const;
 
     /**
      * @brief Sets a value in the map for the given key.
@@ -3288,13 +3318,13 @@ public:
      * @param key The key in the map.
      * @param value The new value for the key in the map.
      */
-    virtual void set(const long long& /*key*/, const long long& /*value*/);
+    virtual void set(int64_t key, int64_t value);
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map
      * @return Number of pairs in the map
      */
-    virtual unsigned long long size() const;
+    virtual int64_t size() const;
 };
 
 /**
@@ -4189,7 +4219,10 @@ class MegaRequest
             TYPE_DEL_SCHEDULED_MEETING                                      = 159,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 160,
             TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES                        = 161,
-            TOTAL_OF_REQUEST_TYPES                                          = 162,
+            TYPE_OPEN_SHARE_DIALOG                                          = 162,
+            TYPE_UPGRADE_SECURITY                                           = 163,
+            TYPE_PUT_SET_ELEMENTS                                           = 164,
+            TOTAL_OF_REQUEST_TYPES                                          = 165,
         };
 
         virtual ~MegaRequest();
@@ -5001,6 +5034,18 @@ class MegaRequest
         virtual MegaRecentActionBucketList *getRecentActions() const;
 
          /**
+         * @brief Returns a list of integers associated with this request
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createSetElements -> error codes for all requested Elements
+         *
+         * @return list of integers associated with this request (can be null)
+         */
+        virtual const MegaIntegerList* getMegaIntegerList() const;
+
+         /**
          * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -5021,7 +5066,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::fetchSet
          *
-         * @return lis of elements in the requested MegaSet, or null if Set not found
+         * @return list of elements in the requested MegaSet, or null if Set not found
          */
         virtual MegaSetElementList* getMegaSetElementList() const;
 };
@@ -5058,6 +5103,8 @@ public:
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
         EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
+        EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
@@ -7945,6 +7992,13 @@ class MegaGlobalListener
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
          *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -8534,6 +8588,13 @@ class MegaListener
          * - MegaEvent::EVENT_RELOADING: when the API server has forced a full reload. The app should show a
          * similar UI to the one displayed during the initial load (fetchnodes).
          *
+         * - MegaEvent::EVENT_RELOAD: App should force a reload when receives this event.
+         *
+         * - MegaEvent::EVENT_UPGRADE_SECURITY: Account upgraded. Cryptography relies now on keys
+         * attribute information. See MegaApi::upgradeSecurity
+         *
+         * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -8853,8 +8914,9 @@ class MegaApi
             NODE_ATTR_COORDINATES = 1,
             NODE_ATTR_ORIGINALFINGERPRINT = 2,
             NODE_ATTR_LABEL = 3,
-            NODE_ATTR_FAV = 4,
+            NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
+            NODE_ATTR_SEN = 6 // "sen"
         };
 
         enum {
@@ -10979,8 +11041,7 @@ class MegaApi
         /**
          * @brief Reset credentials of a given user
          *
-         * Call this function to forget the existing authentication of keys and signatures for a given
-         * user. A full reload of the account will start the authentication process again.
+         * Call this function to undo the verification of credentials done by MegaApi::verifyCrendentials
          *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:
@@ -11428,10 +11489,62 @@ class MegaApi
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Upgrade cryptographic security
+         *
+         * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+         * proceed with the cryptographic upgrade process.
+         * This should happen only once per account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPGRADE_SECURITY
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void upgradeSecurity(MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Allows to change the hardcoded value of the "secure" flag
+         *
+         * With this feature flag set, the client will manage encryption keys for
+         * shared folders in a secure way. Legacy clients won't be able to decrypt
+         * shared folders created with this flag enabled.
+         *
+         * Manual verification of credentials of users (both sharers AND sharees) is
+         * required in order to decrypt shared folders correctly.
+         *
+         * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+         * result on unexpected behavior.
+         *
+         * @param enable New value of the flag
+         */
+        void setSecureFlag(bool enable);
+
+        /**
+         * @brief Creates a new share key for the node if there is no share key already created.
+         *
+         * Apps should call it before starting any new share (MegaApi::share). Otherwise, the
+         * share request may fail.
+         *
+         * Note that it's safe to call this method for the same node multiple times.
+         *
+        * The associated request type with this request is MegaRequest::TYPE_OPEN_SHARE_DIALOG
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MegaRequest::getNodeHandle - Returns the handle of the node to share
+        *
+         * @param node The folder to share. It must be a non-root folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Share or stop sharing a folder in MEGA with another user using a MegaUser
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
@@ -11463,6 +11576,11 @@ class MegaApi
          *
          * To share a folder with an user, set the desired access level in the level parameter. If you
          * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+         *
+         * Before calling this method, the app should call MegaApi::openShareDialog in order to
+         * ensure that a share-key exists. If it doesn't exist, it will be created by the call to
+         * MegaApi::openShareDialog. If the app doesn't call it in advance, this method will return
+         * API_EKEY (unless there are other shares already for this node)
          *
          * The associated request type with this request is MegaRequest::TYPE_SHARE
          * Valid data in the MegaRequest object received on callbacks:
@@ -12394,6 +12512,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Mark a node as sensitive
+         * 
+         * @note Descendants will inherit the sensitive property.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+         *
+         * @param node Node that will receive the information.
+         * @param sensitive if true set node as sensitive, otherwise remove the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener = NULL);
+
+        /**
+        * @brief Ascertain if the node is marked as sensitive or a descendent of such
+        *
+        * see MegaNode::isMarkedSensitive to see if the node is sensitive
+        *
+        * @param node node to inspect
+        */
+        bool isSensitiveInherited(MegaNode* node);
 
         /**
          * @brief Get a list of favourite nodes.
@@ -15959,7 +16104,9 @@ class MegaApi
         int getNumUnreadUserAlerts();
 
         /**
-         * @brief Get a list with all inbound sharings from one MegaUser
+         * @brief Get a list with all active inbound sharings from one MegaUser
+         *
+         * This method returns both verified and not verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15973,7 +16120,9 @@ class MegaApi
         MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all inboud sharings
+         * @brief Get a list with all active inbound sharings
+         *
+         * This method returns both verified and not verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15986,7 +16135,9 @@ class MegaApi
         MegaNodeList *getInShares(int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with all active inboud sharings
+         * @brief Get a list with all active inbound sharings
+         *
+         * This method returns verified shares.
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
@@ -15997,6 +16148,16 @@ class MegaApi
          * @return List of MegaShare objects that other users are sharing with this account
          */
         MegaShareList *getInSharesList(int order = ORDER_NONE);
+
+        /**
+         * @brief Get a list with all unverified inbound sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects that other users are sharing with this account
+         */
+        MegaShareList *getUnverifiedInShares(int order = ORDER_NONE);
 
         /**
          * @brief Get the user relative to an incoming share
@@ -16071,6 +16232,8 @@ class MegaApi
         /**
          * @brief Get a list with all active and pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
          * MegaApi::ORDER_DEFAULT_DESC
          *
@@ -16084,6 +16247,8 @@ class MegaApi
         /**
          * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
+         * This method returns both, verified and unverified shares.
+         *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
          * You take the ownership of the returned value
@@ -16096,6 +16261,8 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
@@ -16106,12 +16273,24 @@ class MegaApi
         /**
          * @brief Get a list with all pending outbound sharings
          *
+         * This method returns both, verified and unverified shares.
+         *
          * You take the ownership of the returned value
          *
          * @deprecated Use MegaNode::getOutShares instead of this function
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
+
+        /**
+         * @brief Get a list with all unverified sharings
+         *
+         * You take the ownership of the returned value
+         *
+         * @param order Sorting order to use
+         * @return List of MegaShare objects
+         */
+        MegaShareList *getUnverifiedOutShares(int order = ORDER_NONE);
 
         /**
          * @brief Check if a node belongs to your own cloud
@@ -17287,7 +17466,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -19028,9 +19207,9 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the chatroom
-         * - MegaRequest::getName - Returns the dateTime from which we want to fetch occurrences
-         * - MegaRequest::getEmail - Returns the dateTime until we want to fetch occurrences
-         * - MegaRequest::getNumber - Returns the number of occurrences we want to fetch
+         * - MegaRequest::getNumber - Returns the dateTime from which we want to fetch occurrences
+         * - MegaRequest::getTotalBytes - Returns the dateTime until we want to fetch occurrences
+         * - MegaRequest::getTransferredBytes - Returns the number of occurrences we want to fetch
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the chatroom does not exists
@@ -20277,6 +20456,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request creation of multiple Elements for a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getMegaHandleList - Returns a list containing the file handles corresponding to the new Elements
+         * - MegaRequest::getMegaStringList - Returns a list containing the names corresponding to the new Elements
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Elements
+         * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all requested Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that will own the new Elements
+         * @param nodes the handles of the file-nodes that will be represented by the new Elements
+         * @param names the names that should be given to the new Elements (param names must be either null or have
+         * the same size() as param nodes)
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set
