@@ -166,16 +166,8 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
             LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
         } else {
             if (isThumbnail) {
-                NSData *imageData = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
-                
-                imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imageData, NULL);
-                
-                CGImageRef image = createThumbnailWithMaxSize(maxSizeForThumbnail(THUMBNAIL_MIN_SIZE, 0));
-                CGImageRef newImage = CGImageCreateWithImageInRect(image, tileRect(CGImageGetWidth(image), CGImageGetHeight(image)));
-                if (image) {
-                    CFRelease(image);
-                }
-                data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], 1);
+                CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+                data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
                 if (newImage) {
                     CFRelease(newImage);
                 }
