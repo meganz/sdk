@@ -4575,12 +4575,12 @@ static void process_line(char* l)
         else if (recoverycode.size())   // cancelling account --> check password
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else
         {

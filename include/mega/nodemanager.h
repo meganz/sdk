@@ -86,6 +86,7 @@ public:
 
     node_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
     node_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
+    node_vector getPublicLinksWithName(const char *searchString, CancelToken cancelFlag);
 
 
     node_vector getNodesByFingerprint(FileFingerprint& fingerprint);

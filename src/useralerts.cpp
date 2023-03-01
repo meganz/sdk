@@ -1519,6 +1519,7 @@ UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, un
         {
             if (MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset) != API_OK)
             {
+                assert(false);
                 LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
             }
             auxJson.leaveobject();

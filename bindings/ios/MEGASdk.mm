@@ -1524,11 +1524,11 @@ using namespace mega;
     return self.megaApi->getSetCover(sid);
 }
 
-- (MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
+- (nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSetElement *element = self.megaApi->getSetElement(sid, eid);
-    MEGASetElement *setElement = setElement ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
+    MEGASetElement *setElement = element ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
     
     delete element;
     
@@ -2999,6 +2999,21 @@ using namespace mega;
                        folderTargetType:(MEGAFolderTargetType)folderTargetType {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnInShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnOutSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnOutShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnPublicLinks(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
 }
 
 - (NSMutableArray *)recentActions {

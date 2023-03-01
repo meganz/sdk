@@ -296,7 +296,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
     char buf[64];
 
-    sprintf(buf, "%u*", t);
+    snprintf(buf, sizeof(buf), "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
 
@@ -2882,7 +2882,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
 {
     string sprice;
     sprice.resize(128);
-    sprintf((char *)sprice.data(), "%.2f", price/100.0);
+    snprintf((char *)sprice.data(), 128, "%.2f", price/100.0);
     replace( sprice.begin(), sprice.end(), ',', '.');
     cmd("uts");
     arg("it", itemclass);
@@ -6638,18 +6638,18 @@ bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, const vector<byte>& authKey)
 {
     cmd("us");
     arg("user", email);
-    arg("uh", (byte*)&emailhash, sizeof emailhash);
+    arg("uh", authKey.data(), (int)authKey.size());
 
     tag = client->reqtag;
 }
 
 bool CommandValidatePassword::procresult(Result r)
 {
-    if (r.wasError(API_OK))
+    if (r.wasErrorOrOK())
     {
         client->app->validatepassword_result(r.errorOrOK());
         return true;
@@ -9259,69 +9259,69 @@ bool CommandDismissBanner::procresult(Result r)
 // Sets and Elements
 //
 
-bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
 {
-    if (r.hasJsonObject())
+    for (;;)
     {
-        for (;;)
+        switch (client->json.getnameid())
         {
-            switch (client->json.getnameid())
+        case MAKENAMEID2('i', 'd'):
+            id = client->json.gethandle(MegaClient::SETHANDLE);
+            break;
+
+        case MAKENAMEID1('u'):
+            if (u)
             {
-            case MAKENAMEID2('i', 'd'):
-                id = client->json.gethandle(MegaClient::SETHANDLE);
-                break;
-
-            case MAKENAMEID1('u'):
-                if (u)
-                {
-                    *u = client->json.gethandle(MegaClient::USERHANDLE);
-                }
-                else if(!client->json.storeobject())
-                {
-                    return false;
-                }
-                break;
-
-            case MAKENAMEID1('s'):
-                if (s)
-                {
-                    *s = client->json.gethandle(MegaClient::SETHANDLE);
-                }
-                else if(!client->json.storeobject())
-                {
-                    return false;
-                }
-                break;
-
-            case MAKENAMEID2('t', 's'):
-                ts = client->json.getint();
-                break;
-
-            case MAKENAMEID1('o'):
-                if (o)
-                {
-                    *o = client->json.getint();
-                }
-                else if (!client->json.storeobject())
-                {
-                    return false;
-                }
-                break;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    return false;
-                }
-                break;
-
-            case EOO:
-                return true;
+                *u = client->json.gethandle(MegaClient::USERHANDLE);
             }
+            else if (!client->json.storeobject())
+            {
+                return false;
+            }
+            break;
+
+        case MAKENAMEID1('s'):
+            if (s)
+            {
+                *s = client->json.gethandle(MegaClient::SETHANDLE);
+            }
+            else if (!client->json.storeobject())
+            {
+                return false;
+            }
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            ts = client->json.getint();
+            break;
+
+        case MAKENAMEID1('o'):
+            if (o)
+            {
+                *o = client->json.getint();
+            }
+            else if (!client->json.storeobject())
+            {
+                return false;
+            }
+            break;
+
+        default:
+            if (!client->json.storeobject())
+            {
+                return false;
+            }
+            break;
+
+        case EOO:
+            return true;
         }
     }
+}
 
-    return false;
+bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+{
+    return r.hasJsonObject() && procjsonobject(id, ts, u, s, o);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9479,6 +9479,114 @@ bool CommandFetchSet::procresult(Result r)
     return true;
 }
 
+CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<pair<string, string>>&& encrDetails,
+                                               std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
+    : mElements(new vector<SetElement>(move(els))), mCompletion(completion)
+{
+    cmd("aepb");
+
+    const byte* setHandleBytes = reinterpret_cast<const byte*>(&mElements->front().set());
+    arg("s", setHandleBytes, MegaClient::SETHANDLE);
+
+    beginarray("e");
+
+    for (size_t i = 0; i < mElements->size(); ++i)
+    {
+        beginobject();
+
+        const byte* nodeHandleBytes = reinterpret_cast<const byte*>(&mElements->at(i).node());
+        arg("h", nodeHandleBytes, MegaClient::NODEHANDLE);
+
+        auto& ed = encrDetails[i];
+        const byte* keyBytes = reinterpret_cast<const byte*>(ed.second.c_str());
+        arg("k", keyBytes, static_cast<int>(ed.second.size()));
+
+        if (!ed.first.empty())
+        {
+            const byte* attrBytes = reinterpret_cast<const byte*>(ed.first.c_str());
+            arg("at", attrBytes, static_cast<int>(ed.first.size()));
+        }
+        endobject();
+    }
+
+    endarray();
+
+    notself(cl); // don't process its Action Packets after sending this
+}
+
+bool CommandPutSetElements::procresult(Result r)
+{
+    Error e = API_OK;
+    if (procerrorcode(r, e))
+    {
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr, nullptr);
+        }
+        return true;
+    }
+    else if (!r.hasJsonArray())
+    {
+        LOG_err << "Sets: failed to parse `aepb` response";
+        if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, nullptr, nullptr);
+        }
+        return false;
+    }
+
+    bool allOk = true;
+    vector<const SetElement*> addedEls;
+    vector<int64_t> errs(mElements->size(), API_OK);
+    for (size_t elCount = 0u; elCount < mElements->size(); ++elCount)
+    {
+        if (client->json.isnumeric())
+        {
+            // there was an error while adding this element
+            errs[elCount] = client->json.getint();
+        }
+        else if (client->json.enterobject())
+        {
+            handle setId = 0;
+            handle elementId = 0;
+            m_time_t ts = 0;
+            int64_t order = 0;
+            if (!procjsonobject(elementId, ts, nullptr, &setId, &order))
+            {
+                LOG_err << "Sets: failed to parse Element object in `aepb` response";
+                allOk = false;
+                break;
+            }
+
+            SetElement& el = mElements->at(elCount);
+            el.setId(elementId);
+            el.setTs(ts);
+            el.setOrder(order);
+            addedEls.push_back(client->addOrUpdateSetElement(move(el)));
+
+            if (!client->json.leaveobject())
+            {
+                LOG_err << "Sets: failed to leave Element object in `aepb` response";
+                allOk = false;
+                break;
+            }
+        }
+        else
+        {
+            LOG_err << "Sets: failed to parse Element array in `aepb` response";
+            allOk = false;
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, &addedEls, &errs);
+    }
+
+    return allOk;
+}
+
 CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
                                                std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(move(el))), mCompletion(completion)
@@ -9544,6 +9652,66 @@ bool CommandPutSetElement::procresult(Result r)
     }
 
     return parsedOk;
+}
+
+CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, vector<handle>&& eids,
+                                                   std::function<void(Error, const vector<int64_t>*)> completion)
+    : mSetId(sid), mElemIds(move(eids)), mCompletion(completion)
+{
+    cmd("aerb");
+
+    arg("s", reinterpret_cast<const byte*>(&sid), MegaClient::SETHANDLE);
+
+    beginarray("e");
+
+    for (auto& eh : mElemIds)
+    {
+        element(reinterpret_cast<const byte*>(&eh), MegaClient::SETELEMENTHANDLE);
+    }
+
+    endarray();
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveSetElements::procresult(Result r)
+{
+    Error e = API_OK;
+    if (procerrorcode(r, e))
+    {
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr);
+        }
+        return true;
+    }
+    else if (!r.hasJsonArray())
+    {
+        LOG_err << "Sets: failed to parse `aerb` response";
+        if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, nullptr);
+        }
+        return false;
+    }
+
+    vector<int64_t> errs(mElemIds.size());
+    for (size_t elCount = 0u; elCount < mElemIds.size(); ++elCount)
+    {
+        errs[elCount] = client->json.getint();
+        if (errs[elCount] == API_OK && !client->deleteSetElement(mSetId, mElemIds[elCount]))
+        {
+            LOG_err << "Sets: Failed to remove Element in `aerb` command response";
+            errs[elCount] = API_ENOENT;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, &errs);
+    }
+
+    return true;
 }
 
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
@@ -9747,7 +9915,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
             {
                 if (client->json.enterarray())
                 {
-                    while(client->json.ishandle())
+                    while(client->json.ishandle(MegaClient::CHATHANDLE))
                     {
                         childMeetingsDeleted.insert(client->json.gethandle());
                     }

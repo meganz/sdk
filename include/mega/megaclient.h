@@ -296,7 +296,6 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
-    bool removeShare(handle sharehandle);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -325,9 +324,8 @@ public:
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
 protected:
-
-    std::queue<std::pair<std::function<void()>, std::function<void()>>> commitQueue;
-    std::pair<std::function<void()>, std::function<void()>> *activeCommit = nullptr;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
@@ -363,7 +361,7 @@ private:
     SymmCipher mKey;
 
     // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = false;
+    bool mSecure = true;
 
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
@@ -560,7 +558,8 @@ public:
     void login(string session);
 
     // check password
-    error validatepwd(const byte *);
+    error validatepwd(const char* pswd);
+    bool validatepwdlocally(const char* pswd);
 
     // get user data
     void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
@@ -1722,7 +1721,7 @@ public:
     Node* nodeByHandle(NodeHandle);
     Node* nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr);
+    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -2278,6 +2277,8 @@ private:
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
 
+    static vector<byte> deriveKey(const char* password, const string& salt);
+
 
 //
 // Sets and Elements
@@ -2293,8 +2294,14 @@ public:
     // generate "aft" command
     void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
 
+    // generate "aepb" command
+    void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
+
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
+
+    // generate "aerb" command
+    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
 
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
