@@ -661,7 +661,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
-        config.mBackupId = SYNC_BACKUP_MIRROR;
+        config.mBackupState = SYNC_BACKUP_MIRROR;
 
         written.emplace_back(config);
     }
@@ -679,7 +679,23 @@ TEST_F(SyncConfigIOContextTest, Serialize)
     }
 
     // Are the databases identical?
-    EXPECT_EQ(read, written);
+    ASSERT_EQ(read.size(), written.size());
+    for (auto i = read.size(); i--; )
+    {
+        auto& a = read[i];
+        auto& b = written[i];
+        EXPECT_EQ(a.mBackupId, b.mBackupId);
+        EXPECT_EQ(a.mEnabled, b.mEnabled);
+        EXPECT_EQ(a.mError, b.mError);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
+        EXPECT_EQ(a.mLocalPath, b.mLocalPath);
+        EXPECT_EQ(a.mName, b.mName);
+        EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
+        EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
+        EXPECT_EQ(a.mWarning, b.mWarning);
+        EXPECT_EQ(a.mSyncType, b.mSyncType);
+        EXPECT_EQ(a.mBackupState, b.mBackupState);
+    }
 }
 
 TEST_F(SyncConfigIOContextTest, SerializeEmpty)
@@ -768,7 +784,23 @@ TEST_F(SyncConfigStoreTest, Read)
     EXPECT_TRUE(store.driveKnown(LocalPath()));
 
     // Configs should be precisely what we wrote.
-    EXPECT_EQ(read, written);
+    ASSERT_EQ(read.size(), written.size());
+    for (auto i = read.size(); i--; )
+    {
+        auto& a = read[i];
+        auto& b = written[i];
+        EXPECT_EQ(a.mBackupId, b.mBackupId);
+        EXPECT_EQ(a.mEnabled, b.mEnabled);
+        EXPECT_EQ(a.mError, b.mError);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
+        EXPECT_EQ(a.mLocalPath, b.mLocalPath);
+        EXPECT_EQ(a.mName, b.mName);
+        EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
+        EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
+        EXPECT_EQ(a.mWarning, b.mWarning);
+        EXPECT_EQ(a.mSyncType, b.mSyncType);
+        EXPECT_EQ(a.mBackupState, b.mBackupState);
+    }
 }
 
 TEST_F(SyncConfigStoreTest, ReadEmpty)
