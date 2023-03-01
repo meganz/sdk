@@ -424,7 +424,7 @@ void URLCodec::escape(string *plain, string *escaped)
         else
         {
             char buf[4];
-            snprintf(buf, sizeof buf, "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", c);
             escaped->append(buf);
         }
     }

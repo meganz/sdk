@@ -296,7 +296,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
     char buf[64];
 
-    snprintf(buf, sizeof buf, "%u*", t);
+    snprintf(buf, sizeof(buf), "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
 

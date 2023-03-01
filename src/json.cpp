@@ -877,7 +877,7 @@ void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
 
-    snprintf(buf, sizeof buf, "%" PRId64, n);
+    snprintf(buf, sizeof(buf), "%" PRId64, n);
 
     arg(name, buf, 0);
 }

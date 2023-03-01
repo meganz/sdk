@@ -5826,7 +5826,7 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
         {
             if (it.first != fa_media)
             {
-                snprintf(buf, sizeof buf, "/%u*", (unsigned)it.first);
+                snprintf(buf, sizeof(buf), "/%u*", (unsigned)it.first);
                 Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
                 fa->append(buf + !fa->size());
                 LOG_debug << "Added file attribute " << it.first << " to putnodes";
@@ -12614,7 +12614,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         nsi = addnode(&rshares, sn);
                         nni = addnode(&rnodes, n);
 
-                        snprintf(buf, sizeof buf, "\",%u,%u,\"", nsi, nni);
+                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
                         sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
@@ -16486,7 +16486,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
 
-                        snprintf(report + 8, sizeof report - 8, " %d %.200s", (*it)->type, buf);
+                        snprintf(report + 8, sizeof(report) - 8, " %d %.200s", (*it)->type, buf);
 
                         // report an "undecrypted child" event
                         reportevent("CU", report, 0);
@@ -16539,7 +16539,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 ll->reported = true;
 
                 char report[256];
-                snprintf(report, sizeof report, "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                snprintf(report, sizeof(report), "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -16897,7 +16897,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 node_list nodeList = getChildren(l->node);
                 // always report LocalNode's type, name length, mtime, file size
-                snprintf(report, sizeof report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
+                snprintf(report, sizeof(report), "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)nodeList.size() : -1,
@@ -16925,7 +16925,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
                     char* ptr = strchr(report, '\0');
-                    snprintf(ptr, sizeof report - (ptr - report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
+                    snprintf(ptr, sizeof(report) - (ptr - report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 
@@ -17390,7 +17390,7 @@ void MegaClient::execmovetosyncdebris()
 
     ts = m_time();
     struct tm* ptm = m_localtime(ts, &tms);
-    snprintf(buf, sizeof buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 
     // locate //bin/SyncDebris

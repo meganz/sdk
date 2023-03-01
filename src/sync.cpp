@@ -2360,12 +2360,12 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
             syncs.fsaccess->mkdirlocal(localdebris, true, false);
         }
 
-        snprintf(buf, sizeof buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+        snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
         if (i >= 0)
         {
             char* ptr = strchr(buf, 0);
-            snprintf(ptr, sizeof buf - (ptr - buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
+            snprintf(ptr, sizeof(buf) - (ptr - buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
         }
 
         day = buf;
