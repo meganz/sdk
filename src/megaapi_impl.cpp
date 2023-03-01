@@ -9544,15 +9544,21 @@ MegaNode *MegaApiImpl::getRootNode()
     // return without locking the main mutex if possible.
     // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeFiles().isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
             client->loggedIntoFolder() ||
             mLastKnownRootNode->getHandle() != client->mNodeManager.getRootNodeFiles().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRootNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));
+        }
+        g.lock();
+        mLastKnownRootNode.reset(newPtr);
     }
 
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
@@ -9562,14 +9568,20 @@ MegaNode* MegaApiImpl::getVaultNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeVault().isUndef()) return nullptr;
     if (!mLastKnownVaultNode ||
         mLastKnownVaultNode->getHandle() != client->mNodeManager.getRootNodeVault().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownVaultNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault()));
+        }
+        g.lock();
+        mLastKnownVaultNode.reset(newPtr);
     }
 
     return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
@@ -9579,14 +9591,20 @@ MegaNode* MegaApiImpl::getRubbishNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeRubbish().isUndef()) return nullptr;
     if (!mLastKnownRubbishNode ||
         mLastKnownRubbishNode->getHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRubbishNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()));
+        }
+        g.lock();
+        mLastKnownRubbishNode.reset(newPtr);
     }
 
     return mLastKnownRubbishNode ? mLastKnownRubbishNode->copy() : nullptr;
@@ -12287,18 +12305,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType && 
+                if (node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType && 
+                    node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
@@ -24104,6 +24122,43 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     waiter->notify();
 }
 
+void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
+    request->setTotalBytes(sid);
+    request->setMegaHandleList(eids);
+
+    request->performRequest = [this, request]()
+    {
+        const MegaHandleList* eidsList = request->getMegaHandleList();
+        if (!eidsList)
+        {
+            return API_ENOENT;
+        }
+
+        std::vector<handle> eids(eidsList->size());
+        for (size_t i = 0u; i < eids.size(); ++i)
+        {
+            eids[i] = eidsList->get(static_cast<int>(i));
+        }
+
+        client->removeSetElements(request->getTotalBytes(), move(eids),
+            [this, request](Error e, const vector<int64_t>* elErrs)
+            {
+                if (e == API_OK && elErrs)
+                {
+                    request->setMegaIntegerList(::mega::make_unique<MegaIntegerListPrivate>(*elErrs));
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
@@ -33810,7 +33865,7 @@ MegaTimeStamp MegaScheduledMeetingPrivate::startDateTime() const                
 MegaTimeStamp MegaScheduledMeetingPrivate::endDateTime() const                  { return mScheduledMeeting->endDateTime(); }
 const char* MegaScheduledMeetingPrivate::title() const                          { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
 const char* MegaScheduledMeetingPrivate::description() const                    { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
-const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->description().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->attributes().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
 MegaTimeStamp MegaScheduledMeetingPrivate::overrides() const                    { return mScheduledMeeting->overrides(); }
 int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
 MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}

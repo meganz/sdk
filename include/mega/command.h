@@ -1613,6 +1613,18 @@ private:
     std::function<void(Error, const SetElement*)> mCompletion;
 };
 
+class MEGA_API CommandRemoveSetElements : public CommandSE
+{
+public:
+    CommandRemoveSetElements(MegaClient*, handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mSetId = UNDEF;
+    handle_vector mElemIds;
+    std::function<void(Error, const vector<int64_t>*)> mCompletion;
+};
+
 class MEGA_API CommandRemoveSetElement : public CommandSE
 {
 public:

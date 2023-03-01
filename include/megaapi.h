@@ -4224,8 +4224,9 @@ class MegaRequest
             TYPE_OPEN_SHARE_DIALOG                                          = 162,
             TYPE_UPGRADE_SECURITY                                           = 163,
             TYPE_PUT_SET_ELEMENTS                                           = 164,
-            TYPE_GET_SYNC_STALL_LIST                                        = 165,
-            TOTAL_OF_REQUEST_TYPES                                          = 166,
+            TYPE_REMOVE_SET_ELEMENTS                                        = 165,
+            TYPE_GET_SYNC_STALL_LIST                                        = 166,
+            TOTAL_OF_REQUEST_TYPES                                          = 167,
         };
 
         virtual ~MegaRequest();
@@ -20785,6 +20786,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request removal of multiple Elements from a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getMegaHandleList - Returns a list containing the handles of Elements to be removed
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all Elements intended for removal
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that will own the new Elements
+         * @param eids the ids of Elements to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to remove an Element
