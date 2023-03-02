@@ -6676,10 +6676,10 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
     list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags());
     ASSERT_EQ(list->size(), 4);
-    ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
-    ASSERT_EQ(strcmp(list->get(1)->getName(), filename1.c_str()), 0);
-    ASSERT_EQ(strcmp(list->get(2)->getName(), nsfilename.c_str()), 0);
-    ASSERT_EQ(strcmp(list->get(3)->getName(), sfilename.c_str()), 0);
+    ASSERT_STREQ(list->get(0)->getName(), folderAName.c_str());
+    ASSERT_STREQ(list->get(1)->getName(), filename1.c_str());
+    ASSERT_STREQ(list->get(2)->getName(), nsfilename.c_str());
+    ASSERT_STREQ(list->get(3)->getName(), sfilename.c_str());
     list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
     ASSERT_EQ(list->size(), 2); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
