@@ -11698,6 +11698,36 @@ public class MegaApiJava {
     }
 
     /**
+     * Request creation of multiple Elements for a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getMegaHandleList - Returns a list containing the file handles corresponding to the new Elements
+     * - MegaRequest::getMegaStringList - Returns a list containing the names corresponding to the new Elements
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Elements
+     * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all requested Elements
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not besetExcludedNames found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that will own the new Elements
+     * @param nodes    the handles of the file-nodes that will be represented by the new Elements
+     * @param names    the names that should be given to the new Elements (param names must be either null or have
+     *                 the same size() as param nodes)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSetElements(long sid, ArrayList<long> nodes, ArrayList<String> names, MegaRequestListenerInterface listener) {
+        megaApi.createSetElements(sid, nodes, names, listener)
+    }
+
+    /**
      * Request creation of a new Element for a Set
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
@@ -11880,6 +11910,32 @@ public class MegaApiJava {
      */
     public void updateSetElementOrder(long sid, long eid, long order) {
         megaApi.updateSetElementOrder(sid, eid, order);
+    }
+
+    /**
+     * Request removal of multiple Elements from a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENTS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTotalBytes - Returns the id of the Set
+     * - MegaRequest::getMegaHandleList - Returns a list containing the handles of Elements to be removed
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all Elements intended for removal
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     *
+     * @param sid      the id of the Set that will own the new Elements
+     * @param eids     the ids of Elements to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    void removeSetElements(long sid, ArrayList<Long> eids, MegaRequestListenerInterface listener) {
+        megaApi.removeSetElements(sid, eids, listener)
     }
 
     /**
