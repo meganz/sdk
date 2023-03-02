@@ -1119,6 +1119,33 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     }
 }
 
+void SdkTest::inviteTestAccount(unsigned invitorIndex, unsigned inviteIndex, string message)
+{
+    //--- Add account as contact ---
+    mApi[inviteIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(invitorIndex, mApi[inviteIndex].email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE( waitForResponse(&mApi[inviteIndex].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(inviteIndex, false) );
+    mApi[invitorIndex].contactRequestUpdated = mApi[inviteIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[inviteIndex].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&mApi[inviteIndex].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[invitorIndex].contactRequestUpdated) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    mApi[inviteIndex].cr.reset();
+
+
+    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        ASSERT_TRUE(contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "";
+    }
+
+    ASSERT_TRUE(contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "";
+}
+
 void SdkTest::inviteContact(unsigned apiIndex, string email, string message, int action)
 {
     ASSERT_EQ(API_OK, synchronousInviteContact(apiIndex, email.c_str(), message.c_str(), action)) << "Contact invitation failed";
@@ -1181,6 +1208,12 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
 #ifdef ENABLE_CHAT
 void SdkTest::createChatScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 {
+    std::unique_ptr<MegaUser> contact(mApi[0].megaApi->getContact(mApi[1].email.c_str()));
+    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        inviteTestAccount(0, 1, "Hi contact. This is a testing message");
+    }
+
     MegaHandle secondaryAccountHandle = megaApi[apiIndex + 1]->getMyUser()->getHandle();
     MegaHandle auxChatid = UNDEF;
     for (auto &it: mApi[apiIndex].chats)
@@ -11167,6 +11200,94 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
 
+    // ContactChange  --  contact request accepted
+    //--------------------------------------------
+
+    // reset User Alerts for A1
+    A1dtls.userAlertsUpdated = false;
+    A1dtls.userAlertList.reset();
+
+    // --- Accept contact request ---
+    A1dtls.contactRequestUpdated = B1dtls.contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(B1dtls.cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&A1dtls.contactRequestUpdated))
+        << "Contact request accept not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&B1dtls.contactRequestUpdated))
+        << "Contact request accept not received by B1 after " << maxTimeout << " seconds";
+    B1dtls.cr.reset();
+
+    // ContactChange  --  contact request accepted
+    ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
+        << "Alert about contact request accepted not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_NE(A1dtls.userAlertList, nullptr) << "ContactChange  --  contact request accepted";
+    count = 0; a = nullptr;
+    for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
+    {
+        if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
+        a = A1dtls.userAlertList->get(i);
+        count++;
+    }
+    ASSERT_EQ(count, 1) << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
+    ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact request accepted";
+    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_CONTACTESTABLISHED) << "ContactChange  --  contact request accepted";
+    ASSERT_STREQ(a->getTypeString(), "CONTACT_ESTABLISHED") << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getHeading(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact request accepted";
+    ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
+    ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
+    // received by A1, do not keep it for comparing with B2's sc50
+
+    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+
+    // create some folders / files to share
+
+        // Create some nodes to share
+        //  |--Shared-folder
+        //    |--subfolder
+        //    |--file.txt       // PUBLICFILE
+        //  |--file1.txt        // UPFILE
+
+    std::unique_ptr<MegaNode> rootnode{ A1.getRootNode() };
+    char sharedFolder[] = "Shared-folder";
+    MegaHandle hSharedFolder = createFolder(A1idx, sharedFolder, rootnode.get());
+    ASSERT_NE(hSharedFolder, UNDEF);
+
+    std::unique_ptr<MegaNode> nSharedFolder(A1.getNodeByHandle(hSharedFolder));
+    ASSERT_NE(nSharedFolder, nullptr);
+
+    char subfolder[] = "subfolder";
+    MegaHandle hSubfolder = createFolder(A1idx, subfolder, nSharedFolder.get());
+    ASSERT_NE(hSubfolder, UNDEF);
+
+
+    // not a large file since don't need to test transfers here
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    MegaHandle hPublicfile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hPublicfile, PUBLICFILE.c_str(), nSharedFolder.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> nSubfolder(A1.getNodeByHandle(hSubfolder));
+    ASSERT_NE(nSubfolder, nullptr);
+    std::unique_ptr<MegaNode> rootA1(A1.getRootNode());
+    ASSERT_NE(rootA1, nullptr);
+    ASSERT_TRUE(createFile(UPFILE.c_str(), false)) << "Couldn't create " << UPFILE.c_str();
+    MegaHandle hUpfile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hUpfile, UPFILE.c_str(), rootA1.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+
     // NewScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
@@ -11261,95 +11382,6 @@ TEST_F(SdkTest, SdkUserAlerts)
         }
     }
     ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
-
-    // ContactChange  --  contact request accepted
-    //--------------------------------------------
-
-    // reset User Alerts for A1
-    A1dtls.userAlertsUpdated = false;
-    A1dtls.userAlertList.reset();
-
-    // --- Accept contact request ---
-    A1dtls.contactRequestUpdated = B1dtls.contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(replyContact(B1dtls.cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    ASSERT_TRUE(waitForResponse(&A1dtls.contactRequestUpdated))
-        << "Contact request accept not received by A1 after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&B1dtls.contactRequestUpdated))
-        << "Contact request accept not received by B1 after " << maxTimeout << " seconds";
-    B1dtls.cr.reset();
-
-    // ContactChange  --  contact request accepted
-    ASSERT_TRUE(waitForResponse(&A1dtls.userAlertsUpdated))
-        << "Alert about contact request accepted not received by A1 after " << maxTimeout << " seconds";
-    ASSERT_NE(A1dtls.userAlertList, nullptr) << "ContactChange  --  contact request accepted";
-    count = 0; a = nullptr;
-    for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
-    {
-        if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
-        a = A1dtls.userAlertList->get(i);
-        count++;
-    }
-    ASSERT_EQ(count, 1) << "ContactChange  --  contact request accepted";
-    ASSERT_STRCASEEQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
-    ASSERT_STRCASEEQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
-    ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact request accepted";
-    ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_CONTACTESTABLISHED) << "ContactChange  --  contact request accepted";
-    ASSERT_STREQ(a->getTypeString(), "CONTACT_ESTABLISHED") << "ContactChange  --  contact request accepted";
-    ASSERT_STRCASEEQ(a->getHeading(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
-    ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact request accepted";
-    ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
-    ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
-    // received by A1, do not keep it for comparing with B2's sc50
-
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
-
-    // create some folders / files to share
-
-        // Create some nodes to share
-        //  |--Shared-folder
-        //    |--subfolder
-        //    |--file.txt       // PUBLICFILE
-        //  |--file1.txt        // UPFILE
-
-    std::unique_ptr<MegaNode> rootnode{ A1.getRootNode() };
-    char sharedFolder[] = "Shared-folder";
-    MegaHandle hSharedFolder = createFolder(A1idx, sharedFolder, rootnode.get());
-    ASSERT_NE(hSharedFolder, UNDEF);
-
-    std::unique_ptr<MegaNode> nSharedFolder(A1.getNodeByHandle(hSharedFolder));
-    ASSERT_NE(nSharedFolder, nullptr);
-
-    char subfolder[] = "subfolder";
-    MegaHandle hSubfolder = createFolder(A1idx, subfolder, nSharedFolder.get());
-    ASSERT_NE(hSubfolder, UNDEF);
-
-
-    // not a large file since don't need to test transfers here
-    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-    MegaHandle hPublicfile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hPublicfile, PUBLICFILE.c_str(), nSharedFolder.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/)) << "Cannot upload a test file";
-
-    std::unique_ptr<MegaNode> nSubfolder(A1.getNodeByHandle(hSubfolder));
-    ASSERT_NE(nSubfolder, nullptr);
-    std::unique_ptr<MegaNode> rootA1(A1.getRootNode());
-    ASSERT_NE(rootA1, nullptr);
-    ASSERT_TRUE(createFile(UPFILE.c_str(), false)) << "Couldn't create " << UPFILE.c_str();
-    MegaHandle hUpfile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(A1idx, &hUpfile, UPFILE.c_str(), rootA1.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
-
 
     // NewShare
     //--------------------------------------------

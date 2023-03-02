@@ -481,6 +481,7 @@ public:
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
+    void inviteTestAccount(unsigned invitorIndex, unsigned inviteIndex, string message);
     void inviteContact(unsigned apiIndex, string email, string message, int action);
     void replyContact(MegaContactRequest *cr, int action);
     void removeContact(string email, int timeout = maxTimeout);
