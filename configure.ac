@@ -1816,8 +1816,8 @@ if test "x$pdfium" = "xfalse" ; then
         AC_MSG_ERROR([icu library is required. Please specify the installation path.])
         ;;
        yes)
-        AC_CHECK_HEADERS([unicode/ucol.h],, [
-            AC_MSG_ERROR([unicode/ucol.h header not found or not usable])
+        AC_CHECK_HEADERS([unicode/uchar.h],, [
+            AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
         ])
         AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
             AC_MSG_ERROR([Could not find ICU lib])])
@@ -1832,11 +1832,11 @@ if test "x$pdfium" = "xfalse" ; then
             CXXFLAGS="-I$with_icu/include $CXXFLAGS"
             CPPFLAGS="-I$with_icu/include $CPPFLAGS"
 
-            AC_CHECK_HEADERS("unicode/ucol.h",
+            AC_CHECK_HEADERS("unicode/uchar.h",
              ICU_CXXFLAGS="-I$with_icu/include"
              ICU_CPPFLAGS="-I$with_icu/include"
              ICU_LDFLAGS="-L$with_icu/lib",
-             AC_MSG_ERROR([unicode/ucol.h header not found or not usable])
+             AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
             )
         fi
         AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
@@ -1854,8 +1854,8 @@ if test "x$pdfium" = "xfalse" ; then
        esac
       ],
        [AC_MSG_RESULT([--with-icu not specified])
-        AC_CHECK_HEADERS([unicode/ucol.h], [icu=true], [
-            AC_MSG_ERROR([unicode/ucol.h header not found or not usable])])
+        AC_CHECK_HEADERS([unicode/uchar.h], [icu=true], [
+            AC_MSG_ERROR([unicode/uchar.h header not found or not usable])])
         AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
             AC_MSG_ERROR([Could not find ICU lib])])
         AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
