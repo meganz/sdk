@@ -2887,10 +2887,21 @@ TEST_F(SdkTest, SdkTestShares2)
     auto errU2SetFavourite = synchronousSetNodeFavourite(1, n, true);
     ASSERT_EQ(API_EACCESS, errU2SetFavourite) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
 
+    // --- Check that User2 (sharee) cannot tag an inner inshare folder as favourite ---
+
+    std::unique_ptr<MegaNode> subfolderNode {megaApi[1]->getNodeByHandle(hfolder2)};
+    auto errU2SetFavourite2 = synchronousSetNodeFavourite(1, subfolderNode.get(), true);
+    ASSERT_EQ(API_EACCESS, errU2SetFavourite2) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
+
     // --- Check that User1 (sharer) can tag the outgoing share as favourite ---
 
     auto errU1SetFavourite = synchronousSetNodeFavourite(0, n, true);
     ASSERT_EQ(API_OK, errU1SetFavourite) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
+
+    // --- Check that User1 (sharer) can tag an inner outshare folder as favourite ---
+
+    auto errU1SetFavourite2 = synchronousSetNodeFavourite(0, subfolderNode.get(), true);
+    ASSERT_EQ(API_OK, errU1SetFavourite2) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
 
 
     // --- Get file name and fingerprint from User1 account ---
