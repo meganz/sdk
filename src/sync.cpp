@@ -2342,7 +2342,8 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
 
         if (i >= 0)
         {
-            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
+            char* ptr = strchr(buf, 0);
+            snprintf(ptr, sizeof(buf) - (ptr - buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
         }
 
         day = buf;

@@ -1465,7 +1465,8 @@ bool DirectReadSlot::doio()
                     snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
                     if (dr->count)
                     {
-                        snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), "%" PRIu64, posrange.second - 1);
+                        char* ptr = strchr(buf, 0);
+                        snprintf(ptr, sizeof(buf) - (ptr - buf), "%" PRIu64, posrange.second - 1);
                     }
 
                     req->pos = posrange.first;
