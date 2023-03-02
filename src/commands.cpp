@@ -9259,7 +9259,7 @@ bool CommandDismissBanner::procresult(Result r)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o) const
 {
     for (;;)
     {
@@ -9295,6 +9295,17 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
             ts = client->json.getint();
             break;
 
+        case MAKENAMEID3('c', 't', 's'):
+            if (cts)
+            {
+                *cts = client->json.getint();
+            }
+            else if (!client->json.storeobject())
+            {
+                return false;
+            }
+            break;
+
         case MAKENAMEID1('o'):
             if (o)
             {
@@ -9319,9 +9330,9 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
     }
 }
 
-bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o) const
 {
-    return r.hasJsonObject() && procjsonobject(id, ts, u, s, o);
+    return r.hasJsonObject() && procjsonobject(id, ts, u, cts, s, o);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9363,9 +9374,10 @@ bool CommandPutSet::procresult(Result r)
     handle sId = 0;
     handle user = 0;
     m_time_t ts = 0;
+    m_time_t cts = 0;
     const Set* s = nullptr;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user, &cts);
 
     if (!parsedOk || (mSet->id() == UNDEF && !user))
     {
@@ -9378,6 +9390,7 @@ bool CommandPutSet::procresult(Result r)
         {
             mSet->setId(sId);
             mSet->setUser(user);
+            mSet->setCTs(cts);
             mSet->setChanged(Set::CH_NEW);
             s = client->addSet(move(*mSet));
         }
@@ -9547,11 +9560,10 @@ bool CommandPutSetElements::procresult(Result r)
         }
         else if (client->json.enterobject())
         {
-            handle setId = 0;
             handle elementId = 0;
             m_time_t ts = 0;
             int64_t order = 0;
-            if (!procjsonobject(elementId, ts, nullptr, &setId, &order))
+            if (!procjsonobject(elementId, ts, nullptr, nullptr, nullptr, &order))
             {
                 LOG_err << "Sets: failed to parse Element object in `aepb` response";
                 allOk = false;
@@ -9631,7 +9643,7 @@ bool CommandPutSetElement::procresult(Result r)
     bool isNew = mElement->id() == UNDEF;
 #endif
     const SetElement* el = nullptr;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, nullptr, &order); // 'aep' does not return 's'
 
     if (!parsedOk)
     {

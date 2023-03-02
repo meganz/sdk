@@ -19748,6 +19748,10 @@ error MegaClient::readSet(JSON& j, Set& s)
             s.setTs(j.getint());
             break;
 
+        case MAKENAMEID3('c', 't', 's'):
+            s.setCTs(j.getint());
+            break;
+
         default: // skip unknown member
             if (!j.storeobject())
             {
