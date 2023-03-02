@@ -599,6 +599,8 @@ private:
     }
 };
 
+thread_local std::string RotativePerformanceLogger::sThreadName = {};
+
 RotativePerformanceLogger::RotativePerformanceLogger()
 {
 }
@@ -696,9 +698,9 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     m_gmtime(t, &gmt);
 
     static thread_local std::string threadname = currentThreadName();
-    if (!SimpleLogger::sThreadName.empty())
+    if (!RotativePerformanceLogger::sThreadName.empty())
     {
-        threadname = std::string(std::move(SimpleLogger::sThreadName)) + " ";
+        threadname = std::string(std::move(RotativePerformanceLogger::sThreadName)) + " ";
     }
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));

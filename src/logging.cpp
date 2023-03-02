@@ -38,7 +38,6 @@ enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
 thread_local bool SimpleLogger::mThreadLocalLoggingDisabled = false;
-thread_local std::string SimpleLogger::sThreadName = {};
 
 #ifdef ENABLE_LOG_PERFORMANCE
 

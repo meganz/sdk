@@ -2070,6 +2070,11 @@ void MegaApi::setUseRotativePerformanceLogger(const char * logPath, const char *
 {
     MegaApiImpl::setUseRotativePerformanceLogger(logPath, logFileName, logToStdOut, archivedFilesAgeSeconds);
 }
+
+void MegaApi::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
+{
+    MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(threadName);
+}
 #endif
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)

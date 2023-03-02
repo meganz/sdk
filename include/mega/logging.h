@@ -183,8 +183,6 @@ public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
     static thread_local bool mThreadLocalLoggingDisabled;
 
-    static thread_local std::string sThreadName;
-
 private:
     enum LogLevel level;
 
