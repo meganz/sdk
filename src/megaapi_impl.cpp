@@ -5775,45 +5775,7 @@ MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
 bool MegaApiImpl::checkPassword(const char *password)
 {
     SdkMutexGuard g(sdkMutex);
-    if (!password || !password[0] || client->k.size() != SymmCipher::KEYLENGTH)
-    {
-        return false;
-    }
-
-    string k = client->k;
-    if (client->accountversion == 1)
-    {
-        byte pwkey[SymmCipher::KEYLENGTH];
-        if (client->pw_key(password, pwkey))
-        {
-            return false;
-        }
-
-        SymmCipher cipher(pwkey);
-        cipher.ecb_decrypt((byte *)k.data());
-    }
-    else if (client->accountversion == 2)
-    {
-        if (client->accountsalt.size() != 32) // SHA256
-        {
-            return false;
-        }
-
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)client->accountsalt.data(), client->accountsalt.size(), 100000);
-
-        SymmCipher cipher(derivedKey);
-        cipher.ecb_decrypt((byte *)k.data());
-    }
-    else
-    {
-        LOG_warn << "Version of account not supported";
-        return false;
-    }
-
-    return !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
+    return client->validatepwdlocally(password);
 }
 
 char *MegaApiImpl::getMyCredentials()
@@ -9579,15 +9541,21 @@ MegaNode *MegaApiImpl::getRootNode()
     // return without locking the main mutex if possible.
     // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeFiles().isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
             client->loggedIntoFolder() ||
             mLastKnownRootNode->getHandle() != client->mNodeManager.getRootNodeFiles().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRootNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));
+        }
+        g.lock();
+        mLastKnownRootNode.reset(newPtr);
     }
 
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
@@ -9597,14 +9565,20 @@ MegaNode* MegaApiImpl::getVaultNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeVault().isUndef()) return nullptr;
     if (!mLastKnownVaultNode ||
         mLastKnownVaultNode->getHandle() != client->mNodeManager.getRootNodeVault().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownVaultNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault()));
+        }
+        g.lock();
+        mLastKnownVaultNode.reset(newPtr);
     }
 
     return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
@@ -9614,14 +9588,20 @@ MegaNode* MegaApiImpl::getRubbishNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeRubbish().isUndef()) return nullptr;
     if (!mLastKnownRubbishNode ||
         mLastKnownRubbishNode->getHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRubbishNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()));
+        }
+        g.lock();
+        mLastKnownRubbishNode.reset(newPtr);
     }
 
     return mLastKnownRubbishNode ? mLastKnownRubbishNode->copy() : nullptr;
@@ -12322,18 +12302,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType && 
+                if (node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType && 
+                    node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
@@ -18303,6 +18283,28 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
     return MegaNodePrivate::fromNode(result);
 }
 
+MegaNode* MegaApiImpl::getNodeByPathOfType(const char* path, MegaNode* node, int type)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    Node* root = nullptr;
+
+    if (node)
+    {
+        root = client->nodebyhandle(node->getHandle());
+        if (!root)
+        {
+            return nullptr;
+        }
+    }
+
+    nodetype_t t = (type == MegaNode::TYPE_FILE ? FILENODE :
+                   (type == MegaNode::TYPE_FOLDER ? FOLDERNODE : TYPE_UNKNOWN));
+    Node* result = client->nodeByPath(path, root, t);
+
+    return MegaNodePrivate::fromNode(result);
+}
+
 MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
 {
     if(handle == UNDEF) return NULL;
@@ -18973,7 +18975,7 @@ static void appendFileAttribute(string& s, int n, MegaHandle h)
         }
 
         char buf[64];
-        sprintf(buf, "%u*", n);
+        snprintf(buf, sizeof(buf), "%u*", n);
         Base64::btoa((byte*)&h, sizeof(h), strchr(buf + 2, 0));
         s += buf;
     }
@@ -24167,6 +24169,43 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     request->setParamType(optionFlags);
     request->setNumber(order);
     request->setText(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
+    request->setTotalBytes(sid);
+    request->setMegaHandleList(eids);
+
+    request->performRequest = [this, request]()
+    {
+        const MegaHandleList* eidsList = request->getMegaHandleList();
+        if (!eidsList)
+        {
+            return API_ENOENT;
+        }
+
+        std::vector<handle> eids(eidsList->size());
+        for (size_t i = 0u; i < eids.size(); ++i)
+        {
+            eids[i] = eidsList->get(static_cast<int>(i));
+        }
+
+        client->removeSetElements(request->getTotalBytes(), move(eids),
+            [this, request](Error e, const vector<int64_t>* elErrs)
+            {
+                if (e == API_OK && elErrs)
+                {
+                    request->setMegaIntegerList(::mega::make_unique<MegaIntegerListPrivate>(*elErrs));
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -30953,7 +30992,7 @@ void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
         bool exec = (curperm >> 0) & 0x1;
 
         char rwx[4];
-        sprintf(rwx,"%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
+        snprintf(rwx, sizeof(rwx), "%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
         rwx[3]='\0';
         ps = rwx + ps;
     }
@@ -31012,7 +31051,7 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     strftime(timebuff,80,"%b %d %H:%M",&time);
 
     char toprint[3000];
-    sprintf(toprint,
+    snprintf(toprint, sizeof(toprint),
             "%c%s %5d %4d %4d %8"
             PRId64
             " %s %s",
@@ -31933,7 +31972,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (ftpctx->command == FTP_CMD_PASV)
             {
                 char url[30];
-                sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
+                snprintf(url, sizeof(url), "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
                 response = "227 Entering Passive Mode (";
                 response.append(url);
                 response.append(")");
@@ -31941,7 +31980,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             else // FTP_CMD_EPSV
             {
                 char url[30];
-                sprintf(url, "%d", ftpctx->pasiveport);
+                snprintf(url, sizeof(url), "%d", ftpctx->pasiveport);
                 response = "229 Entering Extended Passive Mode (|||";
                 response.append(url);
                 response.append("|)");
@@ -33877,7 +33916,7 @@ MegaTimeStamp MegaScheduledMeetingPrivate::startDateTime() const                
 MegaTimeStamp MegaScheduledMeetingPrivate::endDateTime() const                  { return mScheduledMeeting->endDateTime(); }
 const char* MegaScheduledMeetingPrivate::title() const                          { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
 const char* MegaScheduledMeetingPrivate::description() const                    { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
-const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->description().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->attributes().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
 MegaTimeStamp MegaScheduledMeetingPrivate::overrides() const                    { return mScheduledMeeting->overrides(); }
 int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
 MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}

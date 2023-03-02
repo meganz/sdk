@@ -138,15 +138,20 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
         delete[] buf;
 
-        if (!ISUNDEF(node))
+        // RSA-encrypted nodekeys shall no longer be rewritten
+        // by clients with secure=true
+        if (!mKeyManager.isSecure())
         {
-            if (type)
+            if (!ISUNDEF(node))
             {
-                sharekeyrewrite.push_back(node);
-            }
-            else
-            {
-                nodekeyrewrite.push_back(node);
+                if (type == FOLDERNODE)
+                {
+                    sharekeyrewrite.push_back(node);
+                }
+                else // FILENODE
+                {
+                    nodekeyrewrite.push_back(node);
+                }
             }
         }
     }
@@ -908,19 +913,16 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)salt.data(), salt.size(), 100000);
+        vector<byte> derivedKey = deriveKey(password, salt);
 
         string hashedauthkey;
-        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
         hasher.add(authkey, SymmCipher::KEYLENGTH);
         hasher.get(&hashedauthkey);
         hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
         SymmCipher cipher;
-        cipher.setkey(derivedKey);
+        cipher.setkey(derivedKey.data());
 
         if (masterkeyptr)
         {
@@ -1150,7 +1152,7 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {        
+    {
         for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
             nameid id = AttrMap::string2nameid(attr.c_str());
             auto it = previousNode->attrs.map.find(id);
@@ -2070,7 +2072,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit 2";
+                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
                                     assert(!sctable->inTransaction());
                                     sctable->begin();
@@ -4911,6 +4913,7 @@ bool MegaClient::procsc()
                     {
                         if (!pendingcs && !csretrying && !reqs.cmdspending())
                         {
+                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
                             assert(!sctable->inTransaction());
                             sctable->begin();
@@ -4932,7 +4935,7 @@ bool MegaClient::procsc()
                     }
 
 
-                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
+                    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
@@ -4943,6 +4946,7 @@ bool MegaClient::procsc()
                             notifypurge();
                             if (sctable)
                             {
+                                LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 assert(!sctable->inTransaction());
                                 sctable->begin();
@@ -5076,7 +5080,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
-                        LOG_debug << "Processing action packets";
+                        LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
                         break;
                     }
@@ -5530,10 +5534,14 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
 
@@ -5541,6 +5549,7 @@ void MegaClient::initsc()
         {
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             assert(!sctable->inTransaction());
             sctable->begin();
@@ -5676,9 +5685,13 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -5813,7 +5826,7 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
         {
             if (it.first != fa_media)
             {
-                sprintf(buf, "/%u*", (unsigned)it.first);
+                snprintf(buf, sizeof(buf), "/%u*", (unsigned)it.first);
                 Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
                 fa->append(buf + !fa->size());
                 LOG_debug << "Added file attribute " << it.first << " to putnodes";
@@ -8114,7 +8127,7 @@ Node* MegaClient::nodeByHandle(NodeHandle h)
     return mNodeManager.getNodeByHandle(h);
 }
 
-Node* MegaClient::nodeByPath(const char* path, Node* node)
+Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
 {
     if (!path) return NULL;
 
@@ -8125,7 +8138,6 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
     const char* bptr = path;
     int remote = 0;
     Node* n = nullptr;
-    Node* nn;
 
     // split path by / or :
     do {
@@ -8297,7 +8309,20 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = childnodebyname(n, c[l].c_str());
+                    Node* nn = nullptr;
+
+                    switch (type)
+                    {
+                    case FILENODE:
+                    case FOLDERNODE:
+                        nn = childnodebynametype(n, c[l].c_str(),
+                            l + 1 < int(c.size()) ? FOLDERNODE : type); // only the last leaf could be a file
+                        break;
+                    case TYPE_UNKNOWN:
+                    default:
+                        nn = childnodebyname(n, c[l].c_str());
+                        break;
+                    }
 
                     if (!nn)
                     {
@@ -8312,7 +8337,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
         l++;
     }
 
-    return n;
+    return (type == TYPE_UNKNOWN || (n && type == n->type)) ? n : nullptr;
 }
 
 // server-client deletion
@@ -8437,7 +8462,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     {
         return API_EACCESS;
     }
-    
+
     n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
@@ -9972,9 +9997,13 @@ void MegaClient::sendkeyrewrites()
 {
     if (mKeyManager.isSecure())
     {
-        LOG_debug << "Skipped to send key rewrites (secured client)";
-        sharekeyrewrite.clear();
-        nodekeyrewrite.clear();
+        if (sharekeyrewrite.size() || nodekeyrewrite.size())
+        {
+            LOG_err << "Skipped to send key rewrites (secured client)";
+            assert(false);
+            sharekeyrewrite.clear();
+            nodekeyrewrite.clear();
+        }
         return;
     }
 
@@ -10287,12 +10316,9 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, bsalt);
 
-    login2(email, derivedKey, pin);
+    login2(email, derivedKey.data(), pin);
 }
 
 void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
@@ -10420,7 +10446,7 @@ void MegaClient::login(string session)
 }
 
 // check password's integrity
-error MegaClient::validatepwd(const byte *pwkey)
+error MegaClient::validatepwd(const char* pswd)
 {
     User *u = finduser(me);
     if (!u)
@@ -10428,15 +10454,78 @@ error MegaClient::validatepwd(const byte *pwkey)
         return API_EACCESS;
     }
 
-    SymmCipher pwcipher(pwkey);
-    pwcipher.setkey((byte*)pwkey);
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(pswd, pwkey);
 
-    string lcemail(u->email.c_str());
-    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+        SymmCipher pwcipher(pwkey);
+        pwcipher.setkey((byte*)pwkey);
 
-    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
+        string lcemail(u->email);
+        uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+        vector<byte> eh((byte*)&emailhash, (byte*)&emailhash + sizeof(emailhash) / sizeof(byte));
 
-    return API_OK;
+        reqs.add(new CommandValidatePassword(this, lcemail.c_str(), eh));
+
+        return API_OK;
+
+    }
+    else if (accountversion == 2)
+    {
+        vector<byte> dk = deriveKey(pswd, accountsalt);
+        dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
+        reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
+
+        return API_OK;
+    }
+    else
+    {
+        return API_ENOENT;
+    }
+}
+
+bool MegaClient::validatepwdlocally(const char* pswd)
+{
+    if (!pswd || !pswd[0] || k.size() != SymmCipher::KEYLENGTH)
+    {
+        return false;
+    }
+
+    string tmpk = k;
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if (pw_key(pswd, pwkey))
+        {
+            return false;
+        }
+
+        SymmCipher cipher(pwkey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else if (accountversion == 2)
+    {
+        if (accountsalt.size() != 32) // SHA256
+        {
+            return false;
+        }
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte*)pswd, strlen(pswd),
+            (const byte*)accountsalt.data(), accountsalt.size(), 100000);
+
+        SymmCipher cipher(derivedKey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else
+    {
+        LOG_warn << "Version of account not supported";
+        return false;
+    }
+
+    return !memcmp(tmpk.data(), key.key, SymmCipher::KEYLENGTH);
 }
 
 int MegaClient::dumpsession(string& session)
@@ -11048,12 +11137,6 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
 void MegaClient::rewriteforeignkeys(Node* n)
 {
-    if (mKeyManager.isSecure())
-    {
-        LOG_debug << "Skipped to rewrite foreign keys (secured client)";
-        return;
-    }
-
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
 
@@ -12531,7 +12614,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         nsi = addnode(&rshares, sn);
                         nni = addnode(&rnodes, n);
 
-                        sprintf(buf, "\",%u,%u,\"", nsi, nni);
+                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
                         sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
@@ -12752,9 +12835,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     handle ph = MemAccess::get<handle>(ptr);
     ptr += 6;
 
-    byte salt[32];
-    memcpy((char*)salt, ptr, 32);
-    ptr += sizeof salt;
+    string salt(ptr, 32);
+    ptr += salt.size();
 
     string encKey;
     encKey.resize(encKeyLen);
@@ -12766,26 +12848,20 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    byte derivedKey[64];
-    unsigned int iterations = 100000;
-    PBKDF2_HMAC_SHA512 pbkdf2;
-    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                     (byte*) pwd, strlen(pwd),
-                     salt, sizeof salt,
-                     iterations);
+    vector<byte> derivedKey = deriveKey(pwd, salt);
 
     byte hmacComputed[32];
     if (algorithm == 1)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
-        hmacsha256.add(derivedKey + 32, 32);
+        hmacsha256.add(derivedKey.data() + 32, 32);
         hmacsha256.get(hmacComputed);
     }
     else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
         hmacsha256.add((byte *)linkBin.data(), unsigned(40 + encKeyLen));
         hmacsha256.get(hmacComputed);
     }
@@ -12827,15 +12903,9 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
-        byte derivedKey[64];
-        byte salt[32];
-        rng.genblock(salt, 32);
-        unsigned int iterations = 100000;
-        PBKDF2_HMAC_SHA512 pbkdf2;
-        pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                         (byte*) pwd, strlen(pwd),
-                         salt, sizeof salt,
-                         iterations);
+        string salt(32u, '\0');
+        rng.genblock((byte*)salt.data(), salt.size());
+        vector<byte> derivedKey = deriveKey(pwd, salt);
 
         // Prepare encryption key
         string encKey;
@@ -12852,7 +12922,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         payload.append((char*) &algorithm, sizeof algorithm);
         payload.append((char*) &type, sizeof type);
         payload.append((char*) &ph, NODEHANDLE);
-        payload.append((char*) salt, sizeof salt);
+        payload.append(salt);
         payload.append(encKey);
 
 
@@ -12861,12 +12931,12 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         if (algorithm == 1)
         {
             HMACSHA256 hmacsha256((byte *)payload.data(), payload.size());
-            hmacsha256.add(derivedKey + 32, 32);
+            hmacsha256.add(derivedKey.data() + 32, 32);
             hmacsha256.get(hmac);
         }
         else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
         {
-            HMACSHA256 hmacsha256(derivedKey + 32, 32);
+            HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
             hmacsha256.add((byte *)payload.data(), unsigned(payload.size()));
             hmacsha256.get(hmac);
         }
@@ -12881,7 +12951,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encLinkBytes.append((char*) &algorithm, sizeof algorithm);
         encLinkBytes.append((char*) &type, sizeof type);
         encLinkBytes.append((char*) &ph, NODEHANDLE);
-        encLinkBytes.append((char*) salt, sizeof salt);
+        encLinkBytes.append(salt);
         encLinkBytes.append(encKey);
         encLinkBytes.append((char*) hmac, sizeof hmac);
 
@@ -13055,18 +13125,15 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -13074,6 +13141,16 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
     reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
+}
+
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+{
+    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
+        (const byte*)salt.data(), salt.size(), 100000);
+
+    return derivedKey;
 }
 
 // create ephemeral session
@@ -13137,18 +13214,15 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -13156,7 +13230,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     accountversion = 2;
     accountsalt = salt;
     reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
-    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+    return string((const char*)derivedKey.data(), derivedKey.size());
 }
 
 void MegaClient::resendsignuplink2(const char *email, const char *name)
@@ -13349,6 +13423,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mNodeManager.dumpNodes();
 
         // and force commit, since old DB has been upgraded to new schema for NOD
+        LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
         sctable->commit();
         sctable->begin();
     }
@@ -14538,13 +14613,11 @@ error MegaClient::verifyCredentials(handle uh)
         return API_EINTERNAL;
     }
 
-    AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
-    AuthMethod authMethod = authring.getAuthMethod(uh);
+    AuthMethod authMethod = itEd->second.getAuthMethod(uh);
     switch (authMethod)
     {
     case AUTH_METHOD_SEEN:
         LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
-        authring.update(uh, AUTH_METHOD_FINGERPRINT);
         break;
 
     case AUTH_METHOD_FINGERPRINT:
@@ -14561,9 +14634,7 @@ error MegaClient::verifyCredentials(handle uh)
         const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
         if (pubKey)
         {
-            string keyFingerprint = AuthRing::fingerprint(*pubKey);
             LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
-            authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
         }
         else
         {
@@ -14575,11 +14646,60 @@ error MegaClient::verifyCredentials(handle uh)
     }
 
     int tag = reqtag;
-    std::string serializedAuthring = authring.serializeForJS();
     mKeyManager.commit(
-    [this, serializedAuthring]()
+    [this, uh, uid]()
     {
         // Changes to apply in the commit
+        auto itEd = mAuthRings.find(ATTR_AUTHRING);
+        auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+        if (itEd == mAuthRings.end() || itCu == mAuthRings.end())
+        {
+            LOG_warn << "Failed to verify public Ed25519 key for user " << uid
+                     << ": authring(s) not available during commit";
+            return;
+        }
+
+        if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+        {
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << ": signature of Cu25519 public key is not verified during commit";
+            return;
+        }
+
+        AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        switch (authMethod)
+        {
+        case AUTH_METHOD_SEEN:
+            authring.update(uh, AUTH_METHOD_FINGERPRINT);
+            break;
+        case AUTH_METHOD_UNKNOWN:
+        {
+            User *user = finduser(uh);
+            const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
+            if (pubKey)
+            {
+                string keyFingerprint = AuthRing::fingerprint(*pubKey);
+                LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid
+                         << ": key is not tracked yet during commit";
+                authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
+                break;
+            }
+            else
+            {
+                LOG_err << "Failed to verify credentials for user " << uid
+                        << ": key not tracked and not available during commit";
+                return;
+            }
+            break;
+        }
+        default:
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
     [this, tag]()
@@ -14607,8 +14727,7 @@ error MegaClient::resetCredentials(handle uh)
         return API_ETEMPUNAVAIL;
     }
 
-    AuthRing authring = it->second; // copy, do not update cached authring yet
-    AuthMethod authMethod = authring.getAuthMethod(uh);
+    AuthMethod authMethod = it->second.getAuthMethod(uh);
     if (authMethod == AUTH_METHOD_SEEN)
     {
         LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
@@ -14620,15 +14739,32 @@ error MegaClient::resetCredentials(handle uh)
         return API_ENOENT;
     }
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
-
     LOG_debug << "Reseting credentials for user " << uid << "...";
-    authring.update(uh, AUTH_METHOD_SEEN);
 
     int tag = reqtag;
-    string serializedAuthring = authring.serializeForJS();
     mKeyManager.commit(
-    [this, serializedAuthring]()
+    [this, uh, uid]()
     {
+        auto it = mAuthRings.find(ATTR_AUTHRING);
+        if (it == mAuthRings.end())
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << ": authring not available during commit";
+            return;
+        }
+
+        AuthRing authring = it->second; // copy, do not update cached authring yet
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        if (authMethod != AUTH_METHOD_FINGERPRINT)
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        authring.update(uh, AUTH_METHOD_SEEN);
+        string serializedAuthring = authring.serializeForJS();
+
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
@@ -16350,7 +16486,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
 
-                        sprintf(report + 8, " %d %.200s", (*it)->type, buf);
+                        snprintf(report + 8, sizeof(report) - 8, " %d %.200s", (*it)->type, buf);
 
                         // report an "undecrypted child" event
                         reportevent("CU", report, 0);
@@ -16403,7 +16539,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                snprintf(report, sizeof(report), "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -16761,7 +16897,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 node_list nodeList = getChildren(l->node);
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
+                snprintf(report, sizeof(report), "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)nodeList.size() : -1,
@@ -16788,7 +16924,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
+                    snprintf(strchr(report, 0), sizeof(report) - strlen(report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 
@@ -17253,7 +17389,7 @@ void MegaClient::execmovetosyncdebris()
 
     ts = m_time();
     struct tm* ptm = m_localtime(ts, &tms);
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 
     // locate //bin/SyncDebris
@@ -18645,7 +18781,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     assert(childMeetingsDeleted);
                     if (auxJson->enterarray() && childMeetingsDeleted)
                     {
-                        while(auxJson->ishandle())
+                        while(auxJson->ishandle(MegaClient::CHATHANDLE))
                         {
                             childMeetingsDeleted->insert(auxJson->gethandle());
                         }
@@ -18736,32 +18872,17 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        j->storeobject(&cs.oldValue);
-        bool updated = j->storeobject(&cs.newValue);
-        if (!updated)
-        {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
-            {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EEXIST;
-            }
-         }
-         j->leavearray();
-         return e;
+        if (!j->storeobject(&cs.oldValue)) { cs.oldValue.clear(); }
+        if (!j->storeobject(&cs.newValue)) { cs.newValue.clear(); }
+        j->leavearray();
+        return API_OK;
     };
 
     auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
@@ -18769,33 +18890,30 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        cs.oldValue = j->getint();
-        cs.newValue = j->getint();
-        bool updated = cs.newValue > 0;
-        if (!updated)
+        auto getTsVal = [&j](m_time_t& out)
         {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
+            out = mega_invalid_timestamp;
+            if (j->isnumeric())
             {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EEXIST;
+                auto val = j->getint();
+                if (val > -1)
+                {
+                    out = val;
+                }
             }
-         }
-         j->leavearray();
-         return e;
+        };
+
+        getTsVal(cs.oldValue);
+        getTsVal(cs.newValue);
+        j->leavearray();
+        return API_OK;
     };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
@@ -18810,7 +18928,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tCs, "Title");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    if (!tCs.oldValue.empty() && !tCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18839,7 +18961,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewStrValues(tzCs, "TimeZone");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    if (!tzCs.oldValue.empty() && !tzCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18854,7 +18980,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(sdCs, "StartDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    if (sdCs.oldValue != mega_invalid_timestamp && sdCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -18869,7 +18999,11 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 auto err = getOldNewTsValues(edCs, "EndDateTime");
                 if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    if (edCs.oldValue != mega_invalid_timestamp && edCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
                 }
                 else if (err == API_EINTERNAL && !j->storeobject())
                 {
@@ -19289,6 +19423,29 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     }
 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
+}
+
+void MegaClient::removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(sid != UNDEF && !eids.empty());
+
+    // make sure Set id is valid
+    const Set* existingSet = (eids.empty() || sid == UNDEF) ? nullptr : getSet(sid);
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Invalid request data when removing bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr);
+        }
+        return;
+    }
+
+    // Do not validate Element ids here. Let the API return error for invalid ones,
+    // to allow valid ones to be removed.
+
+    reqs.add(new CommandRemoveSetElements(this, sid, move(eids), completion));
 }
 
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
@@ -20102,7 +20259,7 @@ bool MegaClient::updatescsetelements()
                 continue;
             }
 
-            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            LOG_verbose << (e->hasChanged(SetElement::CH_EL_NEW) ? "Adding" : "Updating") << " SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSETELEMENT, e, &key))
             {
                 return false;
@@ -20623,14 +20780,6 @@ bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 {
     auto it = mShareKeys.find(sharehandle);
     return it != mShareKeys.end() && it->second.second;
-}
-
-bool KeyManager::removeShare(handle sharehandle)
-{
-    bool removed = mShareKeys.erase(sharehandle);
-    removed |= mPendingOutShares.erase(sharehandle) != 0;
-    removed |= removePendingInShare(toNodeHandle(sharehandle)) != 0;
-    return removed;
 }
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)

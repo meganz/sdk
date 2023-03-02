@@ -577,6 +577,8 @@ static const char* treestatename(treestate_t ts)
             return "Pending";
         case TREESTATE_SYNCING:
             return "Syncing";
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";
@@ -4575,12 +4577,12 @@ static void process_line(char* l)
         else if (recoverycode.size())   // cancelling account --> check password
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
         {
             client->pw_key(l, pwkey);
-            client->validatepwd(pwkey);
+            client->validatepwd(l);
         }
         else
         {
