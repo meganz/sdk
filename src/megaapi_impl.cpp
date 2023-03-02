@@ -5979,6 +5979,11 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
 }
+
+void MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
+{
+    mega::RotativePerformanceLogger::sThreadName = threadName;
+}
 #endif
 
 void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
