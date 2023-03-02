@@ -10735,7 +10735,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(removedElErrs, nullptr);
     ASSERT_EQ(removedElErrs->size(), 2);
     ASSERT_EQ(removedElErrs->get(0), API_OK);
-    ASSERT_EQ(removedElErrs->get(1), API_EARGS); // API_ENOENT was probably better
+    ASSERT_EQ(removedElErrs->get(1), API_ENOENT);
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
