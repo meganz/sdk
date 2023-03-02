@@ -26,7 +26,7 @@
 #include <sqlite3.h>
 
 // Include ICU headers
-#include <unicode/ucol.h>
+#include <unicode/uchar.h>
 
 namespace mega {
 
