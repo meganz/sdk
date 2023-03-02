@@ -6514,7 +6514,8 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     WaitMillisec(3000);
     // wait for shared attrib action packets to propgate
 
-    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+    unique_ptr<MegaUser> user0(megaApi[1]->getContact(mApi[0].email.c_str()));
+    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(user0.get()));
     ASSERT_EQ(nl2->size(), 1);
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     
@@ -6534,7 +6535,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     time_t secs = time(nullptr) - start;
     secs;
   */
-    subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
+    subFolderA.reset(megaApi[0]->getNodeByPath(((string)"/" + folderAName + "/" + subFolderAName).c_str(), unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get()));
     ASSERT_TRUE(!!subFolderA);
     ASSERT_TRUE(subFolderA->isMarkedSensitive());
 
