@@ -6576,141 +6576,141 @@ TEST_F(SdkTest, SdkSensitiveNodes)
 
     // inherited sensitive flag
     // specifeid searh string
-    MegaNodeList* list = megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true);
+    unique_ptr<MegaNodeList> list(megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 1);
-    list = megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, false);
+    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, false));
     ASSERT_EQ(list->size(), 0);
 
     // inherited sensitive flag
     // no specifeid searh string
-    list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true);
+    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 3);
-    list = megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false);
+    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
     ASSERT_EQ(list->size(), 1);
 
     // inherited sensitive flag
     // no node, specifeid searh string: SEARCH_TARGET_ALL
-    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true);
+    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 3);
-    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false);
+    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
     ASSERT_EQ(list->size(), 1);
-    list = megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false);
+    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
     ASSERT_EQ(list->size(), 0);
 
     // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
     ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 
     // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimetypeExclusiveRecursive()
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1); // non senstive, non recusrive exclude and recusrive exclude 
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 0); // senstive, non recusrive required and recusrive exclude
 
     // no node, specifid search string: SEARCH_TARGET_ROOTNODE: getNodesByName()
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), sfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
     ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 
     // no node, specifid search string: main non recursive
     // folderA
-    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 2);
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), sfilename.c_str()), 0);
-    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 1); // non senstive
     ASSERT_EQ(strcmp(list->get(0)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 1); // senstive
     ASSERT_EQ(strcmp(list->get(0)->getName(), sfilename.c_str()), 0);
 
     // no node, specifid search string: main non recursive
     // subfolderA
-    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags());
+    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0);
-    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 0); // non sensitive files (recursvie exclude)
-    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 1); // non senstive
     ASSERT_EQ(strcmp(list->get(0)->getName(), filename1.c_str()), 0); // the file itself does not have the senditvei flag it's parent fodler does
-    list = impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 0); // senstive, but the file itself is not marked sensitvei it'sparent folder is
 
     // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
-    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags());
+    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), nsfilename.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(3)->getName(), sfilename.c_str()), 0);
-    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 2); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
-    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 3); // non senstive, non recusrive exclude
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), nsfilename.c_str()), 0);
-    list = impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 2); // senstive, non recusrive required
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0); // sorts folders first
     ASSERT_EQ(strcmp(list->get(1)->getName(), sfilename.c_str()), 0);
 
     // no node, specifid search string: SEARCH_TARGET_OUTSHARE: getNodesByName()
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags()));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), nsfilename.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(3)->getName(), sfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE));
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 2); // non sensitive files (recursvie exclude)
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
     ASSERT_EQ(list->size(), 3); // non senstive, non recusrive exclude
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), filename1.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(2)->getName(), nsfilename.c_str()), 0);
-    list = impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags());
+    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
     ASSERT_EQ(list->size(), 2); // senstive, non recusrive required
     ASSERT_EQ(strcmp(list->get(0)->getName(), folderAName.c_str()), 0);
     ASSERT_EQ(strcmp(list->get(1)->getName(), sfilename.c_str()), 0);
