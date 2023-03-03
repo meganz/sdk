@@ -2882,7 +2882,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
 {
     string sprice;
     sprice.resize(128);
-    snprintf((char *)sprice.data(), 128, "%.2f", price/100.0);
+    snprintf(const_cast<char*>(sprice.data()), sprice.length(), "%.2f", price/100.0);
     replace( sprice.begin(), sprice.end(), ',', '.');
     cmd("uts");
     arg("it", itemclass);
