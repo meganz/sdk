@@ -1379,7 +1379,7 @@ bool Node::applykey()
         }
         else
         {
-            // look for share key if not folder access with folder master key
+            // look for share key if not folder link access with folder master key
             if (h != me)
             {
                 // this is a share node handle - check if share key is available at key's repository
