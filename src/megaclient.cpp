@@ -2475,29 +2475,6 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
-        {
-
-            char jsonsc_pos[50] = { 0 };
-            if (jsonsc.pos)
-            {
-                // this string can be massive and we can output this frequently, so just show a little bit of it
-                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
-            }
-
-            LOG_verbose << " Megaclient exec is pending resolutions."
-                        << " scpaused=" << scpaused
-                        << " stopsc=" << scsn.stopped()
-                        << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc_pos
-                        << " syncsup=" << syncsup
-                        << " statecurrent=" << statecurrent
-                        << " syncadding=" << syncadding
-                        << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
-                        << " syncdownretry=" << syncdownretry;
-        }
-
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
         if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
@@ -8458,7 +8435,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
-    if (n->changed.favourite && (n->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
+    if (n->changed.favourite && (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
     {
         return API_EACCESS;
     }
@@ -16924,7 +16901,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    snprintf(strchr(report, 0), sizeof(report) - strlen(report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
+                    char* ptr = strchr(report, '\0');
+                    snprintf(ptr, sizeof(report) - (ptr - report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 

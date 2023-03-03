@@ -943,15 +943,11 @@ void JSONWriter::endobject()
 
 void JSONWriter::element(int n)
 {
-    char buf[24];
-
-    snprintf(buf, sizeof(buf), "%d", n);
-
     if (elements())
     {
         mJson.append(",");
     }
-    mJson.append(buf);
+    mJson.append(std::to_string(n));
 }
 
 void JSONWriter::element(handle h, int len)
