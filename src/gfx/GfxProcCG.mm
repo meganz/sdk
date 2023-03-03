@@ -182,7 +182,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
         dispatch_semaphore_signal(semaphore);
     }];
     
-    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+    dispatch_semaphore_wait(semaphore, 60);
     jpegout->assign((char*) data.bytes, data.length);
     return data;
 }
