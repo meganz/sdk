@@ -28,12 +28,12 @@ namespace mega {
 
 bool Request::isFetchNodes() const
 {
-    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back());
+    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back().get());
 }
 
 void Request::add(Command* c)
 {
-    cmds.push_back(c);
+    cmds.push_back(unique_ptr<Command>(c));
 }
 
 size_t Request::size() const
@@ -99,7 +99,7 @@ void Request::process(MegaClient* client)
     client->json = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
-        Command* cmd = cmds[processindex];
+        Command* cmd = cmds[processindex].get();
 
         client->restag = cmd->tag;
 
@@ -141,6 +141,20 @@ void Request::process(MegaClient* client)
             }
 #endif
         }
+
+        if (cmds[processindex]->persistent)
+        {
+            // do not leave the pointer lying around here
+            // the object may be passed to other systems, complete its task
+            // and then be deleted before this batch finishes
+            // and then we would be left with a dangling pointer to check `persistent` with
+            cmds[processindex].release();
+        }
+        else
+        {
+            // delete the command as soon as it's not needed anymore
+            cmds[processindex].reset();
+        }
     }
 
     json = client->json;
@@ -155,7 +169,7 @@ void Request::process(MegaClient* client)
 Command* Request::getCurrentCommand()
 {
     assert(processindex < cmds.size());
-    return cmds[processindex];
+    return cmds[processindex].get();
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -185,13 +199,6 @@ void Request::servererror(const std::string& e, MegaClient* client)
 
 void Request::clear()
 {
-    for (int i = (int)cmds.size(); i--; )
-    {
-        if (!cmds[i]->persistent)
-        {
-            delete cmds[i];
-        }
-    }
     cmds.clear();
     jsonresponse.clear();
     json.pos = NULL;

@@ -571,28 +571,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 
-bool SyncConfig::operator==(const SyncConfig& rhs) const
-{
-    return mEnabled == rhs.mEnabled
-           && mExternalDrivePath == rhs.mExternalDrivePath
-           && mLocalPath == rhs.mLocalPath
-           && mName == rhs.mName
-           && mRemoteNode == rhs.mRemoteNode
-           && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
-           && mFilesystemFingerprint == rhs.mFilesystemFingerprint
-           && mSyncType == rhs.mSyncType
-           && mError == rhs.mError
-           && mBackupId == rhs.mBackupId
-           && mWarning == rhs.mWarning
-           && mBackupState == rhs.mBackupState;
-}
-
-bool SyncConfig::operator!=(const SyncConfig& rhs) const
-{
-    return !(*this == rhs);
-}
-
-
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;
@@ -2364,7 +2342,8 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
 
         if (i >= 0)
         {
-            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
+            char* ptr = strchr(buf, 0);
+            snprintf(ptr, sizeof(buf) - (ptr - buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
         }
 
         day = buf;
