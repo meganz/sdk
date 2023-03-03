@@ -100,6 +100,7 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     }
     else
     {
+        memset(key, 0, sizeof key);
         have_key = 0;
     }
 
@@ -110,6 +111,7 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     }
     else
     {
+        memset(auth, 0, sizeof auth);
         have_auth = 0;
     }
 }
