@@ -11724,7 +11724,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void createSetElements(long sid, ArrayList<long> nodes, ArrayList<String> names, MegaRequestListenerInterface listener) {
-        megaApi.createSetElements(sid, nodes, names, listener)
+        megaApi.createSetElements(sid, nodes, names, listener);
     }
 
     /**
@@ -11935,7 +11935,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     void removeSetElements(long sid, ArrayList<Long> eids, MegaRequestListenerInterface listener) {
-        megaApi.removeSetElements(sid, eids, listener)
+        megaApi.removeSetElements(sid, eids, listener);
     }
 
     /**
