@@ -2475,29 +2475,6 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
-        {
-
-            char jsonsc_pos[50] = { 0 };
-            if (jsonsc.pos)
-            {
-                // this string can be massive and we can output this frequently, so just show a little bit of it
-                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
-            }
-
-            LOG_verbose << " Megaclient exec is pending resolutions."
-                        << " scpaused=" << scpaused
-                        << " stopsc=" << scsn.stopped()
-                        << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc_pos
-                        << " syncsup=" << syncsup
-                        << " statecurrent=" << statecurrent
-                        << " syncadding=" << syncadding
-                        << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
-                        << " syncdownretry=" << syncdownretry;
-        }
-
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
         if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
