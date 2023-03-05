@@ -6218,7 +6218,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void logout(MegaRequestListenerInterface listener) {
-        megaApi.logout(createDelegateRequestListener(listener));
+        megaApi.logout(false, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6239,7 +6239,7 @@ public class MegaApiJava {
      * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
      */
     public void logout() {
-        megaApi.logout();
+        megaApi.logout(false, null);
     }
 
     /**
@@ -12025,5 +12025,31 @@ public class MegaApiJava {
      */
     public MegaSetElement getSetElement(long sid, long eid) {
         return megaApi.getSetElement(sid, eid);
+    }
+
+    public void syncFolder(
+            MegaSync.SyncType syncType,
+            String localSyncRootFolder,
+            String name,
+            long remoteSyncRootFolder,
+            String driveRootIfExternal,
+            MegaRequestListenerInterface listener
+    ) {
+        megaApi.syncFolder(
+                syncType,
+                localSyncRootFolder,
+                name,
+                remoteSyncRootFolder,
+                driveRootIfExternal,
+                createDelegateRequestListener(listener, false)
+        );
+    }
+
+    public MegaSyncList getSyncs() {
+        return megaApi.getSyncs();
+    }
+
+    public void removeSync(long backupId) {
+        megaApi.removeSync(backupId);
     }
 }
