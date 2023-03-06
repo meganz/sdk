@@ -10738,9 +10738,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // Remove 2, only the first one will succeed
     differentApiDtls.setElementUpdated = false;
-    vector<MegaHandle> removedElIds = { eh, INVALID_HANDLE };
+    unique_ptr<MegaHandleList> removedElIds(MegaHandleList::createInstance());
+    removedElIds->addMegaHandle(eh);
+    removedElIds->addMegaHandle(INVALID_HANDLE);
     MegaIntegerList* removedElErrs = nullptr;
-    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds);
+    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds.get());
     elErrs.reset(removedElErrs);
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(removedElErrs, nullptr);

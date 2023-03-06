@@ -5816,7 +5816,7 @@ void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* n
     pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
 }
 
-void MegaApi::removeSetElements(MegaHandle sid, const vector<MegaHandle>& eids, MegaRequestListener* listener)
+void MegaApi::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     pImpl->removeSetElements(sid, eids, listener);
 }
