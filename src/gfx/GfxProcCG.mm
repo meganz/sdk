@@ -28,6 +28,7 @@
 
 const CGFloat COMPRESSION_QUALITY = 0.8f;
 const int THUMBNAIL_MIN_SIZE = 200;
+const int64_t WAIT_60_SECONDS = 60;
 
 NSURL *sourceURL;
 
@@ -182,7 +183,8 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
         dispatch_semaphore_signal(semaphore);
     }];
     
-    dispatch_semaphore_wait(semaphore, 60);
+    dispatch_time_t waitTime = dispatch_time(DISPATCH_TIME_NOW, WAIT_60_SECONDS * NSEC_PER_SEC);
+    dispatch_semaphore_wait(semaphore, waitTime);
     jpegout->assign((char*) data.bytes, data.length);
     return data;
 }
