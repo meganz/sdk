@@ -272,6 +272,9 @@ public:
         void setChatLink(const string& c) { chatlink = c; }
         const string& getChatLink() const { return chatlink; }
 
+        void setBackupId(MegaHandle b) { mBackupId = b; }
+        MegaHandle getBackupId() const { return mBackupId; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -286,6 +289,7 @@ public:
         string sid;
         string attributeValue;
         string chatlink;  // not really used anywhere, should it be removed ?
+        MegaHandle mBackupId = UNDEF;
     };
 
     std::vector<PerApi> mApi;
@@ -299,7 +303,6 @@ public:
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
 
-    MegaHandle mBackupId = UNDEF;
     unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:

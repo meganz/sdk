@@ -575,7 +575,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_BACKUP_PUT:
-        mBackupId = request->getParentHandle();
+        mApi[apiIndex].setBackupId(request->getParentHandle());
         break;
 
     case MegaRequest::TYPE_GET_ATTR_NODE:
@@ -6322,7 +6322,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
 
     // update backup
-    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mApi[0].getBackupId(), MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_EQ(API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // now remove all backups, only wait for completion of the third one
@@ -6342,7 +6342,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // check heartbeat
-    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
+    err = synchronousSendBackupHeartbeat(0, mApi[0].getBackupId(), 1, 10, 1, 1, 0, targetNodes[0]);
     ASSERT_EQ(API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
 
@@ -6358,9 +6358,9 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
-    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    err = synchronousRemoveBackup(0, mApi[0].getBackupId(), nullptr);
     ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mApi[0].getBackupId(), BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_EQ(API_OK, err) << "updateBackup for deleted backup should succeed now, and revive the record. But, error: " << err;
 
     // We can't test this, as reviewer wants an assert to fire for EARGS
