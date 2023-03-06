@@ -526,7 +526,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CHAT_URL:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            chatlink.assign(request->getLink());
+            mApi[apiIndex].setChatLink(request->getLink());
         }
         break;
 #endif

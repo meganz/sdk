@@ -269,6 +269,9 @@ public:
         void setAttributeValue(const string& v) { attributeValue = v; }
         const string& getAttributeValue() const { return attributeValue; }
 
+        void setChatLink(const string& c) { chatlink = c; }
+        const string& getChatLink() const { return chatlink; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -282,13 +285,13 @@ public:
 
         string sid;
         string attributeValue;
+        string chatlink;  // not really used anywhere, should it be removed ?
     };
 
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
     // relevant values received in response of requests
-    string chatlink;  // to be removed due to race conditions
     std::unique_ptr<MegaStringListMap> stringListMap;
     std::unique_ptr<MegaStringTable> stringTable;
 
