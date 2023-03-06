@@ -263,6 +263,9 @@ public:
             return lastEvents.find(type) != lastEvents.end();
         }
 
+        void setSid(const string& s) { sid = s; }
+        const string& getSid() const { return sid; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -273,6 +276,8 @@ public:
 
         shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
         set<int> lastEvents;
+
+        string sid;
     };
 
     std::vector<PerApi> mApi;
@@ -281,7 +286,6 @@ public:
     // relevant values received in response of requests
     string chatlink;  // to be removed due to race conditions
     string attributeValue;
-    string sid;
     std::unique_ptr<MegaStringListMap> stringListMap;
     std::unique_ptr<MegaStringTable> stringTable;
 

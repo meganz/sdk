@@ -534,7 +534,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CREATE_ACCOUNT:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            sid = request->getSessionKey();
+            mApi[apiIndex].setSid(request->getSessionKey());
         }
         break;
 
@@ -1453,7 +1453,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
+    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
     output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
@@ -1533,7 +1533,7 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 
     // Logout from ephemeral plus plus session and resume session
     ASSERT_NO_FATAL_FAILURE(locallogout());
-    synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
+    synchronousResumeCreateAccountEphemeralPlusPlus(0, mApi[0].getSid().c_str());
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
 
     gSessionIDs[0] = "invalid";
