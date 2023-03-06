@@ -581,7 +581,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
+            mApi[apiIndex].setFavNodes(request->getMegaHandleList()->copy());
         }
         break;
 
@@ -6414,10 +6414,10 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
-    ASSERT_EQ(mMegaFavNodeList->size(), 2u) << "synchronousGetFavourites failed...";
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 2u) << "synchronousGetFavourites failed...";
     err = synchronousGetFavourites(0, nullptr, 1);
-    ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
-    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 1u) << "synchronousGetFavourites failed...";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mApi[0].getFavNode(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
 }
 

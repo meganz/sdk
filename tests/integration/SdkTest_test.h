@@ -275,6 +275,10 @@ public:
         void setBackupId(MegaHandle b) { mBackupId = b; }
         MegaHandle getBackupId() const { return mBackupId; }
 
+        void setFavNodes(const MegaHandleList* f) { mMegaFavNodeList.reset(f); }
+        unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
+        MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -290,6 +294,7 @@ public:
         string attributeValue;
         string chatlink;  // not really used anywhere, should it be removed ?
         MegaHandle mBackupId = UNDEF;
+        shared_ptr<const MegaHandleList> mMegaFavNodeList;
     };
 
     std::vector<PerApi> mApi;
@@ -302,8 +307,6 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
-
-    unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:
     void SetUp() override;
