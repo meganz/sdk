@@ -1435,7 +1435,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     }
     LOG_debug << "Using " << output;
 
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+    megaApi.resize(1);
+    mApi.resize(1);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd));
 
     const string realEmail(bufRealEmail); // user@host.domain
     auto pos = realEmail.find('@');
