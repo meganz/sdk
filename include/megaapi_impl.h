@@ -1494,7 +1494,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
-        void setMegaStringList(MegaStringList* stringList);
+        void setMegaStringList(const MegaStringList* stringList);
         void setMegaHandleList(const vector<handle> &handles);
         void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
 
@@ -1513,6 +1513,9 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaSetElementList* getMegaSetElementList() const override;
         void setMegaSetElementList(std::unique_ptr<MegaSetElementList> els);
+
+        const MegaIntegerList* getMegaIntegerList() const override;
+        void setMegaIntegerList(std::unique_ptr<MegaIntegerList> ints);
 
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
@@ -1567,6 +1570,7 @@ protected:
         unique_ptr<MegaBannerListPrivate> mBannerList;
         unique_ptr<MegaSet> mMegaSet;
         unique_ptr<MegaSetElementList> mMegaSetElementList;
+        unique_ptr<MegaIntegerList> mMegaIntegerList;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -2654,6 +2658,7 @@ class MegaApiImpl : public MegaApp
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void putSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
@@ -2749,6 +2754,7 @@ class MegaApiImpl : public MegaApp
         char *getNodePath(MegaNode *node);
         char *getNodePathByNodeHandle(MegaHandle handle);
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
+        MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();

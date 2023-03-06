@@ -1132,6 +1132,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+const MegaIntegerList* MegaRequest::getMegaIntegerList() const
+{
+    return nullptr;
+}
+
 MegaSet* MegaRequest::getMegaSet() const
 {
     return nullptr;
@@ -4427,6 +4432,11 @@ MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
     return pImpl->getNodeByPath(path, node);
 }
 
+MegaNode* MegaApi::getNodeByPathOfType(const char* path, MegaNode* n, int type)
+{
+    return pImpl->getNodeByPathOfType(path, n, type);
+}
+
 MegaNode* MegaApi::getNodeByHandle(uint64_t h)
 {
     return pImpl->getNodeByHandle(h);
@@ -5783,6 +5793,11 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
 void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 {
     pImpl->fetchSet(sid, listener);
+}
+
+void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+{
+    pImpl->putSetElements(sid, nodes, names, listener);
 }
 
 void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)

@@ -264,6 +264,10 @@ struct MEGA_API MemAccess
 
 #ifdef _WIN32
 int mega_snprintf(char *s, size_t n, const char *format, ...);
+
+// get the Windows error message in UTF-8
+std::string winErrorMessage(DWORD error);
+
 #endif
 
 struct MEGA_API TLVstore

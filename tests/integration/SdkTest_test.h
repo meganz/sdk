@@ -439,6 +439,15 @@ public:
         return rt.result;
     }
     template<typename ... requestArgs> int doRemoveSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSet(args..., &rt); rt.waitForResult(); return rt.result; }
+    template<typename ... requestArgs> int doCreateBulkSetElements(unsigned apiIndex, MegaSetElementList** els, MegaIntegerList** errs, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->createSetElements(args..., &rt);
+        rt.waitForResult();
+        if (els && rt.request->getMegaSetElementList()) *els = rt.request->getMegaSetElementList()->copy();
+        if (errs && rt.request->getMegaIntegerList()) *errs = rt.request->getMegaIntegerList()->copy();
+        return rt.result;
+    }
     template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaSetElementList** ell, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (ell && rt.request->getMegaSetElementList()) *ell = rt.request->getMegaSetElementList()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }

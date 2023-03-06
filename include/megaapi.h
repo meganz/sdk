@@ -4221,7 +4221,8 @@ class MegaRequest
             TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES                        = 161,
             TYPE_OPEN_SHARE_DIALOG                                          = 162,
             TYPE_UPGRADE_SECURITY                                           = 163,
-            TOTAL_OF_REQUEST_TYPES                                          = 164,
+            TYPE_PUT_SET_ELEMENTS                                           = 164,
+            TOTAL_OF_REQUEST_TYPES                                          = 165,
         };
 
         virtual ~MegaRequest();
@@ -5033,6 +5034,18 @@ class MegaRequest
         virtual MegaRecentActionBucketList *getRecentActions() const;
 
          /**
+         * @brief Returns a list of integers associated with this request
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::createSetElements -> error codes for all requested Elements
+         *
+         * @return list of integers associated with this request (can be null)
+         */
+        virtual const MegaIntegerList* getMegaIntegerList() const;
+
+         /**
          * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -5053,7 +5066,7 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::fetchSet
          *
-         * @return lis of elements in the requested MegaSet, or null if Set not found
+         * @return list of elements in the requested MegaSet, or null if Set not found
          */
         virtual MegaSetElementList* getMegaSetElementList() const;
 };
@@ -16025,6 +16038,29 @@ class MegaApi
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
 
         /**
+         * @brief Get the MegaNode of the specified type, in a specific path in the MEGA account
+         *
+         * The path separator character is '/'
+         * The Root node is /
+         * The Vault root node is //in/
+         * The Rubbish root node is //bin/
+         *
+         * Paths with names containing '/', '\' or ':' aren't compatible
+         * with this function.
+         *
+         * It is needed to be logged in and to have successfully completed a fetchNodes
+         * request before calling this function. Otherwise, it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param path Path to check
+         * @param n Base node if the path is relative
+         * @param type Type of the node to be looked up; valid values: TYPE_FILE, TYPE_FOLDER, TYPE_UNKNOWN (any type, folder has precedence)
+         * @return The MegaNode object in the path, otherwise NULL
+         */
+        MegaNode* getNodeByPathOfType(const char *path, MegaNode *n = nullptr, int type = MegaNode::TYPE_UNKNOWN);
+
+        /**
          * @brief Get the MegaNode that has a specific handle
          *
          * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
@@ -20443,6 +20479,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request creation of multiple Elements for a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getMegaHandleList - Returns a list containing the file handles corresponding to the new Elements
+         * - MegaRequest::getMegaStringList - Returns a list containing the names corresponding to the new Elements
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Elements
+         * - MegaRequest::getMegaIntegerList - Returns a list containing error codes for all requested Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that will own the new Elements
+         * @param nodes the handles of the file-nodes that will be represented by the new Elements
+         * @param names the names that should be given to the new Elements (param names must be either null or have
+         * the same size() as param nodes)
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set
