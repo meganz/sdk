@@ -245,26 +245,32 @@ public:
         {
             if (!e) return;
 
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             lastEvent.reset(e->copy());
             lastEvents.insert(e->getType());
         }
 
         void resetlastEvent()
         {
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             lastEvent.reset();
             lastEvents.clear();
         }
 
-        bool lastEventsContain(int type)
+        bool lastEventsContain(int type) const
         {
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             return lastEvents.find(type) != lastEvents.end();
         }
 
     private:
-        static mutex& getEventMutex() { static mutex evMtx; return evMtx; } // a single mutex will do fine in tests
+        mutex& getResourceMutex() const
+        {
+            if (!resourceMtx) resourceMtx.reset(new mutex);
+            return *resourceMtx.get();
+        } // a single mutex will do fine in tests
+        mutable shared_ptr<mutex> resourceMtx;
+
         shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
         set<int> lastEvents;
     };

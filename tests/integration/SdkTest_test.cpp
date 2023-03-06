@@ -745,10 +745,12 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
 {
-    auto it = std::find_if(mApi.begin(), mApi.end(), [s](const PerApi& p) { return p.megaApi == s; });
-    ASSERT_NE(it, mApi.end());
-    it->receiveEvent(event);
-    LOG_debug << "Received event " << event->getType();
+    int index = getApiIndex(s);
+    if (index >= 0) // it can be -1 when tests are being destroyed
+    {
+        mApi[index].receiveEvent(event);
+        LOG_debug << "Received event " << event->getType();
+    }
 }
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
