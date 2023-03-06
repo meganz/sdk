@@ -230,6 +230,9 @@ struct DemoApp : public MegaApp
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 #endif
 
+    void upgrading_security() override;
+    void downgrade_attack() override;
+
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
@@ -342,6 +345,7 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
+void exec_secure(autocomplete::ACState& s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
 void exec_recover(autocomplete::ACState& s);

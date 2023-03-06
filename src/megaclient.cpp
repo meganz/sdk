@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <cryptopp/hkdf.h> // required for derive key of master key
 #include "mega/heartbeats.h"
 #include "mega/testhooks.h"
 
@@ -137,15 +138,20 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
         delete[] buf;
 
-        if (!ISUNDEF(node))
+        // RSA-encrypted nodekeys shall no longer be rewritten
+        // by clients with secure=true
+        if (!mKeyManager.isSecure())
         {
-            if (type)
+            if (!ISUNDEF(node))
             {
-                sharekeyrewrite.push_back(node);
-            }
-            else
-            {
-                nodekeyrewrite.push_back(node);
+                if (type == FOLDERNODE)
+                {
+                    sharekeyrewrite.push_back(node);
+                }
+                else // FILENODE
+                {
+                    nodekeyrewrite.push_back(node);
+                }
             }
         }
     }
@@ -190,6 +196,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         return;
     }
 
+    if (s->access != ACCESS_UNKNOWN && !s->have_key)
+    {
+        // Check if the key is already in the key manager
+        std::string shareKey = mKeyManager.getShareKey(s->h);
+        if (shareKey.size() == sizeof(s->key))
+        {
+            memcpy(s->key, shareKey.data(), sizeof(s->key));
+            s->have_key = 1;
+        }
+    }
+
     // n was no shared or it was shared but sharekey has changed
     if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
     {
@@ -218,18 +235,62 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
         }
 
-        if (auth)
+        // if authentication token is received...
+        // and the sharekey can decrypt encrypted node's attributes (if still encrypted)...
+        if (auth && n->testShareKey(s->key))
         {
-            if (n->sharekey)
+            std::string newShareKey((const char *)s->key, SymmCipher::KEYLENGTH);
+            std::string secureShareKey = mKeyManager.getShareKey(n->nodehandle);
+
+            // newShareKey can arrive here from ^!keys from KeyManager::loadShareKeys
+            // or loaded from mKeyManager at the beginning of this function
+            // If newShareKey != secureShareKey the key should be legacy
+            bool legacyKey = newShareKey != secureShareKey;
+
+            // we don't allow legacy keys to replace trusted keys
+            if (legacyKey && mKeyManager.isShareKeyTrusted(n->nodehandle))
             {
-                if (!fetchingnodes)
-                {
-                    sendevent(99428,"Replacing share key", 0);
-                }
-                delete n->sharekey;
+                LOG_warn << "A legacy key for " << toNodeHandle(n->nodehandle) << " has not been"
+                         << " allowed to replace a trusted share key";
             }
-            n->sharekey = new SymmCipher(s->key);
-            skreceived = true;
+            else
+            {
+                // in all other cases, we can apply the key
+                if (n->sharekey)
+                {
+                    if (!fetchingnodes)
+                    {
+                        sendevent(99428,"Replacing share key", 0);
+                    }
+                    delete n->sharekey;
+                }
+                n->sharekey = new SymmCipher(s->key);
+                skreceived = true;
+
+                // Save the new sharekey in mKeyManager
+                // (it will happen for shares created with old clients
+                // or while mKeyManager.isSecure() is false)
+                if (mKeyManager.generation() && legacyKey) // no need to add the share key if it's already there
+                {
+                    // This shouldn't happen if isSecure() is true, because in that case
+                    // the keys arriving here should only come from mKeyManager
+                    assert(!mKeyManager.isSecure());
+
+                    handle nodehandle = n->nodehandle;
+                    bool outgoing = s->outgoing;
+                    LOG_debug << "Adding legacy key to ^!keys for " << (outgoing ? "outshare " : "inshare ") << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle, newShareKey, outgoing]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.addShareKey(nodehandle, newShareKey);
+                        if (!outgoing)
+                        {
+                            mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
+                        }
+                    }); // No completion callback
+                }
+            }
         }
     }
 
@@ -287,6 +348,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             }
 
             // Erase sharekey if no outgoing shares (incl pending) exist
+            // Sharekey is kept in KeyManager
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
@@ -435,8 +497,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
                             n->inshare->user->sharing.insert(n->nodehandle);
-                            NodeHandle nodeHandle;
-                            nodeHandle.set6byte(n->nodehandle);
                         }
 
                         if (notify)
@@ -514,6 +574,42 @@ node_vector MegaClient::getInShares()
         {
             Node *n = nodebyhandle(share);
             if (n && !n->parent)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
+
+node_vector MegaClient::getVerifiedInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent && !mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
+
+node_vector MegaClient::getUnverifiedInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent && mKeyManager.isUnverifiedInShare(n->nodehandle, it.second.userhandle))    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
             }
@@ -817,19 +913,16 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)salt.data(), salt.size(), 100000);
+        vector<byte> derivedKey = deriveKey(password, salt);
 
         string hashedauthkey;
-        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
         hasher.add(authkey, SymmCipher::KEYLENGTH);
         hasher.get(&hashedauthkey);
         hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
         SymmCipher cipher;
-        cipher.setkey(derivedKey);
+        cipher.setkey(derivedKey.data());
 
         if (masterkeyptr)
         {
@@ -1059,18 +1152,13 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
     {
-        nameid favnid = AttrMap::string2nameid("fav");
-        auto it = previousNode->attrs.map.find(favnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[favnid] = it->second;
-        }
-
-        nameid lblnid = AttrMap::string2nameid("lbl");
-        it = previousNode->attrs.map.find(lblnid);
-        if (it != previousNode->attrs.map.end())
-        {
-            attrs.map[lblnid] = it->second;
+        for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
+            nameid id = AttrMap::string2nameid(attr.c_str());
+            auto it = previousNode->attrs.map.find(id);
+            if (it != previousNode->attrs.map.end())
+            {
+                attrs.map[id] = it->second;
+            }
         }
     }
 }
@@ -1264,6 +1352,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 #ifdef ENABLE_SYNC
     , syncs(*this)
 #endif
+   , mKeyManager(*this)
 {
     mNodeManager.reset();
     sctable.reset();
@@ -1322,7 +1411,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     ststatus = STORAGE_UNKNOWN;
     mOverquotaDeadlineTs = 0;
 
-    mFetchingAuthrings = false;
+    mFetchingAuthrings = 0;
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
@@ -1955,7 +2044,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdsInflight() && scsn.ready())
                                 {
-                                    LOG_debug << "Executing postponed DB commit 2";
+                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
                                     assert(!sctable->inTransaction());
                                     sctable->begin();
@@ -3963,7 +4052,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     asymkey.resetkey();
     mPrivKey.clear();
     pubk.resetkey();
-    resetKeyring();
     sessionkey.clear();
     accountversion = 0;
     accountsalt.clear();
@@ -3972,7 +4060,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAuthRings.clear();
     mAuthRingsTemp.clear();
-    mFetchingAuthrings = false;
+    mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
@@ -3989,6 +4077,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     fetchingkeys = false;
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
+    mKeyManager.reset();
 }
 
 void MegaClient::removeCaches()
@@ -4147,6 +4236,7 @@ bool MegaClient::procsc()
                     {
                         if (!reqs.cmdsInflight())
                         {
+                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
                             assert(!sctable->inTransaction());
                             sctable->begin();
@@ -4168,7 +4258,7 @@ bool MegaClient::procsc()
                     }
 
 
-                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
+                    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
@@ -4179,6 +4269,7 @@ bool MegaClient::procsc()
                             notifypurge();
                             if (sctable)
                             {
+                                LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 assert(!sctable->inTransaction());
                                 sctable->begin();
@@ -4286,6 +4377,27 @@ bool MegaClient::procsc()
 #endif
                         app->useralerts_updated(nullptr, int(useralerts.alerts.size()));
                         mNodeManager.removeChanges();
+
+                        // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
+                        if (loggedin() == FULLACCOUNT && !mKeyManager.generation())
+                        {
+                            assert(!mKeyManager.getPostRegistration());
+                            if (mKeyManager.isSecure())
+                            {
+                                app->upgrading_security();
+                            }
+                            else // -> upgrade automatically and silently
+                            {
+                                upgradeSecurity([this](Error e)
+                                {
+                                    if (e != API_OK)
+                                    {
+                                        LOG_err << "Failed to upgrade security. Error: " << e;
+                                        sendevent(99466, "KeyMgr / (auto) Upgrade security failed");
+                                    }
+                                });
+                            }
+                        }
                     }
 
                     {
@@ -4344,7 +4456,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
-                        LOG_debug << "Processing action packets";
+                        LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
                         break;
                     }
@@ -4383,7 +4495,7 @@ bool MegaClient::procsc()
                         fnstats.actionPackets++;
                     }
 
-                    name = jsonsc.getnameid();
+                    name = jsonsc.getnameidvalue();
 
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
@@ -4564,6 +4676,10 @@ bool MegaClient::procsc()
                             case MAKENAMEID3('a', 'e', 'r'):
                                 // removal of a Set Element
                                 sc_aer();
+                                break;
+                            case MAKENAMEID2('p', 'k'):
+                                // pending keys
+                                sc_pk();
                                 break;
                         }
                     }
@@ -4754,10 +4870,14 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
 
@@ -4765,6 +4885,7 @@ void MegaClient::initsc()
         {
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             assert(!sctable->inTransaction());
             sctable->begin();
@@ -4906,9 +5027,13 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -5043,7 +5168,7 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
         {
             if (it.first != fa_media)
             {
-                sprintf(buf, "/%u*", (unsigned)it.first);
+                snprintf(buf, sizeof(buf), "/%u*", (unsigned)it.first);
                 Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
                 fa->append(buf + !fa->size());
                 LOG_debug << "Added file attribute " << it.first << " to putnodes";
@@ -5636,6 +5761,46 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
+                if (!k || (mKeyManager.isSecure() && mKeyManager.generation())) // Same logic as below but without using the key
+                {
+                    if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
+                    {
+                        return false;
+                    }
+
+                    if (r == ACCESS_UNKNOWN)
+                    {
+                        handle peer = outbound ? uh : oh;
+                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
+                        {
+                            User* u = finduser(peer);
+                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
+                        }
+                    }
+                    else
+                    {
+                        if (!outbound && statecurrent)
+                        {
+                            User* u = finduser(oh);
+                            // only new shares should be notified (skip permissions changes)
+                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                            if (newShare)
+                            {
+                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
+                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            }
+                        }
+                    }
+
+                    newshares.push_back(new NewShare(h, outbound,
+                                                     outbound ? uh : oh,
+                                                     r, ts, NULL, NULL, p,
+                                                     upgrade_pending_to_full,
+                                                     okremoved));
+
+                    return r == ACCESS_UNKNOWN;
+                }
+
                 if (k)
                 {
                     if (!decryptkey(k, sharekey, sizeof sharekey, &key, 1, h))
@@ -5674,23 +5839,6 @@ bool MegaClient::sc_shares()
                         //Returns false because as this is a new share, the node
                         //could not have been received yet
                         return false;
-                    }
-                }
-                else
-                {
-                    if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
-                    {
-                        handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
-                        {
-                            User* u = finduser(peer);
-                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
-                        }
-
-                        // share revocation or share without key
-                        newshares.push_back(new NewShare(h, outbound,
-                                                         peer, r, 0, NULL, NULL, p, false, okremoved));
-                        return r == ACCESS_UNKNOWN;
                     }
                 }
 
@@ -5971,6 +6119,7 @@ void MegaClient::sc_userattr()
                                 {
                                     case ATTR_KEYRING:
                                     {
+                                        assert(false);
                                         resetKeyring();
                                         break;
                                     }
@@ -5980,12 +6129,19 @@ void MegaClient::sc_userattr()
                                     LOG_err << "The node handle for My backups folder has changed";
                                     //fall-through
 
+                                    case ATTR_KEYS:                  // fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
-                                    case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
+                                        if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) && mKeyManager.generation())
+                                        {
+                                            // legacy authrings not useful anymore
+                                            LOG_warn << "Ignoring update of : " << User::attr2string(type);
+                                            break;
+                                        }
+
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (type == ATTR_JSON_SYNC_CONFIG_DATA)
                                         {
@@ -5995,17 +6151,18 @@ void MegaClient::sc_userattr()
                                             LOG_warn << "Sync config data has changed, when it should not";
                                             assert(false);
                                         }
-                                        if (User::isAuthring(type)) mAuthRings.erase(type);
+
                                         getua(u, type, 0);
                                         break;
                                     }
                                     default:
+                                        LOG_debug << User::attr2string(type) << " has changed externally (skip fetching)";
                                         break;
                                 }
                             }
                             else
                             {
-                                LOG_info << "User attribute already up to date";
+                                LOG_info << "User attribute already up to date: " << User::attr2string(type);
                                 return;
                             }
                         }
@@ -6948,15 +7105,11 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->id;
-
-                        // remove scheduled meetings occurrences and children
-                        chat->removeSchedMeetingsOccurrencesAndChildren(schedId);
-
                         chat->setTag(0);    // external change
                         notifychat(chat);
                         for_each(begin(deletedChildren), end(deletedChildren),
-
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                         createDeletedSMAlert(ou, chatid, schedId);
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
@@ -6978,10 +7131,12 @@ void MegaClient::sc_delscheduledmeeting()
 // process mcsmp action packet (parse just 1 scheduled meeting per AP)
 void MegaClient::sc_scheduledmeetings()
 {
+    handle ou = UNDEF;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     UserAlert::UpdatedScheduledMeeting::Changeset cs;
-    handle ou = UNDEF;
-    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs);
+    handle_set childMeetingsDeleted;
+
+    error e = parseScheduledMeetings(schedMeetings, false, &jsonsc, true, &ou, &cs, &childMeetingsDeleted);
     if (e != API_OK)
     {
         LOG_err << "Failed to parse 'mcsmp' action packet. Error: " << e;
@@ -6997,25 +7152,19 @@ void MegaClient::sc_scheduledmeetings()
             LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
             continue;
         }
-
-        // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
-
-        // remove children scheduled meetings (API requirement)
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        handle_set deletedChildren = chat->removeChildSchedMeetings(sm->schedId());
-
-        // remove all child scheduled meeting occurrences
-        // API currently just supports 1 level in scheduled meetings hierarchy
-        // so the parent scheduled meeting id (if any) for any occurrence, must be the root scheduled meeting
-        // (the only one without parent), so we just can't remove all occurrences whose parent sched id is schedId
-        handle_set deletedChildrenOccurr = chat->removeChildSchedMeetingsOccurrences(schedId);
-
         bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+
+        // remove child scheduled meetings in cmd (child meetings deleted) array
+        chat->removeSchedMeetingsList(childMeetingsDeleted);
+
+        // update scheduled meeting with updated record received at mcsmp AP
         bool res = chat->addOrUpdateSchedMeeting(std::move(sm));
-        if (res || !deletedChildren.empty() || !deletedChildrenOccurr.empty())
+
+        if (res || !childMeetingsDeleted.empty())
         {
             if (!res)
             {
@@ -7027,14 +7176,18 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            for_each(begin(deletedChildren), end(deletedChildren),
+            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
                      [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
             if (res)
             {
                 if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
                 else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
             }
         }
+
+        // fetch for fresh scheduled meetings occurrences
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
@@ -7135,6 +7288,58 @@ void MegaClient::sc_sqac()
                 }
         }
     }
+}
+
+void MegaClient::sc_pk()
+{
+    if (!mKeyManager.generation())
+    {
+        LOG_debug << "Account not upgraded yet";
+        return;
+    }
+
+    reqs.add(new CommandPendingKeys(this,
+    [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
+    {
+        if (e)
+        {
+            LOG_debug << "No share keys: " << e;
+            return;
+        }
+
+        mKeyManager.commit(
+        [this, keys]()
+        {
+            // Changes to apply in the commit
+            LOG_debug << "Processing pending keys";
+            for (const auto& kv : *keys.get())
+            {
+                for (const auto& kv2 : kv.second)
+                {
+                    handle userHandle = kv.first;
+                    handle shareHandle = kv2.first;
+                    std::string key = kv2.second;
+
+                    mKeyManager.addPendingInShare(toNodeHandle(shareHandle), userHandle, key);
+                }
+            }
+
+            mKeyManager.promotePendingShares();
+        },
+        [this, lastcompleted]()
+        {
+            LOG_debug << "All pending keys were processed";
+            reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
+            {
+                if (e)
+                {
+                    LOG_err << "Error deleting pending keys";
+                    return;
+                }
+                LOG_debug << "Pending keys deleted";
+            }));
+        });
+    }));
 }
 
 void MegaClient::sc_la()
@@ -7373,6 +7578,7 @@ void MegaClient::notifypurge(void)
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
             chat->mSchedMeetingsChanged.clear();
+            chat->mUpdatedOcurrences.clear();
         }
 
         chatnotify.clear();
@@ -7424,7 +7630,7 @@ Node* MegaClient::nodeByHandle(NodeHandle h)
     return mNodeManager.getNodeByHandle(h);
 }
 
-Node* MegaClient::nodeByPath(const char* path, Node* node)
+Node* MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
 {
     if (!path) return NULL;
 
@@ -7435,7 +7641,6 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
     const char* bptr = path;
     int remote = 0;
     Node* n = nullptr;
-    Node* nn;
 
     // split path by / or :
     do {
@@ -7607,7 +7812,20 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 // locate child node (explicit ambiguity resolution: not implemented)
                 if (c[l].size())
                 {
-                    nn = childnodebyname(n, c[l].c_str());
+                    Node* nn = nullptr;
+
+                    switch (type)
+                    {
+                    case FILENODE:
+                    case FOLDERNODE:
+                        nn = childnodebynametype(n, c[l].c_str(),
+                            l + 1 < int(c.size()) ? FOLDERNODE : type); // only the last leaf could be a file
+                        break;
+                    case TYPE_UNKNOWN:
+                    default:
+                        nn = childnodebyname(n, c[l].c_str());
+                        break;
+                    }
 
                     if (!nn)
                     {
@@ -7622,7 +7840,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
         l++;
     }
 
-    return n;
+    return (type == TYPE_UNKNOWN || (n && type == n->type)) ? n : nullptr;
 }
 
 // server-client deletion
@@ -7744,6 +7962,8 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     {
         return API_EACCESS;
     }
+
+    n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
     // we only update the values stored in the node once the command completes successfully
     reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
 
@@ -8580,20 +8800,22 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         warn("Missing access level");
                     }
 
-                    if (!sk)
-                    {
-                        LOG_warn << "Missing share key for inbound share";
-                    }
-
                     if (warnlevel())
                     {
                         su = UNDEF;
                     }
                     else
                     {
-                        if (sk)
+                        if (!mKeyManager.isSecure() || !mKeyManager.generation())
                         {
-                            decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                            if (sk)
+                            {
+                                decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                            }
+                        }
+                        else
+                        {
+                            sk = nullptr;
                         }
                     }
                 }
@@ -8747,6 +8969,7 @@ void MegaClient::readokelement(JSON* j)
     handle h = UNDEF;
     byte ha[SymmCipher::BLOCKSIZE];
     byte buf[SymmCipher::BLOCKSIZE];
+    byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     const char* k = NULL;
 
@@ -8773,22 +8996,36 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!k)
+                if (!mKeyManager.isSecure() || !mKeyManager.generation())   // insecure or secure client but not migrated yet
                 {
-                    LOG_warn << "Missing outgoing share key in ok element";
-                    return;
-                }
+                    if (!k)
+                    {
+                        LOG_warn << "Missing outgoing share key in ok element";
+                        return;
+                    }
 
-                if (!have_ha)
-                {
-                    LOG_warn << "Missing outbound share signature";
-                    return;
-                }
+                    if (!have_ha)
+                    {
+                        LOG_warn << "Missing outbound share signature";
+                        return;
+                    }
 
-                if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
+                    if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
+                    {
+                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                        if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
+                        {
+                            handleauth(h, auth);
+                            if (!memcmp(auth, ha, sizeof buf))
+                            {
+                                mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                            }
+                        }
+                    }
+                }
+                else
                 {
-                    newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
-                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                    LOG_debug << "Ignoring outgoing share keys from `ok0` (secured client with ^!keys already)";
                 }
                 return;
 
@@ -9180,6 +9417,18 @@ void MegaClient::applykeys()
 
 void MegaClient::sendkeyrewrites()
 {
+    if (mKeyManager.isSecure())
+    {
+        if (sharekeyrewrite.size() || nodekeyrewrite.size())
+        {
+            LOG_err << "Skipped to send key rewrites (secured client)";
+            assert(false);
+            sharekeyrewrite.clear();
+            nodekeyrewrite.clear();
+        }
+        return;
+    }
+
     if (sharekeyrewrite.size())
     {
         reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
@@ -9489,12 +9738,9 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, bsalt);
 
-    login2(email, derivedKey, pin);
+    login2(email, derivedKey.data(), pin);
 }
 
 void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
@@ -9622,7 +9868,7 @@ void MegaClient::login(string session)
 }
 
 // check password's integrity
-error MegaClient::validatepwd(const byte *pwkey)
+error MegaClient::validatepwd(const char* pswd)
 {
     User *u = finduser(me);
     if (!u)
@@ -9630,15 +9876,78 @@ error MegaClient::validatepwd(const byte *pwkey)
         return API_EACCESS;
     }
 
-    SymmCipher pwcipher(pwkey);
-    pwcipher.setkey((byte*)pwkey);
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(pswd, pwkey);
 
-    string lcemail(u->email.c_str());
-    uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+        SymmCipher pwcipher(pwkey);
+        pwcipher.setkey((byte*)pwkey);
 
-    reqs.add(new CommandValidatePassword(this, lcemail.c_str(), emailhash));
+        string lcemail(u->email);
+        uint64_t emailhash = stringhash64(&lcemail, &pwcipher);
+        vector<byte> eh((byte*)&emailhash, (byte*)&emailhash + sizeof(emailhash) / sizeof(byte));
 
-    return API_OK;
+        reqs.add(new CommandValidatePassword(this, lcemail.c_str(), eh));
+
+        return API_OK;
+
+    }
+    else if (accountversion == 2)
+    {
+        vector<byte> dk = deriveKey(pswd, accountsalt);
+        dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
+        reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
+
+        return API_OK;
+    }
+    else
+    {
+        return API_ENOENT;
+    }
+}
+
+bool MegaClient::validatepwdlocally(const char* pswd)
+{
+    if (!pswd || !pswd[0] || k.size() != SymmCipher::KEYLENGTH)
+    {
+        return false;
+    }
+
+    string tmpk = k;
+    if (accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if (pw_key(pswd, pwkey))
+        {
+            return false;
+        }
+
+        SymmCipher cipher(pwkey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else if (accountversion == 2)
+    {
+        if (accountsalt.size() != 32) // SHA256
+        {
+            return false;
+        }
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte*)pswd, strlen(pswd),
+            (const byte*)accountsalt.data(), accountsalt.size(), 100000);
+
+        SymmCipher cipher(derivedKey);
+        cipher.ecb_decrypt((byte*)tmpk.data());
+    }
+    else
+    {
+        LOG_warn << "Version of account not supported";
+        return false;
+    }
+
+    return !memcmp(tmpk.data(), key.key, SymmCipher::KEYLENGTH);
 }
 
 int MegaClient::dumpsession(string& session)
@@ -10108,6 +10417,13 @@ bool MegaClient::discardnotifieduser(User *u)
 // and submit public key requests
 void MegaClient::procsr(JSON* j)
 {
+    // insecure functionality - disable
+    if (mKeyManager.isSecure())
+    {
+        j->storeobject();
+        return;
+    }
+
     User* u;
     handle sh, uh;
 
@@ -10204,7 +10520,7 @@ void MegaClient::queuepubkeyreq(User* u, std::unique_ptr<PubKeyAction> pka)
     }
 }
 
-void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> pka)
+User *MegaClient::getUserForSharing(const char *uid)
 {
     User *u = finduser(uid, 0);
     if (!u && uid)
@@ -10231,7 +10547,12 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
             }
         }
     }
+    return u;
+}
 
+void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> pka)
+{
+    User *u = getUserForSharing(uid);
     queuepubkeyreq(u, std::move(pka));
 }
 
@@ -10248,11 +10569,210 @@ void MegaClient::rewriteforeignkeys(Node* n)
     }
 }
 
+// Migrate the account to start using the new ^!keys attr.
+void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
+{
+    if (mKeyManager.generation())
+    {
+        LOG_warn << "Already upgraded";
+        completion(API_OK);
+        return;
+    }
+
+    LOG_debug << "Upgrading cryptographic subsystem.";
+
+    string prEd255;
+    string prCu255;
+    User *u = finduser(me);
+    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+    if (av)
+    {
+        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+        if (tlvRecords)
+        {
+            tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+            tlvRecords->get(ECDH::TLV_KEY, prCu255);
+        }
+        else
+        {
+            LOG_warn << "Failed to decrypt keyring while initialization";
+            completion(API_EKEY);
+            return;
+        }
+    }
+    else
+    {
+        LOG_warn << "Keys not available";
+        completion(API_ETEMPUNAVAIL);
+        return;
+    }
+
+    assert(prEd255.size() == EdDSA::SEED_KEY_LENGTH);
+    assert(prCu255.size() == ECDH::PRIVATE_KEY_LENGTH);
+    if ((prEd255.size() != EdDSA::SEED_KEY_LENGTH) || (prCu255.size() != ECDH::PRIVATE_KEY_LENGTH))
+    {
+        LOG_warn << "Invalid keys";
+        completion(API_EKEY);
+        return;
+    }
+
+    mKeyManager.setKey(key);
+    mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+    int migratedInShares = 0;
+    int totalInShares = 0;
+    int migratedOutShares = 0;
+    int totalOutShares = 0;
+
+    node_vector shares = getInShares();
+    for (auto &n : shares)
+    {
+        ++totalInShares;
+        if (n->sharekey)
+        {
+            ++migratedInShares;
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithOutShares();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithPendingOutShares();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    shares = mNodeManager.getNodesWithLinks();
+    for (auto &n : shares)
+    {
+        ++totalOutShares;
+        if (n->sharekey)
+        {
+            ++migratedOutShares;
+            mKeyManager.addShareKey(n->nodehandle, std::string((const char *)n->sharekey->key, SymmCipher::KEYLENGTH));
+        }
+    }
+
+    LOG_debug << "Migrated inshares: " << migratedInShares << " of " << totalInShares;
+    LOG_debug << "Migrated outshares: " << migratedOutShares << " of " << totalOutShares;
+
+    auto it = mAuthRings.find(ATTR_AUTHRING);
+    assert(it != mAuthRings.end());
+    if (it != mAuthRings.end())
+    {
+        mKeyManager.setAuthRing(it->second.serializeForJS());
+    }
+
+    it = mAuthRings.find(ATTR_AUTHCU255);
+    assert(it != mAuthRings.end());
+    if (it != mAuthRings.end())
+    {
+        mKeyManager.setAuthCU255(it->second.serializeForJS());
+    }
+
+    mKeyManager.commit(
+    []()
+    {
+        // Nothing to include in this commit (apart from the changes already applied to mKeyManager).
+        // putua shouldn't fail in this case. Otherwise, another client would have upgraded the account
+        // at the same time and therefore we wouldn't have to apply the changes again.
+    },
+    [this, completion]()
+    {
+        completion(API_OK);
+
+        // Get pending keys for inshares
+        sc_pk();
+    });
+}
+
+// Creates a new share key for the node if there is no share key already created.
+void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
+{
+    if (!n)
+    {
+        completion(API_EARGS);
+        return;
+    }
+
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        completion(API_EINCOMPLETE);
+        return;
+    }
+
+    bool updateKeys = false;
+    if (!n->sharekey)
+    {
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+            updateKeys = true;
+        }
+        else
+        {
+            LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
+    }
+    else assert(mKeyManager.getShareKey(n->nodehandle).size());
+
+    if (updateKeys)    // new share: add key to ^!keys
+    {
+        handle nodehandle = n->nodehandle;
+        std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+
+        LOG_debug << "Adding new share key to ^!keys for outshare " << toNodeHandle(nodehandle);
+        mKeyManager.commit(
+        [this, nodehandle, shareKey]()
+        {
+            // Changes to apply in the commit
+            mKeyManager.addShareKey(nodehandle, shareKey, true);
+        },
+        [completion]()
+        {
+            completion(API_OK);
+        });
+    }
+    else
+    {
+        completion(API_OK);
+    }
+}
+
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
+// `user` is null for creating folder links
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
     assert(completion);
+
+    if (!mKeyManager.generation())
+    {
+        LOG_err << "Account not upgraded yet";
+        completion(API_EINCOMPLETE, writable);
+        return;
+    }
 
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
@@ -10263,7 +10783,170 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
+    if (a == ACCESS_UNKNOWN)
+    {
+        User *u = getUserForSharing(user);
+        reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag,
+        [u, completion](Error e, bool writable)
+        {
+            if (u && u->isTemporary)
+            {
+                delete u;
+            }
+            completion(e, writable);
+        }));
+        return;
+    }
+
+    if (!mKeyManager.isSecure())
+    {
+        queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, move(completion)));
+        return;
+    }
+
+    User *u = getUserForSharing(user);
+    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion));
+}
+
+void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
+{
+    std::string msg;
+    if (personal_representation)
+    {
+        msg = personal_representation;
+    }
+
+    std::string uid;
+    if (user)
+    {
+        uid = (user->show == VISIBLE) ? user->uid : user->email;
+    }
+
+    bool newshare = !n->isShared();
+
+    // if creating a folder link and there's no sharekey already
+    bool newShareKey = false;
+    if (!n->sharekey && uid.empty())
+    {
+        assert(newshare);
+
+        string previousKey = mKeyManager.getShareKey(n->nodehandle);
+        if (!previousKey.size())
+        {
+            LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
+            byte key[SymmCipher::KEYLENGTH];
+            rng.genblock(key, sizeof key);
+            n->sharekey = new SymmCipher(key);
+            newShareKey = true;
+        }
+        else
+        {
+            LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
+            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+        }
+    }
+
+    if (!n->sharekey)
+    {
+        LOG_err << "You should first create the key using MegaClient::openShareDialog (setshare)";
+        completion(API_EKEY, writable);
+        if (user && user->isTemporary) delete user;
+        return;
+    }
+
+    handle nodehandle = n->nodehandle;
+    std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
+
+    std::function<void()> completeShare =
+    [this, user, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
+    {
+        Node *n;
+        // node vanished: bail
+        if (!(n = nodebyhandle(nodehandle)))
+        {
+            completion(API_ENOENT, writable);
+            if (user && user->isTemporary) delete user;
+            return;
+        }
+
+        reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
+        [this, uid, user, nodehandle, shareKey, completion](Error e, bool writable)
+        {
+            handle userhandle = user ? user->userhandle : UNDEF;
+            if (user && user->isTemporary)
+            {
+                delete user;
+            }
+
+            if (e || ISUNDEF(userhandle))
+            {
+                completion(e, writable);
+                return;
+            }
+
+            std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
+            if (!encryptedKey.size())
+            {
+                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
+                completion(e, writable);
+                return;
+            }
+
+            reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
+            [this, uid, nodehandle, completion, writable](Error err)
+            {
+                if (err)
+                {
+                    LOG_err << "Error sending share key: " << err;
+                    completion(API_OK, writable);
+                }
+                else
+                {
+                    LOG_debug << "Share key correctly sent. Removing pendingoutshare from ^!keys (" << toNodeHandle(nodehandle) << " -> " << uid << ")";
+                    mKeyManager.commit(
+                    [this, nodehandle, uid]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.removePendingOutShare(nodehandle, uid);
+                    },
+                    [completion, writable]()
+                    {
+                        completion(API_OK, writable);
+                    });
+                }
+            }));
+        }));
+    };
+
+    if (uid.size() || newShareKey) // share with a user or folder-link requiring new sharekey
+    {
+        LOG_debug << "Updating ^!keys before sharing " << toNodeHandle(nodehandle);
+        mKeyManager.commit(
+        [this, newShareKey, nodehandle, shareKey, uid]()
+        {
+            // Changes to apply in the commit
+            if (newShareKey)
+            {
+                // Add outshare key into ^!keys
+                mKeyManager.addShareKey(nodehandle, shareKey, true);
+            }
+
+            if (uid.size()) // not a folder link, but a share with a user
+            {
+                // Add pending outshare;
+                mKeyManager.addPendingOutShare(nodehandle, uid);
+            }
+        },
+        [completeShare]()
+        {
+            completeShare();
+        });
+        return;
+    }
+    else // folder link on an already shared folder or reusing existing sharekey -> no need to update ^!keys
+    {
+        completeShare();
+    }
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10520,15 +11203,22 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
     }
 }
 
-void MegaClient::putua(userattr_map *attrs, int ctag)
+void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
     int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
 
+    if (!completion)
+    {
+        completion = [this](Error e){
+            app->putua_result(e);
+        };
+    }
+
     if (!u || !attrs || !attrs->size())
     {
         restag = tag;
-        return app->putua_result(API_EARGS);
+        return completion(API_EARGS);
     }
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
@@ -10538,18 +11228,18 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
         if (User::needversioning(type) != 1)
         {
             restag = tag;
-            return app->putua_result(API_EARGS);
+            return completion(API_EARGS);
         }
 
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(type) && !u->isattrvalid(type))
         {
             restag = tag;
-            return app->putua_result(API_EEXPIRED);
+            return completion(API_EEXPIRED);
         }
     }
 
-    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag));
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag, std::move(completion)));
 }
 
 /**
@@ -10558,8 +11248,10 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @param u User.
  * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
+ *
+ * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
  */
-void MegaClient::getua(User* u, const attr_t at, int ctag)
+bool MegaClient::getua(User* u, const attr_t at, int ctag)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -10575,20 +11267,22 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
                 restag = tag;
                 app->getua_result(tlv, at);
                 delete tlv;
-                return;
+                return true;
             }
             else
             {
                 restag = tag;
                 app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
-                return;
+                return true;
             }
         }
         else
         {
             reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
+            return false;
         }
     }
+    return true;
 }
 
 void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag)
@@ -11206,12 +11900,8 @@ void MegaClient::procmcsm(JSON *j)
         }
 
         // add scheduled meeting
-        handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm), false); // don't need to notify, as chats are also provided to karere
-
-        // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 #endif
@@ -11346,7 +12036,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         nsi = addnode(&rshares, sn);
                         nni = addnode(&rnodes, n);
 
-                        sprintf(buf, "\",%u,%u,\"", nsi, nni);
+                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
                         sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
@@ -11567,9 +12257,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     handle ph = MemAccess::get<handle>(ptr);
     ptr += 6;
 
-    byte salt[32];
-    memcpy((char*)salt, ptr, 32);
-    ptr += sizeof salt;
+    string salt(ptr, 32);
+    ptr += salt.size();
 
     string encKey;
     encKey.resize(encKeyLen);
@@ -11581,26 +12270,20 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    byte derivedKey[64];
-    unsigned int iterations = 100000;
-    PBKDF2_HMAC_SHA512 pbkdf2;
-    pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                     (byte*) pwd, strlen(pwd),
-                     salt, sizeof salt,
-                     iterations);
+    vector<byte> derivedKey = deriveKey(pwd, salt);
 
     byte hmacComputed[32];
     if (algorithm == 1)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256((byte *)linkBin.data(), 40 + encKeyLen);
-        hmacsha256.add(derivedKey + 32, 32);
+        hmacsha256.add(derivedKey.data() + 32, 32);
         hmacsha256.get(hmacComputed);
     }
     else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
-        HMACSHA256 hmacsha256(derivedKey + 32, 32);
+        HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
         hmacsha256.add((byte *)linkBin.data(), unsigned(40 + encKeyLen));
         hmacsha256.get(hmacComputed);
     }
@@ -11642,15 +12325,9 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
-        byte derivedKey[64];
-        byte salt[32];
-        rng.genblock(salt, 32);
-        unsigned int iterations = 100000;
-        PBKDF2_HMAC_SHA512 pbkdf2;
-        pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
-                         (byte*) pwd, strlen(pwd),
-                         salt, sizeof salt,
-                         iterations);
+        string salt(32u, '\0');
+        rng.genblock((byte*)salt.data(), salt.size());
+        vector<byte> derivedKey = deriveKey(pwd, salt);
 
         // Prepare encryption key
         string encKey;
@@ -11667,7 +12344,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         payload.append((char*) &algorithm, sizeof algorithm);
         payload.append((char*) &type, sizeof type);
         payload.append((char*) &ph, NODEHANDLE);
-        payload.append((char*) salt, sizeof salt);
+        payload.append(salt);
         payload.append(encKey);
 
 
@@ -11676,12 +12353,12 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         if (algorithm == 1)
         {
             HMACSHA256 hmacsha256((byte *)payload.data(), payload.size());
-            hmacsha256.add(derivedKey + 32, 32);
+            hmacsha256.add(derivedKey.data() + 32, 32);
             hmacsha256.get(hmac);
         }
         else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
         {
-            HMACSHA256 hmacsha256(derivedKey + 32, 32);
+            HMACSHA256 hmacsha256(derivedKey.data() + 32, 32);
             hmacsha256.add((byte *)payload.data(), unsigned(payload.size()));
             hmacsha256.get(hmac);
         }
@@ -11696,7 +12373,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encLinkBytes.append((char*) &algorithm, sizeof algorithm);
         encLinkBytes.append((char*) &type, sizeof type);
         encLinkBytes.append((char*) &ph, NODEHANDLE);
-        encLinkBytes.append((char*) salt, sizeof salt);
+        encLinkBytes.append(salt);
         encLinkBytes.append(encKey);
         encLinkBytes.append((char*) hmac, sizeof hmac);
 
@@ -11738,7 +12415,7 @@ sessiontype_t MegaClient::loggedin()
         return EPHEMERALACCOUNT;
     }
 
-    if (!asymkey.isvalid())
+    if (!asymkey.isvalid(AsymmCipher::PRIVKEY))
     {
         return CONFIRMEDACCOUNT;
     }
@@ -11870,18 +12547,15 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -11889,6 +12563,16 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
     reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
+}
+
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+{
+    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
+        (const byte*)salt.data(), salt.size(), 100000);
+
+    return derivedKey;
 }
 
 // create ephemeral session
@@ -11952,18 +12636,15 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
-    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                     (const byte *)salt.data(), salt.size(), 100000);
+    vector<byte> derivedKey = deriveKey(password, salt);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
-    cipher.setkey(derivedKey);
+    cipher.setkey(derivedKey.data());
     cipher.ecb_encrypt(key.key, encmasterkey);
 
     string hashedauthkey;
-    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
@@ -11971,7 +12652,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     accountversion = 2;
     accountsalt = salt;
     reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
-    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+    return string((const char*)derivedKey.data(), derivedKey.size());
 }
 
 void MegaClient::resendsignuplink2(const char *email, const char *name)
@@ -12009,6 +12690,8 @@ void MegaClient::setkeypair()
                                       unsigned(privks.size()),
                                       (const byte*)pubks.data(),
                                       unsigned(pubks.size())));
+
+    mKeyManager.setPostRegistration(true);
 }
 
 bool MegaClient::fetchsc(DbTable* sctable)
@@ -12169,6 +12852,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mNodeManager.dumpNodes();
 
         // and force commit, since old DB has been upgraded to new schema for NOD
+        LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
         sctable->commit();
         sctable->begin();
     }
@@ -12570,8 +13254,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             const auto fetchtag = reqtag;
 
             // we need this one to ensure we have the sync config read/write key for example
-            getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e){
-
+            getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e)
+            {
                 if (e != API_OK)
                 {
                     LOG_err << "Pre-failing fetching nodes: unable not get user data";
@@ -12580,16 +13264,21 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                     return;
                 }
 
+                if (loggedin() == FULLACCOUNT
+                        || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                {
+                    loadAuthrings();
+                }
+
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
             });
 
             if (loggedin() == FULLACCOUNT
-                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
+                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS) // need to create early the chat and sign keys
             {
                 fetchkeys();
-                loadAuthrings();
             }
 
             fetchtimezone();
@@ -12612,7 +13301,9 @@ void MegaClient::fetchkeys()
 
     // RSA public key is retrieved by getuserdata
 
+    // This attribute won't be used for migrated accounts
     getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
+
     getua(u, ATTR_ED25519_PUBK, 0);
     getua(u, ATTR_CU25519_PUBK, 0);
     getua(u, ATTR_SIG_CU255_PUBK, 0);
@@ -12621,53 +13312,65 @@ void MegaClient::fetchkeys()
 
 void MegaClient::initializekeys()
 {
+    string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
+    string prCu255, puCu255;    // keypair for Cu25519  --> MegaClient::chatkey
+    string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
+
     User *u = finduser(me);
 
-    // Initialize private keys
-    const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
-    if (av)
+    if (mKeyManager.generation())   // account has ^!keys already available
     {
-        TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &key);
-        if (tlvRecords)
+        prEd255 = mKeyManager.privEd25519();
+        prCu255 = mKeyManager.privCu25519();
+    }
+    else
+    {
+        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+        if (av)
         {
-
-            string prEd255;
-            if (tlvRecords->get(EdDSA::TLV_KEY, prEd255) && prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+            if (tlvRecords)
             {
-                signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
-                if (!signkey->initializationOK)
-                {
-                    delete signkey;
-                    signkey = NULL;
-                    clearKeys();
-                    return;
-                }
+                tlvRecords->get(EdDSA::TLV_KEY, prEd255);
+                tlvRecords->get(ECDH::TLV_KEY, prCu255);
             }
-
-            string prCu255;
-            if (tlvRecords->get(ECDH::TLV_KEY, prCu255) && prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+            else
             {
-                chatkey = new ECDH((unsigned char *) prCu255.data());
-                if (!chatkey->initializationOK)
-                {
-                    delete chatkey;
-                    chatkey = NULL;
-                    clearKeys();
-                    return;
-                }
+                LOG_warn << "Failed to decrypt keyring while initialization";
             }
-            delete tlvRecords;
-        }
-        else
-        {
-            LOG_warn << "Failed to decrypt keyring while initialization";
         }
     }
 
-    string puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
-    string puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
-    string sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
-    string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+    // get public keys and signatures
+    puEd255 = (u->isattrvalid(ATTR_ED25519_PUBK)) ? *u->getattr(ATTR_ED25519_PUBK) : "";
+    puCu255 = (u->isattrvalid(ATTR_CU25519_PUBK)) ? *u->getattr(ATTR_CU25519_PUBK) : "";
+    sigCu255 = (u->isattrvalid(ATTR_SIG_CU255_PUBK)) ? *u->getattr(ATTR_SIG_CU255_PUBK) : "";
+    sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+
+    // Initialize private keys
+    if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
+    {
+        signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
+        if (!signkey->initializationOK)
+        {
+            delete signkey;
+            signkey = NULL;
+            clearKeys();
+            return;
+        }
+    }
+
+    if (prCu255.size() == ECDH::PRIVATE_KEY_LENGTH)
+    {
+        chatkey = new ECDH(prCu255);
+        if (!chatkey->initializationOK)
+        {
+            delete chatkey;
+            chatkey = NULL;
+            clearKeys();
+            return;
+        }
+    }
 
     if (chatkey && signkey)    // THERE ARE KEYS
     {
@@ -12764,6 +13467,19 @@ void MegaClient::initializekeys()
             }
         }
 
+        if (mKeyManager.generation() && asymkey.isvalid(AsymmCipher::PRIVKEY) && !mKeyManager.getPrivRSA().size())
+        {
+            // Ephemeral++ accounts create ^!keys before having RSA keys
+            LOG_debug << "Attaching private RSA key into ^!keys";
+            std::string privRSA;
+            asymkey.serializekey(&privRSA, AsymmCipher::PRIVKEY_SHORT);
+            mKeyManager.commit(
+            [this, privRSA]()
+            {
+                mKeyManager.setPrivRSA(privRSA);
+            });
+        }
+
         // if we reached this point, everything is OK
         LOG_info << "Keypairs and signatures loaded successfully";
         fetchingkeys = false;
@@ -12788,6 +13504,9 @@ void MegaClient::initializekeys()
             EdDSA *signkey = new EdDSA(rng);
             ECDH *chatkey = new ECDH();
 
+            prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
+            prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
+
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
                 LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
@@ -12797,12 +13516,39 @@ void MegaClient::initializekeys()
                 return;
             }
 
-            // prepare the TLV for private keys
+            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
+
+            // prepare map of attributes to set: ^!keys|*!keyring + puEd255 + puCu255 + sigPubk + sigCu255
+            userattr_map attrs;
+
+            // private keys
+            string buf;
+
+            // save private keys into the ^!keys attribute
+            assert(mKeyManager.generation() == 0);  // creating them, no init() done yet
+            mKeyManager.setKey(key);
+            mKeyManager.init(prEd255, prCu255, mPrivKey);
+
+            // We are initializing the keys, so it's safe to assume that authrings are empty
+            mAuthRings.emplace(ATTR_AUTHRING, AuthRing(ATTR_AUTHRING, TLVstore()));
+            mAuthRings.emplace(ATTR_AUTHCU255, AuthRing(ATTR_AUTHCU255, TLVstore()));
+
+            // Not using mKeyManager::commit() here to set ^!keys along with the other attributes.
+            // Since the account is being initialized, putua should not fail.
+            buf = mKeyManager.toKeysContainer();
+            attrs[ATTR_KEYS] = buf;
+
+            // save private keys into the *!keyring attribute (for backwards compatibility, so legacy
+            // clients can retrieve chat and signing key for accounts created with ^!keys support)
             TLVstore tlvRecords;
             tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
             tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-            string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
+            unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
 
+            buf.assign(tlvContainer->data(), tlvContainer->size());
+            attrs[ATTR_KEYRING] = buf;
+
+            // create signatures of public RSA and Cu25519 keys
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
             {
                 // prepare signatures
@@ -12811,13 +13557,6 @@ void MegaClient::initializekeys()
                 signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
             signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
-
-            // store keys into user attributes (skipping the procresult() <-- reqtag=0)
-            userattr_map attrs;
-            string buf;
-
-            buf.assign(tlvContainer->data(), tlvContainer->size());
-            attrs[ATTR_KEYRING] = buf;
 
             buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             attrs[ATTR_ED25519_PUBK] = buf;
@@ -12836,7 +13575,6 @@ void MegaClient::initializekeys()
 
             putua(&attrs, 0);
 
-            delete tlvContainer;
             delete chatkey;
             delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
@@ -12868,46 +13606,47 @@ void MegaClient::loadAuthrings()
 {
     if (User* ownUser = finduser(me))
     {
-        mFetchingAuthrings = true;
-
-        std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
-        for (auto at : attrs)
+        // if KeyManager is ready, authrings are already retrieved by getuserdata (from ^!keys attribute)
+        if (!mKeyManager.generation())
         {
-            const string *av = ownUser->getattr(at);
-            if (av)
+            std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255 };
+            for (auto at : attrs)
             {
-                if (ownUser->isattrvalid(at))
+                const string *av = ownUser->getattr(at);
+                if (av)
                 {
-                    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
-                    if (tlvRecords)
+                    if (ownUser->isattrvalid(at))
                     {
-                        mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                        LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+                        if (tlvRecords)
+                        {
+                            mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                            LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                        }
+                        else
+                        {
+                            LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                        }
+
+                        continue;
                     }
                     else
                     {
-                        LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                        LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
                     }
-
-                    continue;
                 }
                 else
                 {
-                    LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
+                    LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
+                    getua(ownUser, at, 0);
+                    ++mFetchingAuthrings;
                 }
             }
-            else
-            {
-                LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
-            }
-
-            getua(ownUser, at, 0);
-        }
+        }   // --> end if(!mKeyManager.generation())
 
         // if all authrings were loaded from cache...
-        if (mAuthRings.size() == attrs.size())
+        if (mFetchingAuthrings == 0)
         {
-            mFetchingAuthrings = false;
             fetchContactsKeys();
         }
     }
@@ -12915,7 +13654,7 @@ void MegaClient::loadAuthrings()
 
 void MegaClient::fetchContactsKeys()
 {
-    assert(mAuthRings.size() == 3);
+    assert(mAuthRings.size() == 2);
     mAuthRingsTemp = mAuthRings;
 
     for (auto &it : users)
@@ -12930,9 +13669,24 @@ void MegaClient::fetchContactsKeys()
 
 void MegaClient::fetchContactKeys(User *user)
 {
-    getua(user, ATTR_ED25519_PUBK, 0);
-    getua(user, ATTR_CU25519_PUBK, 0);
+    // call trackKey() in case the key is in cache
+    // otherwise, send getua() to server, CommandGetUA::procresult() will call trackKey()
+    attr_t attrType = ATTR_ED25519_PUBK;
+    if (!user->isattrvalid(attrType))
+    {
+        getua(user, attrType, 0);
 
+        // if Ed25519 is not in cache, better to ensure that Ed25519 is tracked before Cu25519
+        user->invalidateattr(ATTR_CU25519_PUBK);
+    }
+    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+
+    attrType = ATTR_CU25519_PUBK;
+    if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+    else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+
+    // TODO: remove obsolete retrieval of public RSA keys and its signatures
+    // (authrings for RSA are deprecated)
     int creqtag = reqtag;
     reqtag = 0;
     getpubkey(user->uid.c_str());
@@ -13010,16 +13764,20 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     if (authring->isSignedKey())
     {
-        if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
-        {
-            // load public signing key and key signature
-            getua(user, ATTR_ED25519_PUBK, 0);
+        assert(user->getattr(ATTR_ED25519_PUBK) != nullptr); // User's public Ed25519 should be in cache already
 
-            attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
-            getua(user, attrType, 0); // in getua_result(), we check signature actually matches
+        attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
+        const string* signature = user->getattr(attrType);
+        if (signature)
+        {
+            trackSignature(attrType, uh, *signature);
+        }
+        else
+        {
+            getua(user, attrType, 0); // in CommandGetUA::procresult(), we check signature actually matches
         }
     }
-    else if (!keyTracked)
+    else if (!keyTracked) // then it's the authring for public Ed25519 key
     {
         LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
 
@@ -13043,8 +13801,34 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         if (finished)
         {
-            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            if (authring->needsUpdate())
+            {
+                std::string serializedAuthring = authring->serializeForJS();
+                if (mKeyManager.generation())
+                {
+                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackKey())";
+                    mKeyManager.commit(
+                    [this, serializedAuthring]()
+                    {
+                        // Changes to apply in the commit
+                        mKeyManager.setAuthRing(serializedAuthring);
+                    });
+                }
+                else
+                {
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
+                }
+            }
+
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
         }
     }
@@ -13094,7 +13878,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     const string *pubKey;
-    string pubKeyBuf;   // for RSA, need to serialize the key
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
@@ -13108,20 +13891,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             return API_EINTERNAL;
         }
         pubKey = user->getattr(ATTR_CU25519_PUBK);
-    }
-    else if (signatureType == ATTR_SIG_RSA_PUBK)
-    {
-        if (!user->pubk.isvalid())
-        {
-            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": RSA public key is not available";
-
-            // this assert does occur in test SyncPersistence (occasionally - but we can't have the jenkins tests terminated here)
-            //assert(false);
-
-            return API_EINTERNAL;
-        }
-        user->pubk.serializekeyforjs(pubKeyBuf);
-        pubKey = &pubKeyBuf;
     }
     else
     {
@@ -13158,18 +13927,14 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             {
                 LOG_err << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                if (authring->isSignedKey()) // for unsigned keys, already notified in trackKey()
-                {
-                    app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
-                    sendevent(99451, "Key modification detected");
-                }
+                app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
+                sendevent(99451, "Key modification detected");
 
                 return API_EKEY;
             }
-            else
+            else if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
             {
-                assert(authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE);
-                LOG_warn << "Updating authentication method for user " << uid << " to signature verified, currently authenticated as seen";
+                LOG_debug << "Updating authentication method for user " << uid << " to signature verified";
 
                 authring->update(uh, AUTH_METHOD_SIGNATURE);
             }
@@ -13198,8 +13963,37 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         }
         if (finished)
         {
-            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
-            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            if (authring->needsUpdate())
+            {
+                std::string serializedAuthring = authring->serializeForJS();
+                if (mKeyManager.generation())
+                {
+                    if (authringType == ATTR_AUTHCU255)
+                    {
+                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackSignature())";
+                        mKeyManager.commit(
+                        [this, serializedAuthring]()
+                        {
+                            // Changes to apply in the commit
+                            mKeyManager.setAuthCU255(serializedAuthring);
+                        });
+                    }
+                }
+                else
+                {
+                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                    it = mAuthRings.find(authringType);
+                    if (it == mAuthRings.end())
+                    {
+                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                    << ": account not migrated and authring not available";
+                        assert(false);
+                        return API_ETEMPUNAVAIL;
+                    }
+                    it->second = *authring;
+                }
+            }
+
             mAuthRingsTemp.erase(authringType);
         }
     }
@@ -13218,22 +14012,45 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 
 error MegaClient::verifyCredentials(handle uh)
 {
-    Base64Str<MegaClient::USERHANDLE> uid(uh);
-    auto it = mAuthRings.find(ATTR_AUTHRING);
-    if (it == mAuthRings.end())
+    if (!mKeyManager.generation())
     {
-        LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
-        assert(false);
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
+    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    auto itEd = mAuthRings.find(ATTR_AUTHRING);
+    bool hasEdAuthring = itEd != mAuthRings.end();
+    auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+    bool hasCuAuthring = itCu != mAuthRings.end();
+    if (!hasEdAuthring || !hasCuAuthring)
+    {
+        LOG_warn << "Failed to verify public Ed25519 key for user " << uid << ": authring(s) not available";
         return API_ETEMPUNAVAIL;
     }
 
-    AuthRing authring = it->second; // copy, do not modify yet the cached authring
-    AuthMethod authMethod = authring.getAuthMethod(uh);
+    if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+    {
+        LOG_err << "Failed to verify credentials for user " << uid << ": signature of Cu25519 public key is not verified";
+        assert(false);
+
+        // Let's try to authenticate Cu25519 for this user
+        // because its verification is required to promote pending sharesUser *user = finduser(uh);
+        User *user = finduser(uh);
+        if (user)
+        {
+            attr_t attrType = ATTR_CU25519_PUBK;
+            if (!user->isattrvalid(attrType)) getua(user, attrType, 0);
+            else trackKey(attrType, user->userhandle, *user->getattr(attrType));
+        }
+        return API_EINTERNAL;
+    }
+
+    AuthMethod authMethod = itEd->second.getAuthMethod(uh);
     switch (authMethod)
     {
     case AUTH_METHOD_SEEN:
         LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
-        authring.update(uh, AUTH_METHOD_FINGERPRINT);
         break;
 
     case AUTH_METHOD_FINGERPRINT:
@@ -13250,9 +14067,7 @@ error MegaClient::verifyCredentials(handle uh)
         const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
         if (pubKey)
         {
-            string keyFingerprint = AuthRing::fingerprint(*pubKey);
             LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
-            authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
         }
         else
         {
@@ -13263,56 +14078,163 @@ error MegaClient::verifyCredentials(handle uh)
     }
     }
 
-    std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()));
+    int tag = reqtag;
+    mKeyManager.commit(
+    [this, uh, uid]()
+    {
+        // Changes to apply in the commit
+        auto itEd = mAuthRings.find(ATTR_AUTHRING);
+        auto itCu = mAuthRings.find(ATTR_AUTHCU255);
+        if (itEd == mAuthRings.end() || itCu == mAuthRings.end())
+        {
+            LOG_warn << "Failed to verify public Ed25519 key for user " << uid
+                     << ": authring(s) not available during commit";
+            return;
+        }
+
+        if (itCu->second.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE)
+        {
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << ": signature of Cu25519 public key is not verified during commit";
+            return;
+        }
+
+        AuthRing authring = itEd->second; // copy, do not modify yet the cached authring
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        switch (authMethod)
+        {
+        case AUTH_METHOD_SEEN:
+            authring.update(uh, AUTH_METHOD_FINGERPRINT);
+            break;
+        case AUTH_METHOD_UNKNOWN:
+        {
+            User *user = finduser(uh);
+            const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
+            if (pubKey)
+            {
+                string keyFingerprint = AuthRing::fingerprint(*pubKey);
+                LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid
+                         << ": key is not tracked yet during commit";
+                authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
+                break;
+            }
+            else
+            {
+                LOG_err << "Failed to verify credentials for user " << uid
+                        << ": key not tracked and not available during commit";
+                return;
+            }
+            break;
+        }
+        default:
+            LOG_err << "Failed to verify credentials for user " << uid
+                    << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        std::string serializedAuthring = authring.serializeForJS();
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
+    {
+        restag = tag;
+        app->putua_result(API_OK);
+    });
 
     return API_OK;
 }
 
 error MegaClient::resetCredentials(handle uh)
 {
-    Base64Str<MegaClient::USERHANDLE> uid(uh);
-    if (mAuthRings.size() != 3)
+    if (!mKeyManager.generation())
     {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": authring/s not available";
-        // TODO: after testing, if not hit, remove assertion below
-        assert(false);
+        LOG_err << "Account not upgraded yet";
+        return API_EINCOMPLETE;
+    }
+
+    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    auto it = mAuthRings.find(ATTR_AUTHRING);
+    if (it == mAuthRings.end())
+    {
+        LOG_warn << "Failed to reset credentials for user " << uid << ": authring not available";
         return API_ETEMPUNAVAIL;
     }
 
-    // store all required changes into user attributes
-    userattr_map attrs;
-    for (auto &it : mAuthRings)
+    AuthMethod authMethod = it->second.getAuthMethod(uh);
+    if (authMethod == AUTH_METHOD_SEEN)
     {
-        AuthRing authring = it.second; // copy, do not update cached authring yet
-        if (authring.remove(uh))
-        {
-            attrs[it.first] = *authring.serialize(rng, key);
-        }
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not verified by fingerprint";
+        return API_EARGS;
     }
-
-    if (attrs.size())
+    else if (authMethod == AUTH_METHOD_UNKNOWN)
     {
-        LOG_debug << "Removing credentials for user " << uid << "...";
-        putua(&attrs);
-    }
-    else
-    {
-        LOG_warn << "Failed to reset credentials for user " << uid << ": keys not tracked yet";
+        LOG_warn << "Failed to reset credentials for user " << uid << ": Ed25519 key is not tracked yet";
         return API_ENOENT;
     }
+    assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
+    LOG_debug << "Reseting credentials for user " << uid << "...";
+
+    int tag = reqtag;
+    mKeyManager.commit(
+    [this, uh, uid]()
+    {
+        auto it = mAuthRings.find(ATTR_AUTHRING);
+        if (it == mAuthRings.end())
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << ": authring not available during commit";
+            return;
+        }
+
+        AuthRing authring = it->second; // copy, do not update cached authring yet
+        AuthMethod authMethod = authring.getAuthMethod(uh);
+        if (authMethod != AUTH_METHOD_FINGERPRINT)
+        {
+            LOG_warn << "Failed to reset credentials for user " << uid
+                     << " unexpected authMethod (" << authMethod << ") during commit";
+            return;
+        }
+
+        authring.update(uh, AUTH_METHOD_SEEN);
+        string serializedAuthring = authring.serializeForJS();
+
+        // Changes to apply in the commit
+        mKeyManager.setAuthRing(serializedAuthring);
+    },
+    [this, tag]()
+    {
+        restag = tag;
+        app->putua_result(API_OK);
+        return;
+    });
 
     return API_OK;
 }
 
 bool MegaClient::areCredentialsVerified(handle uh)
 {
-    AuthRingsMap::const_iterator it = mAuthRings.find(ATTR_AUTHRING);
-    if (it != mAuthRings.end())
+    if (uh == me)
     {
-        return it->second.areCredentialsVerified(uh);
+        return false;
     }
-    return false;
+
+    AuthRingsMap::const_iterator itCu = mAuthRings.find(ATTR_AUTHCU255);
+    bool cuAuthringFound = itCu != mAuthRings.end();
+    if (!cuAuthringFound || !itCu->second.areCredentialsVerified(uh))
+    {
+        LOG_err << "Cu25519 for " << toHandle(uh) << ": " << (!cuAuthringFound ? "authring missing" : "signature not verified");
+        return false;
+    }
+
+    AuthRingsMap::const_iterator it = mAuthRings.find(ATTR_AUTHRING);
+    bool edAuthringFound = it != mAuthRings.end();
+    if (!edAuthringFound || !it->second.areCredentialsVerified(uh))
+    {
+        if (!edAuthringFound) LOG_err << "Ed25519 for " << toHandle(uh) << ": " << "authring missing";
+        return false;
+    }
+
+    return true;
 }
 
 void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
@@ -14366,7 +15288,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
     struct tm tms;
     char buf[32];
     struct tm* ptm = m_localtime(ts, &tms);
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
     // locate //bin/SyncDebris
     Node* n;
@@ -15391,7 +16313,8 @@ void MegaClient::setchatretentiontime(handle chatid, unsigned period)
 
 error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>& schedMeetings,
                                          bool parsingOccurrences, JSON *j, bool parseOnce,
-                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs)
+                                         handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
+                                         handle_set* childMeetingsDeleted)
 {
     JSON* auxJson = j
             ? j         // custom Json provided
@@ -15502,10 +16425,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     if (parsingOccurrences)
                     {
                        /* if parsingOccurrences is true, we are parsing meeting occurrences (meeting calls events generated due to a scheduled meeting information)
-                        * associated to a scheduled meeting. This meeting ocurrences should contain scheduled rules as it doesn't represent the scheduled meeting
+                        * associated to a scheduled meeting. This meeting ocurrences shouldn't contain scheduled rules as it doesn't represent the scheduled meeting
                         * but an event generated by this one.
                         */
-                       assert(false);
                        schedParseErr = true;
                        LOG_err << "scheduled meetings occurrence contain repetition rules";
                        if (!auxJson->storeobject())
@@ -15522,7 +16444,17 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     ScheduledRules::rules_vector vMonth;
                     ScheduledRules::rules_map mMonth;
 
-                    if (auxJson->enterobject())
+                    if (!auxJson->enterobject())
+                    {
+                        schedParseErr = true;
+                        LOG_err << "scheduled meetings repetition rules ill-formed";
+                        if (!auxJson->storeobject())
+                        {
+                            return API_EINTERNAL;
+                        }
+                        break;
+                    }
+                    else
                     {
                         bool exitRules = false;
                         while (!exitRules)
@@ -15554,6 +16486,15 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                         }
                                         auxJson->leavearray();
                                     }
+                                    else
+                                    {
+                                        schedParseErr = true;
+                                        LOG_err << "scheduled meetings repetition rules ill-formed (wd)";
+                                        if (!auxJson->storeobject())
+                                        {
+                                            return API_EINTERNAL;
+                                        }
+                                    }
                                     break;
                                 }
                                 case MAKENAMEID2('m', 'd'):
@@ -15566,13 +16507,22 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                         }
                                         auxJson->leavearray();
                                     }
+                                    else
+                                    {
+                                        schedParseErr = true;
+                                        LOG_err << "scheduled meetings repetition rules ill-formed (md)";
+                                        if (!auxJson->storeobject())
+                                        {
+                                            return API_EINTERNAL;
+                                        }
+                                    }
                                     break;
                                 }
                                 case MAKENAMEID3('m', 'w', 'd'):
                                 {
                                     if (auxJson->enterarray())
                                     {
-                                        while(auxJson->enterarray())
+                                        while (auxJson->enterarray())
                                         {
                                             int8_t key = -1;
                                             int8_t value = -1;
@@ -15587,15 +16537,24 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 
                                             if (i > 2 || key == -1 || value == -1) // ensure that each array just contains a pair of elemements
                                             {
-                                                LOG_err << "scheduled meetings rules component BYMONTHWEEKDAY, is malformed";
+                                                LOG_err << "scheduled meetings rules component mwd, is malformed";
                                             }
                                             else
                                             {
                                                 mMonth.emplace(key, value);
-                                                auxJson->leavearray();
                                             }
+                                            auxJson->leavearray();
                                         }
                                         auxJson->leavearray();
+                                    }
+                                    else
+                                    {
+                                        schedParseErr = true;
+                                        LOG_err << "scheduled meetings repetition rules ill-formed (mwd)";
+                                        if (!auxJson->storeobject())
+                                        {
+                                            return API_EINTERNAL;
+                                        }
                                     }
                                     break;
                                 }
@@ -15625,8 +16584,25 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     assert(cs);
                     if (auxJson->enterobject())
                     {
-                        parseScheduledMeetingChangeset(auxJson, cs);
+                        if (parseScheduledMeetingChangeset(auxJson, cs) != API_OK)
+                        {
+                            assert(false);
+                            LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+                        }
                         auxJson->leaveobject();
+                    }
+                    break;
+                }
+                case MAKENAMEID3('c', 'm', 'd'):
+                {
+                    assert(childMeetingsDeleted);
+                    if (auxJson->enterarray() && childMeetingsDeleted)
+                    {
+                        while(auxJson->ishandle(MegaClient::CHATHANDLE))
+                        {
+                            childMeetingsDeleted->insert(auxJson->gethandle());
+                        }
+                        auxJson->leavearray();
                     }
                     break;
                 }
@@ -15647,8 +16623,15 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     if (!auxMeet->isValid() || schedParseErr)
                     {
                         // this object is malformed, so we don't want to store it
-                        assert(false);
-                        LOG_err << "Invalid scheduled meeting received from API";
+                        std::string errMsg = "Ill-formed sched meeting";
+                        errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->chatid()))
+                              .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->schedId()));
+
+                        sendevent(99471, errMsg.c_str());
+                        LOG_err << errMsg;
+
+                        // this does occur but we don't want the tests terminated in SRW
+                        //assert(false);
                     }
                     else
                     {
@@ -15708,33 +16691,17 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        j->storeobject(&cs.oldValue);
-        bool updated = j->storeobject(&cs.newValue);
-        if (!updated)
-        {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
-            {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EINTERNAL;
-                keepParsing = false;
-            }
-         }
-         j->leavearray();
-         return e;
+        if (!j->storeobject(&cs.oldValue)) { cs.oldValue.clear(); }
+        if (!j->storeobject(&cs.newValue)) { cs.newValue.clear(); }
+        j->leavearray();
+        return API_OK;
     };
 
     auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
@@ -15742,34 +16709,30 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     {
         if (!j->enterarray())
         {
+            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
             keepParsing = false;
             return API_EINTERNAL;
         }
 
-        error e = API_OK;
-        cs.oldValue = j->getint();
-        cs.newValue = j->getint();
-        bool updated = cs.newValue > 0;
-        if (!updated)
+        auto getTsVal = [&j](m_time_t& out)
         {
-            e = API_ENOENT;
-        }
-        else
-        {
-            if (cs.oldValue == cs.newValue)
+            out = mega_invalid_timestamp;
+            if (j->isnumeric())
             {
-                LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                        << "notification but no modification: old " << fieldMsg << "|" << cs.oldValue
-                        << "| new " << fieldMsg << "|" << cs.newValue <<"|";
-
-                e = API_EINTERNAL;
-                keepParsing = false;
+                auto val = j->getint();
+                if (val > -1)
+                {
+                    out = val;
+                }
             }
-         }
-         j->leavearray();
-         return e;
+        };
+
+        getTsVal(cs.oldValue);
+        getTsVal(cs.newValue);
+        j->leavearray();
+        return API_OK;
     };
 
     UserAlert::UpdatedScheduledMeeting::Changeset auxCS;
@@ -15781,9 +16744,18 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('t'):
             {
                 Changeset::StrChangeset tCs;
-                if (getOldNewStrValues(tCs, "Title") == API_OK)
+                auto err = getOldNewStrValues(tCs, "Title");
+                if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    if (!tCs.oldValue.empty() && !tCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TITLE, &tCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -15805,9 +16777,18 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID2('t', 'z'):
             {
                 Changeset::StrChangeset tzCs;
-                if (getOldNewStrValues(tzCs, "TimeZone") == API_OK)
+                auto err = getOldNewStrValues(tzCs, "TimeZone");
+                if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    if (!tzCs.oldValue.empty() && !tzCs.newValue.empty())
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_TIMEZONE, &tzCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -15815,9 +16796,18 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('s'):
             {
                 Changeset::TsChangeset sdCs;
-                if (getOldNewTsValues(sdCs, "StartDateTime") == API_OK)
+                auto err = getOldNewTsValues(sdCs, "StartDateTime");
+                if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    if (sdCs.oldValue != mega_invalid_timestamp && sdCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_STARTDATE, nullptr, &sdCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -15825,9 +16815,18 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             case MAKENAMEID1('e'):
             {
                 Changeset::TsChangeset edCs;
-                if (getOldNewTsValues(edCs, "EndDateTime") == API_OK)
+                auto err = getOldNewTsValues(edCs, "EndDateTime");
+                if (err == API_OK)
                 {
-                    auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    if (edCs.oldValue != mega_invalid_timestamp && edCs.newValue != mega_invalid_timestamp)
+                    {
+                        auxCS.addChange(Changeset::CHANGE_TYPE_ENDDATE, nullptr, &edCs);
+                    }
+                    // else => item unchanged, but old value provided for rendering purposes
+                }
+                else if (err == API_EINTERNAL && !j->storeobject())
+                {
+                    return API_EINTERNAL;
                 }
             }
             break;
@@ -16136,6 +17135,60 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
+void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(!els.empty() && els.front().set() != UNDEF);
+
+    // make sure Set id is valid
+    const Set* existingSet = (els.empty() || els.front().set() == UNDEF) ? nullptr : getSet(els.front().set());
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Set not found when adding bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr, nullptr);
+        }
+        return;
+    }
+
+    // build encrypted details
+    vector<pair<string, string>> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
+    for (size_t i = 0u; i < els.size(); ++i)
+    {
+        SetElement& el = els[i];
+
+        Node* n = nodebyhandle(el.node());
+        if (!n || !n->keyApplied() || !n->nodecipher() || n->attrstring || n->type != FILENODE)
+        {
+            // if file node was invalid, reset it and let the API return error for it, to allow the other Elements to be created
+            el.setNode(UNDEF);
+        }
+        else
+        {
+            el.setKey(n->nodekey());
+            assert(el.key().size() == FILENODEKEYLENGTH);
+
+            // encrypt element.key with set.key
+            byte encryptBuffer[FILENODEKEYLENGTH];
+            std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
+            tmpnodecipher.setkey(&existingSet->key());
+            tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+
+            auto& ed = encrDetails[i];
+            ed.second.assign(reinterpret_cast<char*>(encryptBuffer), sizeof(encryptBuffer));
+
+            if (el.hasAttrs())
+            {
+                ed.first = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+            }
+        }
+    }
+
+    reqs.add(new CommandPutSetElements(this, move(els), move(encrDetails), completion));
+}
+
+
 void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
 {
     // setId is required
@@ -16211,6 +17264,29 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     }
 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
+}
+
+void MegaClient::removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(sid != UNDEF && !eids.empty());
+
+    // make sure Set id is valid
+    const Set* existingSet = (eids.empty() || sid == UNDEF) ? nullptr : getSet(sid);
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Invalid request data when removing bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr);
+        }
+        return;
+    }
+
+    // Do not validate Element ids here. Let the API return error for invalid ones,
+    // to allow valid ones to be removed.
+
+    reqs.add(new CommandRemoveSetElements(this, sid, move(eids), completion));
 }
 
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
@@ -16716,6 +17792,7 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
 const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
 {
     handle sid = el.set();
+    assert(sid != UNDEF);
     handle eid = el.id();
 
     auto itS = mSetElements.find(sid);
@@ -17023,7 +18100,7 @@ bool MegaClient::updatescsetelements()
                 continue;
             }
 
-            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            LOG_verbose << (e->hasChanged(SetElement::CH_EL_NEW) ? "Adding" : "Updating") << " SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSETELEMENT, e, &key))
             {
                 return false;
@@ -17164,6 +18241,1421 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToSyncsResumed << "," << timeToCurrent << ","
         << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
+}
+
+const std::string KeyManager::SVCRYPTO_PAIRWISE_KEY = "strongvelope pairwise key\x01";
+
+void KeyManager::init(const string& prEd25519, const string& prCu25519, const string& prRSA)
+{
+    if (mVersion != 0 || mGeneration != 0)
+    {
+        LOG_err << "Init invoked incorrectly";
+        assert(false);
+        return;
+    }
+
+    mVersion = 1;
+    mCreationTime = static_cast<int32_t>(time(nullptr));
+    mIdentity = mClient.me;
+    mGeneration = 1;
+    mPrivEd25519 = prEd25519;
+    mPrivCu25519 = prCu25519;
+
+    mPrivRSA.clear();
+    if (prRSA.size())
+    {
+        string prRSABin = Base64::atob(prRSA);
+        AsymmCipher ac;
+
+        if (!ac.setkey(AsymmCipher::PRIVKEY, (const unsigned char*)prRSABin.data(), (int)prRSABin.size()))
+        {
+            LOG_err << "Priv RSA key problem during KeyManager initialization.";
+            assert(false);
+        }
+        else
+        {
+            // Store it in the short format (3 Ints): pqd.
+            ac.serializekey(&mPrivRSA, AsymmCipher::PRIVKEY_SHORT);
+        }
+    }
+    else
+    {
+        assert(mClient.loggedin() == EPHEMERALACCOUNTPLUSPLUS);
+    }
+
+    if (mSecure && !mPostRegistration)
+    {
+        // We request the upgrade after nodes_current to be able to migrate shares
+        // mClient.app->upgrading_security();
+    }
+    else
+    {
+        mPostRegistration = false;
+    }
+}
+
+void KeyManager::setKey(const mega::SymmCipher &masterKey)
+{
+    // Derive key from MK
+    CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
+    byte derivedKey[SymmCipher::KEYLENGTH];
+    byte info[1]; info[0] = 1;
+    hkdf.DeriveKey(derivedKey, sizeof(derivedKey), masterKey.key, SymmCipher::KEYLENGTH, nullptr, 0, info, sizeof(info));
+    mKey.setkey(derivedKey);
+
+    if (mDebugContents)
+    {
+        LOG_verbose << "Derived key (B64): " << Base64::btoa(string((const char*)derivedKey, SymmCipher::KEYLENGTH));
+    }
+}
+
+bool KeyManager::fromKeysContainer(const string &data)
+{
+    bool success = false;
+    KeyManager km(mClient);  // keymanager to store values temporary
+
+    if (data.size() > 2 && data[0] == 20)
+    {
+        // data[1] is reserved, always 0
+
+        if (data.size() > 2 + IV_LEN)
+        {
+            const string keysCiphered((const char*)(data.data() + 2 + IV_LEN), (size_t)(data.size() - 2 - IV_LEN));
+            const string iv((const char*)data.data() + 2, IV_LEN);
+
+            // Decrypt ^!keys attribute
+            string keysPlain;
+            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
+
+            success = unserialize(km, keysPlain);
+            if (!success)
+            {
+                LOG_err << "Failed to unserialize ^!keys. Ignoring received value";
+                mClient.sendevent(99463, "KeyMgr / Failed to unserialize ^!keys");
+            }
+        }
+    }
+
+    // validate received data and update local values
+    if (success && isValidKeysContainer(km))
+    {
+        updateValues(km);
+    }
+
+    assert(success);
+    return success;
+}
+
+bool KeyManager::isValidKeysContainer(const KeyManager& km)
+{
+    // downgrade attack detection
+    if (km.mGeneration < mGeneration)
+    {
+        ostringstream msg;
+        msg << "KeyMgr / Downgrade attack for ^!keys: " << km.mGeneration << " < " << mGeneration;
+        LOG_err << msg.str();
+        mClient.sendevent(99461, msg.str().c_str());
+
+        // block updates of ^!keys attribute and notify the app, so it can
+        // warn about the potential attack and block user's interface
+        if (isSecure())
+        {
+            mDowngradeAttack = true;
+            mClient.app->downgrade_attack();
+        }
+        return false;
+    }
+
+    // validate private Ed25519 key
+    if (mPrivEd25519.empty())
+    {
+        mPrivEd25519 = km.mPrivEd25519;
+    }
+    assert(mPrivEd25519 == km.mPrivEd25519);
+
+    // validate private Cu25519 key
+    if (mPrivCu25519.empty())
+    {
+        mPrivCu25519 = km.mPrivCu25519;
+    }
+    assert(mPrivCu25519 == km.mPrivCu25519);
+
+    // validate private RSA key
+    if (mPrivRSA.empty())
+    {
+        assert(km.mPrivRSA.empty() || km.mPrivRSA.size() >= 512);
+        if (km.mPrivRSA.empty())
+        {
+            LOG_warn << "Empty RSA key";
+        }
+        else if (km.mPrivRSA.size() < 512)
+        {
+            LOG_err << "Invalid RSA key";
+        }
+        else
+        {
+            mPrivRSA = km.mPrivRSA;
+            if (!decodeRSAKey())
+            {
+                LOG_warn << "Private key malformed while unserializing ^!keys.";
+            }
+            // Note: the copy of privRSA from ^!keys will be used exclusively for legacy RSA functionality (MEGAdrop, not supported by SDK)
+        }
+    }
+    assert(mPrivRSA == km.mPrivRSA);
+
+    return true;
+}
+
+void KeyManager::updateValues(KeyManager &km)
+{
+    mVersion            = km.mVersion;
+    mCreationTime       = km.mCreationTime;
+    mIdentity           = km.mIdentity;
+    mGeneration         = km.mGeneration;
+    mAttr               = move(km.mAttr);
+    // private keys do not change -> no need to update
+//        mPrivEd25519        = km.mPrivEd25519;
+//        mPrivCu25519        = km.mPrivCu25519;
+//        mPrivRSA            = km.mPrivRSA;
+    updateAuthring(ATTR_AUTHRING, km.mAuthEd25519);
+    updateAuthring(ATTR_AUTHCU255, km.mAuthCu25519);
+    updateShareKeys(km.mShareKeys);
+    mPendingOutShares   = move(km.mPendingOutShares);
+    mPendingInShares    = move(km.mPendingInShares);
+    mBackups            = move(km.mBackups);
+    mWarnings           = move(km.mWarnings);
+    mOther              = move(km.mOther);
+
+    if (promotePendingShares())
+    {
+        LOG_debug << "Promoting pending shares after an update of ^!keys";
+        commit([this]()
+        {
+            // Changes to apply in the commit
+            promotePendingShares();
+        }); // No completion callback in this case
+    }
+}
+
+string KeyManager::toKeysContainer()
+{
+    if (mVersion == 0)
+    {
+        LOG_err << "Failed to prepare container from keys. Not initialized yet";
+        assert(false);
+        return string();
+    }
+
+    // Do not update mGeneration here, since it may lead to fake
+    // detection of downgrade-attacks. Instead, use mGeneration+1
+    // at the serialize(). The mGeneration will be updated later,
+    // when the putua() from updateAttribute() success.
+    //++mGeneration;
+
+    const string iv = mClient.rng.genstring(IV_LEN);
+    const string keysPlain = serialize();
+
+    string keysCiphered;
+    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
+
+    byte header[2] = {20, 0};
+    assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+
+    return string({20, 0}) + iv + keysCiphered;
+}
+
+string KeyManager::tagHeader(const byte tag, size_t len) const
+{
+    vector<byte> res;
+
+    res.push_back(tag);
+    res.push_back(static_cast<byte>((len & 0xFF0000) >> 16));
+    res.push_back((len & 0xFF00) >> 8);
+    res.push_back(len & 0xFF);
+
+    return string((const char*)res.data(), res.size());
+}
+
+string KeyManager::serialize() const
+{
+    string result;
+
+    result.append(tagHeader(TAG_VERSION, sizeof(mVersion)));
+    result.append((const char*)&mVersion, sizeof(mVersion));
+
+    result.append(tagHeader(TAG_CREATION_TIME, sizeof(mCreationTime)));
+    uint32_t creationTimeBE = htonl(mCreationTime); // Webclient sets this value as BigEndian
+    result.append((const char*)&creationTimeBE, sizeof(creationTimeBE));
+
+    result.append(tagHeader(TAG_IDENTITY, sizeof(mIdentity)));
+    result.append((const char*)&mIdentity, sizeof(mIdentity));
+
+    result.append(tagHeader(TAG_GENERATION, sizeof(mGeneration)));
+    uint32_t generationBE = htonl(mGeneration+1); // Webclient sets this value as BigEndian
+    result.append((const char*)&generationBE, sizeof(generationBE));
+
+    result.append(tagHeader(TAG_ATTR, mAttr.size()));
+    result.append(mAttr);
+
+    assert(mPrivEd25519.size() == EdDSA::SEED_KEY_LENGTH);
+    result.append(tagHeader(TAG_PRIV_ED25519, EdDSA::SEED_KEY_LENGTH));
+    result.append(mPrivEd25519);
+
+    assert(mPrivCu25519.size() == ECDH::PRIVATE_KEY_LENGTH);
+    result.append(tagHeader(TAG_PRIV_CU25519, ECDH::PRIVATE_KEY_LENGTH));
+    result.append(mPrivCu25519);
+
+    assert(!mPrivRSA.size() || mPrivRSA.size() > 512);
+    result.append(tagHeader(TAG_PRIV_RSA, mPrivRSA.size()));
+    result.append(mPrivRSA);
+
+    result.append(tagHeader(TAG_AUTHRING_ED25519, mAuthEd25519.size()));
+    result.append(mAuthEd25519);
+
+    result.append(tagHeader(TAG_AUTHRING_CU25519, mAuthCu25519.size()));
+    result.append(mAuthCu25519);
+
+    string shareKeys = serializeShareKeys();
+    result.append(tagHeader(TAG_SHAREKEYS, shareKeys.size()));
+    result.append(shareKeys);
+
+    string pendingOutshares = serializePendingOutshares();
+    result.append(tagHeader(TAG_PENDING_OUTSHARES, pendingOutshares.size()));
+    result.append(pendingOutshares);
+
+    string pendingInshares = serializePendingInshares();
+    result.append(tagHeader(TAG_PENDING_INSHARES, pendingInshares.size()));
+    result.append(pendingInshares);
+
+    string backups = serializeBackups();
+    result.append(tagHeader(TAG_BACKUPS, backups.size()));
+    result.append(backups);
+
+    result.append(tagHeader(TAG_WARNINGS, mWarnings.size()));
+    result.append(mWarnings);
+
+    result.append(mOther);
+
+    return result;
+}
+
+uint32_t KeyManager::generation() const
+{
+    return mGeneration;
+}
+
+string KeyManager::privEd25519() const
+{
+    return mPrivEd25519;
+}
+
+string KeyManager::privCu25519() const
+{
+    return mPrivCu25519;
+}
+
+void KeyManager::setPostRegistration(bool postRegistration)
+{
+    mPostRegistration = postRegistration;
+}
+
+bool KeyManager::addPendingOutShare(handle sharehandle, std::string uid)
+{
+    mPendingOutShares[sharehandle].insert(uid);
+    return true;
+}
+
+bool KeyManager::addPendingInShare(std::string sharehandle, handle userHandle, std::string encrytedKey)
+{
+    mPendingInShares[sharehandle] = pair<handle, string>(userHandle, encrytedKey);
+    return true;
+}
+
+bool KeyManager::removePendingOutShare(handle sharehandle, std::string uid)
+{
+    bool removed = false;
+    User *user = mClient.finduser(uid.c_str(), 0);
+    if (user)
+    {
+        removed = mPendingOutShares[sharehandle].erase(user->email);
+        removed |= mPendingOutShares[sharehandle].erase(user->uid) > 0;
+    }
+    else
+    {
+        removed = mPendingOutShares[sharehandle].erase(uid);
+    }
+    return removed;
+}
+
+bool KeyManager::removePendingInShare(std::string shareHandle)
+{
+    return mPendingInShares.erase(shareHandle);
+}
+
+bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
+{
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end() && it->second.second && it->second.first != shareKey)
+    {
+        LOG_warn << "Replacement of trusted sharekey for " << toNodeHandle(sharehandle);
+        mClient.sendevent(99470, "KeyMgr / Replacing trusted sharekey");
+        assert(false);
+    }
+
+    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
+    return true;
+}
+
+string KeyManager::getShareKey(handle sharehandle) const
+{
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end())
+    {
+        return it->second.first;
+    }
+    return std::string();
+}
+
+bool KeyManager::isShareKeyTrusted(handle sharehandle) const
+{
+    auto it = mShareKeys.find(sharehandle);
+    return it != mShareKeys.end() && it->second.second;
+}
+
+string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
+{
+    if (!mClient.areCredentialsVerified(userhandle))
+    {
+        return std::string();
+    }
+
+    std::string sharedKey = computeSymmetricKey(userhandle);
+    if (!sharedKey.size())
+    {
+        return std::string();
+    }
+
+    std::string encryptedKey;
+    encryptedKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
+    aesencryption.ProcessData((byte *)encryptedKey.data(), (byte *)shareKey.data(), shareKey.size());
+
+    return encryptedKey;
+}
+
+string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
+{
+    if (!mClient.areCredentialsVerified(userhandle))
+    {
+        return std::string();
+    }
+
+    std::string sharedKey = computeSymmetricKey(userhandle);
+    if (!sharedKey.size())
+    {
+        return std::string();
+    }
+
+    std::string shareKey;
+    shareKey.resize(CryptoPP::AES::BLOCKSIZE);
+
+    std::string encryptedKey = Base64::atob(key);
+    CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
+    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)encryptedKey.data(), encryptedKey.size());
+
+    return shareKey;
+}
+
+void KeyManager::setAuthRing(std::string authring)
+{
+    mAuthEd25519 = authring;
+}
+
+void KeyManager::setAuthCU255(std::string authring)
+{
+    mAuthCu25519 = authring;
+}
+
+void KeyManager::setPrivRSA(std::string privRSA)
+{
+    mPrivRSA = privRSA;
+}
+
+string KeyManager::getPrivRSA()
+{
+    return mPrivRSA;
+}
+
+bool KeyManager::promotePendingShares()
+{
+    bool attributeUpdated = false;
+    bool newshares = false;
+    std::vector<std::string> keysToDelete;
+
+    for (const auto& it : mPendingOutShares)
+    {
+        handle nodehandle = it.first;
+        for (const auto& uid : it.second)
+        {
+            User *u = mClient.finduser(uid.c_str(), 0);
+            if (u && mClient.areCredentialsVerified(u->userhandle))
+            {
+                LOG_debug << "Promoting pending outshare of node " << toNodeHandle(nodehandle) << " for " << uid;
+                auto shareit = mShareKeys.find(nodehandle);
+                if (shareit != mShareKeys.end())
+                {
+                    std::string encryptedKey = encryptShareKeyTo(u->userhandle, shareit->second.first);
+                    if (encryptedKey.size())
+                    {
+                        mClient.reqs.add(new CommandPendingKeys(&mClient, u->userhandle, nodehandle, (byte *)encryptedKey.data(),
+                        [uid](Error err)
+                        {
+                            if (err)
+                            {
+                                LOG_err << "Error sending share key: " << err;
+                            }
+                            else
+                            {
+                                LOG_debug << "Share key correctly sent";
+                            }
+                        }));
+
+                        keysToDelete.push_back(uid);
+                        attributeUpdated = true;
+                    }
+                    else
+                    {
+                        LOG_warn << "Unable to encrypt share key to promote pending outshare " << toNodeHandle(nodehandle) << " uh: " << toHandle(u->userhandle);
+                    }
+                }
+            }
+        }
+
+        for (const auto& uid : keysToDelete)
+        {
+            removePendingOutShare(nodehandle, uid);
+        }
+        keysToDelete.clear();
+    }
+
+    for (const auto& it : mPendingInShares)
+    {
+        handle nodeHandle = 0;
+        Base64::atob(it.first.c_str(), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+
+        handle userHandle = it.second.first;
+        const std::string &encryptedShareKey = it.second.second;
+
+        if (mClient.areCredentialsVerified(userHandle))
+        {
+            LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
+            std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
+            if (shareKey.size())
+            {
+                auto skit = mShareKeys.find(nodeHandle);
+                if (skit != mShareKeys.end() && skit->second.first != shareKey)
+                {
+                    LOG_warn << "Updating share key for inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
+                }
+
+                addShareKey(nodeHandle, shareKey, true);
+                mClient.newshares.push_back(new NewShare(nodeHandle, 0, UNDEF, ACCESS_UNKNOWN, 0, (byte *)shareKey.data()));
+                keysToDelete.push_back(it.first);
+                attributeUpdated = true;
+                newshares = true;
+            }
+            else
+            {
+                LOG_warn << "Unable to decrypt share key to promote pending inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
+            }
+        }
+    }
+
+    for (const auto& shareHandle : keysToDelete)
+    {
+        removePendingInShare(shareHandle);
+    }
+    keysToDelete.clear();
+
+    if (newshares)
+    {
+        mClient.mergenewshares(true);
+    }
+
+    return attributeUpdated;
+}
+
+bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
+{
+    auto it = mPendingOutShares.find(nodeHandle);
+    if (it == mPendingOutShares.end())
+    {
+        return false;
+    }
+
+    for (const auto& uidIt : it->second)
+    {
+        if (uidIt == uid)
+        {
+            return true;
+        }
+
+        // if 'uid' is a userhandle, try to match by email
+        // (in case of pending outshare that later upgrades to outshare by
+        // sharee accepting the PCR, the 'uid' in 'keys.pendingoutshares' will
+        // keep the email, but we already know the userHandle)
+        if (uid.find("@") == uid.npos)
+        {
+            User* u = mClient.finduser(uid.c_str(), 0);
+            if (u && uidIt == u->email)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
+{
+    auto it = mPendingInShares.find(toNodeHandle(nodeHandle));
+    if (it == mPendingInShares.end())
+    {
+        return false;
+    }
+
+    if (it->second.first == userHandle)
+    {
+        return true;
+    }
+    return false;
+}
+
+void KeyManager::cacheShareKeys()
+{
+    for (const auto& it : mShareKeys)
+    {
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.first.data());
+    }
+}
+
+void KeyManager::loadShareKeys()
+{
+    for (const auto& it : mShareKeys)
+    {
+        handle sharehandle = it.first;
+        std::string shareKey = it.second.first;
+
+        Node *n = mClient.nodebyhandle(sharehandle);
+        if (n && !n->sharekey)
+        {
+            std::unique_ptr<NewShare> newShare(new NewShare(sharehandle, n->inshare ? 0 : -1,
+                                                     UNDEF, ACCESS_UNKNOWN,
+                                                     0, (byte *)shareKey.data()));
+
+            mClient.mergenewshare(newShare.get(), true, false);
+        }
+    }
+}
+
+void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
+{
+    LOG_debug << "[keymgr] New update requested";
+    if (mVersion == 0)
+    {
+        LOG_err << "Not initialized yet. Cancelling the update.";
+        assert(false);
+        completion();
+        return;
+    }
+
+    nextQueue.push_back(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
+    if (activeQueue.size())
+    {
+        LOG_debug << "[keymgr] Another commit is in progress. Queued updates: " << nextQueue.size();
+        return;
+    }
+
+    nextCommit();
+}
+
+void KeyManager::reset()
+{
+    mVersion = 0;
+    mCreationTime = 0;
+    mIdentity = UNDEF;
+    mGeneration = 0;
+    mAttr.clear();
+    mPrivEd25519.clear();
+    mPrivCu25519.clear();
+    mPrivRSA.clear();
+    mAuthEd25519.clear();
+    mAuthCu25519.clear();
+    mBackups.clear();
+    mWarnings.clear();
+    mOther.clear();
+    mPendingInShares.clear();
+    mPendingOutShares.clear();
+    mShareKeys.clear();
+}
+
+string KeyManager::toString() const
+{
+    ostringstream buf;
+
+    buf << "Version: " << (int)mVersion << "\n";
+    buf << "Creation time: " << mCreationTime<< "\n";
+    buf << "Identity: " << toHandle(mIdentity)<< "\n";
+    buf << "Generation: " << mGeneration<< "\n";
+    buf << "Attr: " << Base64::btoa(mAttr)<< "\n";
+    buf << "PrivEd25519: " << Base64::btoa(mPrivEd25519)<< "\n";
+    buf << "PrivCu25519: " << Base64::btoa(mPrivCu25519)<< "\n";
+    buf << "PrivRSA: " << Base64::btoa(mPrivRSA)<< "\n";
+    buf << "Authring Ed25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHRING))<< "\n";
+    buf << "Authring Cu25519:\n" << AuthRing::toString(mClient.mAuthRings.at(ATTR_AUTHCU255))<< "\n";
+    buf << shareKeysToString(*this);
+    buf << pendingOutsharesToString(*this);
+    buf << pendingInsharesToString(*this);
+    buf << "Backups: " << Base64::btoa(mBackups) << "\n";
+    buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
+
+    return buf.str();
+}
+
+string KeyManager::shareKeysToString(const KeyManager& km)
+{
+    ostringstream buf;
+    buf << "Share Keys:\n";
+
+    unsigned count = 0;
+    for (const auto &it : km.mShareKeys)
+    {
+        ++count;
+        handle h = it.first;
+        const string& shareKeyStr = it.second.first;
+        bool trust = it.second.second;
+        buf << "\t#" << count << "\t h: " << toNodeHandle(h) <<
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << "\n";
+    }
+
+    return buf.str();
+}
+
+string KeyManager::pendingOutsharesToString(const KeyManager& km)
+{
+    ostringstream buf;
+    buf << "Pending Outshares:\n";
+
+    unsigned count = 0;
+    for (const auto &it : km.mPendingOutShares)
+    {
+        ++count;
+        handle h = it.first;
+        for (const auto& uid : it.second)
+        {
+            buf << "\t#" << count << "\th: " << toNodeHandle(h) << " user: " << uid << "\n";
+        }
+    }
+
+    return buf.str();
+}
+
+string KeyManager::pendingInsharesToString(const KeyManager& km)
+{
+    ostringstream buf;
+    buf << "Pending Inshares:\n";
+
+    unsigned count = 0;
+    for (const auto &it : km.mPendingInShares)
+    {
+        ++count;
+        const string& nh = it.first;
+        const handle& uh = it.second.first;
+        const string& shareKey = it.second.second;
+
+        buf << "\t#" << count << "\tn: " << nh << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
+    }
+
+    return buf.str();
+}
+
+void KeyManager::nextCommit()
+{
+    assert(activeQueue.empty());
+    if (nextQueue.size())
+    {
+        LOG_debug << "[keymgr] Initializing a new commit"
+                  << " with " << nextQueue.size() << " updates";
+        activeQueue = move(nextQueue);
+        nextQueue = {};
+        tryCommit(API_EINCOMPLETE, [this]() { nextCommit(); });
+    }
+    else
+    {
+        LOG_debug << "[keymgr] No more updates in the queue.";
+    }
+}
+
+void KeyManager::tryCommit(Error e, std::function<void ()> completion)
+{
+    if (!e || mDowngradeAttack)
+    {
+        LOG_debug << (!e
+                     ? "[keymgr] Commit completed"
+                     : "[keymgr] Commit aborted (downgrade attack)")
+                  << " with " << activeQueue.size() << " updates";
+        for (auto &activeCommit : activeQueue)
+        {
+            if (activeCommit.second)
+            {
+                activeCommit.second(); // Run update completion callback
+            }
+        }
+        activeQueue = {};
+
+        completion();
+        return;
+    }
+
+    LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying")
+              << " commit with " << activeQueue.size() << " updates";
+    for (auto &activeCommit : activeQueue)
+    {
+        if (activeCommit.first)
+        {
+            activeCommit.first(); // Apply commit changes
+        }
+    }
+    updateAttribute([this, completion](Error e)
+    {
+        tryCommit(e, completion);
+    });
+}
+
+void KeyManager::updateAttribute(std::function<void (Error)> completion)
+{
+    string buf = toKeysContainer();
+    mClient.putua(ATTR_KEYS, (byte*)buf.data(), (int)buf.size(), 0, UNDEF, 0, 0, [this, completion](Error e)
+    {
+        if (!e)
+        {
+            completion(API_OK);
+            return;
+        }
+
+        User *ownUser = mClient.finduser(mClient.me);
+        if (!ownUser)
+        {
+            LOG_err << "[keymgr] Not logged in during commit";
+            completion(API_OK); // Returning API_OK to stop the loop
+            return;
+        }
+
+        LOG_warn << "[keymgr] Error setting the value of ^!keys: (" << e << ")";
+        if (e != API_EEXPIRED)
+        {
+            completion(e);
+            return;
+        }
+
+        mClient.sendevent(99462, "KeyMgr / Versioning clash for ^!keys");
+
+        mClient.reqs.add(new CommandGetUA(&mClient, ownUser->uid.c_str(), ATTR_KEYS, nullptr, 0,
+        [completion](error err)
+        {
+            LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
+            completion(API_EEXPIRED);
+        },
+        [completion](byte*, unsigned, attr_t)
+        {
+            LOG_debug << "[keymgr] Success getting the value of ^!keys";
+            completion(API_EEXPIRED);
+        }, nullptr));
+    });
+}
+
+bool KeyManager::getPostRegistration() const
+{
+    return mPostRegistration;
+}
+
+bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
+{
+    // Decode blob
+
+    const char* blob = keysContainer.data();
+    size_t blobLength = keysContainer.length();
+
+    static const uint8_t headerSize = 4;  // 1 byte for Tag, 3 bytes for Length
+    size_t offset = headerSize;
+    while (offset <= blobLength)
+    {
+        byte tag = blob[offset - headerSize];
+        size_t len = (static_cast<byte>(blob[offset - 3]) << 16) +
+                     (static_cast<byte>(blob[offset - 2]) << 8) +
+                      static_cast<byte>(blob[offset - 1]);
+
+        if (offset + len > blobLength)
+        {
+            LOG_err << "Invalid record in ^!keys attributes: offset: " << offset << ", len: " << len << ", size: " << blobLength;
+            return false;
+        }
+
+        if (mDebugContents)
+        {
+            LOG_verbose << "Tag: " << (int)tag << " Len: " << len;
+        }
+
+        switch (tag)
+        {
+        case TAG_VERSION:
+            if (len != sizeof(km.mVersion)) return false;
+            km.mVersion = MemAccess::get<uint8_t>(blob + offset);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Version: " << (int)km.mVersion;
+            }
+            break;
+
+        case TAG_CREATION_TIME:
+            if (len != sizeof(km.mCreationTime)) return false;
+            km.mCreationTime = MemAccess::get<uint32_t>(blob + offset);
+            km.mCreationTime = ntohl(km.mCreationTime); // Webclient sets this value as BigEndian
+            if (mDebugContents)
+            {
+                LOG_verbose << "Creation time: " << km.mCreationTime;
+            }
+            break;
+
+        case TAG_IDENTITY:
+            if (len != sizeof(mIdentity)) return false;
+            km.mIdentity = MemAccess::get<handle>(blob + offset);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Identity: " << toHandle(km.mIdentity);
+            }
+            break;
+
+        case TAG_GENERATION:
+        {
+            if (len != sizeof(km.mGeneration)) return false;
+            km.mGeneration = MemAccess::get<uint32_t>(blob + offset);
+            km.mGeneration = ntohl(km.mGeneration); // Webclient sets this value as BigEndian
+            LOG_verbose << "KeyManager generation: " << km.mGeneration;
+            break;
+        }
+        case TAG_ATTR:
+            km.mAttr.assign(blob + offset, len);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Attr: " << Base64::btoa(km.mAttr);
+            }
+            break;
+
+        case TAG_PRIV_ED25519:
+            if (len != EdDSA::SEED_KEY_LENGTH) return false;
+            km.mPrivEd25519.assign(blob + offset, len);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivEd25519: " << Base64::btoa(km.mPrivEd25519);
+            }
+            break;
+
+        case TAG_PRIV_CU25519:
+            if (len != ECDH::PRIVATE_KEY_LENGTH) return false;
+            km.mPrivCu25519.assign(blob + offset, len);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivCu25519: " << Base64::btoa(km.mPrivCu25519);
+            }
+            break;
+
+        case TAG_PRIV_RSA:
+        {
+            km.mPrivRSA.assign(blob + offset, len);
+            if (mDebugContents)
+            {
+                LOG_verbose << "PrivRSA: " << Base64::btoa(km.mPrivRSA);
+            }
+            break;
+        }
+        case TAG_AUTHRING_ED25519:
+        {
+            attr_t at = ATTR_AUTHRING;
+            km.mAuthEd25519.assign(blob + offset, len);
+            AuthRing tmp(at, km.mAuthEd25519);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Authring Ed25519:\n" << AuthRing::toString(tmp);
+            }
+            break;
+        }
+        case TAG_AUTHRING_CU25519:
+        {
+            attr_t at = ATTR_AUTHCU255;
+            km.mAuthCu25519.assign(blob + offset, len);
+            AuthRing tmp(at, km.mAuthCu25519);
+            if (mDebugContents)
+            {
+                LOG_verbose << "Authring Cu25519:\n" << AuthRing::toString(tmp);
+            }
+            break;
+        }
+        case TAG_SHAREKEYS:
+        {
+            string buf(blob + offset, len);
+            if (!deserializeShareKeys(km, buf)) return false;
+            if (mDebugContents)
+            {
+                LOG_verbose << shareKeysToString(km);
+            }
+            break;
+        }
+        case TAG_PENDING_OUTSHARES:
+        {
+            string buf(blob + offset, len);
+            if (!deserializePendingOutshares(km, buf)) return false;
+            if (mDebugContents)
+            {
+                LOG_verbose << pendingOutsharesToString(km);
+            }
+            break;
+        }
+        case TAG_PENDING_INSHARES:
+        {
+            string buf(blob + offset, len);
+            if (!deserializePendingInshares(km, buf)) return false;
+            if (mDebugContents)
+            {
+                LOG_verbose << pendingInsharesToString(km);
+            }
+            break;
+        }
+        case TAG_BACKUPS:
+        {
+            string buf(blob + offset, len);
+            if (!deserializeBackups(km, buf)) return false;
+            if (mDebugContents)
+            {
+                LOG_verbose << "Backups: " << Base64::btoa(km.mBackups);
+            }
+            break;
+        }
+        case TAG_WARNINGS:
+            km.mWarnings.assign(blob + offset, len);
+            // TODO: deserialize it
+            if (mDebugContents)
+            {
+                LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
+            }
+            break;
+
+        default:    // any other tag needs to be stored as well, and included in newer versions
+            km.mOther.append(blob + offset - headerSize, headerSize + len);
+            break;
+        }
+
+        offset += headerSize + len;
+    }
+
+    return true;
+}
+
+bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated sharekeys in place
+    km.mShareKeys.clear();
+
+    // [nodeHandle.6 shareKey.16 trust.1]*
+    CacheableReader r(blob);
+
+    unsigned int count = 0;
+    while(r.hasdataleft())
+    {
+        ++count;
+
+        handle h = UNDEF;
+        byte shareKey[SymmCipher::KEYLENGTH];
+        byte trust = 0;
+
+        if (!r.unserializenodehandle(h)
+                || !r.unserializebinary(shareKey, sizeof(shareKey))
+                || !r.unserializebyte(trust))
+        {
+            LOG_err << "Share keys is corrupt";
+            return false;
+        }
+
+        string shareKeyStr((const char*)shareKey, sizeof(shareKey));
+        km.mShareKeys[h] = pair<string, bool>(shareKeyStr, trust ? true : false);
+    }
+
+    return true;
+}
+
+string KeyManager::serializeShareKeys() const
+{
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : mShareKeys)
+    {
+        handle h = it.first;
+        w.serializenodehandle(h);
+
+        size_t shareKeyLen = it.second.first.size();
+        byte *shareKey = (byte*)it.second.first.data();
+        w.serializebinary(shareKey, shareKeyLen);
+
+        byte trust = it.second.second;
+        w.serializebyte(trust);
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializePendingOutshares(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated pending outshares in place
+    km.mPendingOutShares.clear();
+
+    // [len.1 nodeHandle.6 uid]*
+    // if len=0  -> uid is a user handle
+    // if len!=0 -> uid is an email address
+    CacheableReader r(blob);
+
+    unsigned int count = 0;
+    while(r.hasdataleft())
+    {
+        ++count;
+
+        byte len = 0;
+        handle h = UNDEF;
+        string uid;
+
+        if (!r.unserializebyte(len)
+                || !r.unserializenodehandle(h))
+        {
+            LOG_err << "Pending outshare is corrupt: len or nodehandle";
+            return false;
+        }
+
+        bool success;
+        if (len == 0)   // user handle
+        {
+            handle uh = UNDEF;
+            success = r.unserializehandle(uh);
+            uid = toHandle(uh);
+        }
+        else
+        {
+            byte buf[256];
+            success = r.unserializebinary(buf, len);
+            uid.append((const char*)buf, len);
+        }
+        if (!success)
+        {
+            LOG_err << "Pending outshare is corrupt: uid";
+            return false;
+        }
+
+        km.mPendingOutShares[h].emplace(uid);
+    }
+
+    return true;
+}
+
+string KeyManager::serializePendingOutshares() const
+{
+    // [len.1 nodeHandle.6 uid]
+    // if uid is a user handle    --> len = 0
+    // if uid is an email address --> len = emailAddress.size()
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& itNodes : mPendingOutShares)
+    {
+        handle h = itNodes.first;   // handle of shared folder
+
+        for (const std::string& uid : itNodes.second)
+        {
+            byte len = 0;
+            if (uid.find('@') != string::npos)
+            {
+                if (uid.size() >= 256)
+                {
+                    LOG_err << "Incorrect email size in pending outshare: " << uid;
+                    assert(!"Incorrect email size in pending outshare");
+                    continue;
+                }
+                len = static_cast<byte>(uid.size());
+            }
+            else
+            {
+                if (uid.size() != 11)
+                {
+                    LOG_err << "Incorrect user handle in pending outshare: " << uid;
+                    assert(!"Incorrect user handle in pending outshare");
+                    continue;
+                }
+            }
+
+            w.serializebyte(len);
+            w.serializenodehandle(h);
+
+            bool isEmail = len;
+            if (isEmail) // uid is an email
+            {
+                w.serializebinary((byte*)uid.data(), uid.size());
+            }
+            else    // user's handle in binary format, 8 bytes
+            {
+                handle uh;
+                int uhsize = Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
+                assert(uhsize == MegaClient::USERHANDLE);
+                w.serializehandle(uh);
+            }
+        }
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated pending inshares in place
+    km.mPendingInShares.clear();
+
+    // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
+    // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
+    // if len < 0xFFFF      -> actual len (no extra bytes for length)
+    // blob includes the user's handle (8 bytes) and the encrypted share key
+
+    CacheableReader r(blob);
+
+    unsigned int count = 0;
+    while(r.hasdataleft())
+    {
+        ++count;
+
+        // len of the "name"
+        byte len = 0;
+        if (!r.unserializebyte(len))
+        {
+            LOG_err << "Pending inshare is corrupt: len of name";
+            return false;
+        }
+
+        // read the "name"
+        string name;
+        name.resize(len);
+        if (!r.unserializebinary((byte*)name.data(), name.size()))
+        {
+            LOG_err << "Pending inshare is corrupt: name";
+            return false;
+        }
+
+        // len of the blob (pairs of uh+sk for this node handle)
+        uint32_t lenBlob = 0;
+        uint16_t lenBlob16 = 0;
+        bool success = r.unserializeu16(lenBlob16);
+        lenBlob16 = ntohs(lenBlob16); // Webclient sets length as BigEndian
+        if (lenBlob16 == 0xFFFF)
+        {
+            success = r.unserializeu32(lenBlob);
+            lenBlob = ntohl(lenBlob);
+        }
+        else
+        {
+            lenBlob = lenBlob16;
+        }
+
+        if (!success || (lenBlob < sizeof(handle)))    // it may have only the user handle (no share key yet)
+        {
+            LOG_err << "Pending inshare is corrupt: blob len";
+            return false;
+        }
+
+        // user handle (sharer) and share key
+        handle uh = UNDEF;
+        string shareKey;
+        shareKey.resize(lenBlob - sizeof(uh));
+        if (!r.unserializehandle(uh)
+                || !r.unserializebinary((byte*)shareKey.data(), shareKey.size()))
+        {
+            LOG_err << "Pending inshare is corrupt: blob";
+            return false;
+        }
+
+        km.mPendingInShares[name] = pair<handle, string>(uh, shareKey);
+    }
+
+    return true;
+}
+
+string KeyManager::serializePendingInshares() const
+{
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : mPendingInShares)
+    {
+        byte len = static_cast<byte>(it.first.size());
+        assert(len == 8); // node handle in B64
+        w.serializebyte(len);
+        w.serializebinary((byte*)it.first.data(), it.first.size());
+
+        uint32_t lenBlob = static_cast<uint32_t>(MegaClient::USERHANDLE + it.second.second.size());
+        if (lenBlob < 0xFFFF)
+        {
+            uint16_t lenBlob16 = static_cast<uint16_t>(lenBlob);
+            uint16_t lenBlob16BE = htons(lenBlob16); // Webclient sets length as BigEndian
+            w.serializeu16(lenBlob16BE);
+        }
+        else    // excess, 4 extra bytes
+        {
+            w.serializeu16(0xFFFF);
+            uint32_t lenBlobBE = htonl(lenBlob);
+            w.serializeu32(lenBlobBE);
+        }
+
+        w.serializehandle(it.second.first); // share's owner user handle
+        w.serializebinary((byte*)it.second.second.data(), it.second.second.size());
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
+{
+    // FIXME: add support to deserialize backups
+    km.mBackups = blob;
+    return true;
+}
+
+string KeyManager::computeSymmetricKey(handle user)
+{
+    User *u = mClient.finduser(user, 0);
+    if (!u)
+    {
+        return std::string();
+    }
+
+    const string *cachedav = u->getattr(ATTR_CU25519_PUBK);
+    if (!cachedav)
+    {
+        LOG_warn << "Unable to generate symmetric key. Public key not cached.";
+
+        // temporarily suppress this one, it's causing the SRW jenkins tests to abort
+        //assert(false);
+
+        mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
+        return std::string();
+    }
+
+    std::string sharedSecret;
+    sharedSecret.resize(crypto_scalarmult_BYTES);
+    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
+                          mClient.chatkey->privKey,
+                          (unsigned char *)cachedav->data()))
+    {
+        return std::string();
+    }
+
+    std::string step1;
+    step1.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac1(nullptr, 0);
+    hmac1.CalculateDigest((byte *)step1.data(), (byte *)sharedSecret.data(), sharedSecret.size());
+
+    std::string sharedKey;
+    sharedKey.resize(32);
+    CryptoPP::HMAC<CryptoPP::SHA256> hmac2((byte *)step1.data(), step1.size());
+    hmac2.CalculateDigest((byte *)sharedKey.data(), (byte *)SVCRYPTO_PAIRWISE_KEY.data(), SVCRYPTO_PAIRWISE_KEY.size());
+
+    sharedKey.resize(CryptoPP::AES::BLOCKSIZE);
+    return sharedKey;
+}
+
+bool KeyManager::decodeRSAKey()
+{
+//    LOG_verbose << Base64::btoa(mPrivRSA) << "\n\n" << Utils::stringToHex(mPrivRSA);
+
+    string currentPK;
+    mClient.asymkey.serializekey(&currentPK, AsymmCipher::PRIVKEY_SHORT);
+
+    // Compare serialized keys using find just in case pqdKey has extra bytes. It should be found at pos = 0.
+    size_t pos = mPrivRSA.find(currentPK);
+    bool keyOk = (pos == 0);
+
+    // Keep client RSA key serialized as received by login/"ug"
+    // It is used by intermediate layer and login/ug are 4 Ints long, not 3, which could cause problems when comparing them.
+    // mClient.mPrivKey = Base64::btoa(mPrivRSA);
+
+    // update asymcipher to use RSA from ^!keys
+    if (keyOk && !mClient.asymkey.setkey(AsymmCipher::PRIVKEY_SHORT, (const unsigned char*)mPrivRSA.data(), (int)mPrivRSA.size()))
+    {
+        keyOk = false;
+    }
+
+    assert(keyOk);
+    return keyOk;
+}
+
+void KeyManager::updateAuthring(attr_t at, string& value)
+{
+    string& authring = (at == ATTR_AUTHRING) ? mAuthEd25519 : mAuthCu25519;
+    authring = move(value);
+    mClient.mAuthRings.erase(at);
+    if (authring.empty())
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+    }
+    else
+    {
+        mClient.mAuthRings.emplace(at, AuthRing(at, authring));
+    }
+}
+
+void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
+{
+    for (const auto& itNew : shareKeys)
+    {
+        handle h = itNew.first;
+
+        const auto& itOld = mShareKeys.find(h);
+        if (itOld != mShareKeys.end() && itNew.second != itOld->second)
+        {
+            if (itNew.second.first != itOld->second.first)
+            {
+                LOG_warn << "[keymgr] Sharekey for " << toNodeHandle(h) << " has changed. Updating...";
+                assert(!itOld->second.second);
+                mClient.sendevent(99469, "KeyMgr / Replacing sharekey");
+            }
+            else
+            {
+                LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " has changed ("
+                         << itOld->second.second << " -> " << itNew.second.second << "). Updating...";
+            }
+        }
+    }
+
+    mShareKeys = move(shareKeys);
+
+    // Set the sharekey to the node, if missing (since it might not have been received along with
+    // the share itself (ok / k is discontinued since ^!keys)
+    loadShareKeys();
+}
+
+string KeyManager::serializeBackups() const
+{
+    // FIXME: once we add support to deserialize, adjust it here too
+    return mBackups;
 }
 
 bool ScDbStateRecord::serialize(string* s)

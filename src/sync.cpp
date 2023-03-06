@@ -415,7 +415,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case STORAGE_OVERQUOTA:
         return "Reached storage quota limit";
     case ACCOUNT_EXPIRED:
-        return "Account expired (business or Pro Flexi)";
+        return "Your plan has expired";
     case FOREIGN_TARGET_OVERSTORAGE:
         return "Foreign target storage quota reached";
     case REMOTE_PATH_HAS_CHANGED:
@@ -3052,7 +3052,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     struct tm* ptm = m_localtime(m_time(), &tms);
 
     // first try a subfolder with only the date (we expect that we may have target filename clashes here)
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     LocalPath targetFolder = localdebris;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(buf), true);
 
@@ -3066,7 +3066,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     if (!failedDueToTargetExists) return false;
 
     // next try a subfolder with additional time and sequence - target filename clashes here should not occur
-    sprintf(strchr(buf, 0), " %02d.%02d.%02d.", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec);
+    snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), " %02d.%02d.%02d.", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec);
 
     string datetime = buf;
     bool counterReset = false;
@@ -6717,11 +6717,8 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                     if (childRow.syncNode)
                     {
-                        if (childRow.syncNode->getLocalPath() != fullPath.localPath)
-                        {
-                            auto s = childRow.syncNode->getLocalPath();
-                        }
-
+                        auto p = childRow.syncNode->getLocalPath();
+                        assert(0 == compareUtf(p, true, fullPath.localPath, true, mCaseInsensitive));
                         childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
                     }
 

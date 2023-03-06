@@ -3108,6 +3108,50 @@ public class MegaApiJava {
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
     }
+    
+    /**
+     * Upgrade cryptographic security
+     *
+     * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
+     * proceed with the cryptographic upgrade process.
+     * This should happen only once per account.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void upgradeSecurity(MegaRequestListenerInterface listener) {
+        megaApi.upgradeSecurity(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Allows to change the hardcoded value of the "secure" flag
+     *
+     * With this feature flag set, the client will manage encryption keys for
+     * shared folders in a secure way. Legacy clients won't be able to decrypt
+     * shared folders created with this flag enabled.
+     *
+     * Manual verification of credentials of users (both sharers AND sharees) is
+     * required in order to decrypt shared folders correctly.
+     *
+     * @note This flag should be changed before login+fetchnodes. Otherwise, it may
+     * result on unexpected behavior.
+     *
+     * @param enable New value of the flag
+     */
+    public void setSecureFlag(boolean enable) {
+        megaApi.setSecureFlag(enable);
+    }
+
+    /**
+     * Creates a new share key for the node if there is no share key already created.
+     *
+     * Call it before starting any new share.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void openShareDialog(MegaNode node, MegaRequestListenerInterface listener) {
+        megaApi.openShareDialog(node, createDelegateRequestListener(listener));
+    }
 
     /**
      * Share or stop sharing a folder in MEGA with another user using a MegaUser
@@ -6174,7 +6218,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void logout(MegaRequestListenerInterface listener) {
-        megaApi.logout(createDelegateRequestListener(listener));
+        megaApi.logout(false, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6195,7 +6239,7 @@ public class MegaApiJava {
      * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
      */
     public void logout() {
-        megaApi.logout();
+        megaApi.logout(false, null);
     }
 
     /**
@@ -8227,6 +8271,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a list with all unverified inbound sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public ArrayList<MegaShare> getUnverifiedIncomingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedInShares(order));
+    }
+
+    /**
      * Get the user relative to an incoming share
      * <p>
      * This function will return NULL if the node is not found
@@ -8317,6 +8373,18 @@ public class MegaApiJava {
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
         return shareListToArray(megaApi.getOutShares(node));
+    }
+
+    /**
+     * Get a list with all unverified sharings
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects
+     */
+    public ArrayList<MegaShare> getUnverifiedOutgoingShares(int order) {
+        return shareListToArray(megaApi.getUnverifiedOutShares(order));
     }
 
     /**
@@ -11957,5 +12025,31 @@ public class MegaApiJava {
      */
     public MegaSetElement getSetElement(long sid, long eid) {
         return megaApi.getSetElement(sid, eid);
+    }
+
+    public void syncFolder(
+            MegaSync.SyncType syncType,
+            String localSyncRootFolder,
+            String name,
+            long remoteSyncRootFolder,
+            String driveRootIfExternal,
+            MegaRequestListenerInterface listener
+    ) {
+        megaApi.syncFolder(
+                syncType,
+                localSyncRootFolder,
+                name,
+                remoteSyncRootFolder,
+                driveRootIfExternal,
+                createDelegateRequestListener(listener, false)
+        );
+    }
+
+    public MegaSyncList getSyncs() {
+        return megaApi.getSyncs();
+    }
+
+    public void removeSync(long backupId) {
+        megaApi.removeSync(backupId);
     }
 }

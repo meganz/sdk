@@ -757,7 +757,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
         {
-            sprintf(buf, "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", c);
             name->replace(i, 1, buf);
             // Logging these at such a low level is too frequent and verbose
             //LOG_debug << "Escape incompatible character for filesystem type "
@@ -936,6 +936,10 @@ bool FileAccess::fopen(const LocalPath& name)
     updatelocalname(name, true);
 
     fopenSucceeded = sysstat(&mtime, &size);
+    if (!fopenSucceeded) 
+    {
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+    }
     return fopenSucceeded;
 }
 
@@ -963,9 +967,8 @@ bool FileAccess::openf()
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening sync file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysstat) '"
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -977,7 +980,13 @@ bool FileAccess::openf()
         return false;
     }
 
-    return sysopen();
+    bool r = sysopen();
+    if (!r) {
+        // file may have been deleted just now
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysopen) '"
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+    }
+    return r;
 }
 
 void FileAccess::closef()
@@ -1036,9 +1045,7 @@ bool FileAccess::asyncopenf()
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size))
     {
-        LOG_warn << "Error opening async file handle (sysstat) "
-                 << curr_mtime << " - " << mtime
-                 << curr_size  << " - " << size;
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
         return false;
     }
 
@@ -1058,7 +1065,7 @@ bool FileAccess::asyncopenf()
     }
     else
     {
-        LOG_warn << "Error opening async file handle (sysopen)";
+        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1227,6 +1234,11 @@ AsyncIOContext::~AsyncIOContext()
     {
         fa->asyncclosef();
     }
+}
+
+std::string FileAccess::getErrorMessage(int error) const
+{
+    return std::to_string(error);
 }
 
 void AsyncIOContext::finish()
@@ -1765,9 +1777,9 @@ LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
 #ifdef WIN32
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
 #else
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
 #endif
     return LocalPath::fromRelativePath(buf);
 }

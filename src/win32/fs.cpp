@@ -258,6 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -288,7 +289,7 @@ bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-
+    
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -301,7 +302,8 @@ bool WinFileAccess::sysopen(bool async)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        errorcode = e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -642,7 +644,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file. Error code: " << e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -2071,6 +2074,15 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         return maximumBytes;
 
     return (m_off_t)numBytes.QuadPart;
+}
+
+std::string WinFileAccess::getErrorMessage(int error) const
+{
+    return winErrorMessage(error);
+}
+
+bool WinFileAccess::isErrorFileNotFound(int error) const {
+    return error == ERROR_FILE_NOT_FOUND;
 }
 
 } // namespace

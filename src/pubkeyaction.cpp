@@ -91,8 +91,13 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 
 void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 {
+    assert(!client->mKeyManager.isSecure());
+    // This class can be removed as soon as isSecure() is true
+    // It's the same as the isSecure() code path in MegaClient::setshare
+    // but having the public RSA key of the target to send the
+    // share key also using the old method
+
     Node* n;
-    int newshare;
 
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
@@ -101,20 +106,20 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         return;
     }
 
-    // do we already have a share key for this node?
-    if ((newshare = !n->sharekey))
+    // We need to copy the user if it's temporary because
+    // it will be deleted when this function finishes
+    User *user = u;
+    if (u && u->isTemporary)
     {
-        // no: create
-        byte key[SymmCipher::KEYLENGTH];
-
-        client->rng.genblock(key, sizeof key);
-
-        n->sharekey = new SymmCipher(key);
+        user = new User(u->email.c_str());
+        user->set(u->show, u->ctime);
+        user->uid = u->uid;
+        user->userhandle = u->userhandle;
+        user->pubk = u->pubk;
+        user->isTemporary = true;
     }
 
-    // we have all ingredients ready: the target user's public key, the share
-    // key and all nodes to share
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str(), tag, move(completion)));
+    client->setShareCompletion(n, user, a, mWritable, selfemail.c_str(), tag, move(completion));
 }
 
 // share node sh with access level sa
