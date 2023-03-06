@@ -419,7 +419,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
                 request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
-                attributeValue = request->getName() ? request->getName() : "";
+                mApi[apiIndex].setAttributeValue(request->getName() ? request->getName() : "");
             }
             else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
             {
@@ -427,7 +427,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
-                attributeValue = request->getText() ? request->getText() : "";
+                mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : "");
             }
         }
 
@@ -435,12 +435,12 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             if (mApi[apiIndex].lastError == API_OK)
             {
-                attributeValue = "Avatar changed";
+                mApi[apiIndex].setAttributeValue("Avatar changed");
             }
 
             if (mApi[apiIndex].lastError == API_ENOENT)
             {
-                attributeValue = "Avatar not found";
+                mApi[apiIndex].setAttributeValue("Avatar not found");
             }
         }
         break;
@@ -2549,7 +2549,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
-    ASSERT_EQ( firstname2, attributeValue) << "Firstname is wrong";
+    ASSERT_EQ(firstname2, mApi[1].getAttributeValue()) << "Firstname is wrong";
 
     delete u;
 
@@ -2563,7 +2563,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_SET_ATTR_USER]) );
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
-    string pwdReminder = attributeValue;
+    string pwdReminder = mApi[0].getAttributeValue();
     size_t offset = pwdReminder.find(':');
     offset = pwdReminder.find(':', offset+1);
     ASSERT_EQ( pwdReminder.at(offset+1), '1' ) << "Password reminder attribute not updated";
@@ -2578,7 +2578,7 @@ TEST_F(SdkTest, SdkTestContacts)
     string langCode = "es";
     ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_LANGUAGE, langCode.c_str()));
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
-    string language = attributeValue;
+    string language = mApi[0].getAttributeValue();
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
 
     delete u;
@@ -2602,10 +2602,10 @@ TEST_F(SdkTest, SdkTestContacts)
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
-    attributeValue = "";
+    mApi[1].setAttributeValue("");
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
-    ASSERT_STREQ( "Avatar changed", attributeValue.c_str()) << "Failed to change avatar";
+    ASSERT_EQ( "Avatar changed", mApi[1].getAttributeValue()) << "Failed to change avatar";
 
     int64_t filesizeSrc = getFilesize(AVATARSRC);
     int64_t filesizeDst = getFilesize(AVATARDST);
@@ -2629,10 +2629,10 @@ TEST_F(SdkTest, SdkTestContacts)
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
-    attributeValue = "";
+    mApi[1].setAttributeValue("");
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
-    ASSERT_STREQ("Avatar not found", attributeValue.c_str()) << "Failed to remove avatar";
+    ASSERT_EQ("Avatar not found", mApi[1].getAttributeValue()) << "Failed to remove avatar";
 
     delete u;
 
@@ -6750,7 +6750,7 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
     ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), deviceName) << "getDeviceName returned incorrect value";
 }
 
 
@@ -6767,9 +6767,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
     {
-        deviceName = attributeValue;
+        deviceName = mApi[0].getAttributeValue();
     }
     else
     {
@@ -6779,7 +6779,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         // make sure Device Name attr was set
         int err = synchronousGetDeviceName(0);
         ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
-        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+        ASSERT_EQ(deviceName, mApi[0].getAttributeValue()) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
 
@@ -6956,9 +6956,10 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     const string& pathToDriveStr = pathToDrive.u8string();
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
-    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
     {
-        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), attributeValue.c_str())) << "Ext-drive name was set to current device name";
+        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), mApi[0].getAttributeValue().c_str()))
+            << "Ext-drive name was set to current device name";
     }
 
     // drive name
@@ -6978,7 +6979,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     // get drive name
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, driveName) << "getDriveName returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), driveName) << "getDriveName returned incorrect value";
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
@@ -7087,7 +7088,7 @@ TEST_F(SdkTest, SdkUserAlias)
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), alias) << "getUserAlias returned incorrect value";
 
     // test setter/getter for different value
     alias = "UserAliasTest_changed";
@@ -7095,7 +7096,7 @@ TEST_F(SdkTest, SdkUserAlias)
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), alias) << "getUserAlias returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

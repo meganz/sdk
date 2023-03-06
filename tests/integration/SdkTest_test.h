@@ -266,6 +266,9 @@ public:
         void setSid(const string& s) { sid = s; }
         const string& getSid() const { return sid; }
 
+        void setAttributeValue(const string& v) { attributeValue = v; }
+        const string& getAttributeValue() const { return attributeValue; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -278,6 +281,7 @@ public:
         set<int> lastEvents;
 
         string sid;
+        string attributeValue;
     };
 
     std::vector<PerApi> mApi;
@@ -285,7 +289,6 @@ public:
 
     // relevant values received in response of requests
     string chatlink;  // to be removed due to race conditions
-    string attributeValue;
     std::unique_ptr<MegaStringListMap> stringListMap;
     std::unique_ptr<MegaStringTable> stringTable;
 
