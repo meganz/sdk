@@ -541,7 +541,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            stringTable.reset(request->getMegaStringTable()->copy());
+            mApi[apiIndex].setStringTable(request->getMegaStringTable()->copy());
         }
         break;
 
@@ -7130,15 +7130,14 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
         {"+640", "John Smith"}, // not sms verified
     };
     getRegisteredContacts(contacts);
-    ASSERT_NE(nullptr, stringTable);
-    ASSERT_EQ(2, stringTable->size());
+    ASSERT_EQ(2, mApi[0].getStringTableSize());
 
     // repacking and sorting result
     using row_t = std::tuple<std::string, std::string, std::string>;
     std::vector<row_t> table;
-    for (int i = 0; i < stringTable->size(); ++i)
+    for (int i = 0; i < mApi[0].getStringTableSize(); ++i)
     {
-        const MegaStringList* const stringList = stringTable->get(i);
+        const MegaStringList* const stringList = mApi[0].getStringTableRow(i);
         ASSERT_EQ(3, stringList->size());
         table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
     }
