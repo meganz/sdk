@@ -4172,7 +4172,7 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
     return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target, includeSensitive);
 }

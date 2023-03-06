@@ -17490,7 +17490,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
