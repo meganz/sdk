@@ -2850,6 +2850,9 @@ TEST_F(SdkTest, SdkTestShares2)
     sl.reset(megaApi[1]->getInSharesList());
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
 
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+
     std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
     std::unique_ptr<MegaNodeList> nl(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
@@ -3198,6 +3201,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
     nl = megaApi[1]->getInShares(contact.get());
@@ -3738,6 +3744,10 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
                                        && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
 
+    // Wait for the inshare nodes to be decrypted
+    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+    ASSERT_TRUE(WaitFor([this, &n1_1]() { return unique_ptr<MegaNode>(megaApi[2]->getNodeByHandle(n1_1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+
     unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
     unique_ptr<MegaNodeList> nl3(megaApi[2]->getInShares(megaApi[2]->getContact(mApi[0].email.c_str())));
 
@@ -3906,6 +3916,10 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 1u);
+
+    // Wait for the inshare nodes to be decrypted
+    ASSERT_TRUE(WaitFor([this, &shareFolderA]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(shareFolderA->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+    ASSERT_TRUE(WaitFor([this, &subFolderA]() { return unique_ptr<MegaNode>(megaApi[2]->getNodeByHandle(subFolderA->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     unique_ptr<MegaUser> c1(megaApi[1]->getContact(mApi[0].email.c_str()));
     unique_ptr<MegaUser> c2(megaApi[2]->getContact(mApi[0].email.c_str()));
@@ -6506,6 +6520,10 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_NO_FATAL_FAILURE(shareFolder(folderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
+
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &folderA]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(folderA->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+
     unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
 
     synchronousSetNodeSensitive(0, sfile.get(), true);
@@ -8817,6 +8835,9 @@ TEST_F(SdkTest, SyncOQTransitions)
         return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1;
     }, 60*1000));
 
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(remoteFillNode->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+
     unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
     unique_ptr<MegaNodeList> nodeList(megaApi[1]->getInShares(contact.get()));
     ASSERT_EQ(nodeList->size(), 1);
@@ -9262,6 +9283,8 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     std::unique_ptr<MegaShareList> sl(megaApi[1]->getInSharesList(::MegaApi::ORDER_NONE));
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
@@ -9507,7 +9530,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     std::unique_ptr<MegaNode> inshareNode(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -9528,7 +9551,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
     // Reset credentials
     LOG_verbose << "TestSharesContactVerification :  Reset credentials";
@@ -9615,7 +9638,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -9702,7 +9725,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -9791,7 +9814,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -11825,6 +11848,9 @@ TEST_F(SdkTest, SdkGetNodesByName)
     resetOnNodeUpdateCompletionCBs();
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
+
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &folder1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(folder1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
 
     // --- Test search in shares ---
     stringSearch = file8;
