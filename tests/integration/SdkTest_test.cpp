@@ -4301,9 +4301,8 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1); //megaApi[0]->pImpl;
+    MegaApiImpl* impl = MegaApiImpl::ImplOf(megaApi[0].get());
     MegaClient* client = impl->getMegaClient();
-
 
     std::unique_ptr<Either> p(new Either);
     p->Add(sequence(text("cd")));
@@ -6589,9 +6588,9 @@ TEST_F(SdkTest, SdkSensitiveNodes)
 
     typedef ::mega::Node Node;
     typedef ::mega::Node::Flags Flags;
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaApiImpl* impl1 = *((MegaApiImpl**)(((char*)megaApi[1].get()) + sizeof(*megaApi[1].get())) - 1);
-    // expose MegApiApl::searchWithFlags()
+    MegaApiImpl* impl = MegaApiImpl::ImplOf(megaApi[0].get());
+    MegaApiImpl* impl1 = MegaApiImpl::ImplOf(megaApi[1].get());
+    // we need to call MegApiApl::searchWithFlags() as MegaApi does not yet use all of the flags functinoality
 
     // inherited sensitive flag
     // specifeid searh string
