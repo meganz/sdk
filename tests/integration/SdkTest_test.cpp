@@ -2949,7 +2949,7 @@ void SdkTest::delSchedMeetings()
             }
 
             const MegaScheduledMeetingList* schedList = it.second->getScheduledMeetingList();
-            for (size_t j = 0; j < schedList->size(); j++)
+            for (unsigned long j = 0; j < static_cast<unsigned long>(schedList->size()); j++)
             {
                 delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
                 megaApi[i]->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId(), delSchedTrackers.back().get());
