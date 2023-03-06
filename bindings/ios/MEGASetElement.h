@@ -51,6 +51,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic) uint64_t handle;
 
 /**
+ * @brief Returns id of MegaSet current MegaSetElement belongs to.
+ *
+ * @return MegaSet id.
+ */
+@property (readonly, nonatomic) uint64_t ownerId;
+
+/**
  * @brief Returns order of current Element.
  *
  * If not set explicitly, the API will typically set it to multiples of 1000.

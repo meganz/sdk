@@ -202,6 +202,12 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
 
 /**
+ * @brief YES if the transfer is at finished state (completed, cancelled or failed)
+ * @return YES if this transfer is finished, NO otherwise
+ */
+@property (readonly, nonatomic, getter=isFinished) BOOL finished;
+
+/**
  * @brief YES if the transfer has failed with MEGAErrorTypeApiEOverquota
  * and the target is foreign.
  *

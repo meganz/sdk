@@ -296,7 +296,6 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
-    bool removeShare(handle sharehandle);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -1722,7 +1721,7 @@ public:
     Node* nodeByHandle(NodeHandle);
     Node* nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr);
+    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -2300,6 +2299,9 @@ public:
 
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
+
+    // generate "aerb" command
+    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
 
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);

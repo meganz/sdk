@@ -746,14 +746,13 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 #endif
 
-void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
 {
-    std::lock_guard<std::mutex> lock{lastEventMutex};
-    lastEvent.reset(event->copy());
-    lastEvents.insert(event->getType());
+    auto it = std::find_if(mApi.begin(), mApi.end(), [s](const PerApi& p) { return p.megaApi == s; });
+    ASSERT_NE(it, mApi.end());
+    it->receiveEvent(event);
     LOG_debug << "Received event " << event->getType();
 }
-
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
@@ -2868,10 +2867,21 @@ TEST_F(SdkTest, SdkTestShares2)
     auto errU2SetFavourite = synchronousSetNodeFavourite(1, n, true);
     ASSERT_EQ(API_EACCESS, errU2SetFavourite) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
 
+    // --- Check that User2 (sharee) cannot tag an inner inshare folder as favourite ---
+
+    std::unique_ptr<MegaNode> subfolderNode {megaApi[1]->getNodeByHandle(hfolder2)};
+    auto errU2SetFavourite2 = synchronousSetNodeFavourite(1, subfolderNode.get(), true);
+    ASSERT_EQ(API_EACCESS, errU2SetFavourite2) << " synchronousSetNodeFavourite by the sharee should return API_EACCESS (returned error: " << errU2SetFavourite << ")";
+
     // --- Check that User1 (sharer) can tag the outgoing share as favourite ---
 
     auto errU1SetFavourite = synchronousSetNodeFavourite(0, n, true);
     ASSERT_EQ(API_OK, errU1SetFavourite) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
+
+    // --- Check that User1 (sharer) can tag an inner outshare folder as favourite ---
+
+    auto errU1SetFavourite2 = synchronousSetNodeFavourite(0, subfolderNode.get(), true);
+    ASSERT_EQ(API_OK, errU1SetFavourite2) << " synchronousSetNodeFavourite by the sharer failed (error: " << errU1SetFavourite << ")";
 
 
     // --- Get file name and fingerprint from User1 account ---
@@ -2946,10 +2956,12 @@ TEST_F(SdkTest, SdkTestShares2)
     string session = unique_ptr<char[]>(dumpSession()).get();
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
-    resetlastEvent();
+    PerApi& target0 = mApi[0];
+    target0.resetlastEvent();
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     fetchnodes(0, maxTimeout);
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target0](){ return target0.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
 
     // --- User1 remove file ---
@@ -2963,13 +2975,15 @@ TEST_F(SdkTest, SdkTestShares2)
 
     auto logoutErr = doRequestLocalLogout(1);
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
-    resetlastEvent();   // clear any previous EVENT_NODES_CURRENT
+    PerApi& target1 = mApi[1];
+    target1.resetlastEvent();   // clear any previous EVENT_NODES_CURRENT
     auto trackerU2 = asyncRequestFastLogin(1, session.c_str());
     ASSERT_EQ(API_OK, trackerU2->waitForResult()) << " Failed to establish a login/session for account " << 1;
     fetchnodes(1, maxTimeout);
 
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target1](){ return target1.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
     // --- Check that User2 no longer sees the removed file ---
 
@@ -3520,7 +3534,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     char emailfake[64];
     srand(unsigned(time(NULL)));
-    sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
+    snprintf(emailfake, sizeof(emailfake), "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
     n = megaApi[0]->getNodeByHandle(hfolder2);
@@ -3769,7 +3783,8 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
     string sessionB = unique_ptr<char[]>(megaApi[1]->dumpSession()).get();
     auto logoutErr = doRequestLocalLogout(1);
     ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
-    resetlastEvent();
+    PerApi& target1 = mApi[1];
+    target1.resetlastEvent();
     auto trackerB = asyncRequestFastLogin(1, sessionB.c_str());
     ASSERT_EQ(API_OK, trackerB->waitForResult()) << " Failed to establish a login/session for account B";
 
@@ -3778,7 +3793,8 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1)); // different behavior whether ENABLE_SYNC is On or Off
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target1](){ return target1.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
     aView.reset(megaApi[1]->getChildren(n1_1.get()));
     ASSERT_STREQ(aView->get(0)->getName(), "NO_KEY");
 
@@ -3787,9 +3803,11 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     auto trackerA = asyncRequestFastLogin(0, sessionA.c_str());
     ASSERT_EQ(API_OK, trackerA->waitForResult()) << " Failed to establish a login/session for account A";
-    resetlastEvent();
+    PerApi& target0 = mApi[0];
+    target0.resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target0](){ return target0.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
 
     // --- Check that UserB sees File1 with its real name ---
@@ -3809,9 +3827,10 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
 
     // --- UserB load File1 undecrypted ---
-    resetlastEvent();
+    target1.resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target1](){ return target1.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
     std::unique_ptr<MegaNode> nFile1{ megaApi[1]->getChildNode(n1_1.get(), file1Name) };
     ASSERT_NE(nFile1, nullptr);
 }
@@ -6786,7 +6805,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
     // So we can detect when the node database has been committed.
-    resetlastEvent();
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
 
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
@@ -6811,7 +6831,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Wait for the node database to be updated.
     // Before SRW, if we don't wait, the remote node of the sync won't be saved in the db before we locallogout()
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 8192));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // Verify sync after logout / login
     string session = unique_ptr<char[]>(dumpSession()).get();
@@ -6819,11 +6839,11 @@ TEST_F(SdkTest, SdkBackupFolder)
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
 
-    resetlastEvent();
+    target.resetlastEvent();
 
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
 
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
@@ -6851,10 +6871,11 @@ TEST_F(SdkTest, SdkBackupFolder)
     size_t times = 10;
     while (times--)
     {
-        if (lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) break;
+        if (target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT)) break;
         std::this_thread::sleep_for(std::chrono::seconds{1});
     }
-    ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT))
+        << "Timeout expired to receive actionpackets";
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
@@ -7214,7 +7235,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
         // Create file with unescaped character ex: f%5cf
         char unescapedName[6];
-        sprintf(unescapedName, "f%%%02xf", i);
+        snprintf(unescapedName, sizeof(unescapedName), "f%%%02xf", i);
         if (createLocalFile(uploadPath, unescapedName))
         {
             const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
@@ -7231,7 +7252,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
         }
 
         char escapedName[4];
-        sprintf(escapedName, "f%cf", i);
+        snprintf(escapedName, sizeof(escapedName), "f%cf", i);
         const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
         if (escapedFileName && !strcmp(escapedName, escapedFileName))
         {
@@ -7979,7 +8000,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     fs::create_directories(sync3Path);
     fs::create_directories(sync4Path);
 
-    resetlastEvent();
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
 
     // transfer the folder and its subfolders
     TransferTracker uploadListener(megaApi[0].get());
@@ -7996,7 +8018,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // loop until we get a commit to the sctable to ensure we cached the new remote nodes
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 10000));
 
     auto megaNode = [this, &basePath](const std::string& p)
     {
@@ -8110,9 +8132,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    resetlastEvent();
+    target.resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes two active syncs
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     WaitMillisec(1000); // give them a chance to start on the sync thread
 
@@ -8141,9 +8163,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    resetlastEvent();
+    target.resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes three active syncs
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     WaitMillisec(1000); // give them a chance to start on the sync thread
 
@@ -8338,22 +8360,23 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     std::string session = unique_ptr<char[]>(dumpSession()).get();
     ASSERT_NO_FATAL_FAILURE(locallogout());
-    resetlastEvent();
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
     //loginBySessionId(0, session);
-
-    resetlastEvent();
+    //target.resetlastEvent();
 
     auto tracker = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
     // since the node was deleted, path is irrelevant
     //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
     //ASSERT_EQ(string(sync->getLastKnownMegaFolder()), ("/" / basePath).u8string());
 
     // wait for the event that says all syncs (if any) have been reloaded
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
@@ -8398,7 +8421,8 @@ TEST_F(SdkTest, SyncPersistence)
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
 
-    resetlastEvent();
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
 
     auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
@@ -8408,7 +8432,7 @@ TEST_F(SdkTest, SyncPersistence)
     // make sure there are no outstanding cs requests in case
     // "Postponing DB commit until cs requests finish"
     // means our Sync's cloud Node is not in the db
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_COMMIT_DB); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 10000));
 
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
@@ -8425,11 +8449,11 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
 
-    resetlastEvent();
+    target.resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // wait for the event that says all syncs (if any) have been reloaded
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 40000));  // 40 seconds because we've seen the first `sc` not respond for 10 seconds
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 40000));  // 40 seconds because we've seen the first `sc` not respond for 10 seconds
 
     sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
@@ -8443,9 +8467,9 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
 
-    resetlastEvent();
+    target.resetlastEvent();
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     //sync = waitForSyncState(megaApi[0].get(), backupId, MegaSync::RUNSTATE_DISABLED, MegaSync::LOGGED_OUT);
     sync.reset(megaApi[0]->getSyncByBackupId(backupId));
@@ -8593,6 +8617,103 @@ TEST_F(SdkTest, SyncPaths)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
+}
+
+/**
+ * @brief TEST_F SearchByPathOfType
+ *
+ * Testing search nodes by path of specified type
+ */
+TEST_F(SdkTest, SearchByPathOfType)
+{
+    LOG_info << "___TEST SearchByPathOfType___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{ megaApi[0]->getRootNode() };
+    string duplicateName = "fileAndFolderName";
+
+    // Upload test file
+    MegaHandle fileInRoot = INVALID_HANDLE;
+    ASSERT_TRUE(createFile(duplicateName, false)) << "Couldn't create file " << duplicateName;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileInRoot, duplicateName.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    // Test not found cases:
+    {
+        for (auto type : {MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER, MegaNode::TYPE_UNKNOWN})
+        {
+            for (auto pathToNonExisting : {"this/does/not/exist", "/this/does/not/exist", "./thisdoesnotexist", "thisdoesnotexist"})
+            {
+                std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(pathToNonExisting, nullptr, type)};
+                ASSERT_FALSE(fileNode);
+            }
+        }
+    }
+
+    // Test file search using relative path
+    std::unique_ptr<MegaNode> fileNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_FALSE(fileNode) << "Found node for file while explicitly searching for folder " << duplicateName;
+
+    // Create test folder
+    auto folderInRoot = createFolder(0, duplicateName.c_str(), rootNode.get());
+    ASSERT_NE(folderInRoot, INVALID_HANDLE) << "Error creating remote folder " << duplicateName;
+
+    // Test search using relative path
+    std::unique_ptr<MegaNode> folderNode{ megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get()) };
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << duplicateName;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(duplicateName.c_str(), rootNode.get(), MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << duplicateName;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    // Test search using absolute path
+    string absolutePath = '/' + duplicateName;
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str()));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
+
+    fileNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FILE));
+    ASSERT_TRUE(fileNode) << "Could not find node for file " << absolutePath;
+    ASSERT_EQ(fileNode->getHandle(), fileInRoot);
+    ASSERT_EQ(fileNode->getType(), MegaNode::TYPE_FILE);
+    ASSERT_STREQ(fileNode->getName(), duplicateName.c_str());
+
+    folderNode.reset(megaApi[0]->getNodeByPathOfType(absolutePath.c_str(), nullptr, MegaNode::TYPE_FOLDER));
+    ASSERT_TRUE(folderNode) << "Could not find node for folder " << absolutePath;
+    ASSERT_EQ(folderNode->getHandle(), folderInRoot);
+    ASSERT_EQ(folderNode->getType(), MegaNode::TYPE_FOLDER);
+    ASSERT_STREQ(folderNode->getName(), duplicateName.c_str());
 }
 
 /**
@@ -9966,14 +10087,16 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     numberTotalOfFiles--;
     accountSize -= node->getSize();
 
-    resetlastEvent();   // clear any previous EVENT_NODES_CURRENT
+    PerApi& target = mApi[0];
+    target.resetlastEvent();   // clear any previous EVENT_NODES_CURRENT
 
     // --- UserA login with session
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
     // --- UserA Check if find removed node by fingerprint
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
@@ -10119,11 +10242,13 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     ASSERT_NO_FATAL_FAILURE(locallogout());
     // --- UserA login with session
+    target.resetlastEvent();   // clear any previous EVENT_NODES_CURRENT
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
-    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
 
     // --- UserA get nodes by fingerprint, none of them are loaded in RAM
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
@@ -10602,12 +10727,27 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(newElErrs->size(), 2);
     ASSERT_EQ(newElErrs->get(0), API_OK);
     ASSERT_EQ(newElErrs->get(1), API_ENOENT);
-    unique_ptr<MegaSetElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
-    ASSERT_NE(elp_b4lo, nullptr);
-    ASSERT_EQ(elp_b4lo->id(), eh);
-    ASSERT_EQ(elp_b4lo->name(), elattrs);
+    unique_ptr<MegaSetElement> newEl(megaApi[0]->getSetElement(sh, eh));
+    ASSERT_NE(newEl, nullptr);
+    ASSERT_EQ(newEl->id(), eh);
+    ASSERT_EQ(newEl->name(), elattrs);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
+
+    // Remove 2, only the first one will succeed
+    differentApiDtls.setElementUpdated = false;
+    vector<MegaHandle> removedElIds = { eh, INVALID_HANDLE };
+    MegaIntegerList* removedElErrs = nullptr;
+    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds);
+    elErrs.reset(removedElErrs);
+    ASSERT_EQ(err, API_OK);
+    ASSERT_NE(removedElErrs, nullptr);
+    ASSERT_EQ(removedElErrs->size(), 2);
+    ASSERT_EQ(removedElErrs->get(0), API_OK);
+    ASSERT_EQ(removedElErrs->get(1), API_EARGS); // API_ENOENT was probably better
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
 
     // Add 2 more; both will succeed
     differentApiDtls.setElementUpdated = false;
@@ -10627,21 +10767,26 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(newElls->get(1)->name(), namebulk12);
     MegaHandle ehBulk = newElls->get(1)->id();
     ASSERT_NE(ehBulk, INVALID_HANDLE);
-    ASSERT_EQ(newElls->get(0)->name(), namebulk11);
-    ehBulk = newElls->get(0)->id();
+    const MegaSetElement* elp_b4lo = newElls->get(0);
+    ASSERT_NE(elp_b4lo, nullptr);
+    ASSERT_EQ(elp_b4lo->name(), namebulk11);
+    ehBulk = elp_b4lo->id();
     ASSERT_NE(ehBulk, INVALID_HANDLE);
     ASSERT_NE(newElErrs, nullptr);
     ASSERT_EQ(newElErrs->size(), 2);
     ASSERT_EQ(newElErrs->get(0), API_OK);
     ASSERT_EQ(newElErrs->get(1), API_OK);
     elCount = megaApi[0]->getSetElementCount(sh);
-    ASSERT_EQ(elCount, 3u);
+    ASSERT_EQ(elCount, 2u);
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
     // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
     MegaHandle hDummyFolder = createFolder(0, "DummyFolder_TriggerDbCommit", rootnode.get());
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
+    ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
@@ -10658,15 +10803,15 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
     elCount = megaApi[0]->getSetElementCount(sh);
-    ASSERT_EQ(elCount, 3u) << "Wrong Element count after resumeSession";
+    ASSERT_EQ(elCount, 2u) << "Wrong Element count after resumeSession";
 
-    unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, ehBulk));
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
     ASSERT_EQ(ellp->setId(), elp_b4lo->setId());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
-    ASSERT_EQ(ellp->name(), elattrs);
+    ASSERT_EQ(ellp->name(), namebulk11);
 
     // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());

@@ -104,7 +104,7 @@ void NodeManager::notifyNode(Node* n)
 
             char report[512];
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-            sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+            snprintf(report + 8, sizeof(report)-8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
             mClient.reportevent("NK", report, 0);
             mClient.sendevent(99400, report, 0);
@@ -1254,17 +1254,6 @@ void NodeManager::notifyPurge()
                     n->inshare->user->sharing.erase(n->nodehandle);
                     mClient.notifyuser(n->inshare->user);
                 }
-
-                // The node is permanently deleted, so the references in ^!keys, if any
-                handle nodehandle = n->nodehandle;
-                if (mClient.mKeyManager.generation() && mClient.mKeyManager.removeShare(nodehandle))
-                {
-                    LOG_debug << "Removing share keys related to " << toNodeHandle(nodehandle) << " due to node deletion";
-                    mClient.mKeyManager.commit([this, nodehandle]()
-                    {
-                        mClient.mKeyManager.removeShare(nodehandle);
-                    }); // No completion callback
-                }
             }
             else
             {
@@ -1312,9 +1301,6 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                // TODO nodes on demand: avoid to write to DB if the only change
-                // is 'changed.newnode', since the node is already written to DB
-                // when it is received from API, in 'saveNodeInRam()'
                 mTable->put(n);
 
                 added += 1;

@@ -26,6 +26,7 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 #include "mega/sync.h"
+#include "mega/base64.h"
 
 #include "megafs.h"
 
@@ -634,6 +635,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SMB";
         case FS_SMB2:
             return "SMB2";
+        case FS_LIFS:
+            return "LIFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -720,7 +723,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
-            sprintf(buf, "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", c);
             name->replace(i, 1, buf);
             // Logging these at such a low level is too frequent and verbose
             //LOG_debug << "Escape incompatible character for filesystem type "
@@ -928,7 +931,8 @@ bool FileAccess::isfile(const LocalPath& path)
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
-    fopen(path);
+    updatelocalname(path, true);
+    sysstat(&mtime, &size);
     return type == FOLDERNODE;
 }
 
@@ -1743,9 +1747,9 @@ LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
 #ifdef WIN32
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
 #else
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
 #endif
     return LocalPath::fromRelativePath(buf);
 }
@@ -2048,6 +2052,72 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
 
     return result;
 }
+
+unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
+{
+    unique_ptr<FSNode> result(new FSNode);
+    result->type = fa.type;
+    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
+    result->isSymlink = fa.mIsSymLink;
+    result->fingerprint.mtime = fa.mtime;
+    result->fingerprint.size = fa.size;
+
+    result->localname = fullPath.leafName();
+
+    if (auto sn = fsa.fsShortname(fullPath))
+    {
+        if (*sn != result->localname)
+        {
+            result->shortname = std::move(sn);
+        }
+    }
+    return result;
+}
+
+unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck)
+{
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    LocalPath actualLeafNameIfDifferent;
+
+    if (!fileAccess->fopen(path, true, false, nullptr, false, skipCaseCheck, &actualLeafNameIfDifferent))
+        return nullptr;
+
+    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
+
+    if (!actualLeafNameIfDifferent.empty())
+    {
+        fsNode->localname = actualLeafNameIfDifferent;
+    }
+
+    if (fsNode->type != FILENODE)
+        return fsNode;
+
+    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
+        return nullptr;
+
+    return fsNode;
+}
+
+bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff)
+{
+    if (unique_ptr<FSNode> od = fromPath(fsAccess, path, false))
+    {
+        if (od->fingerprint == ff) return true;
+
+        LOG_debug << "fingerprint mismatch at path: " << path;
+        LOG_debug << "size: " << od->fingerprint.size << " should have been " << ff.size;
+        LOG_debug << "mtime: " << od->fingerprint.mtime << " should have been " << ff.mtime;
+        LOG_debug << "crc: " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&od->fingerprint.crc)
+                  << " should have been " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&ff.crc);
+    }
+    else
+    {
+        LOG_debug << "failed to get fingerprint for path " << path;
+    }
+    return false;
+}
+
 
 
 } // namespace

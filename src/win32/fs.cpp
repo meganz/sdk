@@ -394,7 +394,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false);
+    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -518,12 +518,13 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck);
+    fopenSucceeded = fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    return fopenSucceeded;
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -578,6 +579,16 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
             }
         }
 
+        if (actualLeafNameIfDifferent)
+        {
+            auto actualFilename = LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName));
+
+            if (actualFilename != namePath.leafName())
+            {
+                *actualLeafNameIfDifferent = move(actualFilename);
+            }
+        }
+
         if (!skipcasecheck)
         {
             LocalPath filename = namePath.leafName();
@@ -586,7 +597,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
                 filename.localpath != wstring(fad.cAlternateFileName) &&
                 filename.localpath != L"." && filename.localpath != L"..")
             {
-                LOG_warn << "fopen failed due to invalid case";
+                LOG_warn << "fopen failed due to invalid case: '" << filename
+                         << "' vs '" << LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName)) << "'";
                 retry = false;
                 return false;
             }
@@ -1224,10 +1236,10 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
     TCHAR volume[MAX_PATH + 1];
     if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
     {
-        TCHAR fs[MAX_PATH + 1];
+        TCHAR fs[MAX_PATH + 1] = { 0, };
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
         {
-            LOG_info << "Filesystem type: " << fs;
+            LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
                 && _wcsicmp(fs, L"FAT32")
                 && _wcsicmp(fs, L"exFAT");
@@ -1496,7 +1508,10 @@ WinDirNotify::~WinDirNotify()
             smNotifierThread->join();
             smNotifierThread.reset();
             CloseHandle(smEventHandle);
-            smQueue.clear();
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.clear();
+            }
         }
     }
 
@@ -1800,6 +1815,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                 if (WinFileAccess::skipattributes(info->FileAttributes))
                 {
                     result.type = TYPE_DONOTSYNC;
+                    LOG_debug << "do-not-sync path identified by attributes: " << path;
                 }
                 else
                 {
