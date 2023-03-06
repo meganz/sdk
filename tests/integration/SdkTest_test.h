@@ -279,6 +279,10 @@ public:
         unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
         MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
 
+        void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
+        unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
+        const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -294,6 +298,7 @@ public:
         string attributeValue;
         string chatlink;  // not really used anywhere, should it be removed ?
         MegaHandle mBackupId = UNDEF;
+        shared_ptr<const MegaStringListMap> stringListMap;
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
     };
 
@@ -301,7 +306,6 @@ public:
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
     // relevant values received in response of requests
-    std::unique_ptr<MegaStringListMap> stringListMap;
     std::unique_ptr<MegaStringTable> stringTable;
 
     m_off_t onTransferUpdate_progress;

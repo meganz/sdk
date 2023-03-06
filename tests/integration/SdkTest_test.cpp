@@ -548,7 +548,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            stringListMap.reset(request->getMegaStringListMap()->copy());
+            mApi[apiIndex].setStringLists(request->getMegaStringListMap()->copy());
         }
         break;
 
@@ -7105,14 +7105,13 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     getCountryCallingCodes();
-    ASSERT_NE(nullptr, stringListMap);
-    ASSERT_GT(stringListMap->size(), 0);
+    ASSERT_GT(mApi[0].getStringListCount(), 0u);
     // sanity check a few country codes
-    const MegaStringList* const nz = stringListMap->get("NZ");
+    const MegaStringList* const nz = mApi[0].getStringList("NZ");
     ASSERT_NE(nullptr, nz);
     ASSERT_EQ(1, nz->size());
     ASSERT_EQ(0, strcmp("64", nz->get(0)));
-    const MegaStringList* const de = stringListMap->get("DE");
+    const MegaStringList* const de = mApi[0].getStringList("DE");
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
