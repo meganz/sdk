@@ -5795,7 +5795,7 @@ void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->fetchSet(sid, listener);
 }
 
-void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+void MegaApi::createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     pImpl->putSetElements(sid, nodes, names, listener);
 }
