@@ -11934,7 +11934,7 @@ public class MegaApiJava {
      * @param eids     the ids of Elements to be removed
      * @param listener MegaRequestListener to track this request
      */
-    void removeSetElements(long sid, ArrayList<Long> eids, MegaRequestListenerInterface listener) {
+    public void removeSetElements(long sid, ArrayList<Long> eids, MegaRequestListenerInterface listener) {
         megaApi.removeSetElements(sid, eids, listener);
     }
 
