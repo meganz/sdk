@@ -4174,7 +4174,7 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
 
 MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target, includeSensitive);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, mimeType, target, includeSensitive);
 }
 
 long long MegaApi::getSize(MegaNode *n)
