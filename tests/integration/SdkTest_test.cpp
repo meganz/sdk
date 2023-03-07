@@ -1432,13 +1432,16 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     }
     LOG_debug << "Using " << output;
 
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+    megaApi.resize(1);
+    mApi.resize(1);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd));
 
     const string realEmail(bufRealEmail); // user@host.domain
     auto pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
+    const string testEmail = getenv(envVarAccount[0].c_str());
     const string newTestAcc = realAccount + '+' +
-                              mApi[0].email.substr(0, mApi[0].email.find("@")) + '+' +
+                              testEmail.substr(0, testEmail.find("@")) + '+' +
                               getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Using Mega account " << newTestAcc;
     const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
@@ -1460,25 +1463,20 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Use confirmation link
     ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, output.c_str(), newTestPwd));
 
-    // Create a separate megaApi instance
-    std::unique_ptr<MegaApi> testMegaApi(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder((int)mApi.size()).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
-    testMegaApi->setLogLevel(MegaApi::LOG_LEVEL_MAX);
-    testMegaApi->setLoggingName(to_string(mApi.size()).c_str());
-
     // Login to the new account
-    auto loginTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
-    testMegaApi->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
 
     // fetchnodes // needed internally to fill in user details, including email
-    auto fetchnodesTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
-    testMegaApi->fetchNodes(fetchnodesTracker.get());
+    auto fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->fetchNodes(fetchnodesTracker.get());
     ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
 
     // Request cancel account link
     timeOfEmail = std::chrono::system_clock::now();
-    auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
-    testMegaApi->cancelAccount(cancelLinkTracker.get());
+    auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->cancelAccount(cancelLinkTracker.get());
     ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
 
     // Get cancel account link from the mailbox
@@ -1486,8 +1484,8 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_FALSE(output.empty()) << "Cancel account link was not found.";
 
     // Use cancel account link
-    auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
-    testMegaApi->confirmCancelAccount(output.c_str(), newTestPwd, useCancelLinkTracker.get());
+    auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    megaApi[0]->confirmCancelAccount(output.c_str(), newTestPwd, useCancelLinkTracker.get());
     // Allow API_ESID beside API_OK, due to the race between sc and cs channels
     ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
         << " Failed to confirm cancel account " << newTestAcc.c_str();
