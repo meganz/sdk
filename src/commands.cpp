@@ -5698,9 +5698,9 @@ CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRand
 {
     cmd("avu");
 
-    arg("emk", mEncryptedMasterKey.data(), (int)mEncryptedMasterKey.size());
-    arg("hak", (byte*)hashedAuthKey.c_str(), (int)hashedAuthKey.size());
-    arg("crv", clRandValue.data(), (int)clRandValue.size());
+    arg("emk", mEncryptedMasterKey.data(), static_cast<int>(mEncryptedMasterKey.size()));
+    arg("hak", reinterpret_cast<const byte*>(hashedAuthKey.c_str()), static_cast<int>(hashedAuthKey.size()));
+    arg("crv", clRandValue.data(), static_cast<int>(clRandValue.size()));
 }
 
 bool CommandAccountVersionUpgrade::procresult(Result r)
@@ -5713,7 +5713,7 @@ bool CommandAccountVersionUpgrade::procresult(Result r)
         if (r.errorOrOK() == API_OK)
         {
             client->accountversion = 2;
-            client->k.assign((const char*)mEncryptedMasterKey.data(), mEncryptedMasterKey.size());
+            client->k.assign(reinterpret_cast<const char*>(mEncryptedMasterKey.data()), mEncryptedMasterKey.size());
             client->accountsalt = move(mSalt);
         }
     }

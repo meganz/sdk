@@ -13218,7 +13218,8 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     fillCypheredAccountDataV2(password, clientRandomValue, encmasterkey, hashedauthkey, salt);
 
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue.data(), pin, &salt));
+    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), reinterpret_cast<const byte*>(hashedauthkey.data()), SymmCipher::KEYLENGTH,
+                                     clientRandomValue.data(), pin, &salt));
     return API_OK;
 }
 
@@ -13230,9 +13231,9 @@ void MegaClient::fillCypheredAccountDataV2(const char* password, vector<byte>& c
 
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
-    buffer.append((char *)clientRandomValue.data(), clientRandomValue.size());
+    buffer.append(reinterpret_cast<const char*>(clientRandomValue.data()), clientRandomValue.size());
     HashSHA256 hasher;
-    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+    hasher.add(reinterpret_cast<const byte*>(buffer.data()), unsigned(buffer.size()));
     hasher.get(&salt);
 
     vector<byte> derivedKey = deriveKey(password, salt);
