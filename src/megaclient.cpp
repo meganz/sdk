@@ -204,6 +204,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         {
             memcpy(s->key, shareKey.data(), sizeof(s->key));
             s->have_key = 1;
+            s->outgoing = s->outgoing > 0 ? -1 : s->outgoing;   // always authenticated when loaded from KeyManager
         }
     }
 
@@ -216,12 +217,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
         if (s->outgoing > 0)
         {
+            // Once secure=true, the "ha" for shares are ignored or set to 0, so
+            // comparing against "ha" values is not needed.
             if (!checkaccess(n, OWNERPRELOGIN))
             {
-                LOG_warn << "Attempt to create dislocated outbound share foiled";
+                LOG_warn << "Attempt to create dislocated outbound share foiled: " << toNodeHandle(s->h);
                 auth = false;
             }
-            else
+            else if (!mKeyManager.isSecure() || !mKeyManager.generation())
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
@@ -229,7 +232,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
                 if (memcmp(buf, s->auth, sizeof buf))
                 {
-                    LOG_warn << "Attempt to create forged outbound share foiled";
+                    LOG_warn << "Attempt to create forged outbound share foiled: " << toNodeHandle(s->h);
                     auth = false;
                 }
             }
