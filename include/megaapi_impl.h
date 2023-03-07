@@ -4183,7 +4183,7 @@ public:
     unsigned long getNumericValue() const override;
     bool emailsDisabled() const;
     bool isEmpty() const override;
-    ScheduledFlags* getSdkScheduledFlags() const;
+    unique_ptr<ScheduledFlags> getSdkScheduledFlags() const;
 
 private:
     std::bitset<FLAGS_SIZE> mFlags = 0;
@@ -4213,7 +4213,7 @@ public:
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
     static bool isValidUntil(m_time_t until) { return until > static_cast<m_time_t>(MEGA_INVALID_TIMESTAMP); }
-    ScheduledRules* getSdkScheduledRules() const;
+    unique_ptr<ScheduledRules> getSdkScheduledRules() const;
 
 private:
     // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline

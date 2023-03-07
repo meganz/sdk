@@ -33804,7 +33804,7 @@ void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val)
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
 bool MegaScheduledFlagsPrivate::emailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }
-ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
+unique_ptr<ScheduledFlags> MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return mega::make_unique<ScheduledFlags>(getNumericValue()); }
 
 /* Class MegaScheduledRulesPrivate */
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
@@ -33858,12 +33858,12 @@ const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const     
 const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const    { return mByMonthDay.get(); }
 const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const { return mByMonthWeekDay.get(); }
 
-ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
+unique_ptr<ScheduledRules> MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {
-    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (static_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (static_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
-    return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
+    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (dynamic_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (dynamic_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
+    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (dynamic_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
+    return mega::make_unique<ScheduledRules>(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
 }
 
 /* Class MegaScheduledMeetingPrivate */
@@ -33883,8 +33883,8 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, cons
                                              cancelled,
                                              attributes ? attributes : std::string(),
                                              overrides,
-                                             flags ? static_cast<MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags() : nullptr,
-                                             rules ? static_cast<MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules() : nullptr))
+                                             flags ? dynamic_cast<const MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags().get() : nullptr,
+                                             rules ? dynamic_cast<const MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules().get() : nullptr))
 {
 }
 
