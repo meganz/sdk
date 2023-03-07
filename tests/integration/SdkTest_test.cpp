@@ -10723,11 +10723,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elattrs += u8" bulk1";
     newElls = nullptr;
     MegaIntegerList* newElErrs = nullptr;
-    vector<MegaHandle> newElHandles = {uploadedNode, INVALID_HANDLE};
+    unique_ptr<MegaHandleList> newElFileHandles(MegaHandleList::createInstance());
+    newElFileHandles->addMegaHandle(uploadedNode);
+    newElFileHandles->addMegaHandle(INVALID_HANDLE);
     unique_ptr<MegaStringList> newElNames(MegaStringList::createInstance());
     newElNames->add(elattrs.c_str());
     newElNames->add(elattrs2.c_str());
-    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElHandles, newElNames.get());
+    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElFileHandles.get(), newElNames.get());
     els.reset(newElls);
     unique_ptr<MegaIntegerList> elErrs(newElErrs);
     ASSERT_EQ(err, API_OK);
@@ -10749,15 +10751,17 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // Remove 2, only the first one will succeed
     differentApiDtls.setElementUpdated = false;
-    vector<MegaHandle> removedElIds = { eh, INVALID_HANDLE };
+    unique_ptr<MegaHandleList> removedElIds(MegaHandleList::createInstance());
+    removedElIds->addMegaHandle(eh);
+    removedElIds->addMegaHandle(INVALID_HANDLE);
     MegaIntegerList* removedElErrs = nullptr;
-    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds);
+    err = doRemoveBulkSetElements(0, &removedElErrs, sh, removedElIds.get());
     elErrs.reset(removedElErrs);
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(removedElErrs, nullptr);
     ASSERT_EQ(removedElErrs->size(), 2);
     ASSERT_EQ(removedElErrs->get(0), API_OK);
-    ASSERT_EQ(removedElErrs->get(1), API_EARGS); // API_ENOENT was probably better
+    ASSERT_EQ(removedElErrs->get(1), API_ENOENT);
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
@@ -10766,13 +10770,15 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     differentApiDtls.setElementUpdated = false;
     newElls = nullptr;
     newElErrs = nullptr;
-    newElHandles = {uploadedNode, uploadedNode2};
+    newElFileHandles.reset(MegaHandleList::createInstance());
+    newElFileHandles->addMegaHandle(uploadedNode);
+    newElFileHandles->addMegaHandle(uploadedNode2);
     newElNames.reset(MegaStringList::createInstance());
     string namebulk11 = elattrs + "1";
     newElNames->add(namebulk11.c_str());
     string namebulk12 = elattrs + "2";
     newElNames->add(namebulk12.c_str());
-    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElHandles, newElNames.get());
+    err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElFileHandles.get(), newElNames.get());
     els.reset(newElls);
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(newElls, nullptr);
