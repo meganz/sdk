@@ -11511,6 +11511,7 @@ class MegaApi
          * Manual verification of credentials of users (both sharers AND sharees) is
          * required in order to decrypt shared folders correctly if, also, the
          * "Manual Verification" flag is set to true.
+         * @see MegaApi::setManualVerification for more information.
          *
          * @note This flag should be changed before login+fetchnodes. Otherwise, it may
          * result on unexpected behavior.
@@ -11525,6 +11526,8 @@ class MegaApi
          * With this feature flag set, the client will require manual verification of
          * contact credentials of users (both sharers AND sharees) in order to decrypt
          * shared folders correctly if the "secure" flag is set to true.
+         * 
+         * The default value is "false".
          *
          * @note If the "secure" flag is disabled, "Manual Verification" flag has no
          * effect.
