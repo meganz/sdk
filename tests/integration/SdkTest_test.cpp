@@ -6432,10 +6432,10 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         
     // /
     //    folder-A/              // top shared
-    //        amega.txt
-    //        asenstive.txt   <- sensitive
-    //        sub-folder-A/   <- sensitive
-    //             alogo.txt
+    //        abFile1.png
+    //        acSensitiveFile.png  <- sensitive
+    //        sub-folder-A/       <- sensitive
+    //             aaLogo.png
 
     string folderAName = "folder-A";
     MegaHandle nh = createFolder(0, folderAName.c_str(), rootnodeA.get());
@@ -6450,12 +6450,11 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_TRUE(!!subFolderA);
 
     // all 3 files have "a" in the name
-    string filename1 = "alogo.txt";
-    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
+    string filename1 = "aaLogo.png";
     MegaHandle fh = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, filename1.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, IMAGEFILE.c_str(),
         subFolderA.get(),
-        nullptr /*fileName*/,
+        filename1.c_str() /*fileName*/,
         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
         nullptr /*appData*/,
         false   /*isSourceTemporary*/,
@@ -6465,12 +6464,11 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     bool null_pointer = (thefile.get() == nullptr);
     ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
 
-    string nsfilename = "amega.txt";
-    ASSERT_TRUE(createFile(nsfilename, false)) << "Couldn't create " << nsfilename;
+    string nsfilename = "abFile1.png";
     MegaHandle fh2 = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh2, nsfilename.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh2, IMAGEFILE.c_str(),
         folderA.get(),
-        nullptr /*fileName*/,
+        nsfilename.c_str() /*fileName*/,
         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
         nullptr /*appData*/,
         false   /*isSourceTemporary*/,
@@ -6478,12 +6476,11 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
     std::unique_ptr<MegaNode> nsfile(megaApi[0]->getNodeByHandle(fh2));
 
-    string sfilename = "asensitive.txt";
-    ASSERT_TRUE(createFile(sfilename, false)) << "Couldn't create " << sfilename;
+    string sfilename = "acSensitiveFile.png";
     MegaHandle fh3 = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh3, sfilename.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh3, IMAGEFILE.c_str(),
         folderA.get(),
-        nullptr /*fileName*/,
+        sfilename.c_str() /*fileName*/,
         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
         nullptr /*appData*/,
         false   /*isSourceTemporary*/,
