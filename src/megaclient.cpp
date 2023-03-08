@@ -189,7 +189,6 @@ void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 {
-
     bool skreceived = false;
     Node* n = nodebyhandle(s->h);
     if (!n)
