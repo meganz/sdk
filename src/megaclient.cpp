@@ -362,21 +362,19 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         }
         else
         {
+            if (n->inshare)
+            {
+                n->inshare->user->sharing.erase(n->nodehandle);
+                notifyuser(n->inshare->user);
+                delete n->inshare;
+                n->inshare = NULL;
+            }
+
             // incoming share deleted - remove tree
-            if (!n->parent)
+            if (!n->parent || n->parent->changed.removed)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
-            }
-            else
-            {
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    notifyuser(n->inshare->user);
-                    delete n->inshare;
-                    n->inshare = NULL;
-                }
             }
         }
     }
