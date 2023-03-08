@@ -11504,12 +11504,13 @@ class MegaApi
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
          *
-         * With this feature flag set, the client will manage encryption keys for
+         * With this feature flag set, the client will manage encryption keys exchange for
          * shared folders in a secure way. Legacy clients won't be able to decrypt
          * shared folders created with this flag enabled.
          *
          * Manual verification of credentials of users (both sharers AND sharees) is
-         * required in order to decrypt shared folders correctly.
+         * required in order to decrypt shared folders correctly if, also, the
+         * "Manual Verification" flag is set to true.
          *
          * @note This flag should be changed before login+fetchnodes. Otherwise, it may
          * result on unexpected behavior.
@@ -11517,6 +11518,20 @@ class MegaApi
          * @param enable New value of the flag
          */
         void setSecureFlag(bool enable);
+
+        /**
+         * @brief Allows to change the hardcoded value of the "Manual Verification" flag
+         *
+         * With this feature flag set, the client will require manual verification of
+         * contact credentials of users (both sharers AND sharees) in order to decrypt
+         * shared folders correctly if the "secure" flag is set to true.
+         *
+         * @note If the "secure" flag is disabled, "Manual Verification" flag has no
+         * effect.
+         *
+         * @param enable New value of the flag
+         */
+        void setManualVerificationFlag(bool enable);
 
         /**
          * @brief Creates a new share key for the node if there is no share key already created.
