@@ -9298,7 +9298,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
             else
             {
-                byte buf[SymmCipher::KEYLENGTH];
+                vector<byte> buf(SymmCipher::KEYLENGTH);
 
                 if (!ISUNDEF(su))
                 {
@@ -9322,7 +9322,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             if (sk)
                             {
-                                decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                                decryptkey(sk, buf.data(), static_cast<int>(buf.size()), &key, 1, h);
                             }
                         }
                         else
@@ -9377,10 +9377,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
-                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
+                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf.data() : NULL));
                     if (sk) // only if the key is valid, add it to the repository
                     {
-                        mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = buf;
                     }
                 }
 
@@ -9526,7 +9526,7 @@ void MegaClient::readokelement(JSON* j)
 {
     handle h = UNDEF;
     byte ha[SymmCipher::BLOCKSIZE];
-    byte buf[SymmCipher::BLOCKSIZE];
+    vector<byte> buf(SymmCipher::BLOCKSIZE);
     byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     const char* k = NULL;
@@ -9568,15 +9568,15 @@ void MegaClient::readokelement(JSON* j)
                         return;
                     }
 
-                    if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
+                    if (decryptkey(k, buf.data(), static_cast<int>(buf.size()), &key, 1, h))
                     {
-                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf.data(), ha));
                         if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
                         {
                             handleauth(h, auth);
-                            if (!memcmp(auth, ha, sizeof buf))
+                            if (!memcmp(auth, ha, buf.size()))
                             {
-                                mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                                mNewKeyRepository[NodeHandle().set6byte(h)] = buf;
                             }
                         }
                     }
@@ -20978,7 +20978,8 @@ void KeyManager::cacheShareKeys()
 {
     for (const auto& it : mShareKeys)
     {
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.first.data());
+        const string& k = it.second.first;
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
     }
 }
 
