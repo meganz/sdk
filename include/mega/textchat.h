@@ -53,8 +53,8 @@ class ScheduledFlags
         ScheduledFlags() = default;
         ScheduledFlags (unsigned long numericValue);
         ScheduledFlags (const ScheduledFlags* flags);
-        ScheduledFlags* copy() const;
-        ~ScheduledFlags();
+        virtual ~ScheduledFlags();
+        virtual ScheduledFlags* copy() const;
 
         // getters
         unsigned long getNumericValue() const;
@@ -65,7 +65,7 @@ class ScheduledFlags
         bool serialize(string& out) const;
         static ScheduledFlags* unserialize(const string& in);
 
-    private:
+    protected:
         scheduledFlagsBitSet mFlags = 0;
 };
 
@@ -93,8 +93,8 @@ class ScheduledRules
                        const rules_map* byMonthWeekDay = nullptr);
 
         ScheduledRules(const ScheduledRules* rules);
-        ScheduledRules* copy() const;
-        ~ScheduledRules();
+        virtual ~ScheduledRules();
+        virtual ScheduledRules* copy() const;
 
         // getters
         ScheduledRules::freq_type_t freq() const;
@@ -115,7 +115,7 @@ class ScheduledRules
         bool serialize(string& out) const;
         static ScheduledRules* unserialize(const string& in);
 
-    private:
+    protected:
         // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
         freq_type_t mFreq;
 
