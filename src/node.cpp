@@ -1008,7 +1008,7 @@ bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, No
 {
     if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
         return false;
-    if (requiredFlags.any() || excludeFlags.any()) 
+    if (requiredFlags.any() || excludeFlags.any())
     {
         Node::Flags flags = getDBFlagsBitset();
         if ((flags & excludeFlags).any())
@@ -2830,6 +2830,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 
             if (cloneNode)
             {
+                LOG_debug << "Cloning node rather than sync uploading: " << cloneNode->displaypath() << " for " << upload->sourceLocalname;
                 // completion function is supplied to putNodes command
                 upload->sendPutnodesToCloneNode(&mc, ovHandleIfShortcut, cloneNode);
                 upload->putnodesStarted = true;

@@ -33,6 +33,9 @@ bool Request::isFetchNodes() const
 
 void Request::add(Command* c)
 {
+    // Once this becomes the in-progress request, it must not have anything added
+    assert(cachedJSON.empty());
+
     cmds.push_back(unique_ptr<Command>(c));
 }
 
@@ -41,33 +44,55 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req, bool& suppressSID, MegaClient* client) const
+string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& reqid) const
 {
-    // concatenate all command objects, resulting in an API request
-    *req = "[";
-
-    suppressSID = true; // only if all commands in batch are suppressSID
-
-    map<string, int> counts;
-
-    for (int i = 0; i < (int)cmds.size(); i++)
+    if (cachedJSON.empty())
     {
-        req->append(i ? ",{" : "{");
-        req->append(cmds[i]->getJSON(client));
-        req->append("}");
-        suppressSID = suppressSID && cmds[i]->suppressSID;
-        ++counts[cmds[i]->commandStr];
+        // concatenate all command objects, resulting in an API request
+        string& req = cachedJSON;
+        req = "[";
+
+        suppressSID = true; // only if all commands in batch are suppressSID
+
+        map<string, int> counts;
+
+        for (int i = 0; i < (int)cmds.size(); i++)
+        {
+            req.append(i ? ",{" : "{");
+            req.append(cmds[i]->getJSON(client));
+            req.append("}");
+            suppressSID = suppressSID && cmds[i]->suppressSID;
+            ++counts[cmds[i]->commandStr];
+        }
+
+        req.append("]");
+
+        for (auto& e : counts)
+        {
+            if (!cachedCounts.empty()) cachedCounts += " ";
+            cachedCounts += e.first + ":" + std::to_string(e.second);
+        }
+
+        // increment unique request ID
+        for (int i = 10; i--; )
+        {
+            if (reqidCounter[i]++ < 'z')
+            {
+                break;
+            }
+            else
+            {
+                reqidCounter[i] = 'a';
+            }
+        }
+
     }
 
-    req->append("]");
-
-    string commandCounts;
-    for (auto& e : counts)
-    {
-        if (!commandCounts.empty()) commandCounts += " ";
-        commandCounts += e.first + ":" + std::to_string(e.second);
-    }
-    LOG_debug << "Req command counts: " << commandCounts;
+    // once we send the commands, any retry must be for exactly
+    // the same JSON, or idempotence will not work properly
+    LOG_debug << "Req command counts: " << cachedCounts;
+    cachedSuppressSID = suppressSID;
+    return cachedJSON;
 }
 
 bool Request::processCmdJSON(Command* cmd, bool couldBeError)
@@ -283,6 +308,11 @@ void Request::swap(Request& r)
     cmds.swap(r.cmds);
     std::swap(mV3, r.mV3);
 
+    std::swap(cachedJSON, r.cachedJSON);
+    std::swap(cachedCounts, r.cachedCounts);
+    std::swap(cachedSuppressSID, r.cachedSuppressSID);
+
+
     // Although swap would usually swap all fields, these must be empty anyway
     // If swap was used when these were active, we would be moving needed info out of the request-in-progress
     assert(jsonresponse.empty() && r.jsonresponse.empty());
@@ -290,8 +320,11 @@ void Request::swap(Request& r)
     assert(processindex == 0 && r.processindex == 0);
 }
 
-RequestDispatcher::RequestDispatcher()
+RequestDispatcher::RequestDispatcher(PrnGen& rng)
 {
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid, sizeof reqid, rng);
+
     nextreqs.push_back(Request());
 }
 
@@ -362,7 +395,7 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client)
+string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -371,13 +404,14 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
     {
         nextreqs.push_back(Request());
     }
-    inflightreq.get(out, suppressSID, client);
+    string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
     v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
 #endif
+    return requestJSON;
 }
 
 void RequestDispatcher::requeuerequest()

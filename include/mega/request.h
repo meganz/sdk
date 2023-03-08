@@ -36,12 +36,18 @@ private:
     JSON json;
     size_t processindex = 0;
 
+    // once we send the commands, any retry must be for exactly
+    // the same JSON, or idempotence will not work properly
+    mutable string cachedJSON;
+    mutable string cachedCounts;
+    mutable bool cachedSuppressSID = false;
+
 public:
     void add(Command*);
 
     size_t size() const;
 
-    void get(string*, bool& suppressSID, MegaClient* client) const;
+    string get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const;
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
@@ -78,8 +84,11 @@ class MEGA_API RequestDispatcher
 
     static const int MAX_COMMANDS = 10000;
 
+    // unique request ID
+    char reqid[10];
+
 public:
-    RequestDispatcher();
+    RequestDispatcher(PrnGen&);
 
     // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
@@ -96,7 +105,7 @@ public:
      * @param suppressSID
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client);
+    string serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
