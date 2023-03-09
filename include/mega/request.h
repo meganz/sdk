@@ -39,6 +39,7 @@ private:
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
     mutable string cachedJSON;
+    mutable string cachedIdempotenceId;
     mutable string cachedCounts;
     mutable bool cachedSuppressSID = false;
 
@@ -74,6 +75,7 @@ class MEGA_API RequestDispatcher
 {
     // these ones have been sent to the server, but we haven't received the response yet
     Request inflightreq;
+    retryreason_t inflightFailReason = RETRY_NONE;
 
     // client-server request double-buffering, in batches of up to MAX_COMMANDS
     deque<Request> nextreqs;
@@ -93,12 +95,14 @@ public:
     // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
 
-    bool cmdspending() const;
+    // Commands are waiting and could be sent (could be a retry if connection failed etc) (they are not already sent, not awaiting response)
+    bool readyToSend() const;
+
+    // True if we started sending a Request and haven't received a server response yet,
+    // and stays true even through network errors, -3, retries, etc until we get that response
     bool cmdsInflight() const;
 
     Command* getCurrentCommand(bool currSeqtagSeen);
-
-    bool cmdsinflight() const { return inflightreq.size(); }
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
@@ -107,10 +111,16 @@ public:
      */
     string serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId);
 
-    // once the server response is determined, call one of these to specify the results
-    void requeuerequest();
+    // Once we get a successful reply from the server, call this to complete everything
+    // Since we need to support idempotence, we cannot add anything more to the in-progress request
     void serverresponse(string&& movestring, MegaClient*);
 
+    // If we need to retry (eg due to networking issue, abandoned req, server refusal etc) call this and we will abandon that attempt.
+    // The req will be retried via the next serverrequest(), and idempotence takes care of avoiding duplicate actions
+    void inflightFailure(retryreason_t reason);
+
+    // If the server itself reports failure, use this one to resolve (commands are all failed)
+    // and we will move to the next Request
     void servererror(const std::string &e, MegaClient*);
 
     void continueProcessing(MegaClient* client);

@@ -44,7 +44,7 @@ size_t Request::size() const
     return cmds.size();
 }
 
-string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& reqid) const
+string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const
 {
     if (cachedJSON.empty())
     {
@@ -52,7 +52,7 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
         string& req = cachedJSON;
         req = "[";
 
-        suppressSID = true; // only if all commands in batch are suppressSID
+        cachedSuppressSID = true; // only if all commands in batch are suppressSID
 
         map<string, int> counts;
 
@@ -61,7 +61,7 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
             req.append(i ? ",{" : "{");
             req.append(cmds[i]->getJSON(client));
             req.append("}");
-            suppressSID = suppressSID && cmds[i]->suppressSID;
+            cachedSuppressSID = cachedSuppressSID && cmds[i]->suppressSID;
             ++counts[cmds[i]->commandStr];
         }
 
@@ -85,13 +85,14 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
                 reqidCounter[i] = 'a';
             }
         }
-
+        cachedIdempotenceId = string(reqidCounter, 10);
     }
 
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
     LOG_debug << "Req command counts: " << cachedCounts;
-    cachedSuppressSID = suppressSID;
+    suppressSID = cachedSuppressSID;
+    idempotenceId = cachedIdempotenceId;
     return cachedJSON;
 }
 
@@ -379,15 +380,23 @@ void RequestDispatcher::add(Command *c)
     }
 }
 
-bool RequestDispatcher::cmdspending() const
+bool RequestDispatcher::readyToSend() const
 {
-    return nextreqs.empty() ? false :
-          !nextreqs.front().empty();
+    if (!inflightreq.empty())
+    {
+        // retry of prior attempt. Otherwise, we are waiting response, so not ready
+        return inflightFailReason != RETRY_NONE;
+    }
+    else
+    {
+        return nextreqs.empty() ? false :
+              !nextreqs.front().empty();
+    }
 }
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    return !inflightreq.empty();
+    return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
 }
 
 Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
@@ -397,12 +406,21 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
 
 string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
-    assert(inflightreq.empty());
-    inflightreq.swap(nextreqs.front());
-    nextreqs.pop_front();
-    if (nextreqs.empty())
+    if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {
-        nextreqs.push_back(Request());
+        // this is a retry after connection failure
+        // everything is already set up, JSON is cached etc.
+        LOG_debug << "cs Retrying the last request after code: " << inflightFailReason;
+    }
+    else
+    {
+        assert(inflightreq.empty());
+        inflightreq.swap(nextreqs.front());
+        nextreqs.pop_front();
+        if (nextreqs.empty())
+        {
+            nextreqs.push_back(Request());
+        }
     }
     string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
@@ -411,21 +429,22 @@ string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchin
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
 #endif
+    inflightFailReason = RETRY_NONE;
     return requestJSON;
 }
 
-void RequestDispatcher::requeuerequest()
+void RequestDispatcher::inflightFailure(retryreason_t reason)
 {
 #ifdef MEGA_MEASURE_CODE
     csBatchesReceived += 1;
 #endif
     assert(!inflightreq.empty());
     assert(!nextreqs.empty());
-    if (!nextreqs.front().empty())
-    {
-        nextreqs.push_front(Request());
-    }
-    nextreqs.front().swap(inflightreq);
+
+    // we keep inflightreq as it needs to be resent exactly as it was, for idempotence
+    // just track whether we do need to resend, for cmdsInflight() signal
+    assert(reason != RETRY_NONE);
+    inflightFailReason = reason;
 }
 
 void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
@@ -454,6 +473,7 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
     inflightreq.servererror(e, client);
     inflightreq.process(client);
     assert(inflightreq.empty());
+    inflightFailReason = RETRY_NONE;
     processing = false;
     if (clearWhenSafe)
     {
@@ -480,6 +500,7 @@ void RequestDispatcher::clear()
     else
     {
         inflightreq.clear();
+        inflightFailReason = RETRY_NONE;
         for (auto& r : nextreqs)
         {
             r.clear();
