@@ -240,6 +240,33 @@ public:
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
 #endif
+
+        void receiveEvent(MegaEvent* e)
+        {
+            if (!e) return;
+
+            lock_guard<mutex> g(getEventMutex());
+            lastEvent.reset(e->copy());
+            lastEvents.insert(e->getType());
+        }
+
+        void resetlastEvent()
+        {
+            lock_guard<mutex> g(getEventMutex());
+            lastEvent.reset();
+            lastEvents.clear();
+        }
+
+        bool lastEventsContain(int type)
+        {
+            lock_guard<mutex> g(getEventMutex());
+            return lastEvents.find(type) != lastEvents.end();
+        }
+
+    private:
+        static mutex& getEventMutex() { static mutex evMtx; return evMtx; } // a single mutex will do fine in tests
+        shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
+        set<int> lastEvents;
     };
 
     std::vector<PerApi> mApi;
@@ -255,24 +282,6 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
-
-    std::mutex lastEventMutex;
-    std::unique_ptr<MegaEvent> lastEvent;
-    std::set<int> lastEvents;
-
-    void resetlastEvent()
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        lastEvent.reset();
-        lastEvents.clear();
-    }
-
-    bool lastEventsContains(int type)
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        return lastEvents.find(type) != lastEvents.end();
-    }
-
 
     MegaHandle mBackupId = UNDEF;
     unique_ptr<MegaHandleList> mMegaFavNodeList;
@@ -451,6 +460,14 @@ public:
     template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaSetElementList** ell, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (ell && rt.request->getMegaSetElementList()) *ell = rt.request->getMegaSetElementList()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doRemoveBulkSetElements(unsigned apiIndex, MegaIntegerList** errs, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->removeSetElements(args..., &rt);
+        rt.waitForResult();
+        if (errs && rt.request->getMegaIntegerList()) *errs = rt.request->getMegaIntegerList()->copy();
+        return rt.result;
+    }
     template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetUserAttribute(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setUserAttribute(args..., &rt); return rt.waitForResult(); }

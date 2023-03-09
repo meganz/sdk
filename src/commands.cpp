@@ -296,7 +296,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
     char buf[64];
 
-    sprintf(buf, "%u*", t);
+    snprintf(buf, sizeof(buf), "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
 
@@ -2882,7 +2882,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
 {
     string sprice;
     sprice.resize(128);
-    sprintf((char *)sprice.data(), "%.2f", price/100.0);
+    snprintf(const_cast<char*>(sprice.data()), sprice.length(), "%.2f", price/100.0);
     replace( sprice.begin(), sprice.end(), ',', '.');
     cmd("uts");
     arg("it", itemclass);
@@ -9652,6 +9652,66 @@ bool CommandPutSetElement::procresult(Result r)
     }
 
     return parsedOk;
+}
+
+CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, vector<handle>&& eids,
+                                                   std::function<void(Error, const vector<int64_t>*)> completion)
+    : mSetId(sid), mElemIds(move(eids)), mCompletion(completion)
+{
+    cmd("aerb");
+
+    arg("s", reinterpret_cast<const byte*>(&sid), MegaClient::SETHANDLE);
+
+    beginarray("e");
+
+    for (auto& eh : mElemIds)
+    {
+        element(reinterpret_cast<const byte*>(&eh), MegaClient::SETELEMENTHANDLE);
+    }
+
+    endarray();
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveSetElements::procresult(Result r)
+{
+    Error e = API_OK;
+    if (procerrorcode(r, e))
+    {
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr);
+        }
+        return true;
+    }
+    else if (!r.hasJsonArray())
+    {
+        LOG_err << "Sets: failed to parse `aerb` response";
+        if (mCompletion)
+        {
+            mCompletion(API_EINTERNAL, nullptr);
+        }
+        return false;
+    }
+
+    vector<int64_t> errs(mElemIds.size());
+    for (size_t elCount = 0u; elCount < mElemIds.size(); ++elCount)
+    {
+        errs[elCount] = client->json.getint();
+        if (errs[elCount] == API_OK && !client->deleteSetElement(mSetId, mElemIds[elCount]))
+        {
+            LOG_err << "Sets: Failed to remove Element in `aerb` command response";
+            errs[elCount] = API_ENOENT;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, &errs);
+    }
+
+    return true;
 }
 
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
