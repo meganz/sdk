@@ -310,9 +310,9 @@ void Request::swap(Request& r)
     std::swap(mV3, r.mV3);
 
     std::swap(cachedJSON, r.cachedJSON);
+    std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
     std::swap(cachedCounts, r.cachedCounts);
     std::swap(cachedSuppressSID, r.cachedSuppressSID);
-
 
     // Although swap would usually swap all fields, these must be empty anyway
     // If swap was used when these were active, we would be moving needed info out of the request-in-progress
