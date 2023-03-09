@@ -141,11 +141,11 @@ public:
     ScheduledMeeting(handle chatid, const string& timezone, m_time_t startDateTime, m_time_t endDateTime,
                      const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
                      handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
-                     m_time_t overrides = mega_invalid_timestamp, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
+                     m_time_t overrides = mega_invalid_timestamp, const ScheduledFlags* flags = nullptr, const ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
-    ScheduledMeeting* copy() const;
-    ~ScheduledMeeting();
+    virtual ScheduledMeeting* copy() const;
+    virtual ~ScheduledMeeting();
 
     // setters
     void setSchedId(handle schedId);
@@ -164,8 +164,8 @@ public:
     const std::string &attributes() const;
     m_time_t overrides() const;
     int cancelled() const;
-    const ScheduledFlags* flags() const;
-    const ScheduledRules* rules() const;
+    virtual const ScheduledFlags* flags() const;
+    virtual const ScheduledRules* rules() const;
     bool isValid() const;
 
     // check if 2 scheduled meetings objects are equal or not

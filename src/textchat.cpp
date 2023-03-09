@@ -348,7 +348,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, m_time_t endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
-                                m_time_t overrides, ScheduledFlags* flags, ScheduledRules* rules)
+                                m_time_t overrides, const ScheduledFlags* flags, const ScheduledRules* rules)
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
       mSchedId(schedId),
