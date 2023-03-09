@@ -11414,7 +11414,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
     std::function<void()> completeShare =
-    [this, user, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
+    [this, user, nodehandle, a, newshare, msg, tag, writable, completion]()
     {
         Node *n;
         // node vanished: bail
@@ -11426,51 +11426,10 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }
 
         reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, uid, user, nodehandle, shareKey, completion](Error e, bool writable)
+        [user, completion](Error e, bool writable)
         {
-            handle userhandle = user ? user->userhandle : UNDEF;
-            if (user && user->isTemporary)
-            {
-                delete user;
-            }
-
-            if (e || ISUNDEF(userhandle))
-            {
-                completion(e, writable);
-                return;
-            }
-
-            std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-            if (!encryptedKey.size())
-            {
-                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
-                completion(e, writable);
-                return;
-            }
-
-            reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [this, uid, nodehandle, completion, writable](Error err)
-            {
-                if (err)
-                {
-                    LOG_err << "Error sending share key: " << err;
-                    completion(API_OK, writable);
-                }
-                else
-                {
-                    LOG_debug << "Share key correctly sent. Removing pendingoutshare from ^!keys (" << toNodeHandle(nodehandle) << " -> " << uid << ")";
-                    mKeyManager.commit(
-                    [this, nodehandle, uid]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.removePendingOutShare(nodehandle, uid);
-                    },
-                    [completion, writable]()
-                    {
-                        completion(API_OK, writable);
-                    });
-                }
-            }));
+            completion(e, writable);
+            if (user && user->isTemporary) delete user;
         }));
     };
 
