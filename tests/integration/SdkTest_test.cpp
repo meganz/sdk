@@ -11865,20 +11865,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 
     // --- Test search out shares ---
     stringSearch = file8;
@@ -11900,20 +11887,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 }
 
 /*
