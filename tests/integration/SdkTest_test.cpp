@@ -367,6 +367,42 @@ void SdkTest::Cleanup()
             }
         }
     }
+
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
+    {
+        if (megaApi[nApi] && megaApi[nApi]->isLoggedIn())
+        {
+            // Some tests finish logged in but without call to fetch nodes root nodes are undefined yet
+            uint64_t nodesRoot = 0;
+            std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode());
+            if (rootNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rootNode.get())) << "Cannot get Folder Info for rootnode";
+                nodesRoot = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesRubbishBin = 0;
+            std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
+            if (rubbishbinNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rubbishbinNode.get())) << "Cannot get Folder Info for rubbis bin";
+                nodesRubbishBin = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesVault = 0;
+            std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode());
+            if (vaultNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, vaultNode.get())) << "Cannot get Folder Info for vault";
+                nodesVault = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            if (nodesRoot > 0 || nodesRubbishBin > 0 || nodesVault > 0)
+            {
+                LOG_warn << "Clean up for instance " << nApi << " hasn't finished properly. Nodes at root node: " << nodesRoot << "   Nodes at rubbish bin: " << nodesRubbishBin << "  Nodes at vault: " << nodesVault;
+            }
+        }
+    }
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
