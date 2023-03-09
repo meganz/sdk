@@ -1730,7 +1730,7 @@ class UnixStreamAccess
 {
 public:
     UnixStreamAccess(const char* path, m_off_t size)
-      : mDescriptor(open(path, O_NOATIME | O_RDONLY))
+      : mDescriptor(open(path))
       , mOffset(0)
       , mSize(size)
     {
@@ -1773,6 +1773,19 @@ public:
     }
 
 private:
+
+    // open with O_NOATIME if possible
+    int open(const char *path)
+    {
+        int fd = ::open(path, O_NOATIME | O_RDONLY) ;
+
+        if (fd < 0 && errno == EPERM) 
+        {
+            fd = ::open(path, O_RDONLY);
+        }
+        return fd;
+    }
+
     int mDescriptor;
     m_off_t mOffset;
     m_off_t mSize;
