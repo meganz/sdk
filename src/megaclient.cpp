@@ -20763,7 +20763,7 @@ bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 {
-    if (!mClient.areCredentialsVerified(userhandle))
+    if (verificationRequired(userhandle))
     {
         return std::string();
     }
@@ -20785,7 +20785,7 @@ string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 
 string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
 {
-    if (!mClient.areCredentialsVerified(userhandle))
+    if (verificationRequired(userhandle))
     {
         return std::string();
     }
@@ -20838,7 +20838,7 @@ bool KeyManager::promotePendingShares()
         for (const auto& uid : it.second)
         {
             User *u = mClient.finduser(uid.c_str(), 0);
-            if (u && mClient.areCredentialsVerified(u->userhandle))
+            if (u && !verificationRequired(u->userhandle))
             {
                 LOG_debug << "Promoting pending outshare of node " << toNodeHandle(nodehandle) << " for " << uid;
                 auto shareit = mShareKeys.find(nodehandle);
@@ -20886,7 +20886,7 @@ bool KeyManager::promotePendingShares()
         handle userHandle = it.second.first;
         const std::string &encryptedShareKey = it.second.second;
 
-        if (mClient.areCredentialsVerified(userHandle))
+        if (!verificationRequired(userHandle))
         {
             LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
@@ -21785,6 +21785,19 @@ void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
     // Set the sharekey to the node, if missing (since it might not have been received along with
     // the share itself (ok / k is discontinued since ^!keys)
     loadShareKeys();
+}
+
+bool KeyManager::verificationRequired(handle userHandle)
+{
+    if (mManualVerification)
+    {
+        return !mClient.areCredentialsVerified(userHandle);
+    }
+
+    // if no manual verification required, still check Ed25519 public key is SEEN
+    AuthRingsMap::const_iterator it = mClient.mAuthRings.find(ATTR_AUTHRING);
+    bool edAuthringFound = it != mClient.mAuthRings.end();
+    return !edAuthringFound || (it->second.getAuthMethod(userHandle) < AUTH_METHOD_SEEN);
 }
 
 string KeyManager::serializeBackups() const
