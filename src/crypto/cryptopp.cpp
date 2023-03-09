@@ -300,6 +300,14 @@ void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
+void SymmCipher::gcm_encrypt(const string& inputData, const byte *key, size_t keylength,  const byte *iv, size_t ivlength, unsigned taglen, string& outputData)
+{
+    aesgcm_e.SetKeyWithIV(key, keylength, iv, ivlength);
+    std::string mediaKeyEncrypted;
+    CryptoPP::StringSource(inputData, true,
+                           new CryptoPP::AuthenticatedEncryptionFilter(aesgcm_e, new CryptoPP::StringSink(outputData), false, static_cast<int>(taglen)));
+}
+
 bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);

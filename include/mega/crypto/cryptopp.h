@@ -253,6 +253,25 @@ public:
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode.
+     *
+     * This method sets the encryption key and the intialization vector in the symetric cipher
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * @param inputData Data to be encrypted.
+     * @param key Encryption key
+     * @param keylength Length of encryption key
+     * @param iv Initialisation vector or nonce to use for encryption.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag.
+     * @param result outputData data, including the authentication tag.
+     */
+    void gcm_encrypt(const std::string& inputData, const byte *key, size_t keylength, const byte *iv, size_t ivlength, unsigned taglen, std::string& outputData);
+
+    /**
      * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
      *
      * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
