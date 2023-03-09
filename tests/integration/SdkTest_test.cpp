@@ -1498,6 +1498,19 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     testMegaApi->fetchNodes(fetchnodesTracker.get());
     ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
 
+    // test resetting the password
+/*
+    mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK] = false;
+    synchronousResetCredentials
+    megaApi[0]->resetPassword(newTestAcc.c_str(), true);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK]))
+        << "get recovery link/reset password failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
+*/
+
+
+
+
     // Request cancel account link
     timeOfEmail = std::chrono::system_clock::now();
     auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(testMegaApi.get());
@@ -11889,13 +11902,14 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
 }
 
-/*
-TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
+TEST_F(SdkTest, ResetPassword)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     const char* email = megaApi[0]->getMyEmail();
     cout << "email: " << email << endl;
-    const char* masterKey = megaApi[0]->getMyRSAPrivateKey();
+    //const char* privateKey = megaApi[0]->getMyRSAPrivateKey();
+
+    //ASSERT_EQ(synchronousResetPassword(0, email, true), MegaError::API_OK);
 
     mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK] = false;
     megaApi[0]->resetPassword(email, true);
@@ -11907,12 +11921,14 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
     string link;
     getline(cin, link);
 
-    cout << "input recovery key: ";
-    string recoverykey;
-    getline(cin, recoverykey);
+    char *masterKey = megaApi[0]->exportMasterKey();
+
+    //cout << "input recovery key: ";
+    //string recoverykey;
+    //getline(cin, recoverykey);
 
     mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY] = false;
-    megaApi[0]->checkRecoveryKey(link.c_str(), recoverykey.c_str());
+    megaApi[0]->checkRecoveryKey(link.c_str(), masterKey);
     ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY]))
         << "check recovery key failed after " << maxTimeout << " seconds";
     ASSERT_EQ(mApi[0].lastError, MegaError::API_OK); // API_EKEY
@@ -11926,4 +11942,3 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
         << "confirm recovery link failed after " << maxTimeout << " seconds";
     ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
 }
-*/
