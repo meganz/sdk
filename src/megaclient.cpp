@@ -7788,6 +7788,12 @@ void MegaClient::sc_pk()
         return;
     }
 
+    if (!statecurrent)
+    {
+        LOG_debug << "Skip fetching pending keys triggered by action packet during new session";
+        return;
+    }
+
     reqs.add(new CommandPendingKeys(this,
     [this] (Error e, std::string lastcompleted, std::shared_ptr<std::map<handle, std::map<handle, std::string>>> keys)
     {
