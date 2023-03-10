@@ -1306,9 +1306,6 @@ public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
-    // unique request ID
-    char reqid[10];
-
     // lang URI component for API requests
     string lang;
 
@@ -2210,9 +2207,6 @@ private:
 
     // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
     SymmCipher tmptransfercipher;
-
-    // creates a new id filling `id` with random bytes, up to `length`
-    void resetId(char *id, size_t length);
 
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);

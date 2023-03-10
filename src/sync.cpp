@@ -7110,7 +7110,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         if (isIgnoreFileClash(row))
             return false;
 
-        LOG_debug << syncname << "Multple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+        LOG_debug << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
 
         if (row.syncNode)
         {
@@ -8252,7 +8252,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, 
 
         shared_ptr<SyncUpload_inClient> existingUpload = std::dynamic_pointer_cast<SyncUpload_inClient>(row.syncNode->transferSP);
 
-        if (existingUpload && !!existingUpload->putnodesStarted)
+        if (existingUpload && !existingUpload->putnodesStarted)
         {
             // keep the name and target folder details current:
 
