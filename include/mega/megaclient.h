@@ -323,6 +323,9 @@ public:
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
+    // this method allows to change the manual verification feature-flag for testing purposes
+    void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
+
 protected:
     std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
     std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;

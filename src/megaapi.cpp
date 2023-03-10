@@ -2519,6 +2519,11 @@ void MegaApi::setSecureFlag(bool enable)
     pImpl->setSecureFlag(enable);
 }
 
+void MegaApi::setManualVerificationFlag(bool enable)
+{
+    pImpl->setManualVerificationFlag(enable);
+}
+
 void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->openShareDialog(node, listener);

@@ -2807,8 +2807,11 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Verify credentials in both accounts ---
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     // --- Share a folder with User2 ---
     MegaHandle nodeHandle = n1->getHandle();
@@ -3133,8 +3136,11 @@ TEST_F(SdkTest, SdkTestShares)
 
     mApi[1].cr.reset();
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     long long ownedNodeCount = megaApi[1]->getNumNodes();
 
@@ -3722,10 +3728,13 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     WaitMillisec(3000);
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(0, mApi[2].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[2].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
-    if (!areCredentialsVerified(2, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(2, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(0, mApi[2].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[2].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+        if (!areCredentialsVerified(2, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(2, mApi[0].email));}
+    }
 
     // --- User1 shares Folder1 with UserB, and Folder1_1 with UserC ---
 
@@ -3887,10 +3896,13 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
     WaitMillisec(3000);
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(0, mApi[2].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[2].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
-    if (!areCredentialsVerified(2, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(2, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(0, mApi[2].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[2].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+        if (!areCredentialsVerified(2, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(2, mApi[0].email));}
+    }
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size()), 0u);
@@ -6498,8 +6510,11 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
     
     // Verify credentials in both accounts
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
     ASSERT_NO_FATAL_FAILURE(shareFolder(folderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
@@ -8823,8 +8838,11 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     ASSERT_NO_FATAL_FAILURE(shareFolder(remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(WaitFor([this]()
@@ -9253,8 +9271,11 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
             << "Contact request creation not received after " << maxTimeout << " seconds";
     mApi[1].cr.reset();
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     //--- Create a new folder in cloud drive ---
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -9427,6 +9448,9 @@ TEST_F(SdkTest, TestSharesContactVerification)
     LOG_info << "___TEST TestSharesContactVerification___";
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    // The idea of the test is to ensure manual verification works as expected, so force it to true
+    megaApi[0]->setManualVerificationFlag(true);
+    megaApi[1]->setManualVerificationFlag(true);
 
     // Define all folers needed for the tests.
     string folder11 = "EnhancedSecurityShares-1";
@@ -11002,8 +11026,11 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
     // received by A1, do not keep it for comparing with B2's sc50
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     // create some folders / files to share
 
@@ -11440,8 +11467,11 @@ TEST_F(SdkTest, SdkUserAlerts)
     bkpAlerts.emplace_back(a->copy());
 
     // Reset credentials before removing contacts
-    if (areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));}
-    if (areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(0, mApi[1].email));}
+        if (areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(resetCredentials(1, mApi[0].email));}
+    }
 
     // ContactChange  --  contact deleted
     //--------------------------------------------
@@ -11823,8 +11853,11 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     mApi[1].cr.reset();
 
-    if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-    if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    if (gManualVerification)
+    {
+        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
+        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
+    }
 
     // --- Share a folder with User2 ---
     bool check1, check2;

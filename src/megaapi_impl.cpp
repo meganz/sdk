@@ -6927,6 +6927,12 @@ void MegaApiImpl::setSecureFlag(bool enable)
     client->mKeyManager.setSecureFlag(enable);
 }
 
+void MegaApiImpl::setManualVerificationFlag(bool enable)
+{
+    SdkMutexGuard m(sdkMutex);
+    client->mKeyManager.setManualVerificationFlag(enable);
+}
+
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_OPEN_SHARE_DIALOG, listener);
