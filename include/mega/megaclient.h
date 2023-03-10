@@ -363,6 +363,9 @@ private:
     // client is considered to exchange keys in a secure way (requires credential's verification)
     bool mSecure = true;
 
+    // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
+    bool mManualVerification = false;
+
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
 
@@ -433,8 +436,11 @@ private:
     // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
     void updateAuthring(attr_t at, std::string &value);
 
-    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    // update sharekeys (incl. trust). It doesn't purge non-existing items
     void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+
+    // true if the credentials of this user require verification
+    bool verificationRequired(handle userHandle);
 };
 
 
