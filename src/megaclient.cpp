@@ -5048,23 +5048,31 @@ bool MegaClient::procsc()
                         mNodeManager.removeChanges();
 
                         // if ^!keys doesn't exist yet -> migrate the private keys from legacy attrs to ^!keys
-                        if (loggedin() == FULLACCOUNT && !mKeyManager.generation())
+                        if (loggedin() == FULLACCOUNT)
                         {
-                            assert(!mKeyManager.getPostRegistration());
-                            if (mKeyManager.isSecure())
+                            if (!mKeyManager.generation())
                             {
-                                app->upgrading_security();
-                            }
-                            else // -> upgrade automatically and silently
-                            {
-                                upgradeSecurity([this](Error e)
+                                assert(!mKeyManager.getPostRegistration());
+                                if (mKeyManager.isSecure())
                                 {
-                                    if (e != API_OK)
+                                    app->upgrading_security();
+                                }
+                                else // -> upgrade automatically and silently
+                                {
+                                    upgradeSecurity([this](Error e)
                                     {
-                                        LOG_err << "Failed to upgrade security. Error: " << e;
-                                        sendevent(99466, "KeyMgr / (auto) Upgrade security failed");
-                                    }
-                                });
+                                        if (e != API_OK)
+                                        {
+                                            LOG_err << "Failed to upgrade security. Error: " << e;
+                                            sendevent(99466, "KeyMgr / (auto) Upgrade security failed");
+                                        }
+                                    });
+                                }
+                            }
+                            else
+                            {
+                                fetchContactsKeys();
+                                sc_pk();
                             }
                         }
                     }
@@ -7786,6 +7794,16 @@ void MegaClient::sc_pk()
         if (e)
         {
             LOG_debug << "No share keys: " << e;
+
+            if (mKeyManager.promotePendingShares())
+            {
+                LOG_warn << "Promoting pending shares without new keys (received before contact keys?)";
+                mKeyManager.commit([this]()
+                {
+                    // Changes to apply in the commit
+                    mKeyManager.promotePendingShares();
+                }); // No completion callback in this case
+            }
             return;
         }
 
@@ -10124,7 +10142,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         }
                         else if (u->show == VISIBILITY_UNKNOWN && v == VISIBLE
                                  && uh != me
-                                 && !fetchingnodes)
+                                 && statecurrent)  // otherwise, fetched when statecurrent is set
                         {
                             // new user --> fetch keys
                             fetchContactKeys(u);
@@ -14194,6 +14212,8 @@ void MegaClient::loadAuthrings()
                     else
                     {
                         LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
+                        getua(ownUser, at, 0);
+                        ++mFetchingAuthrings;
                     }
                 }
                 else
@@ -14203,13 +14223,14 @@ void MegaClient::loadAuthrings()
                     ++mFetchingAuthrings;
                 }
             }
-        }   // --> end if(!mKeyManager.generation())
 
-        // if all authrings were loaded from cache...
-        if (mFetchingAuthrings == 0)
-        {
-            fetchContactsKeys();
-        }
+            // if all authrings were loaded from cache...
+            if (mFetchingAuthrings == 0)
+            {
+                fetchContactsKeys();
+            }
+
+        }   // --> end if(!mKeyManager.generation())
     }
 }
 
@@ -20995,7 +21016,10 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
     {
         LOG_err << "Not initialized yet. Cancelling the update.";
         assert(false);
-        completion();
+        if (completion)
+        {
+            completion();
+        }
         return;
     }
 
@@ -21678,8 +21702,14 @@ string KeyManager::computeSymmetricKey(handle user)
     if (!cachedav)
     {
         LOG_warn << "Unable to generate symmetric key. Public key not cached.";
-        assert(false);
-        mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
+        if (mClient.statecurrent && mClient.mAuthRingsTemp.find(ATTR_CU25519_PUBK) == mClient.mAuthRingsTemp.end())
+        {
+            // if statecurrent=true -> contact keys should have been fetched
+            // if no temporal authring for Cu25519 -> contact keys should be in cache
+            LOG_warn << "Public key not cached with the authring already updated.";
+            assert(false);
+            mClient.sendevent(99464, "KeyMgr / Ed/Cu retrieval failed");
+        }
         return std::string();
     }
 

@@ -6112,12 +6112,6 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
-
-                if (client->loggedin() == FULLACCOUNT)
-                {
-                    client->fetchContactsKeys();
-                    client->sc_pk();
-                }
                 return true;
             }
             default:
