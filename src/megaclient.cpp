@@ -11291,6 +11291,7 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         completion(API_OK);
 
         // Get pending keys for inshares
+        fetchContactsKeys();
         sc_pk();
     });
 }
