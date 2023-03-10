@@ -44,6 +44,9 @@ private:
     void stopLogger();
 
 public:
+
+    static thread_local std::string sThreadName;
+
     ~RotativePerformanceLogger();
 
     static RotativePerformanceLogger& Instance();
