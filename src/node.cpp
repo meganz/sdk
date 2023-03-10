@@ -1336,7 +1336,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 {
     char buf[24];
 
-    sprintf(buf, ":%u*", t);
+    snprintf(buf, sizeof(buf), ":%u*", t);
     return static_cast<int>(fileattrstring->find(buf) + 1);
 }
 
@@ -1379,7 +1379,7 @@ bool Node::applykey()
         }
         else
         {
-            // look for share key if not folder access with folder master key
+            // look for share key if not folder link access with folder master key
             if (h != me)
             {
                 // this is a share node handle - check if share key is available at key's repository

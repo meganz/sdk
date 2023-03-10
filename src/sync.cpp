@@ -571,28 +571,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mBackupState(SYNC_BACKUP_NONE)
 {}
 
-bool SyncConfig::operator==(const SyncConfig& rhs) const
-{
-    return mEnabled == rhs.mEnabled
-           && mExternalDrivePath == rhs.mExternalDrivePath
-           && mLocalPath == rhs.mLocalPath
-           && mName == rhs.mName
-           && mRemoteNode == rhs.mRemoteNode
-           && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
-           && mFilesystemFingerprint == rhs.mFilesystemFingerprint
-           && mSyncType == rhs.mSyncType
-           && mError == rhs.mError
-           && mBackupId == rhs.mBackupId
-           && mWarning == rhs.mWarning
-           && mBackupState == rhs.mBackupState;
-}
-
-bool SyncConfig::operator!=(const SyncConfig& rhs) const
-{
-    return !(*this == rhs);
-}
-
-
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;
@@ -2360,11 +2338,12 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
             syncs.fsaccess->mkdirlocal(localdebris, true, false);
         }
 
-        sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+        snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
 
         if (i >= 0)
         {
-            sprintf(strchr(buf, 0), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
+            char* ptr = strchr(buf, 0);
+            snprintf(ptr, sizeof(buf) - (ptr - buf), " %02d.%02d.%02d.%02d", ptm->tm_hour,  ptm->tm_min, ptm->tm_sec, i);
         }
 
         day = buf;

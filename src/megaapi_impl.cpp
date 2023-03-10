@@ -18975,7 +18975,7 @@ static void appendFileAttribute(string& s, int n, MegaHandle h)
         }
 
         char buf[64];
-        sprintf(buf, "%u*", n);
+        snprintf(buf, sizeof(buf), "%u*", n);
         Base64::btoa((byte*)&h, sizeof(h), strchr(buf + 2, 0));
         s += buf;
     }
@@ -24169,6 +24169,43 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     request->setParamType(optionFlags);
     request->setNumber(order);
     request->setText(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
+    request->setTotalBytes(sid);
+    request->setMegaHandleList(eids);
+
+    request->performRequest = [this, request]()
+    {
+        const MegaHandleList* eidsList = request->getMegaHandleList();
+        if (!eidsList)
+        {
+            return API_ENOENT;
+        }
+
+        std::vector<handle> eids(eidsList->size());
+        for (size_t i = 0u; i < eids.size(); ++i)
+        {
+            eids[i] = eidsList->get(static_cast<int>(i));
+        }
+
+        client->removeSetElements(request->getTotalBytes(), move(eids),
+            [this, request](Error e, const vector<int64_t>* elErrs)
+            {
+                if (e == API_OK && elErrs)
+                {
+                    request->setMegaIntegerList(::mega::make_unique<MegaIntegerListPrivate>(*elErrs));
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -30955,7 +30992,7 @@ void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
         bool exec = (curperm >> 0) & 0x1;
 
         char rwx[4];
-        sprintf(rwx,"%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
+        snprintf(rwx, sizeof(rwx), "%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
         rwx[3]='\0';
         ps = rwx + ps;
     }
@@ -31014,7 +31051,7 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     strftime(timebuff,80,"%b %d %H:%M",&time);
 
     char toprint[3000];
-    sprintf(toprint,
+    snprintf(toprint, sizeof(toprint),
             "%c%s %5d %4d %4d %8"
             PRId64
             " %s %s",
@@ -31935,7 +31972,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (ftpctx->command == FTP_CMD_PASV)
             {
                 char url[30];
-                sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
+                snprintf(url, sizeof(url), "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
                 response = "227 Entering Passive Mode (";
                 response.append(url);
                 response.append(")");
@@ -31943,7 +31980,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             else // FTP_CMD_EPSV
             {
                 char url[30];
-                sprintf(url, "%d", ftpctx->pasiveport);
+                snprintf(url, sizeof(url), "%d", ftpctx->pasiveport);
                 response = "229 Entering Extended Passive Mode (|||";
                 response.append(url);
                 response.append("|)");

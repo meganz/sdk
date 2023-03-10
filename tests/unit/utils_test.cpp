@@ -437,6 +437,16 @@ TEST(Conversion, HexVal)
     }
 }
 
+TEST(URLCodec, Escape)
+{
+    string input = "abc123!@#$%^&*()";
+    string output;
+
+    URLCodec::escape(&input, &output);
+    EXPECT_EQ(output, "abc123%21%40%23%24%25%5e%26%2a%28%29");
+}
+
+
 TEST(URLCodec, Unescape)
 {
     string input = "a%4a%4Bc";
@@ -1027,4 +1037,51 @@ TEST_F(TooLongNameTest, Rename)
         ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
+}
+
+class SprintfTest
+    : public ::testing::Test
+{
+};
+
+TEST_F(SprintfTest, nulTerminateWhenBufferFull)
+{
+    const char* countToSix = "123456";
+    // g++ detects if we don't use a variable
+
+    char buf[3] = { 'x', 'x', 'x' };
+    // with macro commented out
+    snprintf(buf, 3, "%s", countToSix);
+    ASSERT_EQ(buf[0], '1');
+    ASSERT_EQ(buf[1], '2');
+    ASSERT_EQ(buf[2], '\0');
+
+    snprintf(buf, 3, "%s", countToSix);
+}
+
+TEST_F(SprintfTest, Multiple) {
+
+    char ebuf[7];
+    snprintf(ebuf, sizeof ebuf, "%s", "1234");
+    // technique developed to used snprintf()
+    char* ptr = strchr(ebuf, 0);
+    snprintf(ptr, sizeof ebuf - (ptr - ebuf), "%s", "ABCDEFGH");
+    ASSERT_EQ(ebuf[0], '1');
+    ASSERT_EQ(ebuf[1], '2');
+    ASSERT_EQ(ebuf[2], '3');
+    ASSERT_EQ(ebuf[3], '4');
+    ASSERT_EQ(ebuf[4], 'A');
+    ASSERT_EQ(ebuf[5], 'B');
+    ASSERT_EQ(ebuf[6], '\0');
+}
+
+TEST_F(SprintfTest, ResizeAndPrint) {
+
+    unsigned int price = 120;
+    string sprice;
+    sprice.resize(128);
+    snprintf(const_cast<char*>(sprice.data()), sprice.length(), "%.2f", price / 100.0);
+    replace(sprice.begin(), sprice.end(), ',', '.');
+    // sprince = "1.20\0\0\0\..."
+    ASSERT_EQ((string)sprice.c_str(), "1.20");
 }

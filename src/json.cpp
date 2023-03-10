@@ -877,7 +877,7 @@ void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
 
-    sprintf(buf, "%" PRId64, n);
+    snprintf(buf, sizeof(buf), "%" PRId64, n);
 
     arg(name, buf, 0);
 }
@@ -943,15 +943,11 @@ void JSONWriter::endobject()
 
 void JSONWriter::element(int n)
 {
-    char buf[24];
-
-    sprintf(buf, "%d", n);
-
     if (elements())
     {
         mJson.append(",");
     }
-    mJson.append(buf);
+    mJson.append(std::to_string(n));
 }
 
 void JSONWriter::element(handle h, int len)
