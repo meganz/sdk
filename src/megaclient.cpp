@@ -9380,7 +9380,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf.data() : NULL));
                     if (sk) // only if the key is valid, add it to the repository
                     {
-                        mNewKeyRepository[NodeHandle().set6byte(h)] = buf;
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = move(buf);
                     }
                 }
 
@@ -9526,7 +9526,6 @@ void MegaClient::readokelement(JSON* j)
 {
     handle h = UNDEF;
     byte ha[SymmCipher::BLOCKSIZE];
-    vector<byte> buf(SymmCipher::BLOCKSIZE);
     byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     const char* k = NULL;
@@ -9568,6 +9567,7 @@ void MegaClient::readokelement(JSON* j)
                         return;
                     }
 
+                    vector<byte> buf(SymmCipher::BLOCKSIZE);
                     if (decryptkey(k, buf.data(), static_cast<int>(buf.size()), &key, 1, h))
                     {
                         newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf.data(), ha));
@@ -9576,7 +9576,7 @@ void MegaClient::readokelement(JSON* j)
                             handleauth(h, auth);
                             if (!memcmp(auth, ha, buf.size()))
                             {
-                                mNewKeyRepository[NodeHandle().set6byte(h)] = buf;
+                                mNewKeyRepository[NodeHandle().set6byte(h)] = move(buf);
                             }
                         }
                     }
