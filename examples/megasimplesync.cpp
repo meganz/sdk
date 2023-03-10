@@ -483,6 +483,9 @@ static const char* treestatename(treestate_t ts)
 
         case TREESTATE_SYNCING:
             return "Syncing";
+
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";

@@ -153,6 +153,10 @@ using namespace mega;
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
+- (BOOL)isFinished {
+    return self.megaTransfer ? self.megaTransfer->isFinished() : NO;
+}
+
 - (BOOL)isForeignOverquota {
     return self.megaTransfer ? self.megaTransfer->isForeignOverquota() : NO;
 }

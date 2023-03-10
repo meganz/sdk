@@ -3649,6 +3649,11 @@ void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
     mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
+void MegaRequestPrivate::setMegaHandleList(const MegaHandleList* handles)
+{
+    mHandleList.reset(handles ? handles->copy() : nullptr);
+}
+
 MegaScheduledCopyListener *MegaRequestPrivate::getBackupListener() const
 {
     return backupListener;
@@ -6927,6 +6932,12 @@ void MegaApiImpl::setSecureFlag(bool enable)
     client->mKeyManager.setSecureFlag(enable);
 }
 
+void MegaApiImpl::setManualVerificationFlag(bool enable)
+{
+    SdkMutexGuard m(sdkMutex);
+    client->mKeyManager.setManualVerificationFlag(enable);
+}
+
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_OPEN_SHARE_DIALOG, listener);
@@ -9541,15 +9552,21 @@ MegaNode *MegaApiImpl::getRootNode()
     // return without locking the main mutex if possible.
     // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeFiles().isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
             client->loggedIntoFolder() ||
             mLastKnownRootNode->getHandle() != client->mNodeManager.getRootNodeFiles().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRootNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));
+        }
+        g.lock();
+        mLastKnownRootNode.reset(newPtr);
     }
 
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
@@ -9559,14 +9576,20 @@ MegaNode* MegaApiImpl::getVaultNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeVault().isUndef()) return nullptr;
     if (!mLastKnownVaultNode ||
         mLastKnownVaultNode->getHandle() != client->mNodeManager.getRootNodeVault().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownVaultNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeVault()));
+        }
+        g.lock();
+        mLastKnownVaultNode.reset(newPtr);
     }
 
     return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
@@ -9576,14 +9599,20 @@ MegaNode* MegaApiImpl::getRubbishNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
-    lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->mNodeManager.getRootNodeRubbish().isUndef()) return nullptr;
     if (!mLastKnownRubbishNode ||
         mLastKnownRubbishNode->getHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
     {
-        // ok now lock main mutex
-        SdkMutexGuard lock(sdkMutex);
-        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())));
+        // ok now lock main mutex, but not while mLastRecievedLoggedMeMutex is locked or we might get deadlocks as another thread updates mLastKnownRubbishNode with the mutexes locking in the other order
+        g.unlock();
+        MegaNode* newPtr = nullptr;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            newPtr = MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()));
+        }
+        g.lock();
+        mLastKnownRubbishNode.reset(newPtr);
     }
 
     return mLastKnownRubbishNode ? mLastKnownRubbishNode->copy() : nullptr;
@@ -12284,18 +12313,18 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType && 
+                if (node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType && 
+                    node->getMimeType() == mimeType &&
                     strcasestr(node->displayname(), searchString) != NULL &&
-                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags)) 
+                    node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
                         result.push_back(node);
                 }
@@ -24094,10 +24123,9 @@ void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
-    assert(!nodes.empty() && (!names || names->size() == static_cast<int>(nodes.size())));
-
+    assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENTS, listener);
     request->setTotalBytes(sid);
     request->setMegaHandleList(nodes);
@@ -24155,7 +24183,7 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     waiter->notify();
 }
 
-void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
     request->setTotalBytes(sid);

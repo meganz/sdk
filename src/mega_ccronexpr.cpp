@@ -59,7 +59,8 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
 #define CRON_MAX_STR_LEN_TO_SPLIT 256
 #define CRON_MAX_NUM_TO_SRING 1000000000
 /* computes number of digits in decimal number */
-#define CRON_NUM_OF_DIGITS(num) (abs(num) < 10 ? 1 : \
+#define CRON_NUM_OF_DIGITS(num) ((num < 0 ? 1 : 0) + \
+                                (abs(num) < 10 ? 1 : \
                                 (abs(num) < 100 ? 2 : \
                                 (abs(num) < 1000 ? 3 : \
                                 (abs(num) < 10000 ? 4 : \
@@ -67,7 +68,7 @@ static const char* MONTHS_ARR[] = { "FOO", "JAN", "FEB", "MAR", "APR", "MAY", "J
                                 (abs(num) < 1000000 ? 6 : \
                                 (abs(num) < 10000000 ? 7 : \
                                 (abs(num) < 100000000 ? 8 : \
-                                (abs(num) < 1000000000 ? 9 : 10)))))))))
+                                (abs(num) < 1000000000 ? 9 : 10))))))))))
 
 #ifndef _WIN32
 struct tm *gmtime_r(const time_t *timep, struct tm *result);
@@ -489,10 +490,15 @@ static int to_upper(char* str) {
 
 static char* to_string(int num) {
     if (abs(num) >= CRON_MAX_NUM_TO_SRING) return NULL;
-    char* str = (char*) cronMalloc(CRON_NUM_OF_DIGITS(num) + 1);
+    size_t size = CRON_NUM_OF_DIGITS(num) + 1;
+    char* str = (char*) cronMalloc(size);
     if (!str) return NULL;
-    int res = snprintf(str, CRON_NUM_OF_DIGITS(num) + 1, "%d", num);
-    if (res < 0) return NULL;
+    int res = snprintf(str, size, "%d", num);
+    if (res < 0)
+    {
+        cronFree(str);
+        return NULL;
+    }
     return str;
 }
 

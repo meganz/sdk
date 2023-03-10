@@ -204,6 +204,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         {
             memcpy(s->key, shareKey.data(), sizeof(s->key));
             s->have_key = 1;
+            s->outgoing = s->outgoing > 0 ? -1 : s->outgoing;   // always authenticated when loaded from KeyManager
         }
     }
 
@@ -216,12 +217,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
         if (s->outgoing > 0)
         {
+            // Once secure=true, the "ha" for shares are ignored or set to 0, so
+            // comparing against "ha" values is not needed.
             if (!checkaccess(n, OWNERPRELOGIN))
             {
-                LOG_warn << "Attempt to create dislocated outbound share foiled";
+                LOG_warn << "Attempt to create dislocated outbound share foiled: " << toNodeHandle(s->h);
                 auth = false;
             }
-            else
+            else if (!mKeyManager.isSecure() || !mKeyManager.generation())
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
@@ -229,7 +232,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
                 if (memcmp(buf, s->auth, sizeof buf))
                 {
-                    LOG_warn << "Attempt to create forged outbound share foiled";
+                    LOG_warn << "Attempt to create forged outbound share foiled: " << toNodeHandle(s->h);
                     auth = false;
                 }
             }
@@ -359,21 +362,19 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         }
         else
         {
+            if (n->inshare)
+            {
+                n->inshare->user->sharing.erase(n->nodehandle);
+                notifyuser(n->inshare->user);
+                delete n->inshare;
+                n->inshare = NULL;
+            }
+
             // incoming share deleted - remove tree
-            if (!n->parent)
+            if (!n->parent || n->parent->changed.removed)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
-            }
-            else
-            {
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    notifyuser(n->inshare->user);
-                    delete n->inshare;
-                    n->inshare = NULL;
-                }
             }
         }
     }
@@ -2474,29 +2475,6 @@ void MegaClient::exec()
             syncops = true;
         }
         syncactivity = false;
-
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
-        {
-
-            char jsonsc_pos[50] = { 0 };
-            if (jsonsc.pos)
-            {
-                // this string can be massive and we can output this frequently, so just show a little bit of it
-                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
-            }
-
-            LOG_verbose << " Megaclient exec is pending resolutions."
-                        << " scpaused=" << scpaused
-                        << " stopsc=" << scsn.stopped()
-                        << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc_pos
-                        << " syncsup=" << syncsup
-                        << " statecurrent=" << statecurrent
-                        << " syncadding=" << syncadding
-                        << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
-                        << " syncdownretry=" << syncdownretry;
-        }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
@@ -8458,7 +8436,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
-    if (n->changed.favourite && (n->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
+    if (n->changed.favourite && (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
     {
         return API_EACCESS;
     }
@@ -16924,7 +16902,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    snprintf(strchr(report, 0), sizeof(report) - strlen(report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
+                    char* ptr = strchr(report, '\0');
+                    snprintf(ptr, sizeof(report) - (ptr - report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 
@@ -20784,7 +20763,7 @@ bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 {
-    if (!mClient.areCredentialsVerified(userhandle))
+    if (verificationRequired(userhandle))
     {
         return std::string();
     }
@@ -20806,7 +20785,7 @@ string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 
 string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
 {
-    if (!mClient.areCredentialsVerified(userhandle))
+    if (verificationRequired(userhandle))
     {
         return std::string();
     }
@@ -20859,7 +20838,7 @@ bool KeyManager::promotePendingShares()
         for (const auto& uid : it.second)
         {
             User *u = mClient.finduser(uid.c_str(), 0);
-            if (u && mClient.areCredentialsVerified(u->userhandle))
+            if (u && !verificationRequired(u->userhandle))
             {
                 LOG_debug << "Promoting pending outshare of node " << toNodeHandle(nodehandle) << " for " << uid;
                 auto shareit = mShareKeys.find(nodehandle);
@@ -20907,7 +20886,7 @@ bool KeyManager::promotePendingShares()
         handle userHandle = it.second.first;
         const std::string &encryptedShareKey = it.second.second;
 
-        if (mClient.areCredentialsVerified(userHandle))
+        if (!verificationRequired(userHandle))
         {
             LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
@@ -21806,6 +21785,19 @@ void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
     // Set the sharekey to the node, if missing (since it might not have been received along with
     // the share itself (ok / k is discontinued since ^!keys)
     loadShareKeys();
+}
+
+bool KeyManager::verificationRequired(handle userHandle)
+{
+    if (mManualVerification)
+    {
+        return !mClient.areCredentialsVerified(userHandle);
+    }
+
+    // if no manual verification required, still check Ed25519 public key is SEEN
+    AuthRingsMap::const_iterator it = mClient.mAuthRings.find(ATTR_AUTHRING);
+    bool edAuthringFound = it != mClient.mAuthRings.end();
+    return !edAuthringFound || (it->second.getAuthMethod(userHandle) < AUTH_METHOD_SEEN);
 }
 
 string KeyManager::serializeBackups() const
