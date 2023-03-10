@@ -11444,6 +11444,17 @@ class MegaApi
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
          */
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+
+        /**
+         * @brief Set name used for logging by current thread.
+         *
+         * Rotative Performance Logger uses std::thread_id in log entries.
+         * You can use a custom name by calling this function from the desired thread.
+         *
+         * @param threadName Nmae of the therad to be used in log lines
+         */
+        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
+
 #endif
         /**
          * @brief Create a folder in the MEGA account
