@@ -419,7 +419,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
                 request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
-                attributeValue = request->getName() ? request->getName() : "";
+                mApi[apiIndex].setAttributeValue(request->getName() ? request->getName() : "");
             }
             else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
             {
@@ -427,7 +427,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
-                attributeValue = request->getText() ? request->getText() : "";
+                mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : "");
             }
         }
 
@@ -435,12 +435,12 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             if (mApi[apiIndex].lastError == API_OK)
             {
-                attributeValue = "Avatar changed";
+                mApi[apiIndex].setAttributeValue("Avatar changed");
             }
 
             if (mApi[apiIndex].lastError == API_ENOENT)
             {
-                attributeValue = "Avatar not found";
+                mApi[apiIndex].setAttributeValue("Avatar not found");
             }
         }
         break;
@@ -526,7 +526,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CHAT_URL:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            chatlink.assign(request->getLink());
+            mApi[apiIndex].setChatLink(request->getLink());
         }
         break;
 #endif
@@ -534,21 +534,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_CREATE_ACCOUNT:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            sid = request->getSessionKey();
+            mApi[apiIndex].setSid(request->getSessionKey());
         }
         break;
 
     case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            stringTable.reset(request->getMegaStringTable()->copy());
+            mApi[apiIndex].setStringTable(request->getMegaStringTable()->copy());
         }
         break;
 
     case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            stringListMap.reset(request->getMegaStringListMap()->copy());
+            mApi[apiIndex].setStringLists(request->getMegaStringListMap()->copy());
         }
         break;
 
@@ -575,13 +575,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_BACKUP_PUT:
-        mBackupId = request->getParentHandle();
+        mApi[apiIndex].setBackupId(request->getParentHandle());
         break;
 
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
+            mApi[apiIndex].setFavNodes(request->getMegaHandleList()->copy());
         }
         break;
 
@@ -745,10 +745,12 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
 {
-    auto it = std::find_if(mApi.begin(), mApi.end(), [s](const PerApi& p) { return p.megaApi == s; });
-    ASSERT_NE(it, mApi.end());
-    it->receiveEvent(event);
-    LOG_debug << "Received event " << event->getType();
+    int index = getApiIndex(s);
+    if (index >= 0) // it can be -1 when tests are being destroyed
+    {
+        mApi[index].receiveEvent(event);
+        LOG_debug << "Received event " << event->getType();
+    }
 }
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
@@ -1454,7 +1456,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
+    ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
     output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
@@ -1529,7 +1531,7 @@ TEST_F(SdkTest, SdkTestCreateEphmeralPlusPlusAccount)
 
     // Logout from ephemeral plus plus session and resume session
     ASSERT_NO_FATAL_FAILURE(locallogout());
-    synchronousResumeCreateAccountEphemeralPlusPlus(0, sid.c_str());
+    synchronousResumeCreateAccountEphemeralPlusPlus(0, mApi[0].getSid().c_str());
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Account creation failed after resume (error: " << mApi[0].lastError << ")";
 
     gSessionIDs[0] = "invalid";
@@ -2545,7 +2547,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_FIRSTNAME));
-    ASSERT_EQ( firstname2, attributeValue) << "Firstname is wrong";
+    ASSERT_EQ(firstname2, mApi[1].getAttributeValue()) << "Firstname is wrong";
 
     delete u;
 
@@ -2559,7 +2561,7 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_SET_ATTR_USER]) );
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
-    string pwdReminder = attributeValue;
+    string pwdReminder = mApi[0].getAttributeValue();
     size_t offset = pwdReminder.find(':');
     offset = pwdReminder.find(':', offset+1);
     ASSERT_EQ( pwdReminder.at(offset+1), '1' ) << "Password reminder attribute not updated";
@@ -2574,7 +2576,7 @@ TEST_F(SdkTest, SdkTestContacts)
     string langCode = "es";
     ASSERT_EQ(API_OK, synchronousSetUserAttribute(0, MegaApi::USER_ATTR_LANGUAGE, langCode.c_str()));
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
-    string language = attributeValue;
+    string language = mApi[0].getAttributeValue();
     ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
 
     delete u;
@@ -2598,10 +2600,10 @@ TEST_F(SdkTest, SdkTestContacts)
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
-    attributeValue = "";
+    mApi[1].setAttributeValue("");
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
-    ASSERT_STREQ( "Avatar changed", attributeValue.c_str()) << "Failed to change avatar";
+    ASSERT_EQ( "Avatar changed", mApi[1].getAttributeValue()) << "Failed to change avatar";
 
     int64_t filesizeSrc = getFilesize(AVATARSRC);
     int64_t filesizeDst = getFilesize(AVATARDST);
@@ -2625,10 +2627,10 @@ TEST_F(SdkTest, SdkTestContacts)
     null_pointer = (u == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
 
-    attributeValue = "";
+    mApi[1].setAttributeValue("");
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
-    ASSERT_STREQ("Avatar not found", attributeValue.c_str()) << "Failed to remove avatar";
+    ASSERT_EQ("Avatar not found", mApi[1].getAttributeValue()) << "Failed to remove avatar";
 
     delete u;
 
@@ -6344,7 +6346,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
 
     // update backup
-    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mApi[0].getBackupId(), MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_EQ(API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // now remove all backups, only wait for completion of the third one
@@ -6364,7 +6366,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // check heartbeat
-    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
+    err = synchronousSendBackupHeartbeat(0, mApi[0].getBackupId(), 1, 10, 1, 1, 0, targetNodes[0]);
     ASSERT_EQ(API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
 
@@ -6380,9 +6382,9 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
-    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    err = synchronousRemoveBackup(0, mApi[0].getBackupId(), nullptr);
     ASSERT_EQ(API_OK, err) << "removeBackup failed (error: " << err << ")";
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mApi[0].getBackupId(), BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_EQ(API_OK, err) << "updateBackup for deleted backup should succeed now, and revive the record. But, error: " << err;
 
     // We can't test this, as reviewer wants an assert to fire for EARGS
@@ -6436,10 +6438,10 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
-    ASSERT_EQ(mMegaFavNodeList->size(), 2u) << "synchronousGetFavourites failed...";
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 2u) << "synchronousGetFavourites failed...";
     err = synchronousGetFavourites(0, nullptr, 1);
-    ASSERT_EQ(mMegaFavNodeList->size(), 1u) << "synchronousGetFavourites failed...";
-    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 1u) << "synchronousGetFavourites failed...";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mApi[0].getFavNode(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
@@ -6776,7 +6778,7 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
     ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), deviceName) << "getDeviceName returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -6792,9 +6794,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
     {
-        deviceName = attributeValue;
+        deviceName = mApi[0].getAttributeValue();
     }
     else
     {
@@ -6804,7 +6806,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         // make sure Device Name attr was set
         int err = synchronousGetDeviceName(0);
         ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
-        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+        ASSERT_EQ(deviceName, mApi[0].getAttributeValue()) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
 
@@ -6981,9 +6983,10 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     const string& pathToDriveStr = pathToDrive.u8string();
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
-    if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
+    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
     {
-        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), attributeValue.c_str())) << "Ext-drive name was set to current device name";
+        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), mApi[0].getAttributeValue().c_str()))
+            << "Ext-drive name was set to current device name";
     }
 
     // drive name
@@ -7003,7 +7006,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     // get drive name
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, driveName) << "getDriveName returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), driveName) << "getDriveName returned incorrect value";
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
@@ -7112,7 +7115,7 @@ TEST_F(SdkTest, SdkUserAlias)
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), alias) << "getUserAlias returned incorrect value";
 
     // test setter/getter for different value
     alias = "UserAliasTest_changed";
@@ -7120,7 +7123,7 @@ TEST_F(SdkTest, SdkUserAlias)
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
+    ASSERT_EQ(mApi[0].getAttributeValue(), alias) << "getUserAlias returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
@@ -7129,14 +7132,13 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     getCountryCallingCodes();
-    ASSERT_NE(nullptr, stringListMap);
-    ASSERT_GT(stringListMap->size(), 0);
+    ASSERT_GT(mApi[0].getStringListCount(), 0u);
     // sanity check a few country codes
-    const MegaStringList* const nz = stringListMap->get("NZ");
+    const MegaStringList* const nz = mApi[0].getStringList("NZ");
     ASSERT_NE(nullptr, nz);
     ASSERT_EQ(1, nz->size());
     ASSERT_EQ(0, strcmp("64", nz->get(0)));
-    const MegaStringList* const de = stringListMap->get("DE");
+    const MegaStringList* const de = mApi[0].getStringList("DE");
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
@@ -7155,15 +7157,14 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
         {"+640", "John Smith"}, // not sms verified
     };
     getRegisteredContacts(contacts);
-    ASSERT_NE(nullptr, stringTable);
-    ASSERT_EQ(2, stringTable->size());
+    ASSERT_EQ(2, mApi[0].getStringTableSize());
 
     // repacking and sorting result
     using row_t = std::tuple<std::string, std::string, std::string>;
     std::vector<row_t> table;
-    for (int i = 0; i < stringTable->size(); ++i)
+    for (int i = 0; i < mApi[0].getStringTableSize(); ++i)
     {
-        const MegaStringList* const stringList = stringTable->get(i);
+        const MegaStringList* const stringList = mApi[0].getStringTableRow(i);
         ASSERT_EQ(3, stringList->size());
         table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
     }
