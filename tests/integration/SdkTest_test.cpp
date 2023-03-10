@@ -12007,24 +12007,3 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 0);
 
 }
-
-TEST_F(SdkTest, ResetPassword)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    const char* email = megaApi[0]->getMyEmail();
-    cout << "email: " << email << endl;
-    //const char* privateKey = megaApi[0]->getMyRSAPrivateKey();
-
-    ASSERT_EQ(synchronousResetPassword(0, email, true), MegaError::API_OK)  << "resetPassword failed";
-
-    cout << "input link: ";
-    string link;
-    getline(cin, link);
-
-    char *masterKey = megaApi[0]->exportMasterKey();
-    const char* password = getenv("MEGA_PWD");
-    ASSERT_TRUE(password);
-
-    ASSERT_EQ(synchronousResetPassword(0, email, true), MegaError::API_OK) << "resetPassword failed";
-    ASSERT_EQ(synchronousConfirmResetPassword(0, link.c_str(), password, masterKey), MegaError::API_OK) << "cofirmResetPassword failed";
-}
