@@ -1453,7 +1453,6 @@ TEST_F(SdkTest, SdkTestCreateAccount)
                               testEmail.substr(0, testEmail.find("@")) + '+' +
                               getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Creating Mega account " << newTestAcc;
-    cout << "Creating account " << newTestAcc << endl;
     const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
