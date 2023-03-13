@@ -3649,6 +3649,11 @@ void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
     mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
+void MegaRequestPrivate::setMegaHandleList(const MegaHandleList* handles)
+{
+    mHandleList.reset(handles ? handles->copy() : nullptr);
+}
+
 MegaScheduledCopyListener *MegaRequestPrivate::getBackupListener() const
 {
     return backupListener;
@@ -5953,6 +5958,11 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
 }
+
+void MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
+{
+    mega::RotativePerformanceLogger::sThreadName = threadName;
+}
 #endif
 
 void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
@@ -6925,6 +6935,12 @@ void MegaApiImpl::setSecureFlag(bool enable)
 {
     SdkMutexGuard m(sdkMutex);
     client->mKeyManager.setSecureFlag(enable);
+}
+
+void MegaApiImpl::setManualVerificationFlag(bool enable)
+{
+    SdkMutexGuard m(sdkMutex);
+    client->mKeyManager.setManualVerificationFlag(enable);
 }
 
 void MegaApiImpl::openShareDialog(MegaNode* node, MegaRequestListener* listener)
@@ -24119,10 +24135,9 @@ void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::putSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
-    assert(!nodes.empty() && (!names || names->size() == static_cast<int>(nodes.size())));
-
+    assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENTS, listener);
     request->setTotalBytes(sid);
     request->setMegaHandleList(nodes);
@@ -24180,7 +24195,7 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
     waiter->notify();
 }
 
-void MegaApiImpl::removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener)
+void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
     request->setTotalBytes(sid);

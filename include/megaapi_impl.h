@@ -1495,6 +1495,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(const MegaStringList* stringList);
+        void setMegaHandleList(const MegaHandleList* handles);
         void setMegaHandleList(const vector<handle> &handles);
         void setMegaScheduledMeetingList(const MegaScheduledMeetingList *schedMeetingList);
 
@@ -2494,6 +2495,7 @@ class MegaApiImpl : public MegaApp
         void setLoggingName(const char* loggingName);
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
+        static void setCurrentThreadNameForRotativePerformanceLogger(const char * threadName);
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
@@ -2513,6 +2515,7 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void upgradeSecurity(MegaRequestListener* listener = NULL);
         void setSecureFlag(bool enable);
+        void setManualVerificationFlag(bool enable);
         void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
@@ -2658,9 +2661,9 @@ class MegaApiImpl : public MegaApp
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void putSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
+        void putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
-        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
+        void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();

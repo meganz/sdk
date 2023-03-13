@@ -1735,7 +1735,12 @@ bool DirectReadSlot::doio()
                         increaseReqsInflight();
                     }
                     // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
-                    processAnyOutputPieces();
+                    if (!processAnyOutputPieces())
+                    {
+                        // app-requested abort
+                        delete dr;
+                        return true;
+                    }
                 }
                 else if (!pauseForRaid)
                 {
