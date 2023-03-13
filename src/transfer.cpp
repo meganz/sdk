@@ -1738,7 +1738,7 @@ bool DirectReadSlot::doio()
                     if (!processAnyOutputPieces())
                     {
                         // app-requested abort
-                        delete dr;
+                        delete mDr;
                         return true;
                     }
                 }
