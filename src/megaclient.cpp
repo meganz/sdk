@@ -14547,6 +14547,7 @@ error MegaClient::updateAuthring(AuthRing *authring, attr_t authringType, bool t
             else
             {
                 mPendingContactKeys.erase(it);
+                LOG_debug << "Authring " << User::attr2string(authringType) << " initialization finished";
             }
         }
     }
