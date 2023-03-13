@@ -33791,7 +33791,9 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const int freq, const int i
                                                      const MegaIntegerMap* byMonthWeekDay)
     : mScheduledRules(mega::make_unique<ScheduledRules>(
                           isValidFreq(freq) ? freq : FREQ_INVALID,
-                          isValidInterval(interval) ? interval : INTERVAL_INVALID,
+                          isValidInterval(interval) ? interval : int{INTERVAL_INVALID},
+                          //                                     ^^^^^^^^^^^^^^^^^^^^^
+                          // int workaroud due to ODR-use requirement in C++11 (dropped from C++17)
                           isValidUntil(until) ? until : MEGA_INVALID_TIMESTAMP,
                           byWeekDay ? unique_ptr<MegaSmallIntVector>(
                                   dynamic_cast<const MegaIntegerListPrivate*>(byWeekDay)->toByteList()

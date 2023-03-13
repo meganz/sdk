@@ -191,7 +191,6 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     m_time_t until = mega_invalid_timestamp;
     if (hasUntil && !r.unserializei64(until))       { return logAndFail("until");    }
 
-    rules_vector byWeekDay;
     const auto unserializeVector = [&r, &logAndFail](rules_vector& outVec, const string& errMsg) -> bool
     {
         uint32_t s = 0;
@@ -207,17 +206,14 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
             }
             else                                    { return logAndFail(errMsg); }
         }
+
+        return true;
     };
-    if (hasByWeekDay)
-    {
-        unserializeVector(byWeekDay, "byWeekDay");
-    }
+    rules_vector byWeekDay;
+    if (hasByWeekDay && !unserializeVector(byWeekDay, "byWeekDay"))    { return nullptr; }
 
     rules_vector byMonthDay;
-    if (hasByMonthDay)
-    {
-        unserializeVector(byMonthDay, "byMonthDay");
-    }
+    if (hasByMonthDay && !unserializeVector(byMonthDay, "byMonthDay")) { return nullptr; }
 
     rules_map byMonthWeekDay;
     if (hasByMonthWeekDay)
