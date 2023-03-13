@@ -83,6 +83,7 @@ extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gResumeSessions;
 extern bool gScanOnly;
+extern bool gManualVerification;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 

@@ -2072,6 +2072,11 @@ void MegaApi::setUseRotativePerformanceLogger(const char * logPath, const char *
 {
     MegaApiImpl::setUseRotativePerformanceLogger(logPath, logFileName, logToStdOut, archivedFilesAgeSeconds);
 }
+
+void MegaApi::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
+{
+    MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(threadName);
+}
 #endif
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
@@ -2517,6 +2522,11 @@ void MegaApi::upgradeSecurity(MegaRequestListener* listener)
 void MegaApi::setSecureFlag(bool enable)
 {
     pImpl->setSecureFlag(enable);
+}
+
+void MegaApi::setManualVerificationFlag(bool enable)
+{
+    pImpl->setManualVerificationFlag(enable);
 }
 
 void MegaApi::openShareDialog(MegaNode *node, MegaRequestListener *listener)
@@ -4172,9 +4182,9 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target, bool includeSensitive)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
-    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target, includeSensitive);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, mimeType, target, includeSensitive);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -5795,7 +5805,7 @@ void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->fetchSet(sid, listener);
 }
 
-void MegaApi::createSetElements(MegaHandle sid, const vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener)
+void MegaApi::createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     pImpl->putSetElements(sid, nodes, names, listener);
 }
@@ -5816,7 +5826,7 @@ void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* n
     pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
 }
 
-void MegaApi::removeSetElements(MegaHandle sid, const vector<MegaHandle>& eids, MegaRequestListener* listener)
+void MegaApi::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     pImpl->removeSetElements(sid, eids, listener);
 }

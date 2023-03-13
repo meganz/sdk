@@ -1421,6 +1421,7 @@ bool User::setChanged(attr_t at)
 
         case ATTR_KEYS:
             changed.keys = true;
+            changed.authring = true;
             break;
 
         default:
