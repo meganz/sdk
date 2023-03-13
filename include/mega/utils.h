@@ -264,6 +264,10 @@ struct MEGA_API MemAccess
 
 #ifdef _WIN32
 int mega_snprintf(char *s, size_t n, const char *format, ...);
+
+// get the Windows error message in UTF-8
+std::string winErrorMessage(DWORD error);
+
 #endif
 
 struct MEGA_API TLVstore
@@ -581,6 +585,7 @@ struct CacheableWriter
     void serializei64(int64_t field);
     void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
+    void serializeu16(uint16_t field);
     void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
@@ -613,6 +618,7 @@ struct CacheableReader
     bool unserializei8(int8_t& s);
     bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
+    bool unserializeu16(uint16_t &s);
     bool unserializeu32(uint32_t& s);
     bool unserializeu8(uint8_t& field);
     bool unserializeu64(uint64_t& s);
@@ -983,10 +989,10 @@ struct SyncTransferCount
     bool operator!=(const SyncTransferCount& rhs) const;
     void operator-=(const SyncTransferCount& rhs);
 
-    size_t mCompleted = 0;
-    size_t mCompletedBytes = 0;
-    size_t mPending = 0;
-    size_t mPendingBytes = 0;
+    uint32_t mCompleted = 0;
+    uint32_t mPending = 0;
+    uint64_t mCompletedBytes = 0;
+    uint64_t mPendingBytes = 0;
 };
 
 struct SyncTransferCounts

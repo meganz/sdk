@@ -483,6 +483,9 @@ static const char* treestatename(treestate_t ts)
 
         case TREESTATE_SYNCING:
             return "Syncing";
+
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";
@@ -542,7 +545,7 @@ int main(int argc, char *argv[])
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app,
-                            new WAIT_CLASS,
+                            shared_ptr<Waiter>(new WAIT_CLASS),
                             new HTTPIO_CLASS,
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),

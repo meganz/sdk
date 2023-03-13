@@ -171,8 +171,8 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck) override;
-    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck);
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
+    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
@@ -194,6 +194,9 @@ public:
 
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
+
+    std::string getErrorMessage(int error) const override;
+    bool isErrorFileNotFound(int error) const override;
 
 protected:
     AsyncIOContext* newasynccontext() override;

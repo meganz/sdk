@@ -80,13 +80,13 @@ ScheduledFlags* ScheduledFlags::unserialize(const std::string &in)
 /* class scheduledRules */
 ScheduledRules::ScheduledRules(int freq,
                               int interval,
-                              const string& until,
+                              m_time_t until,
                               const rules_vector* byWeekDay,
                               const rules_vector* byMonthDay,
                               const rules_map* byMonthWeekDay)
     : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-      mUntil(until),
+      mUntil(isValidUntil(until) ? until : mega_invalid_timestamp),
       mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
       mByMonthDay(byMonthDay ? new rules_vector(*byMonthDay) : nullptr),
       mByMonthWeekDay(byMonthWeekDay ? new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
@@ -114,7 +114,7 @@ ScheduledRules::~ScheduledRules()
 
 ScheduledRules::freq_type_t ScheduledRules::freq() const                    { return mFreq; }
 int ScheduledRules::interval() const                                        { return mInterval; }
-const std::string& ScheduledRules::until() const                            { return mUntil;}
+m_time_t ScheduledRules::until() const                                      { return mUntil;}
 const ScheduledRules::rules_vector* ScheduledRules::byWeekDay() const       { return mByWeekDay.get(); }
 const ScheduledRules::rules_vector* ScheduledRules::byMonthDay() const      { return mByMonthDay.get(); }
 const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay() const     { return mByMonthWeekDay.get(); }
@@ -139,7 +139,7 @@ bool ScheduledRules::equalTo(const mega::ScheduledRules *r) const
     if (!r)                            { return false; }
     if (mFreq != r->freq())            { return false; }
     if (mInterval != r->interval())    { return false; }
-    if (mUntil.compare(r->until()))    { return false; }
+    if (mUntil != r->until())          { return false; }
 
     if (mByWeekDay || r->byWeekDay())
     {
@@ -174,7 +174,7 @@ bool ScheduledRules::serialize(string& out) const
 {
     assert(isValidFreq(mFreq));
     bool hasInterval = isValidInterval(mInterval);
-    bool hasUntil = !mUntil.empty();
+    bool hasUntil = isValidUntil(mUntil);
     bool hasByWeekDay = mByWeekDay.get() && !mByWeekDay->empty();
     bool hasByMonthDay = mByMonthDay.get() && !mByMonthDay->empty();
     bool hasByMonthWeekDay = mByMonthWeekDay.get() && !mByMonthWeekDay->empty();
@@ -184,7 +184,7 @@ bool ScheduledRules::serialize(string& out) const
     w.serializeexpansionflags(hasInterval, hasUntil, hasByWeekDay, hasByMonthDay, hasByMonthWeekDay);
 
     if (hasInterval) { w.serializei32(mInterval); }
-    if (hasUntil)    { w.serializestring(mUntil); }
+    if (hasUntil)    { w.serializei64(mUntil); }
     if (hasByWeekDay)
     {
         w.serializeu32(static_cast<uint32_t>(mByWeekDay->size()));
@@ -220,7 +220,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
     if (in.empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
-    std::string until;
+    m_time_t until = mega_invalid_timestamp;
     rules_vector byWeekDay;
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
@@ -249,7 +249,7 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
         return nullptr;
     }
 
-    if (hasUntil && !r.unserializestring(until))
+    if (hasUntil && !r.unserializei64(until))
     {
         assert(false);
         LOG_err << "Failure at schedule meeting rules unserialization until";
@@ -345,16 +345,16 @@ ScheduledRules* ScheduledRules::unserialize(const string& in)
 }
 
 /* class scheduledMeeting */
-ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, const std::string &startDateTime, const std::string &endDateTime,
+ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, m_time_t startDateTime, m_time_t endDateTime,
                                 const std::string &title, const std::string &description, handle organizerUserId, handle schedId,
                                 handle parentSchedId, int cancelled, const std::string &attributes,
-                                const std::string &overrides, ScheduledFlags* flags, ScheduledRules* rules)
+                                m_time_t overrides, ScheduledFlags* flags, ScheduledRules* rules)
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
       mSchedId(schedId),
       mParentSchedId(parentSchedId),
       mTimezone(timezone),
-      mStartDateTime(startDateTime ),
+      mStartDateTime(startDateTime),
       mEndDateTime(endDateTime),
       mTitle(title),
       mDescription(description),
@@ -394,18 +394,19 @@ ScheduledMeeting::~ScheduledMeeting()
 }
 
 void ScheduledMeeting::setSchedId(handle schedId)                       { mSchedId = schedId; }
+void ScheduledMeeting::setChatid(handle chatid)                         { mChatid = chatid; }
 
 handle ScheduledMeeting::chatid() const                                 { return mChatid; }
 handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
 handle ScheduledMeeting::schedId() const                                { return mSchedId; }
 handle ScheduledMeeting::parentSchedId() const                          { return mParentSchedId; }
 const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
-const string& ScheduledMeeting::startDateTime() const                   { return mStartDateTime; }
-const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }
+m_time_t ScheduledMeeting::startDateTime() const                        { return mStartDateTime; }
+m_time_t ScheduledMeeting::endDateTime() const                          { return mEndDateTime; }
 const string& ScheduledMeeting::title() const                           { return mTitle; }
 const string& ScheduledMeeting::description() const                     { return mDescription; }
 const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
-const string& ScheduledMeeting::overrides() const                       { return mOverrides; }
+m_time_t ScheduledMeeting::overrides() const                            { return mOverrides; }
 int ScheduledMeeting::cancelled() const                                 { return mCancelled; }
 const ScheduledFlags* ScheduledMeeting::flags() const                   { return mFlags.get(); }
 const mega::ScheduledRules *ScheduledMeeting::rules() const             { return mRules.get(); }
@@ -432,12 +433,12 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting timezone. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
-    if (mStartDateTime.empty())
+    if (!MegaClient::isValidMegaTimeStamp(mStartDateTime))
     {
         LOG_warn << "Invalid scheduled meeting StartDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
-    if (mEndDateTime.empty())
+    if (!MegaClient::isValidMegaTimeStamp(mEndDateTime))
     {
         LOG_warn << "Invalid scheduled meeting EndDateTime. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
@@ -452,6 +453,12 @@ bool ScheduledMeeting::isValid() const
         LOG_warn << "Invalid scheduled meeting rules. schedId: " << Base64Str<MegaClient::USERHANDLE>(mSchedId);
         return false;
     }
+    if (mOverrides != mega_invalid_timestamp && !MegaClient::isValidMegaTimeStamp(mOverrides))
+    {
+        // overrides is an optional field so if it's not present, we will store mega_invalid_timestamp
+        LOG_warn << "Invalid scheduled meeting overrides: " << mOverrides;
+        return false;
+    }
     return true;
 }
 
@@ -460,12 +467,12 @@ bool ScheduledMeeting::equalTo(const ScheduledMeeting* sm) const
     if (!sm)                                            { return false; }
     if (parentSchedId() != sm->parentSchedId())         { return false; }
     if (mTimezone.compare(sm->timezone()))              { return false; }
-    if (mStartDateTime.compare(sm->startDateTime()))	{ return false; }
-    if (mEndDateTime.compare(sm->endDateTime()))		{ return false; }
+    if (mStartDateTime != sm->startDateTime())          { return false; }
+    if (mEndDateTime != sm->endDateTime())              { return false; }
     if (mTitle.compare(sm->title()))                    { return false; }
     if (mDescription.compare(sm->description()))		{ return false; }
     if (mAttributes.compare(sm->attributes()))          { return false; }
-    if (mOverrides.compare(sm->overrides()))            { return false; }
+    if (mOverrides != sm->overrides())                  { return false; }
     if (mCancelled != sm->cancelled())                  { return false; }
 
     if (mFlags || sm->flags())
@@ -494,7 +501,7 @@ bool ScheduledMeeting::serialize(string& out) const
 
     bool hasParentSchedId = parentSchedId() != UNDEF;
     bool hasAttributes = !attributes().empty();
-    bool hasOverrides = !overrides().empty();
+    bool hasOverrides = MegaClient::isValidMegaTimeStamp(overrides());
     bool hasCancelled = cancelled() >= 0;
     bool hasflags = flags();
     bool hasRules = rules();
@@ -503,15 +510,15 @@ bool ScheduledMeeting::serialize(string& out) const
     w.serializehandle(schedId());
     w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
-    w.serializestring(mStartDateTime);
-    w.serializestring(mEndDateTime);
+    w.serializei64(mStartDateTime);
+    w.serializei64(mEndDateTime);
     w.serializestring(mTitle);
     w.serializestring(mDescription);
     w.serializeexpansionflags(hasParentSchedId, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
 
     if (hasParentSchedId) { w.serializehandle(parentSchedId());}
     if (hasAttributes)    { w.serializestring(mAttributes); }
-    if (hasOverrides)     { w.serializestring(mOverrides); }
+    if (hasOverrides)     { w.serializei64(mOverrides); }
     if (hasCancelled)     { w.serializei32(cancelled()); }
     if (hasflags)
     {
@@ -539,12 +546,12 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     handle schedId = UNDEF;
     handle parentSchedId = UNDEF;
     std::string timezone;
-    std::string startDateTime;
-    std::string endDateTime;
+    m_time_t startDateTime = mega_invalid_timestamp;
+    m_time_t endDateTime = mega_invalid_timestamp;
     std::string title;
     std::string description;
     std::string attributes;
-    std::string overrides;
+    m_time_t overrides = mega_invalid_timestamp;
     std::string flagsStr;
     std::string rulesStr;
     int cancelled = -1;
@@ -557,8 +564,8 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
     if (!r.unserializehandle(schedId) ||
             !r.unserializehandle(organizerUserid) ||
             !r.unserializestring(timezone) ||
-            !r.unserializestring(startDateTime) ||
-            !r.unserializestring(endDateTime) ||
+            !r.unserializei64(startDateTime) ||
+            !r.unserializei64(endDateTime) ||
             !r.unserializestring(title) ||
             !r.unserializestring(description) ||
             !r.unserializeexpansionflags(expansions, flagsSize))
@@ -589,7 +596,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, handle chatid)
         return nullptr;
     }
 
-    if (hasOverrides && !r.unserializestring(overrides))
+    if (hasOverrides && !r.unserializei64(overrides))
     {
        assert(false);
        LOG_err << "Failure at schedule meeting unserialization override";
@@ -1116,14 +1123,15 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
+void TextChat::clearUpdatedSchedMeetingOccurrences()
 {
-    mScheduledMeetingsOcurrences.emplace(sm->schedId(), std::move(sm));
+    mUpdatedOcurrences.clear();
 }
 
-void TextChat::clearSchedMeetingOccurrences()
+void TextChat::addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm)
 {
-    mScheduledMeetingsOcurrences.clear();
+    if (!sm) { return; }
+    mUpdatedOcurrences.emplace_back(std::move(sm));
 }
 
 ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
@@ -1134,6 +1142,11 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
         return it->second.get();
     }
     return nullptr;
+}
+
+const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSchedMeetings()
+{
+    return mScheduledMeetings;
 }
 
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
@@ -1171,6 +1184,11 @@ bool TextChat::removeSchedMeeting(handle schedId)
     return true;
 }
 
+void TextChat::removeSchedMeetingsList(const handle_set& schedList)
+{
+    for_each(begin(schedList), end(schedList), [this](handle sm) { deleteSchedMeeting(sm); });
+}
+
 handle_set TextChat::removeChildSchedMeetings(handle parentSchedId)
 {
     // remove all scheduled meeting whose parent is parentSchedId
@@ -1186,40 +1204,6 @@ handle_set TextChat::removeChildSchedMeetings(handle parentSchedId)
     for_each(begin(deletedChildren), end(deletedChildren), [this](handle sm) { deleteSchedMeeting(sm); });
 
     return deletedChildren;
-}
-
-handle_set TextChat::removeSchedMeetingsOccurrencesAndChildren(handle schedId)
-{
-    // removes all scheduled meeting occurrences, whose scheduled meeting id OR parent scheduled meeting id, is equal to schedId
-    handle_set deletedOccurr;
-    for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
-    {
-        if (it->second->schedId() == schedId || it->second->parentSchedId() == schedId)
-        {
-            deletedOccurr.insert(it->second->schedId());
-        }
-    }
-
-    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
-
-    return deletedOccurr;
-}
-
-handle_set TextChat::removeChildSchedMeetingsOccurrences(handle parentSchedId)
-{
-    // remove all scheduled meeting occurrences, whose parent is scheduled meeting id, is equal to parentSchedId
-    handle_set deletedOccurr;
-    for (auto it = mScheduledMeetingsOcurrences.begin(); it != mScheduledMeetingsOcurrences.end(); it++)
-    {
-        if (it->second->parentSchedId() == parentSchedId)
-        {
-            deletedOccurr.insert(it->second->schedId());
-        }
-    }
-
-    for_each(begin(deletedOccurr), end(deletedOccurr), [this](handle sm) { deleteSchedMeetingOccurrBySchedId(sm); });
-
-    return deletedOccurr;
 }
 
 bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm)

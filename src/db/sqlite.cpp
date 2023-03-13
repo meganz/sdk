@@ -194,8 +194,7 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     checkDbFileAndAdjustLegacy(fsAccess, name, flags, dbPath);
     int result = sqlite3_open_v2(dbPath.toPath(false).c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
-        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction. (Required to avoid failure at SyncTest)
-        | SQLITE_OPEN_SHAREDCACHE // Allow shared uncommited data between connections
+        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction.
         , nullptr);
 
     if (result)
@@ -702,7 +701,7 @@ bool SqliteAccountState::remove(NodeHandle nodehandle)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
+    snprintf(buf, sizeof(buf), "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     int sqlResult = sqlite3_exec(db, buf, 0, 0, NULL);
     if (sqlResult == SQLITE_ERROR)
@@ -988,7 +987,7 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
         sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
         sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlag());
+        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
         sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
         sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
@@ -1829,7 +1828,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
     return count;
 }
 
-bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag)
 {
     if (!db)
     {
@@ -1847,14 +1846,16 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     {
         // exclude previous versions <- parent handle is of type != FILENODE
         std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
-                            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
+            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n1.flags & ? = ? AND n1.flags & ? = 0 AND n2.type !=";
         query.append(std::to_string(FILENODE));
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
-
     }
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int(mStmtNodeByMimeType, 1, static_cast<int>(mimeType))) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int  (mStmtNodeByMimeType, 1, static_cast<int>(mimeType))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 2, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 3, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeType, 4, static_cast<sqlite3_int64>(excludeFlags.to_ullong()))) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtNodeByMimeType, nodes);
         }
@@ -1871,6 +1872,70 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     }
 
     sqlite3_reset(mStmtNodeByMimeType);
+
+    return result;
+}
+
+
+bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle ancestorHandle, CancelToken cancelFlag)
+{
+    assert(!ancestorHandle.isUndef());
+    // must recurse from a specfic point
+
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    bool result = false;
+    int sqlResult = SQLITE_OK;
+    
+    if (!mStmtNodeByMimeTypeExcludeRecursiveFlags)
+    {
+        // recursive query from ancestorHandle
+        // do not recurse if parent type is FILENODE (that would be version)
+        // do not recurse if sensative flag set
+        // exclude previous versions <- parent handle is of type != FILENODE
+        //query = "SELECT nodehandle, counter, node FROM nodes";
+
+        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, mimetype, counter, node) AS (SELECT nodehandle, parenthandle, flags, mimetype, counter, node "
+            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.mimetype, N.counter, N.node "
+            "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & ? = 0)) "
+            "SELECT node.nodehandle, node.counter, node.node "
+            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND node.mimetype = ? AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != " + std::to_string(FILENODE);
+
+        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
+    }
+    
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 1, ancestorHandle.as8byte())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 2, static_cast<sqlite3_int64>(excludeRecursiveFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int  (mStmtNodeByMimeTypeExcludeRecursiveFlags, 3, static_cast<int>(mimeType))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 4, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 5, static_cast<sqlite3_int64>(requiredFlags.to_ulong()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 6, static_cast<sqlite3_int64>(excludeFlags.to_ulong()))) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(mStmtNodeByMimeTypeExcludeRecursiveFlags, nodes);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get node by Mime type excluding recursive flags from database: " << dbfile << err;
+        assert(!"Unable to get node by Mime type excluding recursive flags from database.");
+    }
+
+    sqlite3_reset(mStmtNodeByMimeTypeExcludeRecursiveFlags);
 
     return result;
 }

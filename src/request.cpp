@@ -28,12 +28,12 @@ namespace mega {
 
 bool Request::isFetchNodes() const
 {
-    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back());
+    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back().get());
 }
 
 void Request::add(Command* c)
 {
-    cmds.push_back(c);
+    cmds.push_back(unique_ptr<Command>(c));
 }
 
 size_t Request::size() const
@@ -41,22 +41,33 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req, bool& suppressSID) const
+void Request::get(string* req, bool& suppressSID, MegaClient* client) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
 
     suppressSID = true; // only if all commands in batch are suppressSID
 
+    map<string, int> counts;
+
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");
-        req->append(cmds[i]->getstring());
+        req->append(cmds[i]->getJSON(client));
         req->append("}");
         suppressSID = suppressSID && cmds[i]->suppressSID;
+        ++counts[cmds[i]->commandStr];
     }
 
     req->append("]");
+
+    string commandCounts;
+    for (auto& e : counts)
+    {
+        if (!commandCounts.empty()) commandCounts += " ";
+        commandCounts += e.first + ":" + std::to_string(e.second);
+    }
+    LOG_debug << "Req command counts: " << commandCounts;
 }
 
 bool Request::processCmdJSON(Command* cmd, bool couldBeError)
@@ -88,7 +99,7 @@ void Request::process(MegaClient* client)
     client->json = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
-        Command* cmd = cmds[processindex];
+        Command* cmd = cmds[processindex].get();
 
         client->restag = cmd->tag;
 
@@ -130,6 +141,20 @@ void Request::process(MegaClient* client)
             }
 #endif
         }
+
+        if (cmds[processindex]->persistent)
+        {
+            // do not leave the pointer lying around here
+            // the object may be passed to other systems, complete its task
+            // and then be deleted before this batch finishes
+            // and then we would be left with a dangling pointer to check `persistent` with
+            cmds[processindex].release();
+        }
+        else
+        {
+            // delete the command as soon as it's not needed anymore
+            cmds[processindex].reset();
+        }
     }
 
     json = client->json;
@@ -144,7 +169,7 @@ void Request::process(MegaClient* client)
 Command* Request::getCurrentCommand()
 {
     assert(processindex < cmds.size());
-    return cmds[processindex];
+    return cmds[processindex].get();
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -174,13 +199,6 @@ void Request::servererror(const std::string& e, MegaClient* client)
 
 void Request::clear()
 {
-    for (int i = (int)cmds.size(); i--; )
-    {
-        if (!cmds[i]->persistent)
-        {
-            delete cmds[i];
-        }
-    }
     cmds.clear();
     jsonresponse.clear();
     json.pos = NULL;
@@ -253,7 +271,8 @@ void RequestDispatcher::add(Command *c)
 
 bool RequestDispatcher::cmdspending() const
 {
-    return !nextreqs.front().empty();
+    return nextreqs.empty() ? false :
+          !nextreqs.front().empty();
 }
 
 bool RequestDispatcher::cmdsInflight() const
@@ -261,7 +280,7 @@ bool RequestDispatcher::cmdsInflight() const
     return !inflightreq.empty();
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes)
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -270,7 +289,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
     {
         nextreqs.push_back(Request());
     }
-    inflightreq.get(out, suppressSID);
+    inflightreq.get(out, suppressSID, client);
     includesFetchingNodes = inflightreq.isFetchNodes();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();

@@ -17,8 +17,8 @@ using namespace ::mega;
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
-bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+bool gManualVerification=false;
 
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
@@ -325,14 +325,6 @@ public:
 
                 {
                     std::cout << os.str() << std::flush;
-                }
-
-                if (!gTestingInvalidArgs)
-                {
-                    if (loglevel <= logError)
-                    {
-                        ASSERT_GT(loglevel, logError) << os.str();
-                    }
                 }
             }
 

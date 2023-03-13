@@ -258,6 +258,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -288,7 +289,7 @@ bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-
+    
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -301,7 +302,8 @@ bool WinFileAccess::sysopen(bool async)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        errorcode = e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -392,7 +394,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false);
+    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -516,12 +518,13 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck);
+    fopenSucceeded = fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    return fopenSucceeded;
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -576,6 +579,16 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
             }
         }
 
+        if (actualLeafNameIfDifferent)
+        {
+            auto actualFilename = LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName));
+
+            if (actualFilename != namePath.leafName())
+            {
+                *actualLeafNameIfDifferent = move(actualFilename);
+            }
+        }
+
         if (!skipcasecheck)
         {
             LocalPath filename = namePath.leafName();
@@ -584,7 +597,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
                 filename.localpath != wstring(fad.cAlternateFileName) &&
                 filename.localpath != L"." && filename.localpath != L"..")
             {
-                LOG_warn << "fopen failed due to invalid case";
+                LOG_warn << "fopen failed due to invalid case: '" << filename
+                         << "' vs '" << LocalPath::fromPlatformEncodedRelative(wstring(fad.cFileName)) << "'";
                 retry = false;
                 return false;
             }
@@ -630,7 +644,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to open file. Error code: " << e;
+        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -1221,10 +1236,10 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
     TCHAR volume[MAX_PATH + 1];
     if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
     {
-        TCHAR fs[MAX_PATH + 1];
+        TCHAR fs[MAX_PATH + 1] = { 0, };
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
         {
-            LOG_info << "Filesystem type: " << fs;
+            LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
                 && _wcsicmp(fs, L"FAT32")
                 && _wcsicmp(fs, L"exFAT");
@@ -1493,7 +1508,10 @@ WinDirNotify::~WinDirNotify()
             smNotifierThread->join();
             smNotifierThread.reset();
             CloseHandle(smEventHandle);
-            smQueue.clear();
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.clear();
+            }
         }
     }
 
@@ -1797,6 +1815,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                 if (WinFileAccess::skipattributes(info->FileAttributes))
                 {
                     result.type = TYPE_DONOTSYNC;
+                    LOG_debug << "do-not-sync path identified by attributes: " << path;
                 }
                 else
                 {
@@ -2042,6 +2061,15 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         return maximumBytes;
 
     return (m_off_t)numBytes.QuadPart;
+}
+
+std::string WinFileAccess::getErrorMessage(int error) const
+{
+    return winErrorMessage(error);
+}
+
+bool WinFileAccess::isErrorFileNotFound(int error) const {
+    return error == ERROR_FILE_NOT_FOUND;
 }
 
 } // namespace

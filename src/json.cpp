@@ -125,17 +125,14 @@ bool JSON::storeobject(string* s)
 bool JSON::storeKeyValueFromObject(string& key, string& value)
 {
     // this one can be used when the key is not a nameid
-    if (!storeobject(&key))
+    if (!storeobject(&key) || *pos != ':')
     {
         return false;
     }
-    if (*pos != ':') return false;
+
     ++pos;
-    if (!storeobject(&value))
-    {
-        return false;
-    }
-    return true;
+
+    return storeobject(&value);
 }
 
 bool JSON::skipnullvalue()
@@ -208,6 +205,16 @@ nameid JSON::getnameid(const char* ptr) const
     return id;
 }
 
+nameid JSON::getnameid()
+{
+    return getNameidSkipNull(true);
+}
+
+nameid JSON::getnameidvalue()
+{
+    return getNameidSkipNull(false);
+}
+
 std::string JSON::getname()
 {
     const char* ptr = pos;
@@ -257,7 +264,7 @@ std::string JSON::getnameWithoutAdvance() const
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
-nameid JSON::getnameid()
+nameid JSON::getNameidSkipNull(bool skipnullvalues)
 {
     const char* ptr = pos;
     nameid id = 0;
@@ -288,7 +295,7 @@ nameid JSON::getnameid()
         }
     }
 
-    bool skippedNull = id && skipnullvalue();
+    bool skippedNull = id && skipnullvalues && skipnullvalue();
 
     return skippedNull ? getnameid() : id;
 }
@@ -870,7 +877,7 @@ void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
 
-    sprintf(buf, "%" PRId64, n);
+    snprintf(buf, sizeof(buf), "%" PRId64, n);
 
     arg(name, buf, 0);
 }
@@ -936,15 +943,11 @@ void JSONWriter::endobject()
 
 void JSONWriter::element(int n)
 {
-    char buf[24];
-
-    sprintf(buf, "%d", n);
-
     if (elements())
     {
         mJson.append(",");
     }
-    mJson.append(buf);
+    mJson.append(std::to_string(n));
 }
 
 void JSONWriter::element(handle h, int len)

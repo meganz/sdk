@@ -175,7 +175,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false, LocalPath* actualLeafNameIfDifferent = nullptr) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
@@ -197,6 +197,9 @@ public:
     void asyncsyswrite(AsyncIOContext* context) override;
 
     ~PosixFileAccess();
+
+    std::string getErrorMessage(int error) const override;
+    bool isErrorFileNotFound(int error) const override;
 
 #ifdef HAVE_AIO_RT
 protected:

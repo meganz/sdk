@@ -81,28 +81,15 @@ private:
 
 extern std::string USER_AGENT;
 extern bool gRunningInCI;
-extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern bool gScanOnly;
+extern bool gManualVerification;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
 LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };
-
-class TestingWithLogErrorAllowanceGuard
-{
-public:
-    TestingWithLogErrorAllowanceGuard()
-    {
-        gTestingInvalidArgs = true;
-    }
-    ~TestingWithLogErrorAllowanceGuard()
-    {
-        gTestingInvalidArgs = false;
-    }
-};
 
 class TestFS
 {
@@ -237,7 +224,7 @@ struct SyncOptions
 
 struct StandardClient : public MegaApp
 {
-    WAIT_CLASS waiter;
+    shared_ptr<WAIT_CLASS> waiter;
 #ifdef GFX_CLASS
     GfxProc gfx;
 #endif
@@ -391,7 +378,7 @@ struct StandardClient : public MegaApp
         nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
         nextfunctionMC_sourcefile = sf;
         nextfunctionMC_sourceline = sl;
-        waiter.notify();
+        waiter->notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
         {
             if (!debugging)
@@ -411,7 +398,7 @@ struct StandardClient : public MegaApp
         nextfunctionSC_sourcefile = sf;
         nextfunctionSC_sourceline = sl;
         nextfunctionSC = [this, promiseSP, f]() { f(*this, promiseSP); };
-        waiter.notify();
+        waiter->notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
         {
             if (!debugging)
@@ -783,12 +770,17 @@ struct StandardClient : public MegaApp
     bool   opcr(const string& email);
 
     bool iscontact(const string& email);
+    bool isverified(const string& email);
+    bool verifyCredentials(const string& email);
+    bool resetCredentials(const string& email);
 
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
 
     void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
     bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
+
+    void upgradeSecurity(PromiseBoolSP result);
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
@@ -864,6 +856,24 @@ public:
 
     ~ClientManager();
 };
+
+template<class T>
+bool debugTolerantWaitOnFuture(std::future<T> f, size_t numSeconds)
+{
+    // don't just use get() as we will stall an entire jenkins run if the promise is not fulfilled
+    // rather, wait with a timeout
+    // if we stop in the debugger, continue the wait after the debugger continues
+    // otherwise, things fail on timeout immediately
+    for (size_t i = 0; i < numSeconds*10; ++i)
+    {
+        if (future_status::ready == f.wait_for(std::chrono::milliseconds(100)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 extern ClientManager* g_clientManager;
 

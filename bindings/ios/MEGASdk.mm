@@ -1524,21 +1524,21 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
     return self.megaApi->getSetCover(sid);
 }
 
-- (MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
+- (nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSetElement *element = self.megaApi->getSetElement(sid, eid);
-    MEGASetElement *setElement = setElement ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
+    MEGASetElement *setElement = element ? [[MEGASetElement alloc] initWithMegaSetElement:element->copy() cMemoryOwn:YES] : nil;
     
     delete element;
     
     return setElement;
 }
 
-- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid {
+- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
     if (self.megaApi == nil) return nil;
     
-    MegaSetElementList *setElementList = self.megaApi->getSetElements(sid);
+    MegaSetElementList *setElementList = self.megaApi->getSetElements(sid, includeElementsInRubbishBin);
     int size = setElementList->size();
     
     NSMutableArray *setElements = [[NSMutableArray alloc] initWithCapacity:size];
@@ -1553,10 +1553,10 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
     return [setElements copy];
 }
 
--(NSUInteger)megaSetElementCount:(MEGAHandle)sid {
+- (NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return 0;
     
-    return self.megaApi->getSetElementCount(sid);
+    return self.megaApi->getSetElementCount(sid, includeElementsInRubbishBin);
 }
 
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
@@ -1610,6 +1610,18 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
 - (void)disableExportNode:(MEGANode *)node {
     if (self.megaApi) {
         self.megaApi->disableExport(node.getCPtr);
+    }
+}
+
+- (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->openShareDialog(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setShareSecureFlag:(BOOL)enable {
+    if (self.megaApi) {
+        self.megaApi->setSecureFlag(enable);
     }
 }
 
@@ -2364,6 +2376,12 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
     return self.megaApi->platformSetRLimitNumFile((int)fileCount);
 }
 
+- (void)upgradeSecurityWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->upgradeSecurity([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {
@@ -2751,6 +2769,11 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList((int)order) cMemoryOwn:YES];
 }
 
+- (MEGAShareList *)getUnverifiedInShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedInShares((int)order) cMemoryOwn:YES];
+}
+
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
     if (self.megaApi == nil) return nil;
     return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node.getCPtr) cMemoryOwn:YES];
@@ -2770,6 +2793,11 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
 - (MEGAShareList *)outShares:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((int)order) cMemoryOwn:YES];
+}
+
+- (MEGAShareList *)getUnverifiedOutShares:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getUnverifiedOutShares((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
@@ -2971,6 +2999,21 @@ self.megaApi->fetchSetInPreviewMode([self createDelegateMEGARequestListener:dele
                        folderTargetType:(MEGAFolderTargetType)folderTargetType {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnInShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnOutSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnOutShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnPublicLinks(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
 }
 
 - (NSMutableArray *)recentActions {
