@@ -17725,7 +17725,17 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             auto range = multi_cachedtransfers[d].equal_range(f);
             for (auto it = range.first; it != range.second; ++it)
             {
-                if (it->second->files.empty()) continue;
+                if (it->second->files.empty())
+                {
+                    if (!it->second->localfilename.empty())
+                    {
+                        t = it->second;
+                        range.first = it;
+                        break;
+                    }
+                    continue;
+                }
+
                 File* f2 = it->second->files.front();
 
                 string ext1, ext2;
