@@ -72,4 +72,8 @@ using namespace mega;
     return self.set ? self.set->cover(): ::mega::INVALID_HANDLE;
 }
 
+- (BOOL)hasChangedType:(MEGASetChangeType)changeType {
+    return self.set ? self.set->hasChanged(int(changeType)) : NO;
+}
+
 @end

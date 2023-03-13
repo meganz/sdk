@@ -84,7 +84,7 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getNodeHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (int64_t)pendingContactRequestHandle {
+- (uint64_t)pendingContactRequestHandle {
     return self.megaUserAlert ? self.megaUserAlert->getPcrHandle() : ::mega::INVALID_HANDLE;
 }
 
@@ -122,7 +122,7 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
 }
 
-- (int64_t)scheduledMeetingId {
+- (uint64_t)scheduledMeetingId {
     return self.megaUserAlert ? self.megaUserAlert->getSchedId() : ::mega::INVALID_HANDLE;
 }
 
@@ -147,7 +147,7 @@ using namespace mega;
 - (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType {
     if (!self.megaUserAlert) return NO;
     
-    return self.megaUserAlert->hasSchedMeetingChanged(changeType);
+    return self.megaUserAlert->hasSchedMeetingChanged(int(changeType));
 }
 
 - (MEGAStringList *)titleList {
