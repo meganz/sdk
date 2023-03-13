@@ -1590,7 +1590,7 @@ public:
     // out-shares: populated from 'ok0' element from `f` command
     // in-shares: populated from readnodes() for `f` command
     // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
-    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+    std::map<NodeHandle, std::vector<byte>> mNewKeyRepository;
 
     // current request tag
     int reqtag;
