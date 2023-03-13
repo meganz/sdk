@@ -300,10 +300,9 @@ void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
-void SymmCipher::gcm_encrypt(const string& inputData, const byte *key, size_t keylength,  const byte *iv, size_t ivlength, unsigned taglen, string& outputData)
+void SymmCipher::gcm_encrypt_with_key(const string& inputData, const byte *key, size_t keylength,  const byte *iv, size_t ivlength, unsigned taglen, string& outputData)
 {
     aesgcm_e.SetKeyWithIV(key, keylength, iv, ivlength);
-    std::string mediaKeyEncrypted;
     CryptoPP::StringSource(inputData, true,
                            new CryptoPP::AuthenticatedEncryptionFilter(aesgcm_e, new CryptoPP::StringSink(outputData), false, static_cast<int>(taglen)));
 }
@@ -366,6 +365,61 @@ bool SymmCipher::gcm_decrypt_aad(const byte *data, unsigned datalen,
             return false;
         }
 
+        // retrieve decrypted data from channel
+        df.SetRetrievalChannel(DEFAULT_CHANNEL);
+        uint64_t maxRetrievable = df.MaxRetrievable();
+        std::string retrieved;
+        if (maxRetrievable <= 0 || maxRetrievable > resultSize)
+        {
+            LOG_err << "Failed AES-GCM decryption with additional authenticated data: output size mismatch";
+            return false;
+        }
+        df.Get((byte*)result, maxRetrievable);
+    }
+    catch (CryptoPP::Exception const &e)
+    {
+        LOG_err << "Failed AES-GCM decryption with additional authenticated data: " << e.GetWhat();
+        return false;
+    }
+    return true;
+}
+
+bool SymmCipher::gcm_decrypt_with_key(const byte *data, size_t datalen,
+                     const byte *key, size_t keylength,
+                     const byte *tag, size_t taglen,
+                     const byte *iv, size_t ivlen,
+                     byte *result, size_t resultSize)
+
+{
+    std::string err;
+    if (!data || !datalen)                      {err = "Invalid data";}
+    if (!key || !keylength)                     {err = "Invalid decryption key";}
+    if (!tag || !taglen)                        {err = "Invalid tag";}
+    if (!iv || !ivlen)                          {err = "Invalid IV";}
+    if (!err.empty())
+    {
+        LOG_err << "Failed AES-GCM decryption with additional authenticated data: " <<  err;
+        return false;
+    }
+    try
+    {
+        // resynchronizes with provided IV
+        aesgcm_d.SetKeyWithIV(key, keylength, iv, ivlen);
+        unsigned int flags = AuthenticatedDecryptionFilter::MAC_AT_BEGIN | AuthenticatedDecryptionFilter::THROW_EXCEPTION;
+        AuthenticatedDecryptionFilter df(aesgcm_d, nullptr, flags, static_cast<int>(taglen));
+        // add tag (GCM authentication tag) to DEFAULT_CHANNEL to check message hash or MAC
+        df.ChannelPut(DEFAULT_CHANNEL, tag, taglen);
+        // add encrypted data to DEFAULT_CHANNEL in order to be decrypted
+        df.ChannelPut(DEFAULT_CHANNEL, data, datalen);
+        df.ChannelMessageEnd(AAD_CHANNEL);
+        df.ChannelMessageEnd(DEFAULT_CHANNEL);
+        // check data's integrity
+        assert(df.GetLastResult());
+        if (!df.GetLastResult())
+        {
+            LOG_err << "Failed AES-GCM decryption with additional authenticated data: integrity check failure";
+            return false;
+        }
         // retrieve decrypted data from channel
         df.SetRetrievalChannel(DEFAULT_CHANNEL);
         uint64_t maxRetrievable = df.MaxRetrievable();

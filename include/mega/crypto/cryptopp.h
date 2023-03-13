@@ -255,7 +255,7 @@ public:
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
      *
-     * This method sets the encryption key and the intialization vector in the symetric cipher
+     * This method sets the encryption key and the initialization vector in the symetric cipher
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
@@ -269,7 +269,7 @@ public:
      * @param taglen Length of expected authentication tag.
      * @param result outputData data, including the authentication tag.
      */
-    void gcm_encrypt(const std::string& inputData, const byte *key, size_t keylength, const byte *iv, size_t ivlength, unsigned taglen, std::string& outputData);
+    void gcm_encrypt_with_key(const std::string& inputData, const byte *key, size_t keylength, const byte *iv, size_t ivlength, unsigned taglen, std::string& outputData);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
@@ -320,6 +320,25 @@ public:
                          const byte *tag, unsigned taglen,
                          const byte *iv, unsigned ivlen, byte *result, size_t resultSize);
 
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
+     *
+     * This method sets the decryption key and the initialization vector in the symetric cipher
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param key Decryption key
+     * @param keylength Decryption key length
+     * @param iv Initialization vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     */
+    bool gcm_decrypt_with_key(const byte *data, size_t datalen,
+                         const byte *key, size_t keylength,
+                         const byte *tag, size_t taglen,
+                         const byte *iv, size_t ivlen,
+                         byte *result, size_t resultSize);
     /**
      * @brief Serialize key for compatibility with the webclient
      *
