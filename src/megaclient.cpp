@@ -14234,7 +14234,6 @@ void MegaClient::loadAuthrings()
 void MegaClient::fetchContactsKeys()
 {
     assert(mAuthRings.size() == 2);
-    mAuthRingsTemp = mAuthRings;
 
     // Populate mPendingContactKeys first, because if it's done just before fetchContactKeys,
     // it could finish synchronously and deactivate mAuthRingsTemp too early
@@ -14251,6 +14250,14 @@ void MegaClient::fetchContactsKeys()
         }
     }
 
+    if (pendingEdKeys.empty())
+    {
+        LOG_debug << "No need to fetch contact keys (no contacts)";
+        mPendingContactKeys.clear();
+        return;
+    }
+
+    mAuthRingsTemp = mAuthRings;
     for (auto &it : users)
     {
         User *user = &it.second;
