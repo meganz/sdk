@@ -1423,7 +1423,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_TRUE(bufRealEmail && bufRealPswd && bufScript) <<
         "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
 
-    // Test that Python was installed
+    // test that Python 3 was installed
     string pyExe = "python";
     {
         const string pyOpt = " -V";
@@ -1501,7 +1501,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account with new password " << newTestAcc.c_str();
 
-    // fetchnodes // needed internally to fill in user details, including email to allow canclAccount() to work
+    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
     megaApi[0]->fetchNodes(fetchnodesTracker.get());
     ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
