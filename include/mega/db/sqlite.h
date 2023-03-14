@@ -36,6 +36,9 @@ protected:
     FileSystemAccess *fsaccess;
     sqlite3_stmt* mDelStmt = nullptr;
     sqlite3_stmt* mPutStmt = nullptr;
+    DBErrorCallback mDBErrorCallBack;
+    // If caller can be interrupted by CancelToken, 'interrupt'  is true
+    void handleDBError(int sqliteError, const std::string& operation, bool interrupt);
 
 public:
     void rewind() override;
@@ -49,10 +52,11 @@ public:
     void abort() override;
     void remove() override;
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     virtual ~SqliteDbTable();
 
     bool inTransaction() const override;
+
 };
 
 /**
@@ -94,7 +98,7 @@ public:
     void createIndexes() override;
 
     void remove() override;
-    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     void finalise();
     virtual ~SqliteAccountState();
 
@@ -155,7 +159,7 @@ public:
 
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
 
-    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0, DBErrorCallback dBErrorCallBack = nullptr) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 

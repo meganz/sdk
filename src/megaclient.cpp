@@ -5692,10 +5692,8 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        LOG_err << "Cache update DB write error - disabling caching";
+        LOG_err << "Cache update DB write error";
         assert(false);
-        sendevent(99467, "Writing in DB error", 0);
-        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -10685,7 +10683,19 @@ void MegaClient::opensctable()
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBErrors error)
+            {
+                switch (error)
+                {
+                    case DBErrors::DB_ERROR_FULL:
+                        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_DB_FULL);
+                        break;
+                    case DBErrors::DB_ERROR_IO:
+                        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_IO_DB);
+                        break;
+                }
+            }));
+
             pendingsccommit = false;
 
             if (sctable)

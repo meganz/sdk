@@ -798,7 +798,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     {
         assert(false);
         LOG_err << "Failed to unserialize node. Requesting app to reload...";
-        mClient.sendevent(99468, "Failed to unserialize node", 0);
+
         fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
 
         return nullptr;
@@ -1485,11 +1485,16 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
         std::string reason;
         switch (reloadReason)
         {
-            case ReasonsToReload::REASON_ERROR_WRITE_DB:
+            case ReasonsToReload::REASON_ERROR_IO_DB:
+                mClient.sendevent(99467, "Writing in DB error", 0);
                 reason = "Failed to write to database";
                 break;
             case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
                 reason = "Failed to unserialize a node";
+                mClient.sendevent(99468, "Failed to unserialize node", 0);
+                break;
+            case ReasonsToReload::REASON_ERROR_DB_FULL:
+                reason = "Data base is full";
                 break;
             default:
                 reason = "Unknown reason";

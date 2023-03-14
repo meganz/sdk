@@ -839,9 +839,11 @@ typedef std::map<attr_t, AuthRing> AuthRingsMap;
 
 typedef enum {
     REASON_ERROR_UNSERIALIZE_NODE = 0,
-    REASON_ERROR_WRITE_DB = 1,
+    REASON_ERROR_IO_DB = 1,
     REASON_ERROR_NODE_INCONSISTENCY = 2,
-    REASON_ERROR_UNKNOWN = 3,
+    REASON_ERROR_DB_FULL = 3,
+    REASON_ERROR_DB = 4,
+    REASON_ERROR_UNKNOWN = 5,
 } ReasonsToReload;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
