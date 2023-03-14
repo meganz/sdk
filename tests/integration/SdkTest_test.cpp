@@ -1,4 +1,4 @@
-/** 
+/**
  * @file tests/sdk_test.cpp
  * @brief Mega SDK test file
  *
@@ -285,7 +285,7 @@ void SdkTest::TearDown()
 
 void SdkTest::Cleanup()
 {
-    out() << "Cleaning up accounts";
+     out() << "Cleaning up accounts";
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
@@ -328,10 +328,10 @@ void SdkTest::Cleanup()
         }
     }
 
-    if (!megaApi.empty() && megaApi[0])
+    for (auto& api : megaApi)
     {
         // Remove auxiliar contact
-        std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
+        std::unique_ptr<MegaUserList> ul{api->getContacts()};
         for (int i = 0; i < ul->size(); i++)
         {
             const char* contactEmail = ul->get(i)->getEmail();
@@ -346,6 +346,26 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
+            // Delete any shares
+
+            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
+            for (int i = 0; i < outshares->size(); ++i)
+            {
+                auto os = outshares->get(i);
+
+                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
+                if (n)
+                {
+                    RequestTracker rt(megaApi[nApi].get());
+
+                    megaApi[nApi]->share(n.get(), os->getUser(), MegaShare::ACCESS_UNKNOWN, &rt);
+
+                    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "unshare of file/folder failed or took more than 5 minutes";
+                }
+            }
+
+
+
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
@@ -365,6 +385,7 @@ void SdkTest::Cleanup()
                 MegaContactRequest *cr = crl->get(i);
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
             }
+
         }
     }
 }
@@ -6514,7 +6535,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
     std::unique_ptr<MegaNode> sfile(megaApi[0]->getNodeByHandle(fh3));
 
-    // setup sharing from 
+    // setuip sharing from 
     ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkSensitiveNodes contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1; }, 60000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
@@ -6597,7 +6618,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     node specfied
         @recursive
            searchInNodeManager
-        @non recursive                
+        @non recursive
     no node
         SEARCH_TARGET_ROOTNODE
             @recursive
