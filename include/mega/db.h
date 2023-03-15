@@ -40,7 +40,7 @@ public:
 
 enum class DBErrors
 {
-    DB_ERROR_GENERIC = 1,
+    DB_ERROR_UNKNOWN = 1,
     DB_ERROR_FULL = 2,
     DB_ERROR_IO = 3,
 };

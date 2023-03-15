@@ -10688,10 +10688,12 @@ void MegaClient::opensctable()
                 switch (error)
                 {
                     case DBErrors::DB_ERROR_FULL:
-                        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_DB_FULL);
+                        mNodeManager.fatalError(ErrorReason::REASON_ERROR_DB_FULL);
                         break;
                     case DBErrors::DB_ERROR_IO:
-                        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_IO_DB);
+                        mNodeManager.fatalError(ErrorReason::REASON_ERROR_IO_DB);
+                        break;
+                    default:
                         break;
                 }
             }));

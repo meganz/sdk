@@ -628,20 +628,9 @@ void SqliteDbTable::handleDBError(int sqliteError, const string& operation, bool
     LOG_err << operation << ": " << dbfile << err;
     assert(!operation.c_str());
 
-    DBErrors dbError = DBErrors::DB_ERROR_GENERIC;
-    switch (sqliteError)
+    if (mDBErrorCallBack && (sqliteError == SQLITE_FULL || sqliteError == SQLITE_IOERR))
     {
-    case SQLITE_FULL:
-        dbError = DBErrors::DB_ERROR_FULL;
-        break;
-    case SQLITE_IOERR:
-        dbError = DBErrors::DB_ERROR_IO;
-        break;
-    }
-
-    if (mDBErrorCallBack)
-    {
-        mDBErrorCallBack(dbError);
+        mDBErrorCallBack(sqliteError == SQLITE_FULL ? DBErrors::DB_ERROR_FULL : DBErrors::DB_ERROR_IO);
     }
 }
 
