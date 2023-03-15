@@ -1446,7 +1446,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // ------------------
 
     const string realEmail(bufRealEmail); // user@host.domain
-    auto pos = realEmail.find('@');
+    string::size_type pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
     const string testEmail = getenv(envVarAccount[0].c_str());
     const string newTestAcc = realAccount + '+' +
@@ -1456,7 +1456,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
-    auto timeOfEmail = std::chrono::system_clock::now();
+    chrono::time_point<chrono::system_clock>  timeOfConfirmEmail = std::chrono::system_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
@@ -1466,65 +1466,81 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, sid.c_str()));
 
     // Get confirmation link from the email
-    string link = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
-    ASSERT_FALSE(link.empty()) << "Confirmation link was not found.";
+    {
+        string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
+        ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
-    // Use confirmation link
-    ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, link.c_str(), origTestPwd));
+        // Use confirmation link
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, conformLink.c_str(), origTestPwd));
+    }
 
     // Login to the new account
-    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
-    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
+    }
 
     // fetchnodes // needed internally to fill in user details, including email
-    auto fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->fetchNodes(fetchnodesTracker.get());
-    ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker>  fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    }
 
     // test resetting the password
     // ---------------------------
     
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
-    timeOfEmail = std::chrono::system_clock::now();
+    chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
 
     // Get cancel account link from the mailbox
-    link = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfEmail);
-    ASSERT_FALSE(link.empty()) << "Recover account link was not found.";
+    const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
+    {
+        string recoverink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
+        ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
-    const char* newTestPwd = "PassAndGotHerPhoneNumber!";
-    char* masterKey = megaApi[0]->exportMasterKey();
-    ASSERT_EQ(synchronousConfirmResetPassword(0, link.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
-    
+        char* masterKey = megaApi[0]->exportMasterKey();
+        ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
+    }
+
     // Login using new password
-    loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
-    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account with new password " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account with new password " << newTestAcc.c_str();
+    }
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
-    fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->fetchNodes(fetchnodesTracker.get());
-    ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    }
 
     // delete the account
     // ------------------
     
     // Request cancel account link
-    timeOfEmail = std::chrono::system_clock::now();
-    auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->cancelAccount(cancelLinkTracker.get());
-    ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+    chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
+    {
+        unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->cancelAccount(cancelLinkTracker.get());
+        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+    }
 
     // Get cancel account link from the mailbox
-    string cancelLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "delete", timeOfEmail);
-    ASSERT_FALSE(cancelLink.empty()) << "Cancel account link was not found.";
+    {
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
-    // Use cancel account link
-    auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->confirmCancelAccount(cancelLink.c_str(), newTestPwd, useCancelLinkTracker.get());
-    // Allow API_ESID beside API_OK, due to the race between sc and cs channels
-    ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
-        << " Failed to confirm cancel account " << newTestAcc.c_str();
+        // Use cancel account link
+        unique_ptr<RequestTracker> useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
+        // Allow API_ESID beside API_OK, due to the race between sc and cs channels
+        ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
+            << " Failed to confirm cancel account " << newTestAcc.c_str();
+    }
 }
 
 /**
