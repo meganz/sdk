@@ -72,25 +72,22 @@ class EmailProcessor:
                 messages.append({subject: [n, text]})
         return messages
 
-if len(sys.argv) == 1 or "--help" in sys.argv[1:]:
-      print("usage:" + sys.argv[0] + " email-user email-password to-email-address {confirm|delete|recover|<other>} max-age-in-seconds")
-      print("")
-      print("e.g. python email_processor.py sdk-jenkins a-password sdk-jenkins+test-e-1@mega.co.nz recover 36000")
-      print("$TEST_PASS can override email-password")
-      print("")
-      exit(0);
+if len(sys.argv) == 1 or "--help" in sys.argv[1:] or (os.name == "nt" and len(sys.argv) == 2 and sys.argv[1] == "/?"):
+    # no args, --help or /? on windows
+    print("usage: " + sys.argv[0] + " email-user email-password to-email-address {confirm|cancel|recover|<other>} max-age-in-seconds")
+    print("")
+    print("e.g. python email_processor.py sdk-jenkins a-password sdk-jenkins+test-e-1@mega.co.nz recover 36000")
+    print("$TEST_PASS can override email-password, but password placholder still requried on command line")
+    exit(0);
 
 user = os.getenv('TEST_USER') or sys.argv[1]
 password = os.getenv('TEST_PASS') or sys.argv[2]
 to = sys.argv[3]
-intent = ""
-if sys.argv[4] == "confirm":
-    intent = "confirm"
-elif sys.argv[4] == "delete":
+intent = sys.argv[4]
+if intent == "delete":
+    # backwards compatible
     intent = "cancel"
-else:
-    # recover
-    indent = sys.argv[4]
+    
 delta = float(sys.argv[5])
 
 ep = EmailProcessor(user, password)
