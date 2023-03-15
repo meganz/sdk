@@ -23618,9 +23618,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (sm)
                 {
-                    std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
                     std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
+                    l->insert(new MegaScheduledMeetingPrivate(sm));
                     request->setMegaScheduledMeetingList(l.get());
                 }
 
