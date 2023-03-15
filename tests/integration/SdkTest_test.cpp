@@ -14,7 +14,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
  * @copyright Simplified (2-clause) BSD License.
- * * You should have received a copy of the license along with this
+ * You should have received a copy of the license along with this
 
  * program.
  */
@@ -11854,7 +11854,3 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
     ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
 }
 */
-
-TEST_F(SdkTest, a) {
-    fs::path p = fs::path("abc:fi>ush.txt");
-}
