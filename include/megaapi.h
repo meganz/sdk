@@ -5103,17 +5103,18 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
-        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_ERROR                     = 17, // Notify error to user. (Maybe app reload is required)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
     {
-        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
-        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
-        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
-        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
+        REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0,  // Failure when node is unserialized from DB
+        REASON_ERROR_IO_DB_FAILURE = 1,             // Input/output error at DB
+        REASON_ERROR_NODE_INCONSISTENCY = 2,        // Node inconsistency detected reading nodes from API
+        REASON_ERROR_DB_FULL = 3,                   // Failure when data is stored at DB
+        REASON_ERROR_UNKNOWN = 4,                   // Unknown reason
     };
 
     virtual ~MegaEvent();
@@ -5155,11 +5156,12 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_RELOAD, these values can be taken:
-     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
-     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     * For event EVENT_ERROR, these values can be taken:
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
      *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
+     *  - REASON_ERROR_DB_FULL = 3                   -> Failure when data is stored at DB
+     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
      *
      * @return Number relative to this event
      */

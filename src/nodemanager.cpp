@@ -797,9 +797,9 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     if (!node)
     {
         assert(false);
-        LOG_err << "Failed to unserialize node. Requesting app to reload...";
+        LOG_err << "Failed to unserialize node. Notifying the error to user";
 
-        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
+        fatalError(ErrorReason::REASON_ERROR_UNSERIALIZE_NODE);
 
         return nullptr;
     }
@@ -977,7 +977,7 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
-    mAccountReload = false;
+    mErrorDetected = REASON_ERROR_NO_ERROR;
 
     if (mTable)
         mTable->removeNodes();
@@ -1472,28 +1472,26 @@ void NodeManager::initCompleted()
     mTable->createIndexes();
 }
 
-void NodeManager::fatalError(ReasonsToReload reloadReason)
+void NodeManager::fatalError(ErrorReason errorReason)
 {
-    if (!mAccountReload)
+    if (mErrorDetected != errorReason)
     {
-        mAccountReload = true;
-
 #ifdef ENABLE_SYNC
         mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
 #endif
 
         std::string reason;
-        switch (reloadReason)
+        switch (errorReason)
         {
-            case ReasonsToReload::REASON_ERROR_IO_DB:
+            case ErrorReason::REASON_ERROR_IO_DB:
                 mClient.sendevent(99467, "Writing in DB error", 0);
                 reason = "Failed to write to database";
                 break;
-            case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
+            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
                 reason = "Failed to unserialize a node";
                 mClient.sendevent(99468, "Failed to unserialize node", 0);
                 break;
-            case ReasonsToReload::REASON_ERROR_DB_FULL:
+            case ErrorReason::REASON_ERROR_DB_FULL:
                 reason = "Data base is full";
                 break;
             default:
@@ -1501,13 +1499,14 @@ void NodeManager::fatalError(ReasonsToReload reloadReason)
                 break;
         }
 
-        mClient.app->reload(reason.c_str(), reloadReason);
+        mClient.app->notifyError(reason.c_str(), errorReason);
+        mErrorDetected = errorReason;
     }
 }
 
 bool NodeManager::accountShouldBeReloaded() const
 {
-    return mAccountReload;
+    return mErrorDetected == REASON_ERROR_UNSERIALIZE_NODE;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

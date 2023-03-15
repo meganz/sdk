@@ -831,13 +831,13 @@ typedef enum {
 typedef std::map<attr_t, AuthRing> AuthRingsMap;
 
 typedef enum {
+    REASON_ERROR_NO_ERROR = -1,
     REASON_ERROR_UNSERIALIZE_NODE = 0,
     REASON_ERROR_IO_DB = 1,
     REASON_ERROR_NODE_INCONSISTENCY = 2,
     REASON_ERROR_DB_FULL = 3,
-    REASON_ERROR_DB = 4,
-    REASON_ERROR_UNKNOWN = 5,
-} ReasonsToReload;
+    REASON_ERROR_UNKNOWN = 4,
+} ErrorReason;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
