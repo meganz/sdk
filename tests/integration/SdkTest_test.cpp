@@ -351,8 +351,40 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
-            // Delete any shares
 
+            // Delete any inshares
+            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
+            for (int i = 0; i < inshares->size(); ++i)
+            {
+                auto os = inshares->get(i);
+
+                if (auto email = os->getUser())
+                {
+                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                    if (shareUser)
+                    {
+                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
+                    }
+                    else
+                    {
+                        out() << "InShare " << i << " has user " << email << " but the corresponding user does not exist";
+                    }
+                }
+
+                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
+                if (n)
+                {
+                    RequestTracker rt(megaApi[nApi].get());
+
+                    megaApi[nApi]->remove(n.get(), &rt);
+
+                    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "remove of inshare folder failed or took more than 5 minutes";
+                }
+            }
+
+
+
+            // Delete any outshares
             unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
             for (int i = 0; i < outshares->size(); ++i)
             {
@@ -363,11 +395,11 @@ void SdkTest::Cleanup()
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove share's contact " << email << " from megaapi " << nApi;
+                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
-                        out() << "Share " << i << " has user " << email << " but the corresponding user does not exist";
+                        out() << "OutShare " << i << " has user " << email << " but the corresponding user does not exist";
                     }
                 }
 
@@ -381,8 +413,6 @@ void SdkTest::Cleanup()
                     ASSERT_EQ(API_OK, rt.waitForResult(300)) << "unshare of file/folder failed or took more than 5 minutes";
                 }
             }
-
-
 
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
@@ -404,6 +434,28 @@ void SdkTest::Cleanup()
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
             }
 
+        }
+    }
+
+    // finally, double check we got rid of all inshares and outshares
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
+    {
+        if (megaApi[nApi])
+        {
+            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
+            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed";
+
+            unique_ptr<MegaShareList> pendingOutshares(megaApi[nApi]->getPendingOutShares());
+            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed";
+
+            unique_ptr<MegaShareList> unverifiedOutshares(megaApi[nApi]->getUnverifiedOutShares());
+            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed";
+
+            unique_ptr<MegaShareList> unverifiedInshares(megaApi[nApi]->getUnverifiedInShares());
+            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed";
+
+            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
+            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed";
         }
     }
 }
