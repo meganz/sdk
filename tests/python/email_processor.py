@@ -72,7 +72,7 @@ class EmailProcessor:
                 messages.append({subject: [n, text]})
         return messages
 
-if len(sys.argv) == 1 or "--help" in sys.argv[1:] or (os.name == "nt" and len(sys.argv) == 2 and sys.argv[1] == "/?"):
+if len(sys.argv) == 1 or "--help" in sys.argv[1:] or (os.name == "nt" and "/?" in sys.argv[1:]):
     # no args, --help or /? on windows
     print("usage: " + sys.argv[0] + " email-user email-password to-email-address {confirm|cancel|recover|<other>} max-age-in-seconds")
     print("")
