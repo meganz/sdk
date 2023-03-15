@@ -1508,14 +1508,14 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     {
         unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
-        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account with new password " << newTestAcc.c_str();
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
     }
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
         unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
-        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
 
     // delete the account
