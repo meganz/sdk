@@ -328,16 +328,21 @@ void SdkTest::Cleanup()
         }
     }
 
-    for (auto& api : megaApi)
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
         // Remove auxiliar contact
-        std::unique_ptr<MegaUserList> ul{api->getContacts()};
-        for (int i = 0; i < ul->size(); i++)
+        std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
+        for (int i = 0; i < contacts->size(); i++)
         {
-            const char* contactEmail = ul->get(i)->getEmail();
-            if (contactEmail && *contactEmail) // sometimes the email is an empty string (!)
+            auto result = synchronousRemoveContact(nApi, contacts->get(i));
+            if (result == API_EARGS)
             {
-                removeContact(contactEmail);
+                // let's have a look at which other users the jenkins users have been connected to
+                out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
+            }
+            else
+            {
+                EXPECT_EQ(API_OK, result) << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
             }
         }
     }
@@ -352,6 +357,19 @@ void SdkTest::Cleanup()
             for (int i = 0; i < outshares->size(); ++i)
             {
                 auto os = outshares->get(i);
+
+                if (auto email = os->getUser())
+                {
+                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                    if (shareUser)
+                    {
+                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove share's contact " << email << " from megaapi " << nApi;
+                    }
+                    else
+                    {
+                        out() << "Share " << i << " has user " << email << " but the corresponding user does not exist";
+                    }
+                }
 
                 unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
                 if (n)
@@ -1111,21 +1129,23 @@ void SdkTest::replyContact(MegaContactRequest *cr, int action)
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action)) << "Contact reply failed";
 }
 
-void SdkTest::removeContact(string email, int timeout)
+int SdkTest::removeContact(unsigned apiIndex, string email)
 {
-    int apiIndex = 0;
-    MegaUser *u = megaApi[apiIndex]->getContact(email.c_str());
-    bool null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find the specified contact (" << email << ")";
+    unique_ptr<MegaUser> u(megaApi[apiIndex]->getContact(email.c_str()));
+
+    if (!u)
+    {
+        out() << "Trying to remove user " << email << " from contacts for megaapi " << apiIndex << " but the User does not exist";
+        return API_EINTERNAL;
+    }
 
     if (u->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
     {
-        mApi[apiIndex].userUpdated = true;  // nothing to do
-        delete u;
-        return;
+        out() << "Contact " << email << " was already non-visible, not sending any command to API for megaapi " << apiIndex << ".  visibility: " << u->getVisibility();
+        return API_EINTERNAL;
     }
 
-    auto result = synchronousRemoveContact(apiIndex, u);
+    auto result = synchronousRemoveContact(apiIndex, u.get());
 
     if (result == API_EEXIST)
     {
@@ -1133,9 +1153,8 @@ void SdkTest::removeContact(string email, int timeout)
         result = API_OK;
     }
 
-    ASSERT_EQ(API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
-
-    delete u;
+    EXPECT_EQ(API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
+    return result;
 }
 
 void SdkTest::verifyCredentials(unsigned apiIndex, string email)
@@ -2658,10 +2677,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Delete an existing contact ---
 
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, mApi[1].email) );
 
     u = megaApi[0]->getContact(mApi[1].email.c_str());
     null_pointer = (u == NULL);
@@ -6476,7 +6492,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
     ASSERT_TRUE(rootnodeA);
-        
+
     // /
     //    folder-A/              // top shared
     //        abFile1.png
@@ -6489,7 +6505,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_NE(nh, UNDEF);
     unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!folderA);
-     
+
     string subFolderAName = "sub-folder-A";
     MegaHandle snh = createFolder(0, subFolderAName.c_str(), folderA.get());
     ASSERT_NE(snh, UNDEF);
@@ -6535,12 +6551,12 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
     std::unique_ptr<MegaNode> sfile(megaApi[0]->getNodeByHandle(fh3));
 
-    // setuip sharing from 
+    // setuip sharing from
     ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkSensitiveNodes contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1; }, 60000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    
+
     // Verify credentials in both accounts
     if (gManualVerification)
     {
@@ -6570,8 +6586,8 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(nl2->size(), 1);
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     ASSERT_TRUE(sharedSubFolderA) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " not found";
-    
-    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false); 
+
+    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false);
     ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true);// share has to attributes
 
   /*
@@ -6692,7 +6708,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
     list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non senstive, non recusrive exclude and recusrive exclude 
+    ASSERT_EQ(list->size(), 1); // non senstive, non recusrive exclude and recusrive exclude
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
     list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
     ASSERT_EQ(list->size(), 0); // senstive, non recusrive required and recusrive exclude
@@ -9798,10 +9814,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    ASSERT_EQ( API_OK, removeContact(0, mApi[1].email) );
     unique_ptr<MegaUser> user(megaApi[0]->getContact(mApi[1].email.c_str()));
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
@@ -9887,10 +9900,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, mApi[1].email) );
     user.reset(megaApi[0]->getContact(mApi[1].email.c_str()));
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
@@ -11526,10 +11536,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     B1dtls.userAlertList.reset();
 
     // --- Delete an existing contact ---
-    A1dtls.userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(removeContact(B1dtls.email));
-    ASSERT_TRUE(waitForResponse(&A1dtls.userUpdated))   // at the target side (main account)
-        << "Delete contact update not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, B1dtls.email));
 
     // ContactChange  --  contact deleted
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
