@@ -5113,7 +5113,7 @@ public:
         REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0,  // Failure when node is unserialized from DB
         REASON_ERROR_IO_DB_FAILURE = 1,             // Input/output error at DB
         REASON_ERROR_NODE_INCONSISTENCY = 2,        // Node inconsistency detected reading nodes from API
-        REASON_ERROR_DB_FULL = 3,                   // Failure when data is stored at DB
+        REASON_ERROR_DB_FULL = 3,                   // Failure at DB due disk is full
         REASON_ERROR_UNKNOWN = 4,                   // Unknown reason
     };
 
@@ -5160,7 +5160,7 @@ public:
      *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
      *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
      *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_ERROR_DB_FULL = 3                   -> Failure when data is stored at DB
+     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
      *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
      *
      * @return Number relative to this event
