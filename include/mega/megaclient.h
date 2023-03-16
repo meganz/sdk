@@ -1518,7 +1518,7 @@ public:
     // This method notify to app that an error has been detected
     void fatalError(ErrorReason errorReason);
 
-    // This method returns true when failure at fatal has been detected
+    // This method returns true when fatal failure has been detected
     // None actions has been taken yet (reload, restart app, ...)
     bool accountShouldBeReloadedOrRestarted() const;
 
