@@ -4713,6 +4713,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAuthRings.clear();
     mAuthRingsTemp.clear();
+    mPendingContactKeys.clear();
     mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
@@ -14233,8 +14234,30 @@ void MegaClient::loadAuthrings()
 void MegaClient::fetchContactsKeys()
 {
     assert(mAuthRings.size() == 2);
-    mAuthRingsTemp = mAuthRings;
 
+    // Populate mPendingContactKeys first, because if it's done just before fetchContactKeys,
+    // it could finish synchronously and deactivate mAuthRingsTemp too early
+    mPendingContactKeys.clear();
+    auto &pendingEdKeys = mPendingContactKeys[ATTR_AUTHRING];
+    auto &pendingCuKeys = mPendingContactKeys[ATTR_AUTHCU255];
+    for (auto &it : users)
+    {
+        User *user = &it.second;
+        if (user->userhandle != me)
+        {
+            pendingEdKeys.insert(user->userhandle);
+            pendingCuKeys.insert(user->userhandle);
+        }
+    }
+
+    if (pendingEdKeys.empty())
+    {
+        LOG_debug << "No need to fetch contact keys (no contacts)";
+        mPendingContactKeys.clear();
+        return;
+    }
+
+    mAuthRingsTemp = mAuthRings;
     for (auto &it : users)
     {
         User *user = &it.second;
@@ -14330,6 +14353,11 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                 app->key_modified(uh, keyType);
                 sendevent(99451, "Key modification detected");
 
+                // flush the temporal authring if needed
+                if (temporalAuthring)
+                {
+                    updateAuthring(authring, authringType, temporalAuthring, uh);
+                }
                 return API_EKEY;
             }
             //else --> verify signature, despite fingerprint does not match (it will be checked again later)
@@ -14355,59 +14383,20 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             getua(user, attrType, 0); // in CommandGetUA::procresult(), we check signature actually matches
         }
     }
-    else if (!keyTracked) // then it's the authring for public Ed25519 key
+    else // then it's the authring for public Ed25519 key
     {
-        LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
-
-        // tracking has changed --> persist authring
-        authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
-
-        // if checking authrings for all contacts, accumulate updates for all contacts first
-        bool finished = true;
-        if (temporalAuthring)
+        if (!keyTracked)
         {
-            for (auto &it : users)
-            {
-                User *user = &it.second;
-                if (user->userhandle != me && !authring->isTracked(user->userhandle))
-                {
-                    // if only a current user is not tracked yet, update temporal authring
-                    finished = false;
-                    break;
-                }
-            }
+            LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
+
+            // tracking has changed --> persist authring
+            authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
         }
-        if (finished)
-        {
-            if (authring->needsUpdate())
-            {
-                std::string serializedAuthring = authring->serializeForJS();
-                if (mKeyManager.generation())
-                {
-                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackKey())";
-                    mKeyManager.commit(
-                    [this, serializedAuthring]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.setAuthRing(serializedAuthring);
-                    });
-                }
-                else
-                {
-                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
-                    it = mAuthRings.find(authringType);
-                    if (it == mAuthRings.end())
-                    {
-                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
-                                    << ": account not migrated and authring not available";
-                        assert(false);
-                        return API_ETEMPUNAVAIL;
-                    }
-                    it->second = *authring;
-                }
-            }
 
-            mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
+        error e = updateAuthring(authring, authringType, temporalAuthring, uh);
+        if (e)
+        {
+            return e;
         }
     }
 
@@ -14521,55 +14510,10 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             authring->add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
         }
 
-        // if checking authrings for all contacts, accumulate updates for all contacts first
-        bool finished = true;
-        if (temporalAuthring)
+        error e = updateAuthring(authring, authringType, temporalAuthring, uh);
+        if (e)
         {
-            for (auto &it : users)
-            {
-                User *user = &it.second;
-                if (user->userhandle != me && !authring->isTracked(user->userhandle))
-                {
-                    // if only a current user is not tracked yet, update temporal authring
-                    finished = false;
-                    break;
-                }
-            }
-        }
-        if (finished)
-        {
-            if (authring->needsUpdate())
-            {
-                std::string serializedAuthring = authring->serializeForJS();
-                if (mKeyManager.generation())
-                {
-                    if (authringType == ATTR_AUTHCU255)
-                    {
-                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackSignature())";
-                        mKeyManager.commit(
-                        [this, serializedAuthring]()
-                        {
-                            // Changes to apply in the commit
-                            mKeyManager.setAuthCU255(serializedAuthring);
-                        });
-                    }
-                }
-                else
-                {
-                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
-                    it = mAuthRings.find(authringType);
-                    if (it == mAuthRings.end())
-                    {
-                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
-                                    << ": account not migrated and authring not available";
-                        assert(false);
-                        return API_ETEMPUNAVAIL;
-                    }
-                    it->second = *authring;
-                }
-            }
-
-            mAuthRingsTemp.erase(authringType);
+            return e;
         }
     }
     else
@@ -14579,7 +14523,80 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         app->key_modified(uh, signatureType);
         sendevent(99452, "Signature mismatch for public key");
 
+        // flush the temporal authring if needed
+        if (temporalAuthring)
+        {
+            updateAuthring(authring, authringType, temporalAuthring, uh);
+        }
         return API_EKEY;
+    }
+
+    return API_OK;
+}
+
+error MegaClient::updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh)
+{
+    // if checking authrings for all contacts, accumulate updates for all contacts first
+    bool finished = true;
+    if (temporalAuthring)
+    {
+        auto it = mPendingContactKeys.find(authringType);
+        assert(it != mPendingContactKeys.end());
+
+        if (it != mPendingContactKeys.end())
+        {
+            it->second.erase(updateduh);
+            if (it->second.size())
+            {
+                // initialization not finished yet
+                finished = false;
+            }
+            else
+            {
+                mPendingContactKeys.erase(it);
+                LOG_debug << "Authring " << User::attr2string(authringType) << " initialization finished";
+            }
+        }
+    }
+
+    if (finished)
+    {
+        if (authring->needsUpdate())
+        {
+            std::string serializedAuthring = authring->serializeForJS();
+            if (mKeyManager.generation())
+            {
+                LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
+                mKeyManager.commit(
+                [this, authringType, serializedAuthring]()
+                {
+                    // Changes to apply in the commit
+                    if (authringType == ATTR_AUTHRING)
+                    {
+                        mKeyManager.setAuthRing(serializedAuthring);
+                    }
+                    else if (authringType == ATTR_AUTHCU255)
+                    {
+                        mKeyManager.setAuthCU255(serializedAuthring);
+                    }
+                });
+            }
+            else
+            {
+                // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                auto it = mAuthRings.find(authringType);
+                if (it == mAuthRings.end())
+                {
+                    LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                << ": account not migrated and authring not available";
+                    assert(false);
+                    return API_ETEMPUNAVAIL;
+                }
+                it->second = *authring;
+            }
+        }
+
+        mAuthRingsTemp.erase(authringType);
     }
 
     return API_OK;
