@@ -110,7 +110,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
     return fsAccess.fileExistsAt(dbPath);
 }
 
-SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
+SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
 {
     sqlite3 *db = nullptr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -123,7 +123,7 @@ SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, con
                              db,
                              fsAccess,
                              dbPath,
-                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0, nullptr);
+                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0, std::move(dBErrorCallBack));
 
 }
 

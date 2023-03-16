@@ -1508,6 +1508,20 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
+    void notifyDBFailure(DBErrors error);
+
+    // This method should be called when no recoverable error is detected
+    // This error are called mainly due an error in DB
+    // This method notify to app that an error has been detected
+    void fatalError(ErrorReason errorReason);
+
+    // This method returns true when failure at fatal has been detected
+    // None actions has been taken yet (reload, restart app, ...)
+    bool accountShouldBeReloadedOrRestarted() const;
+
+    // This flag keeps the last error detected. It's cleaned after reload or other error is generarted
+    ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
