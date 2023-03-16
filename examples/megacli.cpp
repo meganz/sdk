@@ -4246,6 +4246,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_ipc, sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i"))));
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(exec_getemail, sequence(text("getemail"), param("handle_b64")));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
                                                                           text("del"),
@@ -6074,6 +6075,28 @@ void exec_share(autocomplete::ACState& s)
             cout << s.words[1].s << ": No such directory" << endl;
         }
         break;
+    }
+}
+
+void exec_getemail(autocomplete::ACState& s)
+{
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to fetch user emails" << endl;
+        return;
+    }
+
+    client->getUserEmail(s.words[1].s.c_str());
+}
+void DemoApp::getuseremail_result(string *email, error e)
+{
+    if (e)
+    {
+        cout << "Failed to retrieve email: " << e << endl;
+    }
+    else
+    {
+        cout << "Email: " << email << endl;
     }
 }
 
