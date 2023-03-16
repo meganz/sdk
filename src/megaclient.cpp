@@ -17722,35 +17722,51 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
         else
         {
+            // there is no existing transfer uploading this file (or any duplicate of it)
+            // check if there used to be, and can we resume one.
+            // Note that these multi_cachedtransfers always have an empty Files list, those are not attached when loading from db
+            // Only the Transfer's own localpath field tells us the path it was uploading
+
             auto range = multi_cachedtransfers[d].equal_range(f);
             for (auto it = range.first; it != range.second; ++it)
             {
-                if (it->second->files.empty())
+                assert(it->second->files.empty());
+                if (it->second->localfilename.empty()) continue;
+
+                if (it->second->localfilename == f->getLocalname())
                 {
-                    if (!it->second->localfilename.empty())
-                    {
-                        t = it->second;
-                        range.first = it;
-                        break;
-                    }
-                    continue;
+                    // the exact same file, so use this one (fingerprint is double checked below)
+                    t = it->second;
+                    break;
                 }
+            }
 
-                File* f2 = it->second->files.front();
+            if (!t)
+            {
+                // look to see if there a cached transfer that is similar enough
+                // this case could occur if there were multiple Files before the transfer
+                // got suspended (eg by app exit), and we are considering the File of one of the others
+                // than the actual file path that was being uploaded.
 
-                string ext1, ext2;
-                if (fsaccess->getextension(f->getLocalname(), ext1) &&
-                    fsaccess->getextension(f2->getLocalname(), ext2))
+                for (auto it = range.first; it != range.second; ++it)
                 {
-                    if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
-                    if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+                    assert(it->second->files.empty());
+                    if (it->second->localfilename.empty()) continue;
 
-                    if (treatAsIfFileDataEqual(*f, ext1,
-                                               *f2, ext2))
+                    string ext1, ext2;
+                    if (fsaccess->getextension(f->getLocalname(), ext1) &&
+                        fsaccess->getextension(it->second->localfilename, ext2))
                     {
-                        t = it->second;
-                        range.first = it;
-                        break;
+                        if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                        if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                        if (treatAsIfFileDataEqual(*f, ext1,
+                                                   *it->first, ext2))
+                        {
+                            t = it->second;
+                            range.first = it;
+                            break;
+                        }
                     }
                 }
             }
