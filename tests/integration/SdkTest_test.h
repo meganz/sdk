@@ -484,8 +484,8 @@ public:
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
-    void inviteTestAccount(unsigned invitorIndex, unsigned inviteIndex, string message);
-    void inviteContact(unsigned apiIndex, string email, string message, int action);
+    void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
+    void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
     void replyContact(MegaContactRequest *cr, int action);
     void removeContact(string email, int timeout = maxTimeout);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
@@ -496,8 +496,8 @@ public:
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
-    void createChatScheduledMeeting(unsigned apiIndex, MegaHandle &chatid);
-    void updateScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
+    void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
     void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
 #endif
 
