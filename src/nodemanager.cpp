@@ -799,7 +799,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         assert(false);
         LOG_err << "Failed to unserialize node. Notifying the error to user";
 
-        fatalError(ErrorReason::REASON_ERROR_UNSERIALIZE_NODE);
+        mClient.fatalError(ErrorReason::REASON_ERROR_UNSERIALIZE_NODE);
 
         return nullptr;
     }
@@ -977,7 +977,7 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
-    mErrorDetected = REASON_ERROR_NO_ERROR;
+    mClient.mLastErrorDetected = REASON_ERROR_NO_ERROR;
 
     if (mTable)
         mTable->removeNodes();
@@ -1470,43 +1470,6 @@ void NodeManager::initCompleted()
     }
 
     mTable->createIndexes();
-}
-
-void NodeManager::fatalError(ErrorReason errorReason)
-{
-    if (mErrorDetected != errorReason)
-    {
-#ifdef ENABLE_SYNC
-        mClient.syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
-#endif
-
-        std::string reason;
-        switch (errorReason)
-        {
-            case ErrorReason::REASON_ERROR_IO_DB:
-                mClient.sendevent(99467, "Writing in DB error", 0);
-                reason = "Failed to write to database";
-                break;
-            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
-                reason = "Failed to unserialize a node";
-                mClient.sendevent(99468, "Failed to unserialize node", 0);
-                break;
-            case ErrorReason::REASON_ERROR_DB_FULL:
-                reason = "Data base is full";
-                break;
-            default:
-                reason = "Unknown reason";
-                break;
-        }
-
-        mClient.app->notifyError(reason.c_str(), errorReason);
-        mErrorDetected = errorReason;
-    }
-}
-
-bool NodeManager::accountShouldBeReloaded() const
-{
-    return mErrorDetected == REASON_ERROR_UNSERIALIZE_NODE;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
