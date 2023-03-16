@@ -3492,6 +3492,32 @@ bool CommandGetUA::procresult(Result r)
             }
         }
 
+        if (u && !u->isTemporary && u->userhandle != client->me && r.wasError(API_ENOENT))
+        {
+            if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
+            {
+                LOG_warn << "Missing public key " << User::attr2string(at) << " for user " << u->uid;
+                attr_t authringType = AuthRing::keyTypeToAuthringType(at);
+                auto it = client->mAuthRingsTemp.find(authringType);
+                bool temporalAuthring = it != client->mAuthRingsTemp.end();
+                if (temporalAuthring)
+                {
+                    client->updateAuthring(&it->second, authringType, true, u->userhandle);
+                }
+            }
+            else if (at == ATTR_SIG_CU255_PUBK)
+            {
+                LOG_warn << "Missing signature " << User::attr2string(at) << " for user " << u->uid;
+                attr_t authringType = AuthRing::signatureTypeToAuthringType(at);
+                auto it = client->mAuthRingsTemp.find(authringType);
+                bool temporalAuthring = it != client->mAuthRingsTemp.end();
+                if (temporalAuthring)
+                {
+                    client->updateAuthring(&it->second, authringType, true, u->userhandle);
+                }
+            }
+        }
+
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && r.wasError(API_ENOENT))
         {
@@ -6112,12 +6138,6 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
-
-                if (client->loggedin() == FULLACCOUNT)
-                {
-                    client->fetchContactsKeys();
-                    client->sc_pk();
-                }
                 return true;
             }
             default:

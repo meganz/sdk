@@ -1397,7 +1397,7 @@ bool Node::applykey()
                 }
                 else
                 {
-                    sc = it->second.get();
+                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

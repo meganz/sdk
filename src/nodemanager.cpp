@@ -781,7 +781,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
     if (!mTable || mNodes.empty())
     {
-        assert(false);
+        //assert(false);
         return node_vector();
     }
 

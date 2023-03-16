@@ -5958,6 +5958,11 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
 }
+
+void MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
+{
+    mega::RotativePerformanceLogger::sThreadName = threadName;
+}
 #endif
 
 void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
@@ -10958,17 +10963,6 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, M
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
-    request->setNodeHandle(chatid);
-    request->setNumber(since);
-    request->setTotalBytes(until);
-    request->setTransferredBytes(count);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19070,9 +19064,30 @@ void MegaApiImpl::sendPendingRequests()
     int lastRequestType = -1;
     int lastRequestConsecutive = 0;
 
+    error e = API_OK;
+    MegaRequestPrivate *request = nullptr;
 
-    while(MegaRequestPrivate *request = requestQueue.pop())
+    while(1)
     {
+
+        // Report the error from the last loop iteration (if any). (success must be reported directly by each case)
+        // Having this code here is good for in-place conversions of case statements
+        // to the `performRequest` system and reduce the switch size
+        // And also shares this block of code between the switch and performRequest cases.
+        if (e && request)
+        {
+            LOG_err << "Error starting request: " << e;
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }
+#ifdef ENABLE_SYNC
+        client->syncs.syncConfigStoreFlush();
+#endif
+
+        request = requestQueue.pop();
+        if (!request) break;
+
+        e = API_OK;
+
 
         // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
         if ((lastRequestType == -1 || lastRequestType == request->getType()) && lastRequestConsecutive < 1024)
@@ -19115,20 +19130,20 @@ void MegaApiImpl::sendPendingRequests()
         {
             // the action should result in request destruction via fireOnRequestFinish
             // or a requeue of another step, etc.
-            error e = request->performRequest();
-
-            if(e)
-            {
-                LOG_err << "Error starting request: " << e;
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }
-
+            e = request->performRequest();
             continue;
         }
 
-        error e = API_OK;
         switch (request->getType())
         {
+        default:
+        {
+            // Default case if not performRequest and not implemented below.
+            // Keeping this at the top means we can convert the last case
+            // to a performRequest while keeping the code in-place for diffs
+            e = API_EINTERNAL;
+            break;
+        }
         case MegaRequest::TYPE_PUT_SET:
         {
             Set s;
@@ -23685,7 +23700,21 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
-        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES:
+#endif
+        }
+    }
+}
+
+#ifdef ENABLE_CHAT
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
+    request->setNodeHandle(chatid);
+    request->setNumber(since);
+    request->setTotalBytes(until);
+    request->setTransferredBytes(count);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             m_time_t since = request->getNumber();
@@ -23695,8 +23724,7 @@ void MegaApiImpl::sendPendingRequests()
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, true /*byDemand*/, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
@@ -23712,26 +23740,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-#endif
-        default:
-        {
-            e = API_EINTERNAL;
-        }
-        }
+            return API_OK;
+        };
 
-        if(e)
-        {
-            LOG_err << "Error starting request: " << e;
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        }
-
-#ifdef ENABLE_SYNC
-        client->syncs.syncConfigStoreFlush();
-#endif
-    }
+    requestQueue.push(request);
+    waiter->notify();
 }
+#endif
 
 #ifdef ENABLE_SYNC
 void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)

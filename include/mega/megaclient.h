@@ -666,6 +666,9 @@ public:
     // track the signature of a public key in the authring for a given user
     error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
 
+    // update the authring if needed on the server and manage the deactivation of the temporal authring
+    error updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh);
+
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
 
@@ -1587,7 +1590,7 @@ public:
     // out-shares: populated from 'ok0' element from `f` command
     // in-shares: populated from readnodes() for `f` command
     // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
-    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+    std::map<NodeHandle, std::vector<byte>> mNewKeyRepository;
 
     // current request tag
     int reqtag;
@@ -2016,6 +2019,9 @@ public:
 
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
+
+    // Pending contact keys during initialization
+    std::map<attr_t, set<handle>> mPendingContactKeys;
 
     // number of authrings being fetched
     unsigned short mFetchingAuthrings = 0;
