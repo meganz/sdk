@@ -265,6 +265,88 @@ void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
+
+bool SymmCipher::gcm_encrypt_add(const byte* data, const size_t datasize,
+                                       const byte* additionalData, const size_t additionalDatalen,
+                                       const byte* iv, const size_t ivlen, const size_t taglen,
+                                       std::string& result, const size_t expectedSize)
+{
+    if (!additionalData || !additionalData)
+    {
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data. Invalid additional data";
+        return false;
+    }
+
+    return gcm_encrypt(data, datasize, nullptr /*key*/, 0 /*keylen*/, additionalData, additionalDatalen, iv, ivlen, taglen, result, expectedSize);
+}
+
+bool SymmCipher::gcm_encrypt_with_key(const byte* data, const size_t datasize,
+                                       const byte* key, const size_t keylen,
+                                       const byte* iv, const size_t ivlen, const size_t taglen,
+                                       std::string& result, const size_t expectedSize)
+{
+    if (!key || !keylen)
+    {
+        LOG_err << "Failed AES-GCM encryption. Invalid encryption key";
+        return false;
+    }
+    return gcm_encrypt(data, datasize, key, keylen, nullptr /*additionalData*/, 0 /*additionalDatalen*/, iv, ivlen, taglen, result, expectedSize);
+}
+
+bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize,
+                                       const byte* key, const size_t keylen,
+                                       const byte* additionalData, const size_t additionalDatalen,
+                                       const byte* iv, const size_t ivlen, const size_t taglen,
+                                       std::string& result, const size_t expectedSize)
+{
+    std::string err;
+    if (!data || !datasize)                     {err = "Invalid plain text";}
+    if (!iv || !ivlen)                          {err = "Invalid IV";}
+    if (!err.empty())
+    {
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " <<  err;
+        return false;
+    }
+
+    try
+    {
+        if (!key || !keylen)
+        {
+            // resynchronizes with the provided IV
+            aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
+        }
+        else
+        {
+            // resynchronizes with the provided IV
+            aesgcm_e.SetKeyWithIV(key, keylen, iv, ivlen);
+        }
+
+        AuthenticatedEncryptionFilter ef (aesgcm_e, new StringSink(result), false, static_cast<int>(taglen));
+        // add additionalData to channel for additional authenticated data
+        if (additionalData && additionalDatalen)
+        {
+            ef.ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
+        }
+        ef.ChannelMessageEnd(AAD_CHANNEL);
+
+        // add plain text to DEFAULT_CHANNEL in order to be encrypted
+        ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data), datasize, true);
+        ef.ChannelMessageEnd(DEFAULT_CHANNEL);
+
+        if (expectedSize && expectedSize != result.size())
+        {
+            LOG_err << "Failed AES-GCM encryption with additional authenticated data, invalid encrypted data size";
+            return false;
+        }
+    }
+    catch (CryptoPP::Exception const &e)
+    {
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
+        return false;
+    }
+    return true;
+}
+
 bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);
