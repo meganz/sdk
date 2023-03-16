@@ -259,52 +259,10 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-bool SymmCipher::gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize)
-{
-    std::string err;
-    if (!data || !datasize)                     {err = "Invalid plain text";}
-    if (!additionalData || !additionalDatalen)  {err = "Invalid additional data";}
-    if (!iv || !ivlen)                          {err = "Invalid IV";}
-
-    if (!err.empty())
-    {
-        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " <<  err;
-        return false;
-    }
-
-    try
-    {
-        // resynchronizes with the provided IV
-        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
-        AuthenticatedEncryptionFilter ef (aesgcm_e, new ArraySink(result, resultSize), false, static_cast<int>(taglen));
-
-        // add additionalData to channel for additional authenticated data
-        ef.ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
-        ef.ChannelMessageEnd(AAD_CHANNEL);
-
-        // add plain text to DEFAULT_CHANNEL in order to be encrypted
-        ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data), datasize, true);
-        ef.ChannelMessageEnd(DEFAULT_CHANNEL);
-    }
-    catch (CryptoPP::Exception const &e)
-    {
-        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
-        return false;
-    }
-    return true;
-}
-
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_e.Resynchronize(iv, ivlen);
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
-}
-
-void SymmCipher::gcm_encrypt_with_key(const string& inputData, const byte *key, size_t keylength,  const byte *iv, size_t ivlength, unsigned taglen, string& outputData)
-{
-    aesgcm_e.SetKeyWithIV(key, keylength, iv, ivlength);
-    CryptoPP::StringSource(inputData, true,
-                           new CryptoPP::AuthenticatedEncryptionFilter(aesgcm_e, new CryptoPP::StringSink(outputData), false, static_cast<int>(taglen)));
 }
 
 bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)

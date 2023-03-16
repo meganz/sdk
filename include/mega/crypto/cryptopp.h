@@ -253,41 +253,6 @@ public:
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
-     * @brief Authenticated symmetric encryption using AES in GCM mode.
-     *
-     * This method sets the encryption key and the initialization vector in the symetric cipher
-     *
-     * The size of the IV limits the maximum length of data. A length of 12 bytes
-     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
-     * sizes.
-     *
-     * @param inputData Data to be encrypted.
-     * @param key Encryption key
-     * @param keylength Length of encryption key
-     * @param iv Initialisation vector or nonce to use for encryption.
-     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag.
-     * @param result outputData data, including the authentication tag.
-     */
-    void gcm_encrypt_with_key(const std::string& inputData, const byte *key, size_t keylength, const byte *iv, size_t ivlength, unsigned taglen, std::string& outputData);
-
-    /**
-     * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
-     *
-     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
-     *
-     * @param data Data to be encrypted.
-     * @param additionalData Additional data for extra authentication
-     * @param additionalDatalen Length of additional data
-     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
-     * and never re-use. See note on size above.
-     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag
-     * @param result Encrypted data, including the additional data, and the authentication tag.
-     */
-    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize);
-
-    /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
