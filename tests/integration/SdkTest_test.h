@@ -291,7 +291,10 @@ protected:
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
+
+#ifdef ENABLE_CHAT
     void delSchedMeetings();
+#endif
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
@@ -490,11 +493,13 @@ public:
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
+    void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
+#ifdef ENABLE_CHAT
     void createChatScheduledMeeting(unsigned apiIndex, MegaHandle &chatid);
     void updateScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
     void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
-    void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
+#endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     MegaHandle importPublicLink(unsigned apiIndex, string link, MegaNode *parent);

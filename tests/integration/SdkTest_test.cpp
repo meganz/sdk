@@ -291,7 +291,10 @@ void SdkTest::Cleanup()
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
+
+#ifdef ENABLE_CHAT
     delSchedMeetings();
+#endif
 
 #ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
@@ -594,6 +597,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
             break;
 
+#ifdef ENABLE_CHAT
     case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
         if (mApi[static_cast<size_t>(apiIndex)].lastError == API_OK
             && request->getMegaScheduledMeetingList()
@@ -612,6 +616,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[static_cast<size_t>(apiIndex)].schedId = request->getParentHandle();
         }
         break;
+#endif
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -1380,7 +1385,6 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
     tracker->waitForResult();
     WaitMillisec(2000);
 }
-
 #endif
 
 void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
@@ -2928,6 +2932,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
     return ok;
 }
 
+#ifdef ENABLE_CHAT
 void SdkTest::delSchedMeetings()
 {
     std::vector<std::unique_ptr<RequestTracker>> delSchedTrackers;
@@ -2961,6 +2966,7 @@ void SdkTest::delSchedMeetings()
     for (auto& d : delSchedTrackers) d->waitForResult();
     WaitMillisec(2000);
 }
+#endif
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n, MegaHandle mh)
 {
@@ -11288,6 +11294,7 @@ TEST_F(SdkTest, SdkUserAlerts)
         false   /*startFirst*/,
         nullptr /*cancelToken*/)) << "Cannot upload a second test file";
 
+#ifdef ENABLE_CHAT
     // NewScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
@@ -11382,6 +11389,7 @@ TEST_F(SdkTest, SdkUserAlerts)
         }
     }
     ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
+#endif
 
     // NewShare
     //--------------------------------------------
