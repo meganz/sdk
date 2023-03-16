@@ -10957,15 +10957,6 @@ void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, 
     requestQueue.push(request);
     waiter->notify();
 }
-
-void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
-}
 #endif
 
 void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *listener)
@@ -23671,40 +23662,50 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
-        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING:
-        {
-            handle chatid = request->getNodeHandle();
-            handle schedId = request->getParentHandle();
-
-            textchat_map::iterator it = client->chats.find(chatid);
-            if (it == client->chats.end())
-            {
-                e = API_ENOENT;
-                break;
-            }
-
-            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
-            {
-                if (result && !result->empty())
-                {
-                    std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    for (auto const& sm: *result)
-                    {
-                        l->insert(new MegaScheduledMeetingPrivate(sm.get()));
-                    }
-                    request->setMegaScheduledMeetingList(l.get());
-                }
-
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }));
-            break;
-        }
 #endif
         }
     }
 }
 
 #ifdef ENABLE_CHAT
+void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+
+    request->performRequest = [this, request]()
+    {
+        handle chatid = request->getNodeHandle();
+        handle schedId = request->getParentHandle();
+
+        textchat_map::iterator it = client->chats.find(chatid);
+        if (it == client->chats.end())
+        {
+            return API_ENOENT;
+        }
+
+        client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this](Error e, const std::vector<std::unique_ptr<ScheduledMeeting>> *result)
+        {
+            if (result && !result->empty())
+            {
+                std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+                for (auto const &sm : *result)
+                {
+                    l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+                }
+                request->setMegaScheduledMeetingList(l.get());
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);
