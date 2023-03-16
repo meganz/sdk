@@ -33824,7 +33824,7 @@ MegaTimeStamp MegaScheduledRulesPrivate::until() const { return mScheduledRules-
  * Data cannot be changed through the public interface and is only set via ctor. We abuse the
  * choke point of the following getters to set it instead of the various ctors.
  *
- * Probable redisgn of MegaApi will end up with returning ownership of these pointers
+ * Probable redesign of MegaApi will end up with returning ownership of these pointers
  * and the temporal variables won't be needed
  */
 const MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const
