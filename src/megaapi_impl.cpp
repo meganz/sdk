@@ -23644,9 +23644,8 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (sm)
                 {
-                    std::unique_ptr<MegaScheduledMeetingPrivate> auxsm (new MegaScheduledMeetingPrivate(sm));
                     std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    l->insert(new MegaScheduledMeetingPrivate(new MegaScheduledMeetingPrivate(sm)));
+                    l->insert(new MegaScheduledMeetingPrivate(sm));
                     request->setMegaScheduledMeetingList(l.get());
                 }
 
@@ -33781,176 +33780,161 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
         this->list.push_back(megaChat);
     }
 }
-/* Class MegaScheduledFlagsPrivate */
-MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate()
-    : mFlags(0)
-{
-}
 
-MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(unsigned long numericValue)
-    : mFlags(numericValue)
-{
-}
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate()
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>())
+{}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numericValue)
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(numericValue))
+{}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mFlags(flags ? flags->getNumericValue() : 0)
-{
-}
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+{}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mFlags(flags ? flags->getNumericValue() : 0)
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+{}
+
+void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
+void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)     { mScheduledFlags->setEmailsDisabled(enabled); }
+void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val) { mScheduledFlags->importFlagsValue(val); }
+
+bool MegaScheduledFlagsPrivate::emailsDisabled() const              { return mScheduledFlags->emailsDisabled(); }
+unsigned long MegaScheduledFlagsPrivate::getNumericValue() const    { return mScheduledFlags->getNumericValue();}
+
+bool MegaScheduledFlagsPrivate::isEmpty() const                     { return mScheduledFlags->isEmpty(); }
+unique_ptr<ScheduledFlags> MegaScheduledFlagsPrivate::getSdkScheduledFlags() const
 {
+    return mega::make_unique<ScheduledFlags>(getNumericValue());
 }
 
-MegaScheduledFlagsPrivate::~MegaScheduledFlagsPrivate()
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const int freq, const int interval, const MegaTimeStamp until,
+                                                     const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                                     const MegaIntegerMap* byMonthWeekDay)
+    : mScheduledRules(mega::make_unique<ScheduledRules>(
+                          isValidFreq(freq) ? freq : FREQ_INVALID,
+                          isValidInterval(interval) ? interval : int{INTERVAL_INVALID},
+                          //                                     ^^^^^^^^^^^^^^^^^^^^^
+                          // int workaroud due to ODR-use requirement in C++11 (dropped from C++17)
+                          isValidUntil(until) ? until : MEGA_INVALID_TIMESTAMP,
+                          byWeekDay ? unique_ptr<MegaSmallIntVector>(
+                                  dynamic_cast<const MegaIntegerListPrivate*>(byWeekDay)->toByteList()
+                                  ).get()
+                              : nullptr,
+                          byMonthDay ? unique_ptr<MegaSmallIntVector>(
+                                  dynamic_cast<const MegaIntegerListPrivate*>(byMonthDay)->toByteList()
+                                  ).get()
+                              :nullptr,
+                          byMonthWeekDay ? unique_ptr<MegaSmallIntMap>(
+                                  dynamic_cast<const MegaIntegerMapPrivate*>(byMonthWeekDay)->toByteMap()
+                                  ).get()
+                              : nullptr))
+{}
+
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules)
+    : mScheduledRules(rules->getSdkScheduledRules())
+{}
+
+MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules)
+    : mScheduledRules(rules->copy())
+{}
+
+int MegaScheduledRulesPrivate::freq() const            { return mScheduledRules->freq(); }
+int MegaScheduledRulesPrivate::interval() const        { return mScheduledRules->interval(); }
+MegaTimeStamp MegaScheduledRulesPrivate::until() const { return mScheduledRules->until(); }
+
+/*
+ * Data cannot be changed through the public interface and is only set via ctor. We abuse the
+ * choke point of the following getters to set it instead of the various ctors.
+ *
+ * Probable redesign of MegaApi will end up with returning ownership of these pointers
+ * and the temporal variables won't be needed
+ */
+const MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const
 {
+    const auto p = mScheduledRules->byWeekDay();
+    if (!mTransformedByWeekDay && p)
+    {
+        mTransformedByWeekDay = mega::make_unique<MegaIntegerListPrivate>(*p);
+    }
+
+    return mTransformedByWeekDay.get();
 }
 
-MegaScheduledFlagsPrivate* MegaScheduledFlagsPrivate::copy() const
+const MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const
 {
-    return new MegaScheduledFlagsPrivate(this);
+    const auto p = mScheduledRules->byMonthDay();
+    if (!mTransformedByMonthDay && p)
+    {
+        mTransformedByMonthDay.reset(new MegaIntegerListPrivate(*p));
+    }
+
+    return mTransformedByMonthDay.get();
 }
 
-void MegaScheduledFlagsPrivate::reset()
+const MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const
 {
-    mFlags.reset();
+    const auto p = mScheduledRules->byMonthWeekDay();
+    if (!mTransformedByMonthWeekDay && p)
+    {
+        mTransformedByMonthWeekDay.reset(new MegaIntegerMapPrivate(*p));
+    }
+
+    return mTransformedByMonthWeekDay.get();
 }
 
-void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
+unique_ptr<ScheduledRules> MegaScheduledRulesPrivate::getSdkScheduledRules() const
 {
-    mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
+    return unique_ptr<ScheduledRules>(mScheduledRules->copy());
 }
 
-void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val)
-{
-    mFlags = val;
-}
+bool MegaScheduledRulesPrivate::isValidFreq(const int freq)         { return ScheduledRules::isValidFreq(freq); }
+bool MegaScheduledRulesPrivate::isValidInterval(const int interval) { return ScheduledRules::isValidInterval(interval); }
+bool MegaScheduledRulesPrivate::isValidUntil(const m_time_t until)  { return ScheduledRules::isValidUntil(until); }
 
-unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
-bool MegaScheduledFlagsPrivate::emailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
-bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }
-ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
-
-/* Class MegaScheduledRulesPrivate */
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
-                              int interval,
-                              MegaTimeStamp until,
-                              const ::mega::MegaIntegerList* byWeekDay,
-                              const ::mega::MegaIntegerList* byMonthDay,
-                              const ::mega::MegaIntegerMap* byMonthWeekDay):
-    mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
-    mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-    mUntil(isValidUntil(until) ? until : MEGA_INVALID_TIMESTAMP),
-    mByWeekDay(byWeekDay ? byWeekDay->copy() : nullptr),
-    mByMonthDay (byMonthDay ? byMonthDay->copy() : nullptr),
-    mByMonthWeekDay(byMonthWeekDay ? byMonthWeekDay->copy() : nullptr)
-{
-}
-
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const MegaScheduledRulesPrivate *rules) :
-        mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
-        mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
-        mUntil(isValidUntil(rules->until()) ? rules->until() : MEGA_INVALID_TIMESTAMP),
-        mByWeekDay(rules->byWeekDay() ? rules->byWeekDay()->copy() : nullptr),
-        mByMonthDay (rules->byMonthDay() ? rules->byMonthDay()->copy() : nullptr),
-        mByMonthWeekDay(rules->byMonthWeekDay() ? rules->byMonthWeekDay()->copy() : nullptr)
-{
-}
-
-MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const ScheduledRules *rules):
-    mFreq(isValidFreq(rules->freq()) ? static_cast<int>(rules->freq()) : FREQ_INVALID),
-    mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
-    mUntil(rules->until()),
-    mByWeekDay(rules->byWeekDay() ? new MegaIntegerListPrivate(*rules->byWeekDay()) : nullptr),
-    mByMonthDay(rules->byMonthDay() ? new MegaIntegerListPrivate(*rules->byMonthDay()) : nullptr),
-    mByMonthWeekDay(rules->byMonthWeekDay() ? new MegaIntegerMapPrivate(*rules->byMonthWeekDay()) : nullptr)
-{
-}
-
-MegaScheduledRulesPrivate::~MegaScheduledRulesPrivate()
-{
-}
-
-MegaScheduledRulesPrivate* MegaScheduledRulesPrivate::copy() const
-{
-    return new MegaScheduledRulesPrivate(this);
-}
-
-int MegaScheduledRulesPrivate::freq() const                                     { return mFreq; }
-int MegaScheduledRulesPrivate::interval() const                                 { return mInterval; }
-MegaTimeStamp MegaScheduledRulesPrivate::until() const                          { return mUntil; }
-const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay() const     { return mByWeekDay.get(); }
-const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay() const    { return mByMonthDay.get(); }
-const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay() const { return mByMonthWeekDay.get(); }
-
-ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
-{
-    std::unique_ptr <MegaSmallIntVector> auxByWeekDay (mByWeekDay ? (static_cast<const MegaIntegerListPrivate*>(mByWeekDay.get()))->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntVector> auxByMonthDay (mByMonthDay? (static_cast<const MegaIntegerListPrivate*>(mByMonthDay.get()))->toByteList() : nullptr);
-    std::unique_ptr <MegaSmallIntMap> auxByMonthWeekDay(mByMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(mByMonthWeekDay.get()))->toByteMap() : nullptr);
-    return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay.get(), auxByMonthDay.get(), auxByMonthWeekDay.get());
-}
-
-/* Class MegaScheduledMeetingPrivate */
-MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, MegaTimeStamp startDateTime, MegaTimeStamp endDateTime,
-                                                                  const char* title, const char* description, MegaHandle schedId, MegaHandle parentSchedId,
-                                                                  MegaHandle organizerUserId, int cancelled, const char* attributes, MegaTimeStamp overrides,
-                                                                  MegaScheduledFlags* flags, MegaScheduledRules* rules)
-    : mScheduledMeeting(new ScheduledMeeting(chatid,
-                                             timezone ? timezone : std::string(),
-                                             startDateTime,
-                                             endDateTime,
-                                             title ? title : std::string(),
-                                             description ? description : std::string(),
-                                             organizerUserId,
-                                             schedId,
-                                             parentSchedId,
-                                             cancelled,
-                                             attributes ? attributes : std::string(),
-                                             overrides,
-                                             flags ? static_cast<MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags() : nullptr,
-                                             rules ? static_cast<MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules() : nullptr))
-{
-}
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaHandle chatid, const char* timezone,
+                                                         const MegaTimeStamp startDateTime, const MegaTimeStamp endDateTime,
+                                                         const char* title, const char* description, MegaHandle schedId,
+                                                         MegaHandle parentSchedId, MegaHandle organizerUserId, int cancelled,
+                                                         const char* attributes, MegaTimeStamp overrides,
+                                                         const MegaScheduledFlags* flags, const MegaScheduledRules* rules)
+    : mScheduledMeeting(mega::make_unique<ScheduledMeeting>(
+                            chatid,
+                            timezone ? timezone : std::string(),
+                            startDateTime, endDateTime,
+                            title ? title : std::string(),
+                            description ? description : std::string(),
+                            organizerUserId, schedId, parentSchedId, cancelled,
+                            attributes ? attributes : std::string(),
+                            overrides,
+                            flags ? dynamic_cast<const MegaScheduledFlagsPrivate*>(flags)->getSdkScheduledFlags().get() : nullptr,
+                            rules ? dynamic_cast<const MegaScheduledRulesPrivate*>(rules)->getSdkScheduledRules().get() : nullptr))
+{}
 
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate* sm)
-    : mScheduledMeeting(sm->mScheduledMeeting->copy())
-{
-}
+    : mScheduledMeeting(sm->scheduledMeeting()->copy())
+{}
 
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const ScheduledMeeting *scheduledMeeting)
     : mScheduledMeeting(scheduledMeeting->copy())
-{
-}
+{}
 
-MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
-{
-}
-
-MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy() const
-{
-   return new MegaScheduledMeetingPrivate(this);
-}
-
-MegaHandle MegaScheduledMeetingPrivate::chatid() const                          { return mScheduledMeeting->chatid(); }
-MegaHandle MegaScheduledMeetingPrivate::schedId() const                         { return mScheduledMeeting->schedId(); }
-MegaHandle MegaScheduledMeetingPrivate::parentSchedId() const                   { return mScheduledMeeting->parentSchedId(); }
-MegaHandle MegaScheduledMeetingPrivate::organizerUserid() const                 { return mScheduledMeeting->organizerUserid(); }
-const char* MegaScheduledMeetingPrivate::timezone() const                       { return mScheduledMeeting->timezone().size() ? mScheduledMeeting->timezone().c_str() : nullptr; }
-MegaTimeStamp MegaScheduledMeetingPrivate::startDateTime() const                { return mScheduledMeeting->startDateTime(); }
-MegaTimeStamp MegaScheduledMeetingPrivate::endDateTime() const                  { return mScheduledMeeting->endDateTime(); }
-const char* MegaScheduledMeetingPrivate::title() const                          { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
-const char* MegaScheduledMeetingPrivate::description() const                    { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
-const char* MegaScheduledMeetingPrivate::attributes() const                     { return mScheduledMeeting->attributes().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
-MegaTimeStamp MegaScheduledMeetingPrivate::overrides() const                    { return mScheduledMeeting->overrides(); }
-int MegaScheduledMeetingPrivate::cancelled() const                              { return mScheduledMeeting->cancelled(); }
-MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}
-MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return mScheduledMeeting->rules() ? new MegaScheduledRulesPrivate(mScheduledMeeting->rules()) : nullptr;}
-
-const ScheduledMeeting* MegaScheduledMeetingPrivate::scheduledMeeting() const
-{
-    return mScheduledMeeting.get();
-}
+MegaHandle MegaScheduledMeetingPrivate::chatid() const           { return mScheduledMeeting->chatid(); }
+MegaHandle MegaScheduledMeetingPrivate::schedId() const          { return mScheduledMeeting->schedId(); }
+MegaHandle MegaScheduledMeetingPrivate::parentSchedId() const    { return mScheduledMeeting->parentSchedId(); }
+MegaHandle MegaScheduledMeetingPrivate::organizerUserid() const  { return mScheduledMeeting->organizerUserid(); }
+const char* MegaScheduledMeetingPrivate::timezone() const        { return mScheduledMeeting->timezone().size() ? mScheduledMeeting->timezone().c_str() : nullptr; }
+MegaTimeStamp MegaScheduledMeetingPrivate::startDateTime() const { return mScheduledMeeting->startDateTime(); }
+MegaTimeStamp MegaScheduledMeetingPrivate::endDateTime() const   { return mScheduledMeeting->endDateTime(); }
+const char* MegaScheduledMeetingPrivate::title() const           { return mScheduledMeeting->title().size() ? mScheduledMeeting->title().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::description() const     { return mScheduledMeeting->description().size() ? mScheduledMeeting->description().c_str() : nullptr; }
+const char* MegaScheduledMeetingPrivate::attributes() const      { return mScheduledMeeting->attributes().size() ? mScheduledMeeting->attributes().c_str() : nullptr; }
+MegaTimeStamp MegaScheduledMeetingPrivate::overrides() const     { return mScheduledMeeting->overrides(); }
+int MegaScheduledMeetingPrivate::cancelled() const               { return mScheduledMeeting->cancelled(); }
+MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const   { return mScheduledMeeting->flags() ? new MegaScheduledFlagsPrivate(mScheduledMeeting->flags()) : nullptr;}
+MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const   { return mScheduledMeeting->rules() ? new MegaScheduledRulesPrivate(mScheduledMeeting->rules()) : nullptr;}
 
 MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate()
 {
