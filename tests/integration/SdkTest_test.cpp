@@ -410,8 +410,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         return;
     }
 
-    int apiIndex = getApiIndex(api);
-    if (apiIndex < 0) return;
+    int index = getApiIndex(api);
+    if (index < 0) return;
+    size_t apiIndex = static_cast<size_t>(index);
     mApi[apiIndex].lastError = e->getErrorCode();
 
     // there could be a race on these getting set?
@@ -599,21 +600,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
 #ifdef ENABLE_CHAT
     case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
-        if (mApi[static_cast<size_t>(apiIndex)].lastError == API_OK
+        if (mApi[apiIndex].lastError == API_OK
             && request->getMegaScheduledMeetingList()
             && request->getMegaScheduledMeetingList()->size() == 1)
         {
-            mApi[static_cast<size_t>(apiIndex)].schedUpdated = true;
-            mApi[static_cast<size_t>(apiIndex)].chatid = request->getMegaScheduledMeetingList()->at(0)->chatid();
-            mApi[static_cast<size_t>(apiIndex)].schedId = request->getMegaScheduledMeetingList()->at(0)->schedId();
+            mApi[apiIndex].schedUpdated = true;
+            mApi[apiIndex].chatid = request->getMegaScheduledMeetingList()->at(0)->chatid();
+            mApi[apiIndex].schedId = request->getMegaScheduledMeetingList()->at(0)->schedId();
         }
         break;
 
     case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
-        if (mApi[static_cast<size_t>(apiIndex)].lastError == API_OK)
+        if (mApi[apiIndex].lastError == API_OK)
         {
-            mApi[static_cast<size_t>(apiIndex)].schedUpdated = true;
-            mApi[static_cast<size_t>(apiIndex)].schedId = request->getParentHandle();
+            mApi[apiIndex].schedUpdated = true;
+            mApi[apiIndex].schedId = request->getParentHandle();
         }
         break;
 #endif
