@@ -1212,6 +1212,16 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
 #ifdef ENABLE_CHAT
 void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid)
 {
+    struct SchedMeetingData
+    {
+        MegaHandle chatId = INVALID_HANDLE, schedId = INVALID_HANDLE;
+        std::string timeZone, title, description;
+        MegaTimeStamp startDate, endDate, overrides, newStartDate, newEndDate;
+        bool cancelled, newCancelled;
+        std::shared_ptr<MegaScheduledFlags> flags;
+        std::shared_ptr<MegaScheduledRules> rules;
+    } smd;
+
     std::unique_ptr<MegaUser> contact(mApi[0].megaApi->getContact(mApi[1].email.c_str()));
     if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
     {
@@ -1255,28 +1265,31 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
         auxChatid = mApi[apiIndex].chatid;   // set at onRequestFinish() of chat creation request
     }
 
-    // Set scheduled meetings data
-    m_time_t startDateTime = m_time();
-    m_time_t endDateTime = startDateTime + 3600;
-    std::string title = "ScheduledMeeting_"; title.append(std::to_string(startDateTime));
-    std::unique_ptr<::mega::MegaIntegerList> byWeekDay(::mega::MegaIntegerList::createInstance());
-    byWeekDay->add(1);byWeekDay->add(3);byWeekDay->add(5);
-
-    std::unique_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance());
+    // create MegaScheduledFlags
+    std::shared_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance());
     flags->importFlagsValue(1);
 
-    std::unique_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(MegaScheduledRules::FREQ_DAILY,
+    // create MegaScheduledRules
+    std::shared_ptr<::mega::MegaIntegerList> byWeekDay(::mega::MegaIntegerList::createInstance());
+    byWeekDay->add(1); byWeekDay->add(3); byWeekDay->add(5);
+    std::shared_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(MegaScheduledRules::FREQ_WEEKLY,
                                                                                          MegaScheduledRules::INTERVAL_INVALID,
-                                                                                         0 /*until invalid*/,
+                                                                                         MEGA_INVALID_TIMESTAMP,
                                                                                          byWeekDay.get(), nullptr, nullptr));
 
-    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/, UNDEF /*organizerUserId*/,
-                                                                       false /*cancelled*/, "Europe/Madrid",
-                                                                       startDateTime,
-                                                                       endDateTime, title.c_str(), title.append("_Description").c_str(),
-                                                                       nullptr /*attributes*/,
-                                                                       MEGA_INVALID_TIMESTAMP /*overrides*/,
-                                                                       flags.get(), rules.get()));
+    smd.startDate = m_time();
+    smd.endDate = m_time() + 3600;
+    smd.title = "ScheduledMeeting_" + std::to_string(1);
+    smd.description = "Description" + smd.title;
+    smd.timeZone = "Europe/Madrid";
+    smd.flags = flags;
+    smd.rules = rules;
+
+    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/,
+                                                                                  UNDEF /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
+                                                                                  smd.startDate, smd.endDate, smd.title.c_str(), smd.description.c_str(),
+                                                                                  nullptr /*attributes*/, MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                                                  flags.get(), rules.get()));
     mApi[apiIndex].schedUpdated = false;
     mApi[apiIndex].schedId = UNDEF;
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get());
