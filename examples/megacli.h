@@ -267,6 +267,7 @@ struct DemoApp : public MegaApp
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
+    void getuseremail_result(string*, error) override;
 
     static string getExtraInfoErrorString(const Error&);
 
@@ -334,6 +335,7 @@ void exec_invite(autocomplete::ACState& s);
 void exec_clink(autocomplete::ACState& s);
 void exec_ipc(autocomplete::ACState& s);
 void exec_showpcr(autocomplete::ACState& s);
+void exec_getemail(autocomplete::ACState& s);
 void exec_users(autocomplete::ACState& s);
 void exec_getua(autocomplete::ACState& s);
 void exec_putua(autocomplete::ACState& s);
@@ -346,6 +348,7 @@ void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
 void exec_secure(autocomplete::ACState& s);
+void exec_manualverif(autocomplete::ACState &s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
 void exec_recover(autocomplete::ACState& s);

@@ -49,7 +49,7 @@ typedef int64_t MegaTimeStamp; // unix timestamp
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
-    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
+    const MegaTimeStamp MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -11740,12 +11740,14 @@ class MegaApi
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
          *
-         * With this feature flag set, the client will manage encryption keys for
+         * With this feature flag set, the client will manage encryption keys exchange for
          * shared folders in a secure way. Legacy clients won't be able to decrypt
          * shared folders created with this flag enabled.
          *
          * Manual verification of credentials of users (both sharers AND sharees) is
-         * required in order to decrypt shared folders correctly.
+         * required in order to decrypt shared folders correctly if, also, the
+         * "Manual Verification" flag is set to true.
+         * @see MegaApi::setManualVerification for more information.
          *
          * @note This flag should be changed before login+fetchnodes. Otherwise, it may
          * result on unexpected behavior.
@@ -11753,6 +11755,22 @@ class MegaApi
          * @param enable New value of the flag
          */
         void setSecureFlag(bool enable);
+
+        /**
+         * @brief Allows to change the hardcoded value of the "Manual Verification" flag
+         *
+         * With this feature flag set, the client will require manual verification of
+         * contact credentials of users (both sharers AND sharees) in order to decrypt
+         * shared folders correctly if the "secure" flag is set to true.
+         * 
+         * The default value is "false".
+         *
+         * @note If the "secure" flag is disabled, "Manual Verification" flag has no
+         * effect.
+         *
+         * @param enable New value of the flag
+         */
+        void setManualVerificationFlag(bool enable);
 
         /**
          * @brief Creates a new share key for the node if there is no share key already created.
@@ -17703,7 +17721,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -20720,7 +20738,7 @@ class MegaApi
          * the same size() as param nodes)
          * @param listener MegaRequestListener to track this request
          */
-        void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
+        void createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set
@@ -20818,7 +20836,7 @@ class MegaApi
          * @param eids the ids of Elements to be removed
          * @param listener MegaRequestListener to track this request
          */
-        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
+        void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to remove an Element
