@@ -119,6 +119,32 @@ private:
                                            const byte* additionalData, const size_t additionalDatalen,
                                            const byte* iv, const size_t ivlen, const size_t taglen,
                                            std::string& result, const size_t expectedSize);
+
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param key Decryption key
+     * @param keylength Decryption key length
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param iv Initialization vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
+     */
+    bool gcm_decrypt(const byte* data, const size_t datalen,
+                                              const byte* additionalData, const size_t additionalDatalen,
+                                              const byte* key, const size_t keylength,
+                                              const byte* tag, const size_t taglen,
+                                              const byte* iv, const size_t ivlen,
+                                              byte* result, const size_t resultSize);
+
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
 
@@ -347,28 +373,43 @@ public:
      * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
      *
      * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
      * @param additionalData Additional data for extra authentication
      * @param additionalDatalen Length of additional data
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param iv Initialisation vector or nonce.
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
      */
+    bool gcm_decrypt_aad(const byte* data, const size_t datalen,
+                         const byte* additionalData, const size_t additionalDatalen,
+                         const byte* tag, const size_t taglen,
+                         const byte* iv, const size_t ivlen, byte* result, const size_t resultSize);
 
     /**
-     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
+     * @brief Authenticated symmetric decryption using AES in GCM mode
      *
      * This method sets the decryption key and the initialization vector in the symetric cipher
      * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
      *
      * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
      * @param key Decryption key
      * @param keylength Decryption key length
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param iv Initialization vector or nonce.
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
      */
+    bool gcm_decrypt_with_key(const byte* data, const size_t datalen,
+                         const byte* key, const size_t keylength,
+                         const byte* tag, const size_t taglen,
+                         const byte* iv, const size_t ivlen,
+                         byte* result, const size_t resultSize);
     /**
      * @brief Serialize key for compatibility with the webclient
      *
