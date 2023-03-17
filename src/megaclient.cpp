@@ -4711,6 +4711,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAuthRings.clear();
     mAuthRingsTemp.clear();
+    mPendingContactKeys.clear();
     mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
@@ -11439,7 +11440,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
     std::function<void()> completeShare =
-    [this, user, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
+    [this, user, nodehandle, a, newshare, msg, tag, writable, completion]()
     {
         Node *n;
         // node vanished: bail
@@ -11451,51 +11452,10 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }
 
         reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, uid, user, nodehandle, shareKey, completion](Error e, bool writable)
+        [user, completion](Error e, bool writable)
         {
-            handle userhandle = user ? user->userhandle : UNDEF;
-            if (user && user->isTemporary)
-            {
-                delete user;
-            }
-
-            if (e || ISUNDEF(userhandle))
-            {
-                completion(e, writable);
-                return;
-            }
-
-            std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-            if (!encryptedKey.size())
-            {
-                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
-                completion(e, writable);
-                return;
-            }
-
-            reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [this, uid, nodehandle, completion, writable](Error err)
-            {
-                if (err)
-                {
-                    LOG_err << "Error sending share key: " << err;
-                    completion(API_OK, writable);
-                }
-                else
-                {
-                    LOG_debug << "Share key correctly sent. Removing pendingoutshare from ^!keys (" << toNodeHandle(nodehandle) << " -> " << uid << ")";
-                    mKeyManager.commit(
-                    [this, nodehandle, uid]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.removePendingOutShare(nodehandle, uid);
-                    },
-                    [completion, writable]()
-                    {
-                        completion(API_OK, writable);
-                    });
-                }
-            }));
+            completion(e, writable);
+            if (user && user->isTemporary) delete user;
         }));
     };
 
@@ -14231,8 +14191,30 @@ void MegaClient::loadAuthrings()
 void MegaClient::fetchContactsKeys()
 {
     assert(mAuthRings.size() == 2);
-    mAuthRingsTemp = mAuthRings;
 
+    // Populate mPendingContactKeys first, because if it's done just before fetchContactKeys,
+    // it could finish synchronously and deactivate mAuthRingsTemp too early
+    mPendingContactKeys.clear();
+    auto &pendingEdKeys = mPendingContactKeys[ATTR_AUTHRING];
+    auto &pendingCuKeys = mPendingContactKeys[ATTR_AUTHCU255];
+    for (auto &it : users)
+    {
+        User *user = &it.second;
+        if (user->userhandle != me)
+        {
+            pendingEdKeys.insert(user->userhandle);
+            pendingCuKeys.insert(user->userhandle);
+        }
+    }
+
+    if (pendingEdKeys.empty())
+    {
+        LOG_debug << "No need to fetch contact keys (no contacts)";
+        mPendingContactKeys.clear();
+        return;
+    }
+
+    mAuthRingsTemp = mAuthRings;
     for (auto &it : users)
     {
         User *user = &it.second;
@@ -14328,6 +14310,11 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
                 app->key_modified(uh, keyType);
                 sendevent(99451, "Key modification detected");
 
+                // flush the temporal authring if needed
+                if (temporalAuthring)
+                {
+                    updateAuthring(authring, authringType, temporalAuthring, uh);
+                }
                 return API_EKEY;
             }
             //else --> verify signature, despite fingerprint does not match (it will be checked again later)
@@ -14353,59 +14340,20 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             getua(user, attrType, 0); // in CommandGetUA::procresult(), we check signature actually matches
         }
     }
-    else if (!keyTracked) // then it's the authring for public Ed25519 key
+    else // then it's the authring for public Ed25519 key
     {
-        LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
-
-        // tracking has changed --> persist authring
-        authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
-
-        // if checking authrings for all contacts, accumulate updates for all contacts first
-        bool finished = true;
-        if (temporalAuthring)
+        if (!keyTracked)
         {
-            for (auto &it : users)
-            {
-                User *user = &it.second;
-                if (user->userhandle != me && !authring->isTracked(user->userhandle))
-                {
-                    // if only a current user is not tracked yet, update temporal authring
-                    finished = false;
-                    break;
-                }
-            }
+            LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
+
+            // tracking has changed --> persist authring
+            authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
         }
-        if (finished)
-        {
-            if (authring->needsUpdate())
-            {
-                std::string serializedAuthring = authring->serializeForJS();
-                if (mKeyManager.generation())
-                {
-                    LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackKey())";
-                    mKeyManager.commit(
-                    [this, serializedAuthring]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.setAuthRing(serializedAuthring);
-                    });
-                }
-                else
-                {
-                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
-                    it = mAuthRings.find(authringType);
-                    if (it == mAuthRings.end())
-                    {
-                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
-                                    << ": account not migrated and authring not available";
-                        assert(false);
-                        return API_ETEMPUNAVAIL;
-                    }
-                    it->second = *authring;
-                }
-            }
 
-            mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
+        error e = updateAuthring(authring, authringType, temporalAuthring, uh);
+        if (e)
+        {
+            return e;
         }
     }
 
@@ -14519,55 +14467,10 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             authring->add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
         }
 
-        // if checking authrings for all contacts, accumulate updates for all contacts first
-        bool finished = true;
-        if (temporalAuthring)
+        error e = updateAuthring(authring, authringType, temporalAuthring, uh);
+        if (e)
         {
-            for (auto &it : users)
-            {
-                User *user = &it.second;
-                if (user->userhandle != me && !authring->isTracked(user->userhandle))
-                {
-                    // if only a current user is not tracked yet, update temporal authring
-                    finished = false;
-                    break;
-                }
-            }
-        }
-        if (finished)
-        {
-            if (authring->needsUpdate())
-            {
-                std::string serializedAuthring = authring->serializeForJS();
-                if (mKeyManager.generation())
-                {
-                    if (authringType == ATTR_AUTHCU255)
-                    {
-                        LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys (trackSignature())";
-                        mKeyManager.commit(
-                        [this, serializedAuthring]()
-                        {
-                            // Changes to apply in the commit
-                            mKeyManager.setAuthCU255(serializedAuthring);
-                        });
-                    }
-                }
-                else
-                {
-                    // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
-                    it = mAuthRings.find(authringType);
-                    if (it == mAuthRings.end())
-                    {
-                        LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
-                                    << ": account not migrated and authring not available";
-                        assert(false);
-                        return API_ETEMPUNAVAIL;
-                    }
-                    it->second = *authring;
-                }
-            }
-
-            mAuthRingsTemp.erase(authringType);
+            return e;
         }
     }
     else
@@ -14577,7 +14480,80 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         app->key_modified(uh, signatureType);
         sendevent(99452, "Signature mismatch for public key");
 
+        // flush the temporal authring if needed
+        if (temporalAuthring)
+        {
+            updateAuthring(authring, authringType, temporalAuthring, uh);
+        }
         return API_EKEY;
+    }
+
+    return API_OK;
+}
+
+error MegaClient::updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh)
+{
+    // if checking authrings for all contacts, accumulate updates for all contacts first
+    bool finished = true;
+    if (temporalAuthring)
+    {
+        auto it = mPendingContactKeys.find(authringType);
+        assert(it != mPendingContactKeys.end());
+
+        if (it != mPendingContactKeys.end())
+        {
+            it->second.erase(updateduh);
+            if (it->second.size())
+            {
+                // initialization not finished yet
+                finished = false;
+            }
+            else
+            {
+                mPendingContactKeys.erase(it);
+                LOG_debug << "Authring " << User::attr2string(authringType) << " initialization finished";
+            }
+        }
+    }
+
+    if (finished)
+    {
+        if (authring->needsUpdate())
+        {
+            std::string serializedAuthring = authring->serializeForJS();
+            if (mKeyManager.generation())
+            {
+                LOG_debug << "Updating " << User::attr2string(authringType) << " in ^!keys";
+                mKeyManager.commit(
+                [this, authringType, serializedAuthring]()
+                {
+                    // Changes to apply in the commit
+                    if (authringType == ATTR_AUTHRING)
+                    {
+                        mKeyManager.setAuthRing(serializedAuthring);
+                    }
+                    else if (authringType == ATTR_AUTHCU255)
+                    {
+                        mKeyManager.setAuthCU255(serializedAuthring);
+                    }
+                });
+            }
+            else
+            {
+                // Account not migrated yet. Apply changes synchronously in the local authring to have it ready for the migration
+                auto it = mAuthRings.find(authringType);
+                if (it == mAuthRings.end())
+                {
+                    LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid
+                                << ": account not migrated and authring not available";
+                    assert(false);
+                    return API_ETEMPUNAVAIL;
+                }
+                it->second = *authring;
+            }
+        }
+
+        mAuthRingsTemp.erase(authringType);
     }
 
     return API_OK;
@@ -17722,25 +17698,51 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
         else
         {
+            // there is no existing transfer uploading this file (or any duplicate of it)
+            // check if there used to be, and can we resume one.
+            // Note that these multi_cachedtransfers always have an empty Files list, those are not attached when loading from db
+            // Only the Transfer's own localpath field tells us the path it was uploading
+
             auto range = multi_cachedtransfers[d].equal_range(f);
             for (auto it = range.first; it != range.second; ++it)
             {
-                if (it->second->files.empty()) continue;
-                File* f2 = it->second->files.front();
+                assert(it->second->files.empty());
+                if (it->second->localfilename.empty()) continue;
 
-                string ext1, ext2;
-                if (fsaccess->getextension(f->getLocalname(), ext1) &&
-                    fsaccess->getextension(f2->getLocalname(), ext2))
+                if (it->second->localfilename == f->getLocalname())
                 {
-                    if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
-                    if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+                    // the exact same file, so use this one (fingerprint is double checked below)
+                    t = it->second;
+                    break;
+                }
+            }
 
-                    if (treatAsIfFileDataEqual(*f, ext1,
-                                               *f2, ext2))
+            if (!t)
+            {
+                // look to see if there a cached transfer that is similar enough
+                // this case could occur if there were multiple Files before the transfer
+                // got suspended (eg by app exit), and we are considering the File of one of the others
+                // than the actual file path that was being uploaded.
+
+                for (auto it = range.first; it != range.second; ++it)
+                {
+                    assert(it->second->files.empty());
+                    if (it->second->localfilename.empty()) continue;
+
+                    string ext1, ext2;
+                    if (fsaccess->getextension(f->getLocalname(), ext1) &&
+                        fsaccess->getextension(it->second->localfilename, ext2))
                     {
-                        t = it->second;
-                        range.first = it;
-                        break;
+                        if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                        if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                        if (treatAsIfFileDataEqual(*f, ext1,
+                                                   *it->first, ext2))
+                        {
+                            t = it->second;
+                            range.first = it;
+                            break;
+                        }
                     }
                 }
             }
