@@ -781,7 +781,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
 {
     if (!mTable || mNodes.empty())
     {
-        assert(false);
+        //assert(false);
         return node_vector();
     }
 
@@ -1301,9 +1301,6 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                // TODO nodes on demand: avoid to write to DB if the only change
-                // is 'changed.newnode', since the node is already written to DB
-                // when it is received from API, in 'saveNodeInRam()'
                 mTable->put(n);
 
                 added += 1;

@@ -6174,23 +6174,28 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
     standardclient.getpubliclink(n2, 0, 0, false, false, pe1);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe1.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
     standardclient.exportnode(n2, 0, 0, false, false, pe1a);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe1a.get_future(), 45));
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
     standardclient.getpubliclink(n2, 0, 0, false, false, pe2);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe2.get_future(), 45));
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
     standardclient.getpubliclink(n2, 1, 0, false, false, pe3);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe3.get_future(), 45));
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
     standardclient.getpubliclink(n2, 0, 0, false, false, pe4);
+    ASSERT_TRUE(debugTolerantWaitOnFuture(pe4.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 
@@ -6649,7 +6654,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     ASSERT_TRUE(c1.fetchnodes());
 
     // Wait for the syncs to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c1);
@@ -8489,7 +8494,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->login_fetchnodes(session));
 
         // Wait for the sync to be resumed.
-        notify.get_future().get();
+        ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, c.get());
@@ -9029,7 +9034,7 @@ TEST_F(SyncTest, DISABLED_ReplaceParentWithEmptyChild)
     ASSERT_TRUE(c.login_fetchnodes(session));
 
     // Wait for sync to resume.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -10460,7 +10465,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     ASSERT_TRUE(c.login_fetchnodes(session));
 
     // Wait for the sync to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Wait for the sync to catch up.
     waitonsyncs(TIMEOUT, &c);
@@ -10825,7 +10830,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Wait for the sync to try and upload a file.
-        waiter.get_future().get();
+        ASSERT_TRUE(debugTolerantWaitOnFuture(waiter.get_future(), 45));
 
         // Save the session ID.
         cb.client.dumpsession(sessionID);
@@ -11025,7 +11030,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
 
     // Wait for the sync to be resumed.
-    notify.get_future().get();
+    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
 
     // Give the sync some time to think.
     waitonsyncs(TIMEOUT, &cb);
@@ -11243,18 +11248,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
             ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
 
             // Verify contact credentials if they are not
-            if (!client0.isverified(email))
+            if (gManualVerification)
             {
-                ASSERT_TRUE(client0.verifyCredentials(email));
-            }
-            if (!client.isverified(email0))
-            {
-                ASSERT_TRUE(client.verifyCredentials(email0));
-            }
+                if (!client0.isverified(email))
+                {
+                    ASSERT_TRUE(client0.verifyCredentials(email));
+                }
+                if (!client.isverified(email0))
+                {
+                    ASSERT_TRUE(client.verifyCredentials(email0));
+                }
 
-            // Wait for contact verification
-            ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
-            ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+                // Wait for contact verification
+                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
+                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+            }
         };
 
         // Introduce the contacts to each other.

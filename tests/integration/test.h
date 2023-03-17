@@ -83,6 +83,7 @@ extern std::string USER_AGENT;
 extern bool gRunningInCI;
 extern bool gResumeSessions;
 extern bool gScanOnly;
+extern bool gManualVerification;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
@@ -855,6 +856,24 @@ public:
 
     ~ClientManager();
 };
+
+template<class T>
+bool debugTolerantWaitOnFuture(std::future<T> f, size_t numSeconds)
+{
+    // don't just use get() as we will stall an entire jenkins run if the promise is not fulfilled
+    // rather, wait with a timeout
+    // if we stop in the debugger, continue the wait after the debugger continues
+    // otherwise, things fail on timeout immediately
+    for (size_t i = 0; i < numSeconds*10; ++i)
+    {
+        if (future_status::ready == f.wait_for(std::chrono::milliseconds(100)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 extern ClientManager* g_clientManager;
 

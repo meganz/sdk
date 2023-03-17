@@ -1435,7 +1435,12 @@ bool DirectReadSlot::doio()
             std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
             // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
-            processAnyOutputPieces();
+            if (!processAnyOutputPieces())
+            {
+                // app-requested abort
+                delete dr;
+                return true;
+            }
 
             if (!newBufferSupplied && !pauseForRaid)
             {
@@ -1465,7 +1470,8 @@ bool DirectReadSlot::doio()
                     snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
                     if (dr->count)
                     {
-                        snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), "%" PRIu64, posrange.second - 1);
+                        char* ptr = strchr(buf, 0);
+                        snprintf(ptr, sizeof(buf) - (ptr - buf), "%" PRIu64, posrange.second - 1);
                     }
 
                     req->pos = posrange.first;

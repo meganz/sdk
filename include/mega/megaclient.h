@@ -323,6 +323,9 @@ public:
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
+    // this method allows to change the manual verification feature-flag for testing purposes
+    void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
+
 protected:
     std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
     std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
@@ -362,6 +365,9 @@ private:
 
     // client is considered to exchange keys in a secure way (requires credential's verification)
     bool mSecure = true;
+
+    // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
+    bool mManualVerification = false;
 
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
@@ -433,8 +439,11 @@ private:
     // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
     void updateAuthring(attr_t at, std::string &value);
 
-    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    // update sharekeys (incl. trust). It doesn't purge non-existing items
     void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+
+    // true if the credentials of this user require verification
+    bool verificationRequired(handle userHandle);
 };
 
 
@@ -656,6 +665,9 @@ public:
 
     // track the signature of a public key in the authring for a given user
     error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+
+    // update the authring if needed on the server and manage the deactivation of the temporal authring
+    error updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh);
 
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
@@ -1581,7 +1593,7 @@ public:
     // out-shares: populated from 'ok0' element from `f` command
     // in-shares: populated from readnodes() for `f` command
     // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
-    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+    std::map<NodeHandle, std::vector<byte>> mNewKeyRepository;
 
     // current request tag
     int reqtag;
@@ -2010,6 +2022,9 @@ public:
 
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
+
+    // Pending contact keys during initialization
+    std::map<attr_t, set<handle>> mPendingContactKeys;
 
     // number of authrings being fetched
     unsigned short mFetchingAuthrings = 0;
