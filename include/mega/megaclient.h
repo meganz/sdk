@@ -1508,18 +1508,16 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    void notifyDBFailure(DBErrors error);
+    void handleDbError(DBError error);
 
-    // This method should be called when no recoverable error is detected
-    // This error are called mainly due an error in DB
-    // This method notify to app that an error has been detected
+    // notify the app about a fatal error (ie. DB critical error like disk is full)
     void fatalError(ErrorReason errorReason);
 
     // This method returns true when fatal failure has been detected
     // None actions has been taken yet (reload, restart app, ...)
     bool accountShouldBeReloadedOrRestarted() const;
 
-    // This flag keeps the last error detected. It's cleaned after reload or other error is generarted
+    // This flag keeps the last error detected. It's overwritten by new errors and reset upon logout.It's cleaned after reload or other error is generated
     ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
 
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.

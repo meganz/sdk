@@ -38,11 +38,11 @@ public:
     std::string mNodeCounter;
 };
 
-enum class DBErrors
+enum class DBError
 {
-    DB_ERROR_UNKNOWN = 1,
-    DB_ERROR_FULL = 2,
-    DB_ERROR_IO = 3,
+    DB_ERROR_UNKNOWN = 0,
+    DB_ERROR_FULL = 1,
+    DB_ERROR_IO = 2,
 };
 
 
@@ -253,7 +253,7 @@ enum DbOpenFlag
     DB_OPEN_FLAG_TRANSACTED = 0x2
 }; // DbOpenFlag
 
-using DBErrorCallback = std::function<void(DBErrors)>;
+using DBErrorCallback = std::function<void(DBError)>;
 
 struct MEGA_API DbAccess
 {

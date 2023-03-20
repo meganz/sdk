@@ -9061,9 +9061,9 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
 }
 
 // reload needed
-void DemoApp::notifyError(const char* reason, ErrorReason reasonToReload)
+void DemoApp::notifyError(const char* reason, ErrorReason errorReason)
 {
-    cout << "Error has been detected (" << reason << ") - maybe reload is required" << endl;
+    cout << "Error has been detected: " << errorReason << " (" << reason << ")" << endl;
 }
 
 void DemoApp::reloading()

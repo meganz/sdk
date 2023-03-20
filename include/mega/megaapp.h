@@ -326,7 +326,7 @@ struct MEGA_API MegaApp
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
 
-    // Notify sdk errors (DB, node serialization, ...) to apps
+    // Notify fatal errors (ie. DB, node unserialization, ...) to apps
     virtual void notifyError(const char*, ErrorReason) { }
 
     // reload forced automatically by server

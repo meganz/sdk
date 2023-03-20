@@ -977,10 +977,7 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
-    mClient.mLastErrorDetected = REASON_ERROR_NO_ERROR;
-
-    if (mTable)
-        mTable->removeNodes();
+    if (mTable) mTable->removeNodes();
 }
 
 Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
