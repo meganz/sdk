@@ -11580,15 +11580,6 @@ MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigne
     return new MegaRecentActionBucketListPrivate(v, client);
 }
 
-void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
-    request->setNumber(days);
-    request->setParamType(maxnodes);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     if (!n)
@@ -23566,20 +23557,28 @@ void MegaApiImpl::sendPendingRequests()
             e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
             break;
         }
-        case MegaRequest::TYPE_GET_RECENT_ACTIONS:
+        }
+    }
+}
+
+void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
+    request->setNumber(days);
+    request->setParamType(maxnodes);
+
+    request->performRequest = [this, request]()
         {
            int maxnodes = request->getParamType();
            if (maxnodes <= 0)
            {
-               e = API_EARGS;
-               break;
+               return API_EARGS;
            }
 
            int days = static_cast<int>(request->getNumber());
            if (days <= 0)
            {
-               e = API_EARGS;
-               break;
+               return API_EARGS;
            }
 
            m_time_t since = m_time() - days * 86400;
@@ -23587,10 +23586,11 @@ void MegaApiImpl::sendPendingRequests()
            std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
            request->setRecentActions(std::move(recentActions));
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-           break;
-        }
-        }
-    }
+           return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 #ifdef ENABLE_CHAT
