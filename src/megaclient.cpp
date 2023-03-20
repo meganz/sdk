@@ -1741,10 +1741,10 @@ void MegaClient::exec()
         if (activefa.size())
         {
             TransferDbCommitter committer(tctable);
-            putfa_list::iterator curfa = activefa.begin();
+            auto curfa = activefa.begin();
             while (curfa != activefa.end())
             {
-                HttpReqCommandPutFA* fa = *curfa;
+                shared_ptr<HttpReqFA> fa = *curfa;
 
                 auto erasePos = curfa;
                 ++curfa;
@@ -1836,7 +1836,6 @@ void MegaClient::exec()
                             }
                         }
 
-                        delete fa;
                         activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
@@ -1845,7 +1844,7 @@ void MegaClient::exec()
 
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
-                        LOG_warn << "Error setting file attribute";
+                        LOG_warn << "Error setting file attribute. Will retry after backoff";
                         activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
@@ -1885,18 +1884,7 @@ void MegaClient::exec()
         if (btpfa.armed())
         {
             faretrying = false;
-            while (queuedfa.size() && activefa.size() < MAXPUTFA)
-            {
-                // dispatch most recent file attribute put
-                putfa_list::iterator curfa = queuedfa.begin();
-                HttpReqCommandPutFA* fa = *curfa;
-                queuedfa.erase(curfa);
-                activefa.push_back(fa);
-
-                LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-                reqs.add(fa);
-            }
+            activatefa();
         }
 
         if (fafcs.size())
@@ -4469,7 +4457,7 @@ void MegaClient::disconnect()
         (it++)->second->retry(API_OK);
     }
 
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
+    for (auto it = activefa.begin(); it != activefa.end(); it++)
     {
         (*it)->disconnect();
     }
@@ -4638,16 +4626,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     scsn.clear();
     mBlocked = false;
     mBlockedSet = false;
-
-    for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
-    {
-        delete *it;
-    }
-
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
-    {
-        delete *it;
-    }
 
     for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
     {
@@ -5833,18 +5811,26 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
+    queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
+    activatefa();
+}
+
+void MegaClient::activatefa()
+{
     while (activefa.size() < MAXPUTFA && queuedfa.size())
     {
-        putfa_list::iterator curfa = queuedfa.begin();
-        HttpReqCommandPutFA *fa = *curfa;
+        auto curfa = queuedfa.begin();
+        shared_ptr<HttpReqFA> fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
+
+        LOG_debug << "Adding file attribute to the active queue";
+
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-        reqs.add(fa);
+        reqs.add(fa->getURLForFACmd());
     }
 }
 
