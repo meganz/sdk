@@ -30,19 +30,21 @@ const CGFloat COMPRESSION_QUALITY = 0.8f;
 const int THUMBNAIL_MIN_SIZE = 200;
 const int64_t WAIT_60_SECONDS = 60;
 
-NSURL *sourceURL;
-
 using namespace mega;
 
 #ifndef USE_FREEIMAGE
 
-GfxProviderCG::GfxProviderCG() {
+GfxProviderCG::GfxProviderCG(): sourceURL(NULL) {
     w = h = 0;
     semaphore = dispatch_semaphore_create(0);
 }
 
 GfxProviderCG::~GfxProviderCG() {
     freebitmap();
+    if (sourceURL) {
+        CFRelease(sourceURL);
+        sourceURL = NULL;
+    }
 }
 
 const char* GfxProviderCG::supportedformats() {
@@ -68,47 +70,49 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
         return false;
     }
     
-    sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
-    if (sourceURL == nil) {
+    sourceURL = (CFURLRef)CFBridgingRetain([NSURL fileURLWithPath:sourcePath isDirectory:NO]);
+    if (sourceURL == NULL) {
         return false;
     }
 
     w = h = 0;
 
     NSString *fileExtension = [sourcePath pathExtension];
-    UTType *type = [UTType typeWithFilenameExtension:fileExtension];
-    
-    if ([type conformsToType:UTTypeMovie]) {
-        AVAsset *asset = [AVAsset assetWithURL:sourceURL];
-        AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
-        CGSize naturalSize = videoTrack.naturalSize;
-        w = naturalSize.width;
-        h = naturalSize.height;
-    } else if ([type conformsToType:UTTypeImage]) {
-        CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-            CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
-        CGImageSourceRef imageSource = CGImageSourceCreateWithURL((__bridge CFURLRef)sourceURL, imageOptions);
-        if (imageSource) {
-            CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
-            if (imageProperties) {
-                CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
-                CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
-                if (width && heigth) {
-                    CGFloat value;
-                    if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
-                        w = value;
-                    }
-                    if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
-                        h = value;
-                    }
-                }
-                CFRelease(imageProperties);
-            }
-            CFRelease(imageSource);
-        }
+    if (fileExtension) {
+        UTType *type = [UTType typeWithFilenameExtension:fileExtension];
         
-        if (imageOptions) {
-            CFRelease(imageOptions);
+        if ([type conformsToType:UTTypeMovie]) {
+            AVAsset *asset = [AVAsset assetWithURL:(__bridge NSURL *)sourceURL];
+            AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+            CGSize naturalSize = videoTrack.naturalSize;
+            w = naturalSize.width;
+            h = naturalSize.height;
+        } else if ([type conformsToType:UTTypeImage]) {
+            CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
+            CGImageSourceRef imageSource = CGImageSourceCreateWithURL(sourceURL, imageOptions);
+            if (imageSource) {
+                CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
+                if (imageProperties) {
+                    CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
+                    CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
+                    if (width && heigth) {
+                        CGFloat value;
+                        if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
+                            w = value;
+                        }
+                        if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                            h = value;
+                        }
+                    }
+                    CFRelease(imageProperties);
+                }
+                CFRelease(imageSource);
+            }
+            
+            if (imageOptions) {
+                CFRelease(imageOptions);
+            }
         }
     }
 
@@ -164,7 +168,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     CGSize size = CGSizeMake(rw, rh);
     __block NSData *data;
 
-    QLThumbnailGenerationRequest *request = [[QLThumbnailGenerationRequest alloc] initWithFileAtURL:sourceURL size:size scale:1.0 representationTypes:QLThumbnailGenerationRequestRepresentationTypeThumbnail];
+    QLThumbnailGenerationRequest *request = [[QLThumbnailGenerationRequest alloc] initWithFileAtURL:(__bridge NSURL *)sourceURL size:size scale:1.0 representationTypes:QLThumbnailGenerationRequestRepresentationTypeThumbnail];
 
     [QLThumbnailGenerator.sharedGenerator generateBestRepresentationForRequest:request completionHandler:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
         if (error) {
