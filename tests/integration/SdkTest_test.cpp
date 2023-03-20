@@ -11433,7 +11433,7 @@ TEST_F(SdkTest, SdkUserAlerts)
             expectedAlert = true;
         }
     }
-    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
+    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting update";
 
     // DeleteScheduledMeeting
     //--------------------------------------------
@@ -11463,7 +11463,7 @@ TEST_F(SdkTest, SdkUserAlerts)
             expectedAlert = true;
         }
     }
-    ASSERT_EQ(expectedAlert, true) << "User alert not received for scheduled meeting removal";
+    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting removal";
 #endif
 
     // NewShare
