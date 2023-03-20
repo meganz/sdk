@@ -10789,15 +10789,26 @@ void startSetPreviewMode(const string& publicSetLink)
 
 void exec_setsandelements(autocomplete::ACState& s)
 {
-    // Are we logged in?
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to manipulate Sets."
-             << endl;
-        return;
-    }
+    static const set<string> nonLoggedInCmds {"previewmode", "fetchsetinpreview", "downloadelement"};
 
     const auto command = s.words[1].s;
+    const auto commandRequiresLoggingIn = [&command]() -> bool
+    {
+        return nonLoggedInCmds.find(command) == nonLoggedInCmds.end(); // contains is C++20
+    };
+    const auto isClientLoggedIn = []() -> bool
+    {
+        return client->loggedin() == FULLACCOUNT;
+    };
+
+    // Are we logged in?
+    if (commandRequiresLoggingIn() && !isClientLoggedIn())
+    {
+        cerr << "You must be logged in to manipulate Sets. "
+             << "Except for the following commands:\n";
+        for (const auto& c : nonLoggedInCmds) cerr << "\t" << c << "\n";
+        return;
+    }
 
     if (command == "list")
     {
@@ -10999,6 +11010,12 @@ void exec_setsandelements(autocomplete::ACState& s)
         {
             element = client->getPreviewSetElement(eid);
             if (element) cout << "\tElement found in preview Set\n";
+            else if (!isClientLoggedIn())
+            {
+                cout << "Error: attempting to dowload an element which is not in the previewed "
+                     << "Set, and user is not logged in\n";
+                return;
+            }
         }
         if (!element)
         {
