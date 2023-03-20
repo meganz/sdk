@@ -1214,7 +1214,8 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
     std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
     if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
     {
-        ASSERT_TRUE(contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact or contact visibility";
+        ASSERT_TRUE(contact) << "Invalid contact";
+        ASSERT_TRUE(contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact visibility";
     }
 }
 
@@ -1459,6 +1460,8 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
     }
 
     ASSERT_NE(chat, nullptr) << "Invalid chat";
+    const auto schedList = chat->getScheduledMeetingList();
+    ASSERT_TRUE(schedList && schedList->size()) << "Chat doesn't have scheduled meetings";
     const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
     ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
@@ -11387,7 +11390,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting creation not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
-    count = 0;
 
     bool expectedAlert = false;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
@@ -11419,7 +11421,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting update not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
-    count = 0;
 
     expectedAlert = false;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
@@ -11450,7 +11451,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
-    count = 0;
 
     expectedAlert = false;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
