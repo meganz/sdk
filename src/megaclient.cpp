@@ -1338,10 +1338,7 @@ void MegaClient::init()
 
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
-    resetId(sessionid, sizeof sessionid);
-
-    // initialize random API request sequence ID (server API is idempotent)
-    resetId(reqid, sizeof reqid);
+    resetId(sessionid, sizeof sessionid, rng);
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1370,6 +1367,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
 #endif
+   , reqs(rng)
    , mKeyManager(*this)
 {
     mNodeManager.reset();
@@ -1510,7 +1508,7 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::resetId(char *id, size_t length)
+void resetId(char *id, size_t length, PrnGen& rng)
 {
     for (size_t i = length; i--; )
     {
@@ -2059,7 +2057,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                if (sctable && pendingsccommit && !reqs.readyToSend())
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
@@ -2067,19 +2065,6 @@ void MegaClient::exec()
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
-                                }
-
-                                // increment unique request ID
-                                for (int i = sizeof reqid; i--; )
-                                {
-                                    if (reqid[i]++ < 'z')
-                                    {
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        reqid[i] = 'a';
-                                    }
                                 }
 
                                 if (auto completion = std::move(mOnCSCompletion))
@@ -2165,10 +2150,6 @@ void MegaClient::exec()
                             {
                                 reason = RETRY_CONNECTIVITY;
                             }
-                            else
-                            {
-                                reason = RETRY_UNKNOWN;
-                            }
                         }
 
                         if (fetchingnodes && pendingcs->httpstatus != 200)
@@ -2208,12 +2189,15 @@ void MegaClient::exec()
                         delete pendingcs;
                         pendingcs = NULL;
 
+                        if (!reason) reason = RETRY_UNKNOWN;
+
                         btcs.backoff();
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
 
-                        reqs.requeuerequest();
+                        // the in-progress request will be resent, unchanged (for idempotence), when we are ready again.
+                        reqs.inflightFailure(reason);
 
                     default:
                         ;
@@ -2227,7 +2211,7 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (reqs.cmdspending())
+                if (reqs.readyToSend())
                 {
                     abortlockrequest();
                     pendingcs = new HttpReq();
@@ -2236,12 +2220,13 @@ void MegaClient::exec()
                     pendingcs_serverBusySent = false;
 
                     bool suppressSID, v3;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
+                    string idempotenceId;
+                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
 
                     pendingcs->posturl.append("cs?id=");
-                    pendingcs->posturl.append(reqid, sizeof reqid);
+                    pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI(suppressSID));
                     pendingcs->posturl.append(appkey);
 
@@ -3375,7 +3360,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
     NodeCounter nc = mNodeManager.getCounterOfRootNodes();
@@ -4868,7 +4853,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        if (!pendingcs && !csretrying && !reqs.readyToSend())
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
@@ -21574,7 +21559,10 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                int uhsize = Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
+                #ifdef DEBUG
+                    int uhsize =
+                #endif
+                Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
             }
