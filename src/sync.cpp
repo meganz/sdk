@@ -891,9 +891,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBErrors error)
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBError error)
             {
-                client->notifyDBFailure(error);
+                client->handleDbError(error);
             }));
 
             // Did the call above create the database?

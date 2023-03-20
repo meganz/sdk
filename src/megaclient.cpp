@@ -4696,6 +4696,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
+
+    mLastErrorDetected = REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::removeCaches()
@@ -10658,9 +10660,9 @@ void MegaClient::opensctable()
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBErrors error)
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
             {
-                notifyDBFailure(error);
+                handleDbError(error);
             }));
 
             pendingsccommit = false;
@@ -10705,9 +10707,9 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBErrors error)
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBError error)
             {
-                notifyDBFailure(error);
+                handleDbError(error);
             }));
         }
     }
@@ -13516,9 +13518,9 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBErrors error)
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
     {
-        notifyDBFailure(error);
+        handleDbError(error);
     }));
 
     if (!tctable)
@@ -13623,9 +13625,9 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBErrors error)
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
     {
-        notifyDBFailure(error);
+        handleDbError(error);
     }));
 
     if (!tctable)
@@ -13637,15 +13639,15 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::notifyDBFailure(DBErrors error)
+void MegaClient::handleDbError(DBError error)
 {
     switch (error)
     {
-        case DBErrors::DB_ERROR_FULL:
+        case DBError::DB_ERROR_FULL:
             fatalError(ErrorReason::REASON_ERROR_DB_FULL);
             break;
-        case DBErrors::DB_ERROR_IO:
-            fatalError(ErrorReason::REASON_ERROR_IO_DB);
+        case DBError::DB_ERROR_IO:
+            fatalError(ErrorReason::REASON_ERROR_DB_IO);
             break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
@@ -13664,7 +13666,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
         std::string reason;
         switch (errorReason)
         {
-            case ErrorReason::REASON_ERROR_IO_DB:
+            case ErrorReason::REASON_ERROR_DB_IO:
                 sendevent(99467, "Writing in DB error", 0);
                 reason = "Failed to write to database";
                 break;
@@ -13680,8 +13682,8 @@ void MegaClient::fatalError(ErrorReason errorReason)
                 break;
         }
 
-        app->notifyError(reason.c_str(), errorReason);
         mLastErrorDetected = errorReason;
+        app->notifyError(reason.c_str(), errorReason);
     }
 }
 

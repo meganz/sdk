@@ -15016,16 +15016,16 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 }
 
 // reload needed
-void MegaApiImpl::notifyError(const char* reason, ErrorReason reasonToReload)
+void MegaApiImpl::notifyError(const char* reason, ErrorReason errorReason)
 {
-    fireOnReloadNeeded();
-
-    // TODO: when apps handle EVENT_RELOAD, fireOnReloadNeeded can be removed
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ERROR);
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FATAL_ERROR);
     event->setText(reason);
-    event->setNumber(static_cast<int64_t>(reasonToReload));
+    event->setNumber(static_cast<int64_t>(errorReason));
 
     fireOnEvent(event);
+
+    // TODO: when apps handle EVENT_FATAL_ERROR, fireOnReloadNeeded can be removed
+    fireOnReloadNeeded();
 }
 
 void MegaApiImpl::reloading()
@@ -34189,7 +34189,7 @@ const char *MegaEventPrivate::getEventString(int type)
 #endif
         case MegaEvent::EVENT_REQSTAT_PROGRESS: return "REQSTAT_PROGRESS";
         case MegaEvent::EVENT_RELOADING: return "RELOADING";
-        case MegaEvent::EVENT_ERROR: return "ERROR";
+        case MegaEvent::EVENT_FATAL_ERROR: return "FATAL_ERROR";
         case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
         case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
     }

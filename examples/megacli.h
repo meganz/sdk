@@ -262,7 +262,7 @@ struct DemoApp : public MegaApp
 
     void reqstat_progress(int) override;
 
-    void notifyError(const char*, ErrorReason reasonToReload) override;
+    void notifyError(const char*, ErrorReason errorReason) override;
     void reloading() override;
     void clearing() override;
 
