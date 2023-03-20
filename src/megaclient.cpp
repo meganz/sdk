@@ -914,7 +914,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        vector<byte> derivedKey = deriveKey(password, salt);
+        vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
         string hashedauthkey;
         const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
@@ -10319,7 +10319,7 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    vector<byte> derivedKey = deriveKey(password, bsalt);
+    vector<byte> derivedKey = deriveKey(password, bsalt, 2 * SymmCipher::KEYLENGTH);
 
     login2(email, derivedKey.data(), pin);
 }
@@ -10476,7 +10476,7 @@ error MegaClient::validatepwd(const char* pswd)
     }
     else if (accountversion == 2)
     {
-        vector<byte> dk = deriveKey(pswd, accountsalt);
+        vector<byte> dk = deriveKey(pswd, accountsalt, 2 * SymmCipher::KEYLENGTH);
         dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
         reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
 
@@ -12811,7 +12811,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    vector<byte> derivedKey = deriveKey(pwd, salt);
+    vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
     byte hmacComputed[32];
     if (algorithm == 1)
@@ -12868,7 +12868,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         // Derive MAC key with salt+pwd
         string salt(32u, '\0');
         rng.genblock((byte*)salt.data(), salt.size());
-        vector<byte> derivedKey = deriveKey(pwd, salt);
+        vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
         // Prepare encryption key
         string encKey;
@@ -13088,7 +13088,7 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
@@ -13106,9 +13106,9 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     return API_OK;
 }
 
-vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt, size_t derivedKeySize)
 {
-    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    vector<byte> derivedKey(derivedKeySize);
     CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
         (const byte*)salt.data(), salt.size(), 100000);
@@ -13177,7 +13177,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
