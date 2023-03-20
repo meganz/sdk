@@ -54,6 +54,10 @@ using namespace mega;
     return self.setElement ? self.setElement->id() : ::mega::INVALID_HANDLE;
 }
 
+- (uint64_t)ownerId {
+    return self.setElement ? self.setElement->setId() : ::mega::INVALID_HANDLE;
+}
+
 - (uint64_t)nodeId {
     return self.setElement ? self.setElement->node() : ::mega::INVALID_HANDLE;
 }

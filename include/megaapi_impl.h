@@ -2661,6 +2661,7 @@ class MegaApiImpl : public MegaApp
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void putSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();

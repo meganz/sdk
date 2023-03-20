@@ -1155,7 +1155,7 @@ bool MegaClient::warnlevel()
 void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 {
     if (previousNode)
-    {        
+    {
         for (const string& attr : Node::attributesToCopyIntoPreviousVersions) {
             nameid id = AttrMap::string2nameid(attr.c_str());
             auto it = previousNode->attrs.map.find(id);
@@ -2075,7 +2075,7 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    LOG_debug << "Executing postponed DB commit 2";
+                                    LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
                                     assert(!sctable->inTransaction());
                                     sctable->begin();
@@ -2477,29 +2477,6 @@ void MegaClient::exec()
             syncops = true;
         }
         syncactivity = false;
-
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
-        {
-
-            char jsonsc_pos[50] = { 0 };
-            if (jsonsc.pos)
-            {
-                // this string can be massive and we can output this frequently, so just show a little bit of it
-                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
-            }
-
-            LOG_verbose << " Megaclient exec is pending resolutions."
-                        << " scpaused=" << scpaused
-                        << " stopsc=" << scsn.stopped()
-                        << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc_pos
-                        << " syncsup=" << syncsup
-                        << " statecurrent=" << statecurrent
-                        << " syncadding=" << syncadding
-                        << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
-                        << " syncdownretry=" << syncdownretry;
-        }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
@@ -4917,6 +4894,7 @@ bool MegaClient::procsc()
                     {
                         if (!pendingcs && !csretrying && !reqs.cmdspending())
                         {
+                            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
                             assert(!sctable->inTransaction());
                             sctable->begin();
@@ -4938,7 +4916,7 @@ bool MegaClient::procsc()
                     }
 
 
-                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
+                    LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
@@ -4949,6 +4927,7 @@ bool MegaClient::procsc()
                             notifypurge();
                             if (sctable)
                             {
+                                LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                 sctable->commit();
                                 assert(!sctable->inTransaction());
                                 sctable->begin();
@@ -5090,7 +5069,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
-                        LOG_debug << "Processing action packets";
+                        LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
                         insca = true;
                         break;
                     }
@@ -5544,10 +5523,14 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.getNodeCount() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs, "
+            << mSets.size() << " sets and " << mSetElements.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
 
@@ -5555,6 +5538,7 @@ void MegaClient::initsc()
         {
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
             sctable->commit();
             assert(!sctable->inTransaction());
             sctable->begin();
@@ -5690,9 +5674,13 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " (sessionid: " << string(sessionid, sizeof(sessionid)) << ") with "
+            << mNodeManager.nodeNotifySize() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs, "
+            << setnotify.size() << " sets, " << setelementnotify.size() << " elements to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -5827,7 +5815,7 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
         {
             if (it.first != fa_media)
             {
-                sprintf(buf, "/%u*", (unsigned)it.first);
+                snprintf(buf, sizeof(buf), "/%u*", (unsigned)it.first);
                 Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
                 fa->append(buf + !fa->size());
                 LOG_debug << "Added file attribute " << it.first << " to putnodes";
@@ -8475,11 +8463,11 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
-    if (n->changed.favourite && (n->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
+    if (n->changed.favourite && (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
     {
         return API_EACCESS;
     }
-    
+
     n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
@@ -12632,7 +12620,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         nsi = addnode(&rshares, sn);
                         nni = addnode(&rnodes, n);
 
-                        sprintf(buf, "\",%u,%u,\"", nsi, nni);
+                        snprintf(buf, sizeof(buf), "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
                         sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
@@ -13441,6 +13429,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mNodeManager.dumpNodes();
 
         // and force commit, since old DB has been upgraded to new schema for NOD
+        LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
         sctable->commit();
         sctable->begin();
     }
@@ -16522,7 +16511,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                         Base64::btoa((const byte *)&(*it)->nodehandle, MegaClient::NODEHANDLE, report);
 
-                        sprintf(report + 8, " %d %.200s", (*it)->type, buf);
+                        snprintf(report + 8, sizeof(report) - 8, " %d %.200s", (*it)->type, buf);
 
                         // report an "undecrypted child" event
                         reportevent("CU", report, 0);
@@ -16575,7 +16564,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                snprintf(report, sizeof(report), "%d %d %d %d", (int)lit->first.reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -16933,7 +16922,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 node_list nodeList = getChildren(l->node);
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
+                snprintf(report, sizeof(report), "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)nodeList.size() : -1,
@@ -16960,7 +16949,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     }
 
                     // additionally, report corresponding Node's type, name length, mtime, file size and handle
-                    sprintf(strchr(report, 0), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
+                    char* ptr = strchr(report, '\0');
+                    snprintf(ptr, sizeof(report) - (ptr - report), " %d %d %d %" PRIi64 " %d ", ll->node->type, namelen, (int)ll->node->mtime, ll->node->size, ll->node->syncdeleted);
                     Base64::btoa((const byte *)&ll->node->nodehandle, MegaClient::NODEHANDLE, strchr(report, 0));
                 }
 
@@ -17425,7 +17415,7 @@ void MegaClient::execmovetosyncdebris()
 
     ts = m_time();
     struct tm* ptm = m_localtime(ts, &tms);
-    sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 
     // locate //bin/SyncDebris
@@ -19461,6 +19451,29 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
 }
 
+void MegaClient::removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion)
+{
+    // set-id is required
+    assert(sid != UNDEF && !eids.empty());
+
+    // make sure Set id is valid
+    const Set* existingSet = (eids.empty() || sid == UNDEF) ? nullptr : getSet(sid);
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Invalid request data when removing bulk Elements";
+        if (completion)
+        {
+            completion(API_ENOENT, nullptr);
+        }
+        return;
+    }
+
+    // Do not validate Element ids here. Let the API return error for invalid ones,
+    // to allow valid ones to be removed.
+
+    reqs.add(new CommandRemoveSetElements(this, sid, move(eids), completion));
+}
+
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
 {
     if (!getSetElement(sid, eid))
@@ -20272,7 +20285,7 @@ bool MegaClient::updatescsetelements()
                 continue;
             }
 
-            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            LOG_verbose << (e->hasChanged(SetElement::CH_EL_NEW) ? "Adding" : "Updating") << " SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSETELEMENT, e, &key))
             {
                 return false;
