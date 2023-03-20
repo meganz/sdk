@@ -1424,7 +1424,6 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
     megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), tracker.get());
     tracker->waitForResult();
-    WaitMillisec(2000);
 }
 
 void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
@@ -1467,7 +1466,6 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
     megaApi[apiIndex]->removeScheduledMeeting(aux->chatid(), aux->schedId(), tracker.get());
     tracker->waitForResult();
-    WaitMillisec(2000);
 }
 #endif
 
@@ -3043,7 +3041,6 @@ void SdkTest::delSchedMeetings()
 
     // wait for requests to complete:
     for (auto& d : delSchedTrackers) d->waitForResult();
-    WaitMillisec(2000);
 }
 #endif
 
