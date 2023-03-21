@@ -7299,11 +7299,11 @@ void exec_decryptLink(autocomplete::ACState &s)
     error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
     if (e)
     {
-        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+        cout << "Failed to decrypt link: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password encrypted link: " << decryptedLink << endl;
+        cout << "Decrypted link: " << decryptedLink << endl;
     }
 
 }
