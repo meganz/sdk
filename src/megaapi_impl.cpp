@@ -23402,21 +23402,6 @@ void MegaApiImpl::sendPendingRequests()
                 [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             break;
         }
-        case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
-        {
-            client->reqs.add(new CommandBackupPutHeartBeat(client,
-                                                           (MegaHandle)request->getParentHandle(),
-                                                           CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
-                                                           (uint8_t)request->getNumDetails(),
-                                                           (uint32_t)request->getParamType(),
-                                                           (uint32_t)request->getTransferTag(),
-                                                           request->getNumber(),
-                                                           request->getNodeHandle(),
-                                                           [this, request](Error e){
-                                                                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                                                           }));
-            break;
-        }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
@@ -23426,6 +23411,37 @@ void MegaApiImpl::sendPendingRequests()
         }
         }
     }
+}
+
+void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, listener);
+    request->setParentHandle(backupId);
+    request->setAccess(status);
+    request->setNumDetails(progress);
+    request->setParamType(ups);
+    request->setTransferTag(downs);
+    request->setNumber(ts);
+    request->setNodeHandle(lastNode);
+
+    request->performRequest = [this, request]()
+        {
+            client->reqs.add(new CommandBackupPutHeartBeat(client,
+                                                           (MegaHandle)request->getParentHandle(),
+                                                           CommandBackupPutHeartBeat::SPHBStatus(request->getAccess()),
+                                                           (uint8_t)request->getNumDetails(),
+                                                           (uint32_t)request->getParamType(),
+                                                           (uint32_t)request->getTransferTag(),
+                                                           request->getNumber(),
+                                                           request->getNodeHandle(),
+                                                           [this, request](Error e) {
+                                                               fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                           }));
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 #ifdef ENABLE_CHAT
@@ -23976,20 +23992,6 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setNumDetails(subState);
     }
 
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, listener);
-    request->setParentHandle(backupId);
-    request->setAccess(status);
-    request->setNumDetails(progress);
-    request->setParamType(ups);
-    request->setTransferTag(downs);
-    request->setNumber(ts);
-    request->setNodeHandle(lastNode);
     requestQueue.push(request);
     waiter->notify();
 }
