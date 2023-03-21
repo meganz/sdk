@@ -11065,13 +11065,6 @@ void MegaApiImpl::getRegisteredContacts(const MegaStringMap* contacts, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::getCountryCallingCodes(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PUBLIC_LINK_INFORMATION, listener);
@@ -23320,13 +23313,22 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
-        case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
-        {
-            client->reqs.add(new CommandGetCountryCallingCodes{client});
-            break;
-        }
         }
     }
+}
+
+void MegaApiImpl::getCountryCallingCodes(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
+
+    request->performRequest = [this, request]()
+        {
+            client->reqs.add(new CommandGetCountryCallingCodes{ client });
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getMiscFlags(MegaRequestListener* listener)
