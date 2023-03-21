@@ -344,6 +344,7 @@ void SdkTest::Cleanup()
             string email2 = string(contacts->get(i)->getEmail());
             if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
             if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
+            alreadyRemoved.insert(email1+email2);
 
             auto result = synchronousRemoveContact(nApi, contacts->get(i));
             if (result == API_EARGS)
