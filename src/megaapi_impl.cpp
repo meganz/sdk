@@ -19067,6 +19067,13 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EINTERNAL;
             break;
         }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            // deprecated
+            e = API_EEXPIRED;
+            break;
+        }
         case MegaRequest::TYPE_PUT_SET:
         {
             Set s;
@@ -23336,20 +23343,22 @@ void MegaApiImpl::sendPendingRequests()
             client->getmiscflags();
             break;
         }
-        case MegaRequest::TYPE_GET_BANNERS:
-        {
-            client->reqs.add(new CommandGetBanners(client));
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
-        {
-            // deprecated
-            e = API_EEXPIRED;
-            break;
-        }
         }
     }
+}
+
+void MegaApiImpl::getBanners(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
+
+    request->performRequest = [this, request]()
+        {
+            client->reqs.add(new CommandGetBanners(client));
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::dismissBanner(int id, MegaRequestListener* listener)
@@ -23936,13 +23945,6 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     {
         return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
     }
-}
-
-void MegaApiImpl::getBanners(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener)
