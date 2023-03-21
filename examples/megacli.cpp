@@ -5219,7 +5219,7 @@ void exec_get(autocomplete::ACState& s)
     {
         handle ph = UNDEF;
         byte key[FILENODEKEYLENGTH];
-        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, FILENODE) == API_OK)
+        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, TypeOfLink::FILE) == API_OK)
         {
             cout << "Checking link..." << endl;
 
@@ -7298,7 +7298,7 @@ void exec_import(autocomplete::ACState& s)
 {
     handle ph = UNDEF;
     byte key[FILENODEKEYLENGTH];
-    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, FILENODE);
+    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, TypeOfLink::FILE);
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
@@ -7316,7 +7316,7 @@ void exec_folderlinkinfo(autocomplete::ACState& s)
 
     handle ph = UNDEF;
     byte folderkey[FOLDERNODEKEYLENGTH];
-    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, FOLDERNODE) == API_OK)
+    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, TypeOfLink::FOLDER) == API_OK)
     {
         cout << "Loading public folder link info..." << endl;
         client->getpubliclinkinfo(ph);
@@ -7975,7 +7975,6 @@ void exec_mediainfo(autocomplete::ACState& s)
                 }
                 break;
             }
-            case SETNODE:
             case TYPE_DONOTSYNC:
             case TYPE_SPECIAL:
             case TYPE_UNKNOWN:
@@ -8779,13 +8778,14 @@ void exportnode_result(Error e, handle h, handle ph)
         }
 
         string publicLink;
+        TypeOfLink lType = client->validTypeForPublicURL(n->type);
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, lType, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, lType, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -8960,7 +8960,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     #ifndef NDEBUG
     error eaux =
     #endif
-    client->parsepubliclink(publiclink.c_str(), ph, folderkey, FOLDERNODE);
+    client->parsepubliclink(publiclink.c_str(), ph, folderkey, TypeOfLink::FOLDER);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link

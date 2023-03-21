@@ -1264,11 +1264,6 @@ string Node::displaypath() const
             path.insert(0, "//bin");
             return path;
 
-        case SETNODE:
-            LOG_err << "Trying to evaluate displaypath() on a Set node";
-            assert(false);
-            return path;
-
         case TYPE_DONOTSYNC:
         case TYPE_SPECIAL:
         case TYPE_UNKNOWN:

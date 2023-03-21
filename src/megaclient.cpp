@@ -1550,46 +1550,42 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
     mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
-bool MegaClient::validTypeForPublicURL(nodetype_t type)
+TypeOfLink MegaClient::validTypeForPublicURL(nodetype_t type)
 {
-    switch (type)
+    bool error;
+    TypeOfLink lType;
+    std::tie(error, lType) = toTypeOfLink(type);
+    if (error)
     {
-    case FOLDERNODE:
-    case FILENODE:
-    case SETNODE:
-        return true;
-    default:
-        return false;
+        assert(false);
+        LOG_err << "Attempting to get a public link for node type " << type
+                << ". Only valid node types are folders (" << FOLDERNODE
+                << ") and files (" << FILENODE << ")";
     }
+
+    return lType;
 }
 
-std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+std::string MegaClient::publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key)
 {
-    assert(validTypeForPublicURL(type));
-    if (!validTypeForPublicURL(type))
-    {
-        LOG_err << "Public link URL requested for non-valid type " << type;
-        return string();
-    }
-
     string strlink = MegaClient::MEGAURL + "/";
     string nodeType;
     if (newLinkFormat)
     {
-        static const map<nodetype_t, string> typeSchema = {{FOLDERNODE, "folder/"}
-                                                          ,{FILENODE, "file/"}
-                                                          ,{SETNODE, "collection/"}
+        static const map<TypeOfLink, string> typeSchema = {{TypeOfLink::FOLDER, "folder/"}
+                                                          ,{TypeOfLink::FILE, "file/"}
+                                                          ,{TypeOfLink::SET, "collection/"}
                                                           };
         nodeType = typeSchema.at(type);
     }
-    else if (type == SETNODE)
+    else if (type == TypeOfLink::SET)
     {
         LOG_err << "Requesting old link format URL for Set type";
         return string();
     }
     else
     {
-        nodeType = (type == FOLDERNODE ? "#F!" : "#!");
+        nodeType = (type == TypeOfLink::FOLDER ? "#F!" : "#!");
     }
 
     strlink += nodeType;
@@ -10201,7 +10197,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 //   - folder links:    #F!<ph>[!<key>]
 //                      /folder/<ph>[<params>][#<key>]
 //   - set links:       /collection/<ph>[<params>][#<key>]
-error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, nodetype_t type)
+error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, TypeOfLink type)
 {
     bool isFolder;
     const char* ptr = nullptr;
@@ -10236,7 +10232,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, nodet
         isFolder = false;
     }
 
-    if (isFolder != (type == FOLDERNODE))
+    if (isFolder != (type == TypeOfLink::FOLDER))
     {
         return API_EARGS;   // type of link mismatch
     }
@@ -10265,9 +10261,9 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, nodet
         if (*ptr == '!' || *ptr == '#')
         {
             const char *k = ptr + 1;    // skip '!' or '#' separator
-            static const map<nodetype_t, int> nodetypeKeylength = {{FOLDERNODE, FOLDERNODEKEYLENGTH}
-                                                                  ,{FILENODE, FILENODEKEYLENGTH}
-                                                                  ,{SETNODE, SETNODEKEYLENGTH}
+            static const map<TypeOfLink, int> nodetypeKeylength = {{TypeOfLink::FOLDER, FOLDERNODEKEYLENGTH}
+                                                                  ,{TypeOfLink::FILE, FILENODEKEYLENGTH}
+                                                                  ,{TypeOfLink::SET, SETNODEKEYLENGTH}
                                                                   };
             int keylen = nodetypeKeylength.at(type);
             if (Base64::atob(k, key, keylen) == keylen)
@@ -10311,7 +10307,7 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
     byte folderkey[FOLDERNODEKEYLENGTH];
 
     error e;
-    if ((e = parsepubliclink(folderlink, h, folderkey, FOLDERNODE)) == API_OK)
+    if ((e = parsepubliclink(folderlink, h, folderkey, TypeOfLink::FOLDER)) == API_OK)
     {
         if (authKey)
         {
@@ -12931,7 +12927,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         }
 
         Base64Str<FILENODEKEYLENGTH> keyStr(key);
-        decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
+        decryptedLink->assign(publicLinkURL(mNewLinkFormat, isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE, ph, keyStr));
     }
 
     return API_OK;
@@ -12956,7 +12952,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     handle ph;
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
     std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
-    error e = parsepubliclink(link, ph, linkKey.get(), (isFolder ? FOLDERNODE : FILENODE));
+    error e = parsepubliclink(link, ph, linkKey.get(), (isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE));
     if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
@@ -20417,7 +20413,7 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
     }
 
     error e = API_OK;
-    string url = publicLinkURL(true /*newLinkFormat*/, SETNODE, s.publicId(), Base64::btoa(s.key()).c_str());
+    string url = publicLinkURL(true /*newLinkFormat*/, TypeOfLink::SET, s.publicId(), Base64::btoa(s.key()).c_str());
 
     if (url.empty()) e = API_EINTERNAL;
 
@@ -20431,7 +20427,7 @@ error MegaClient::startSetPreview(const char* publicSetLink,
 
     handle publicSetId = UNDEF;
     std::array<byte, SETNODEKEYLENGTH> publicSetKey;
-    error e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), SETNODE);
+    error e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), TypeOfLink::SET);
     if (e == API_OK)
     {
         assert(publicSetId != UNDEF);

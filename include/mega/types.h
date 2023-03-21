@@ -348,8 +348,13 @@ typedef enum {
     ROOTNODE,        // ROOT - the cloud drive root node
     VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
     RUBBISHNODE,     // RUBBISH - rubbish bin
-    SETNODE          // SET - collection of nodes (e.g. album of photos)
 } nodetype_t;
+
+enum class TypeOfLink {
+    FOLDER,
+    FILE,
+    SET,
+};
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 

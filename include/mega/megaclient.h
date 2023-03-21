@@ -502,7 +502,8 @@ public:
     bool ephemeralSession = false;
     bool ephemeralSessionPlusPlus = false;
 
-    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static TypeOfLink validTypeForPublicURL(nodetype_t type);
+    static string publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -617,7 +618,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, nodetype_t type);
+    error parsepubliclink(const char *link, handle &ph, byte *key, TypeOfLink type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -2373,8 +2374,6 @@ public:
     const Set* getPreviewSet() const { return inSetPreviewMode() ? &mPreviewSet->mSet : nullptr; }
 
 private:
-    static inline bool validTypeForPublicURL(nodetype_t type);
-
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);

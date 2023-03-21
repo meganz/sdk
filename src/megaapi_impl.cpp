@@ -956,7 +956,8 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     char *base64k = getBase64Key();
-    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    TypeOfLink lType = MegaClient::validTypeForPublicURL(static_cast<nodetype_t>(type));
+    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, lType, plink->ph, (includeKey ? base64k : nullptr));
     delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
@@ -7135,7 +7136,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
-    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE, ph, key);
     return MegaApi::strdup(link.c_str());
 }
 
@@ -19927,7 +19928,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle ph = UNDEF;
             byte key[FILENODEKEYLENGTH];
-            e = client->parsepubliclink(megaFileLink, ph, key, FILENODE);
+            e = client->parsepubliclink(megaFileLink, ph, key, TypeOfLink::FILE);
             if (e == API_OK)
             {
                 client->openfilelink(ph, key);
@@ -20053,7 +20054,8 @@ void MegaApiImpl::sendPendingRequests()
                             return;
                         }
 
-                        string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
+                        TypeOfLink lType = client->validTypeForPublicURL(n->type);
+                        string link = client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
                         request->setLink(link.c_str());
                         if (n->plink && n->plink->mAuthKey.size())
                         {
@@ -23162,7 +23164,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle h = UNDEF;
             byte folderkey[FOLDERNODEKEYLENGTH];
-            e = client->parsepubliclink(link, h, folderkey, FOLDERNODE);
+            e = client->parsepubliclink(link, h, folderkey, TypeOfLink::FOLDER);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);

@@ -500,8 +500,7 @@ class MegaNode
             TYPE_ROOT       = 2,
             TYPE_VAULT      = 3,
             TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
-            TYPE_RUBBISH    = 4,
-            TYPE_SET        = 5
+            TYPE_RUBBISH    = 4
 		};
 
         enum {
@@ -572,9 +571,6 @@ class MegaNode
          * The MegaNode object represents root of the MEGA Vault
          *
          * - TYPE_RUBBISH = 4
-         * The MegaNode object represents root of the MEGA Rubbish Bin
-         *
-         * - TYPE_SET = 5
          * The MegaNode object represents root of the MEGA Rubbish Bin
          *
          * @return Type of the node
