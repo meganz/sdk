@@ -11002,14 +11002,6 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
-    request->setText(localizedName);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -23539,13 +23531,22 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
-        case MegaRequest::TYPE_SET_MY_BACKUPS:
+        }
+    }
+}
+
+void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
+    request->setText(localizedName);
+
+    request->performRequest = [this, request]()
         {
             auto addua_completion = [request, this](Error e)
             {
                 if (e == API_OK)
                 {
-                    const string *buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    const string* buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
                     handle h = 0;
                     memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
 
@@ -23554,11 +23555,11 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             };
 
-            e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
-            break;
-        }
-        }
-    }
+            return client->setbackupfolder(request->getText(), request->getTag(), addua_completion);
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
