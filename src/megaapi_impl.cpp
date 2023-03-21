@@ -10919,16 +10919,6 @@ void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequest
     waiter->notify();
 }
 
-void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(callid);
-    request->setAccess(reason);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setSFUid(int sfuid)
 {
     SdkMutexGuard g(sdkMutex);
@@ -23497,7 +23487,20 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
-        case MegaRequest::TYPE_END_CHAT_CALL:
+#endif
+        }
+    }
+}
+
+#ifdef ENABLE_CHAT
+void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+    request->setAccess(reason);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
@@ -23506,34 +23509,32 @@ void MegaApiImpl::sendPendingRequests()
                     || callid == INVALID_HANDLE
                     || !client->isValidEndCallReason(reason))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             TextChat* chat = it->second;
             if (reason == END_CALL_REASON_BY_MODERATOR && !chat->group)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->reqs.add(new CommandMeetingEnd(client, chatid, callid, reason, [request, this](Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-#endif
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
+#endif
 
 void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListener* listener)
 {
