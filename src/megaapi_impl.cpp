@@ -10901,15 +10901,6 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
     return true;
 }
 
-void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setSFUid(int sfuid)
 {
     SdkMutexGuard g(sdkMutex);
@@ -23433,14 +23424,23 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EEXPIRED;
             break;
         }
+        }
+    }
+}
+
 #ifdef ENABLE_CHAT
-        case MegaRequest::TYPE_START_CHAT_CALL:
+void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-               break;
+                return API_EARGS;
             }
 
             handle schedId = request->getParentHandle();
@@ -23455,14 +23455,13 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-#endif
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
-#ifdef ENABLE_CHAT
 void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
