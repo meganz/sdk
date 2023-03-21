@@ -6392,13 +6392,6 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
@@ -23332,19 +23325,27 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandGetCountryCallingCodes{client});
             break;
         }
-        case MegaRequest::TYPE_GET_MISC_FLAGS:
+        }
+    }
+}
+
+void MegaApiImpl::getMiscFlags(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
+
+    request->performRequest = [this, request]()
         {
             if (client->loggedin())
             {
                 // it only returns not-user-related flags (ie. server-sider-rubbish scheduler is missing)
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
             client->getmiscflags();
-            break;
-        }
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getBanners(MegaRequestListener* listener)
