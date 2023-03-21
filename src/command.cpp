@@ -26,7 +26,6 @@
 namespace mega {
 Command::Command()
 {
-    persistent = false;
     canceled = false;
     result = API_OK;
     client = NULL;

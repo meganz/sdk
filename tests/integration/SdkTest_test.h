@@ -237,8 +237,10 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
+        bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
+        MegaHandle schedId;         // last scheduled meeting added
 #endif
 
         void receiveEvent(MegaEvent* e)
@@ -326,6 +328,10 @@ protected:
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
+
+#ifdef ENABLE_CHAT
+    void delSchedMeetings();
+#endif
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
@@ -513,7 +519,8 @@ public:
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
-    void inviteContact(unsigned apiIndex, string email, string message, int action);
+    void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
+    void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
     void replyContact(MegaContactRequest *cr, int action);
     int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
@@ -521,8 +528,13 @@ public:
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
-
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
+
+#ifdef ENABLE_CHAT
+    void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
+#endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     MegaHandle importPublicLink(unsigned apiIndex, string link, MegaNode *parent);

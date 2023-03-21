@@ -33,22 +33,17 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size_only, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
-    : mCompletion(std::move(completion)), data(std::move(cdata))
+
+CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
+    : mCompletion(std::move(completion))
 {
-    assert(!!size_only ^ !!data);   // get URL or upload data, not both
-    assert(!!mCompletion ^ !!data);  // completion and upload are incompatible
     cmd("ufa");
-    arg("s", data ? data->size() : size_only);
+    arg("s", size);
 
     if (cth.isNodeHandle())
     {
         arg("h", cth.nodeHandle());
     }
-
-    progressreported = 0;
-    persistent = true;  // object will be recycled either for retry or for
-                        // posting to the file attribute server
 
     if (usehttps)
     {
@@ -60,71 +55,84 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
         arg("v", 3);
     }
 
+    tag = ctag;
+}
+
+HttpReqFA::HttpReqFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata, bool getIP, MegaClient* client)
+    : data(std::move(cdata))
+{
+    tag = ctag;
+    progressreported = 0;
+
     th = cth;
     type = ctype;
 
     binary = true;
 
-    tag = ctag;
+    getURLForFACmd = [this, cth, ctype, usehttps, ctag, getIP, client](){
 
-    if (!mCompletion)
-    {
-        mCompletion = [this](Error e, const std::string & /*url*/, const vector<std::string> & /*ips*/)
-        {
-            if (!data || data->empty())
-            {
-                e = API_EARGS;
-                LOG_err << "Data object is " << (!data ? "nullptr" : "empty");
-            }
+        std::weak_ptr<HttpReqFA> weakSelf(shared_from_this());
 
-            if (e == API_OK)
+        return new CommandPutFA(cth, ctype, usehttps, ctag, data->size(), getIP,
+            [weakSelf, client](Error e, const std::string & url, const vector<std::string> & /*ips*/)
             {
-                LOG_debug << "Sending file attribute data";
-                progressreported = 0;
-                HttpReq::type = REQ_BINARY;
-                post(client, data->data(), static_cast<unsigned>(data->size()));
-            }
-            else
-            {
-                client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
-            }
-        };
-    }
+                auto self = weakSelf.lock();
+                if (!self) return;
+
+                if (!self->data || self->data->empty())
+                {
+                    e = API_EARGS;
+                    LOG_err << "Data object is " << (!self->data ? "nullptr" : "empty");
+                }
+
+                if (e == API_OK)
+                {
+                    LOG_debug << "Sending file attribute data";
+                    self->progressreported = 0;
+                    self->HttpReq::type = REQ_BINARY;
+                    self->posturl = url;
+
+                    // post sets the status for http processing state machine
+                    self->post(client, self->data->data(), static_cast<unsigned>(self->data->size()));
+                }
+                else
+                {
+                    // jumping to REQ_SUCCESS, but with no handle in `in`, means we failed overall (and don't retry)
+                    self->status = REQ_SUCCESS;
+                    client->app->putfa_result(self->th.nodeHandle().as8byte(), self->type, e);
+                }
+            });
+    };
 }
 
-bool HttpReqCommandPutFA::procresult(Result r)
+bool CommandPutFA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        if (r.wasError(API_EAGAIN) || r.wasError(API_ERATELIMIT))
+        assert(!r.wasError(API_EAGAIN)); // these would not occur here, we would retry after backoff
+        assert(!r.wasError(API_ERATELIMIT));
+
+        if (r.wasError(API_EACCESS))
         {
-            status = REQ_FAILURE;
-        }
-        else
-        {
-            if (r.wasError(API_EACCESS))
+            // create a custom attribute indicating thumbnail can't be restored from this account
+            Node *n = client->nodeByHandle(th.nodeHandle());
+
+            char me64[12];
+            Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+
+            if (n && client->checkaccess(n, FULL) &&
+                    (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
             {
-                // create a custom attribute indicating thumbnail can't be restored from this account
-                Node *n = client->nodeByHandle(th.nodeHandle());
+                LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                char me64[12];
-                Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
-
-                if (n && client->checkaccess(n, FULL) &&
-                        (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
-                {
-                    LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-
-                    // 'canChangeVault' is false here because restoration of file attributes is triggered by
-                    // downloads, so it cannot be triggered by a Backup operation
-                    bool canChangeVault = false;
-                    client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
-                }
+                // 'canChangeVault' is false here because restoration of file attributes is triggered by
+                // downloads, so it cannot be triggered by a Backup operation
+                bool canChangeVault = false;
+                client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
             }
-
-            status = REQ_SUCCESS;
-            mCompletion(r.errorOrOK(), {}, {});
         }
+
+        mCompletion(r.errorOrOK(), {}, {});
         return true;
     }
     else
@@ -147,10 +155,11 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 case EOO:
                     if (!p)
                     {
-                        status = REQ_FAILURE;
+                        mCompletion(API_EINTERNAL, {}, {});
                     }
                     else
                     {
+                        string posturl;
                         JSON::copystring(&posturl, p);
 
                         // cache resolved URLs if received
@@ -163,15 +172,12 @@ bool HttpReqCommandPutFA::procresult(Result r)
                         }
 
                         mCompletion(API_OK, posturl, ipsCopy);
-
-                        return true;
                     }
-                    break;
+                    return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        status = REQ_SUCCESS;
                         mCompletion(API_EINTERNAL, {}, {});
                         return false;
                     }
@@ -180,7 +186,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
     }
 }
 
-m_off_t HttpReqCommandPutFA::transferred(MegaClient *client)
+m_off_t HttpReqFA::transferred(MegaClient *client)
 {
     if (httpiohandle)
     {

@@ -121,7 +121,6 @@ struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
 struct GenericHttpReq;
-struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
 class NodeManager;
@@ -559,9 +558,6 @@ const handle UNDEF = ~(handle)0;
 
 typedef list<struct TransferSlot*> transferslot_list;
 
-// FIXME: use forward_list instad (C++11)
-typedef list<HttpReqCommandPutFA*> putfa_list;
-
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_multimap;
 
@@ -703,9 +699,6 @@ typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIV
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
                TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
-
-// FIXME: use forward_list instad (C++11)
-typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 

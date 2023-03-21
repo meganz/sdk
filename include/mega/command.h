@@ -22,6 +22,8 @@
 #ifndef MEGA_COMMAND_H
 #define MEGA_COMMAND_H 1
 
+#include <memory>
+
 #include "types.h"
 #include "node.h"
 #include "account.h"
@@ -53,8 +55,6 @@ public:
 
     int tag;
     string commandStr;
-
-    bool persistent;
 
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
     bool batchSeparately;
@@ -174,25 +174,39 @@ public:
 
 // list of new file attributes to write
 // file attribute put
-struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
-{
-    // For this command, the completion is exectued after the API response.
-    // If you supply a completion, that will short-circuit the upload process
-    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
-    Cb mCompletion;
 
+struct MEGA_API CommandPutFA : public Command
+{
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+
+private:
+    Cb mCompletion;
+    NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
+
+public:
+    bool procresult(Result) override;
+
+
+    CommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size_only,
+                 bool getIP = true, Cb &&completion = nullptr);
+};
+
+struct MEGA_API HttpReqFA : public HttpReq, public std::enable_shared_from_this<HttpReqFA>
+{
     NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     m_off_t progressreported;
-
-    bool procresult(Result) override;
 
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
     // either supply only size (to just get the URL) or supply only the data for auto-upload (but not both)
-    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size_only,
-                        std::unique_ptr<string> faData, bool getIP = true, Cb &&completion = nullptr);
+    HttpReqFA(NodeOrUploadHandle, fatype, bool usehttps, int tag,
+                        std::unique_ptr<string> faData, bool getIP, MegaClient* client);
+
+    // generator function because the code allows for retries
+    std::function<CommandPutFA*()> getURLForFACmd;
+    int tag = 0;
 
 private:
     std::unique_ptr<string> data;

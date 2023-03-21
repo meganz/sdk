@@ -234,19 +234,8 @@ void Request::process(MegaClient* client)
 #endif
         }
 
-        if (cmds[processindex]->persistent)
-        {
-            // do not leave the pointer lying around here
-            // the object may be passed to other systems, complete its task
-            // and then be deleted before this batch finishes
-            // and then we would be left with a dangling pointer to check `persistent` with
-            cmds[processindex].release();
-        }
-        else
-        {
-            // delete the command as soon as it's not needed anymore
-            cmds[processindex].reset();
-        }
+        // delete the command as soon as it's not needed anymore
+        cmds[processindex].reset();
     }
 
     json = client->json;
