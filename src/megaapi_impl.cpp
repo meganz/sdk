@@ -23341,11 +23341,6 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandGetBanners(client));
             break;
         }
-        case MegaRequest::TYPE_DISMISS_BANNER:
-        {
-            client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
-            break;
-        }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
@@ -23355,6 +23350,22 @@ void MegaApiImpl::sendPendingRequests()
         }
         }
     }
+}
+
+void MegaApiImpl::dismissBanner(int id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DISMISS_BANNER, listener);
+    request->setParamType(id); // banner id
+    request->setNumber(m_time(nullptr)); // timestamp
+
+    request->performRequest = [this, request]()
+        {
+            client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
@@ -23930,15 +23941,6 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
 void MegaApiImpl::getBanners(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISMISS_BANNER, listener);
-    request->setParamType(id); // banner id
-    request->setNumber(m_time(nullptr)); // timestamp
     requestQueue.push(request);
     waiter->notify();
 }
