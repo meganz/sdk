@@ -20844,6 +20844,18 @@ class MegaApi
         bool inPublicSetPreview();
 
         /**
+         * @brief Get current public/exported Set in Preview mode
+         *
+         * The response value is stored as a MegaSet.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported Set in preview mode or nullptr if there is none
+         *
+         */
+        MegaSet* getPublicSetInPreview();
+
+        /**
          * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT

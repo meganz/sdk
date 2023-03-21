@@ -5896,6 +5896,11 @@ bool MegaApi::inPublicSetPreview()
     return pImpl->inPublicSetPreview();
 }
 
+MegaSet* MegaApi::getPublicSetInPreview()
+{
+    return pImpl->getPublicSetInPreview();
+}
+
 void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
 {
     return pImpl->getPreviewElementNode(eid, listener);

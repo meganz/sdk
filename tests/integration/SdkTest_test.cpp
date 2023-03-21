@@ -11099,6 +11099,9 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         lIsSameElementList(els.get());
 
         ASSERT_TRUE(megaApi[apiIdx]->inPublicSetPreview());
+        unique_ptr<MegaSet> setInPreview (megaApi[apiIdx]->getPublicSetInPreview());
+        ASSERT_NE(setInPreview.get(), nullptr);
+        lIsSameSet(setInPreview.get(), isSetExportExpected);
     };
 
     lStartSetPreviewMode(0, isExpectedToBeExported);
@@ -11112,6 +11115,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
+    ASSERT_EQ(megaApi[0]->getPublicSetInPreview(), nullptr);
 
 
     LOG_debug << "# U2: Fetch Set (-11 expected)";

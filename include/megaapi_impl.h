@@ -2684,6 +2684,7 @@ class MegaApiImpl : public MegaApp
         bool isExportedSet(MegaHandle sid);
         void stopPublicSetPreview();
         bool inPublicSetPreview();
+        MegaSet* getPublicSetInPreview();
         const char* getPublicLinkForExportedSet(MegaHandle sid);
 
     private:

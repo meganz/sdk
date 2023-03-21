@@ -24355,8 +24355,6 @@ MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
     return el ? (new MegaSetElementPrivate(*el)) : nullptr;
 }
 
-
-
 MegaSetListPrivate::MegaSetListPrivate(const Set *const* sets, int count)
 {
     if (sets && count)
@@ -24473,6 +24471,15 @@ bool MegaApiImpl::inPublicSetPreview()
     SdkMutexGuard g(sdkMutex);
 
     return client->inSetPreviewMode();
+}
+
+MegaSet* MegaApiImpl::getPublicSetInPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const auto s = client->getPreviewSet();
+
+    return s ? new MegaSetPrivate(*s) : nullptr;
 }
 
 void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
