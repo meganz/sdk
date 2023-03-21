@@ -10901,70 +10901,10 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
     return true;
 }
 
-void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(callid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(callid);
-    request->setAccess(reason);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setSFUid(int sfuid)
 {
     SdkMutexGuard g(sdkMutex);
     client->mSfuid = sfuid;
-}
-
-void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
-    assert(scheduledMeeting);
-    if (scheduledMeeting)
-    {
-        std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-        l->insert(scheduledMeeting->copy());
-        request->setMegaScheduledMeetingList(l.get());
-    }
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_SCHEDULED_MEETING, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
-    requestQueue.push(request);
-    waiter->notify();
 }
 #endif
 
@@ -11030,14 +10970,6 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER);
     request->setNodeHandle(nodehandle);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
-    request->setText(localizedName);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11610,15 +11542,6 @@ MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigne
     m_time_t since = m_time() - days * 86400;
     recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
-}
-
-void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
-    request->setNumber(days);
-    request->setParamType(maxnodes);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -23168,7 +23091,7 @@ void MegaApiImpl::sendPendingRequests()
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
 
-            client->reqs.add(new HttpReqCommandPutFA(std::move(nuh), faType, forceSSL, -1, fullSize, nullptr, getIp,
+            client->reqs.add(new CommandPutFA(std::move(nuh), faType, forceSSL, -1, fullSize, getIp,
             [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
             {
                 assert(e != API_OK || !url.empty());
@@ -23501,14 +23424,23 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EEXPIRED;
             break;
         }
+        }
+    }
+}
+
 #ifdef ENABLE_CHAT
-        case MegaRequest::TYPE_START_CHAT_CALL:
+void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-               break;
+                return API_EARGS;
             }
 
             handle schedId = request->getParentHandle();
@@ -23523,16 +23455,26 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_JOIN_CHAT_CALL:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
             if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->reqs.add(new CommandMeetingJoin(client, chatid, callid, [request, this](Error e, std::string sfuUrl)
@@ -23544,9 +23486,21 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_END_CHAT_CALL:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+    request->setAccess(reason);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
@@ -23555,38 +23509,45 @@ void MegaApiImpl::sendPendingRequests()
                     || callid == INVALID_HANDLE
                     || !client->isValidEndCallReason(reason))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             TextChat* chat = it->second;
             if (reason == END_CALL_REASON_BY_MODERATOR && !chat->group)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->reqs.add(new CommandMeetingEnd(client, chatid, callid, reason, [request, this](Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
-        case MegaRequest::TYPE_SET_MY_BACKUPS:
+
+void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
+    request->setText(localizedName);
+
+    request->performRequest = [this, request]()
         {
             auto addua_completion = [request, this](Error e)
             {
                 if (e == API_OK)
                 {
-                    const string *buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    const string* buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
                     handle h = 0;
                     memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
 
@@ -23595,23 +23556,31 @@ void MegaApiImpl::sendPendingRequests()
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             };
 
-            e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
-            break;
-        }
-        case MegaRequest::TYPE_GET_RECENT_ACTIONS:
+            return client->setbackupfolder(request->getText(), request->getTag(), addua_completion);
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
+    request->setNumber(days);
+    request->setParamType(maxnodes);
+
+    request->performRequest = [this, request]()
         {
            int maxnodes = request->getParamType();
            if (maxnodes <= 0)
            {
-               e = API_EARGS;
-               break;
+               return API_EARGS;
            }
 
            int days = static_cast<int>(request->getNumber());
            if (days <= 0)
            {
-               e = API_EARGS;
-               break;
+               return API_EARGS;
            }
 
            m_time_t since = m_time() - days * 86400;
@@ -23619,16 +23588,30 @@ void MegaApiImpl::sendPendingRequests()
            std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
            request->setRecentActions(std::move(recentActions));
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-           break;
-        }
+           return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 #ifdef ENABLE_CHAT
-        case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
+void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
+    assert(scheduledMeeting);
+    if (scheduledMeeting)
+    {
+        std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+        l->insert(scheduledMeeting->copy());
+        request->setMegaScheduledMeetingList(l.get());
+    }
+
+    request->performRequest = [this, request]()
         {
             if (!request->getMegaScheduledMeetingList() || request->getMegaScheduledMeetingList()->size() != 1)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getMegaScheduledMeetingList()->at(0));
@@ -23636,8 +23619,7 @@ void MegaApiImpl::sendPendingRequests()
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), [chatid, request, this] (Error e, const ScheduledMeeting* sm)
@@ -23651,9 +23633,20 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle schedId = request->getParentHandle();
@@ -23661,17 +23654,27 @@ void MegaApiImpl::sendPendingRequests()
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedId, [request, this] (Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedId);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle schedId = request->getParentHandle();
@@ -23679,16 +23682,15 @@ void MegaApiImpl::sendPendingRequests()
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedId, [request, this](Error e, const std::vector<std::unique_ptr<ScheduledMeeting>> *result)
             {
                 if (result && !result->empty())
                 {
                     std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
-                    for (auto const& sm: *result)
+                    for (auto const &sm : *result)
                     {
                         l->insert(new MegaScheduledMeetingPrivate(sm.get()));
                     }
@@ -23697,14 +23699,13 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-#endif
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
-#ifdef ENABLE_CHAT
 void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES, listener);

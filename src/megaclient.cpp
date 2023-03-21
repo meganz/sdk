@@ -1338,10 +1338,7 @@ void MegaClient::init()
 
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
-    resetId(sessionid, sizeof sessionid);
-
-    // initialize random API request sequence ID (server API is idempotent)
-    resetId(reqid, sizeof reqid);
+    resetId(sessionid, sizeof sessionid, rng);
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1370,6 +1367,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
 #endif
+   , reqs(rng)
    , mKeyManager(*this)
 {
     mNodeManager.reset();
@@ -1510,7 +1508,7 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::resetId(char *id, size_t length)
+void resetId(char *id, size_t length, PrnGen& rng)
 {
     for (size_t i = length; i--; )
     {
@@ -1739,10 +1737,10 @@ void MegaClient::exec()
         if (activefa.size())
         {
             TransferDbCommitter committer(tctable);
-            putfa_list::iterator curfa = activefa.begin();
+            auto curfa = activefa.begin();
             while (curfa != activefa.end())
             {
-                HttpReqCommandPutFA* fa = *curfa;
+                shared_ptr<HttpReqFA> fa = *curfa;
 
                 auto erasePos = curfa;
                 ++curfa;
@@ -1834,7 +1832,6 @@ void MegaClient::exec()
                             }
                         }
 
-                        delete fa;
                         activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
@@ -1843,7 +1840,7 @@ void MegaClient::exec()
 
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
-                        LOG_warn << "Error setting file attribute";
+                        LOG_warn << "Error setting file attribute. Will retry after backoff";
                         activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
@@ -1883,18 +1880,7 @@ void MegaClient::exec()
         if (btpfa.armed())
         {
             faretrying = false;
-            while (queuedfa.size() && activefa.size() < MAXPUTFA)
-            {
-                // dispatch most recent file attribute put
-                putfa_list::iterator curfa = queuedfa.begin();
-                HttpReqCommandPutFA* fa = *curfa;
-                queuedfa.erase(curfa);
-                activefa.push_back(fa);
-
-                LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-                reqs.add(fa);
-            }
+            activatefa();
         }
 
         if (fafcs.size())
@@ -2071,7 +2057,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                if (sctable && pendingsccommit && !reqs.readyToSend())
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
@@ -2079,19 +2065,6 @@ void MegaClient::exec()
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
-                                }
-
-                                // increment unique request ID
-                                for (int i = sizeof reqid; i--; )
-                                {
-                                    if (reqid[i]++ < 'z')
-                                    {
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        reqid[i] = 'a';
-                                    }
                                 }
 
                                 if (auto completion = std::move(mOnCSCompletion))
@@ -2177,10 +2150,6 @@ void MegaClient::exec()
                             {
                                 reason = RETRY_CONNECTIVITY;
                             }
-                            else
-                            {
-                                reason = RETRY_UNKNOWN;
-                            }
                         }
 
                         if (fetchingnodes && pendingcs->httpstatus != 200)
@@ -2220,12 +2189,15 @@ void MegaClient::exec()
                         delete pendingcs;
                         pendingcs = NULL;
 
+                        if (!reason) reason = RETRY_UNKNOWN;
+
                         btcs.backoff();
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
 
-                        reqs.requeuerequest();
+                        // the in-progress request will be resent, unchanged (for idempotence), when we are ready again.
+                        reqs.inflightFailure(reason);
 
                     default:
                         ;
@@ -2239,7 +2211,7 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (reqs.cmdspending())
+                if (reqs.readyToSend())
                 {
                     abortlockrequest();
                     pendingcs = new HttpReq();
@@ -2248,12 +2220,13 @@ void MegaClient::exec()
                     pendingcs_serverBusySent = false;
 
                     bool suppressSID, v3;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
+                    string idempotenceId;
+                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
 
                     pendingcs->posturl.append("cs?id=");
-                    pendingcs->posturl.append(reqid, sizeof reqid);
+                    pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI(suppressSID));
                     pendingcs->posturl.append(appkey);
 
@@ -3387,7 +3360,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
     NodeCounter nc = mNodeManager.getCounterOfRootNodes();
@@ -4467,7 +4440,7 @@ void MegaClient::disconnect()
         (it++)->second->retry(API_OK);
     }
 
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
+    for (auto it = activefa.begin(); it != activefa.end(); it++)
     {
         (*it)->disconnect();
     }
@@ -4636,16 +4609,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     scsn.clear();
     mBlocked = false;
     mBlockedSet = false;
-
-    for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
-    {
-        delete *it;
-    }
-
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
-    {
-        delete *it;
-    }
 
     for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
     {
@@ -4890,7 +4853,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        if (!pendingcs && !csretrying && !reqs.readyToSend())
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
@@ -5831,18 +5794,26 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
+    queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
+    activatefa();
+}
+
+void MegaClient::activatefa()
+{
     while (activefa.size() < MAXPUTFA && queuedfa.size())
     {
-        putfa_list::iterator curfa = queuedfa.begin();
-        HttpReqCommandPutFA *fa = *curfa;
+        auto curfa = queuedfa.begin();
+        shared_ptr<HttpReqFA> fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
+
+        LOG_debug << "Adding file attribute to the active queue";
+
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-        reqs.add(fa);
+        reqs.add(fa->getURLForFACmd());
     }
 }
 
@@ -21588,7 +21559,10 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                int uhsize = Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
+                #ifdef DEBUG
+                    int uhsize =
+                #endif
+                Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
             }
