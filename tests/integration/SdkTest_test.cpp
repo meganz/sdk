@@ -330,12 +330,21 @@ void SdkTest::Cleanup()
         }
     }
 
+    set<string> alreadyRemoved;
+
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
         for (int i = 0; i < contacts->size(); i++)
         {
+            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
+            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
+            string email1 = string(megaApi[nApi]->getMyEmail());
+            string email2 = string(contacts->get(i)->getEmail());
+            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
+            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
+
             auto result = synchronousRemoveContact(nApi, contacts->get(i));
             if (result == API_EARGS)
             {
@@ -6929,7 +6938,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     ASSERT_TRUE(sharedSubFolderA) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " not found";
     ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " found but not sensitive";
-    
+
     // ---------------------------------------------------------------------------------------------------------------------------
 
     subFolderA.reset(megaApi[0]->getNodeByPath((string("/") + folderAName + "/" + subFolderAName).c_str(), unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get()));
