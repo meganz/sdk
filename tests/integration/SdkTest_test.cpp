@@ -899,9 +899,9 @@ char* SdkTest::dumpSession()
     return megaApi[0]->dumpSession();
 }
 
-void SdkTest::locallogout(int timeout)
+void SdkTest::locallogout(unsigned apiIndex)
 {
-    auto logoutErr = doRequestLocalLogout(0);
+    auto logoutErr = doRequestLocalLogout(apiIndex);
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
