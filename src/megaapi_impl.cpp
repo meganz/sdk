@@ -23346,8 +23346,19 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
             break;
         }
-        case MegaRequest::TYPE_BACKUP_PUT:
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
+            // deprecated
+            e = API_EEXPIRED;
+            break;
+        }
+        }
+    }
+}
+
+error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
+{
             NodeHandle remoteNode = NodeHandle().set6byte(request->getNodeHandle());
             const char* backupName = request->getName();
             const char* localFolder = request->getFile();
@@ -23375,8 +23386,7 @@ void MegaApiImpl::sendPendingRequests()
                         || remoteNode.isUndef()
                         || !ISUNDEF(backupId))  // new backups don't have a backup id yet
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
 
                 client->reqs.add(new CommandBackupPut(client, info, nullptr));
@@ -23384,33 +23394,32 @@ void MegaApiImpl::sendPendingRequests()
             else // update an existing sync/backup
             {
                 if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
-                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS
-                     && backupType != MegaApi::BACKUP_TYPE_INVALID)
-                        || ISUNDEF(backupId))   // existing backups must have a backup id
+                    && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS
+                    && backupType != MegaApi::BACKUP_TYPE_INVALID)
+                    || ISUNDEF(backupId))   // existing backups must have a backup id
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
 
                 client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
-            break;
-        }
-        case MegaRequest::TYPE_BACKUP_REMOVE:
+            return API_OK;
+}
+
+void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE, listener);
+    request->setParentHandle(backupId);
+
+    request->performRequest = [this, request]()
         {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
                 [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
-        {
-            // deprecated
-            e = API_EEXPIRED;
-            break;
-        }
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener* listener)
@@ -23945,14 +23954,11 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setNumDetails(subState);
     request->setFlag(true); // indicates it's a new backup
 
-    requestQueue.push(request);
-    waiter->notify();
-}
+    request->performRequest = [this, request]()
+    {
+        return performRequest_backupPut(request);
+    };
 
-void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE, listener);
-    request->setParentHandle(backupId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23991,6 +23997,11 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     {
         request->setNumDetails(subState);
     }
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_backupPut(request);
+    };
 
     requestQueue.push(request);
     waiter->notify();

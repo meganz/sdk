@@ -3584,6 +3584,8 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
+        error performRequest_backupPut(MegaRequestPrivate* request);
+
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
