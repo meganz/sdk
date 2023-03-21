@@ -12396,6 +12396,137 @@ TEST_F(SdkTest, SdkUserAlerts)
 }
 
 /**
+ * @brief TEST_F SdkResumableTrasfers
+ *
+ * Tests resumption for file upload and download.
+ */
+TEST_F(SdkTest, SdkResumableTrasfers)
+{
+    LOG_info << "___TEST Resumable Trasfers___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    //  1. Create ~16 MB file
+    //  2. Upload file, with speed limit
+    //  3. Logout / Login
+    //  4. Check upload resumption
+    //  5. Finish upload
+    //  6. Download file, with speed limit
+    //  7. Logout / Login
+    //  8. Check download resumption
+
+    //  1. Create ~16 MB file
+    std::ofstream file(fs::u8path(UPFILE), ios::out);
+    ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
+    for (int i = 0; i < 1000000; i++)
+    {
+        file << "16 MB test file "; // 16 characters
+    }
+    ASSERT_EQ(file.tellp(), 16000000) << "Wrong size for test file";
+    file.close();
+
+    //  2. Upload file, with speed limit
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or took more than 1 minute";
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    megaApi[0]->setMaxUploadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    TransferTracker ut(megaApi[0].get());
+    megaApi[0]->startUpload(UPFILE.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &ut     /*listener*/);
+
+
+    second_timer timer;
+    m_off_t pauseThreshold = 9000000;
+    while (!ut.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  3. Logout / Login
+    unique_ptr<char[]> session(dumpSession());
+    locallogout();
+    int result = ut.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    //  4. Check upload resumption
+    timer.reset();
+    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    MegaTransfer* upl = transfers->get(0);
+    long long uplBytes = upl->getTransferredBytes();
+    ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
+
+    //  5. Finish upload
+    megaApi[0]->setMaxUploadSpeed(-1);
+    timer.reset();
+    unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    while (!cloudNode && timer.elapsed() < 20)
+    {
+        WaitMillisec(500);
+        cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    }
+
+    //  6. Download file, with speed limit
+    string downloadedFile = DOTSLASH + DOWNFILE;
+    megaApi[0]->setMaxDownloadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    timer.reset();
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudNode.get(),
+        downloadedFile.c_str(),
+        nullptr /*fileName*/,
+        nullptr /*appData*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &dt     /*listener*/);
+
+    while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  7. Logout / Login
+    session.reset(dumpSession());
+    locallogout();
+    result = dt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    //  8. Check download resumption
+    timer.reset();
+    transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    MegaTransfer* dnl = transfers->get(0);
+    long long dnlBytes = dnl->getTransferredBytes();
+    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+
+    megaApi[0]->setMaxDownloadSpeed(-1);
+}
+
+/**
  * ___SdkGetNodesByName___
  * Steps:
  * - Create tree structure
