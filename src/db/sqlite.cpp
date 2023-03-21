@@ -309,7 +309,6 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
   : DbTable(rng, checkAlwaysTransacted)
   , db(db)
-  , pStmt(nullptr)
   , dbfile(path)
   , fsaccess(&fsAccess)
   , mDBErrorCallBack(std::move(dBErrorCallBack))
@@ -362,10 +361,7 @@ void SqliteDbTable::rewind()
         result = sqlite3_prepare_v2(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
     }
 
-    if (result != SQLITE_OK)
-    {
-        handleDBError(result, "Rewind", false);
-    }
+    errorHandler(result, "Rewind", false);
 }
 
 // retrieve next record through cursor
@@ -388,10 +384,7 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
         sqlite3_finalize(pStmt);
         pStmt = NULL;
 
-        if (rc != SQLITE_DONE)
-        {
-            handleDBError(rc, "Get next record", false);
-        }
+        errorHandler(rc, "Get next record", false);
 
         return false;
     }
@@ -428,10 +421,7 @@ bool SqliteDbTable::get(uint32_t index, string* data)
         }
     }
 
-    if (rc != SQLITE_DONE && rc != SQLITE_ROW)
-    {
-        handleDBError(rc, "Get record statecache", false);
-    }
+    errorHandler(rc, "Get record statecache", false);
 
     sqlite3_finalize(stmt);
 
@@ -470,16 +460,11 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
         }
     }
 
-    bool ok = sqlResult == SQLITE_DONE;
-
-    if (!ok)
-    {
-        handleDBError(sqlResult, "Put record", false);
-    }
+    errorHandler(sqlResult, "Put record", false);
 
     sqlite3_reset(mPutStmt);
 
-    return ok;
+    return sqlResult == SQLITE_DONE;
 }
 
 
@@ -508,16 +493,11 @@ bool SqliteDbTable::del(uint32_t index)
         }
     }
 
-    bool ok = sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
-
-    if (!ok)
-    {
-        handleDBError(sqlResult, "Delete record", false);
-    }
+    errorHandler(sqlResult, "Delete record", false);
 
     sqlite3_reset(mDelStmt);
 
-    return ok;
+    return sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
 }
 
 // truncate table
@@ -531,10 +511,7 @@ void SqliteDbTable::truncate()
     checkTransaction();
 
     int rc = sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
-    if (rc != API_OK)
-    {
-        handleDBError(rc, "Truncate ", false);
-    }
+    errorHandler(rc, "Truncate ", false);
 }
 
 // begin transaction
@@ -547,10 +524,7 @@ void SqliteDbTable::begin()
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
     int rc = sqlite3_exec(db, "BEGIN", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        handleDBError(rc, "Begin transaction", false);
-    }
+    errorHandler(rc, "Begin transaction", false);
 }
 
 // commit transaction
@@ -564,10 +538,7 @@ void SqliteDbTable::commit()
     LOG_debug << "DB transaction COMMIT " << dbfile;
 
     int rc = sqlite3_exec(db, "COMMIT", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        handleDBError(rc, "Commit transaction", false);
-    }
+    errorHandler(rc, "Commit transaction", false);
 }
 
 // abort transaction
@@ -581,10 +552,7 @@ void SqliteDbTable::abort()
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
 
     int rc = sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        handleDBError(rc, "Rollback", false);
-    }
+    errorHandler(rc, "Rollback", false);
 }
 
 void SqliteDbTable::remove()
@@ -613,23 +581,46 @@ void SqliteDbTable::remove()
     fsaccess->unlinklocal(dbfile);
 }
 
-void SqliteDbTable::handleDBError(int sqliteError, const string& operation, bool interrupt)
+void SqliteDbTable::errorHandler(int sqliteError, const string& operation, bool interrupt)
 {
-
-    if (sqliteError == SQLITE_INTERRUPT && interrupt)
+    DBError dbError = DBError::DB_ERROR_UNKNOWN;
+    switch (sqliteError)
     {
-        // SQLITE_INTERRUPT isn't handle as an error if caller can be interrupted
-        LOG_debug <<  operation << ": interrupted";
+    case SQLITE_OK:
+    case SQLITE_ROW:
+    case SQLITE_DONE:
         return;
+
+    case SQLITE_INTERRUPT:
+        if (interrupt)
+        {
+            // SQLITE_INTERRUPT isn't handle as an error if caller can be interrupted
+            LOG_debug <<  operation << ": interrupted";
+            return;
+        }
+        break;
+
+    case SQLITE_FULL:
+        dbError = DBError::DB_ERROR_FULL;
+        break;
+
+    case SQLITE_IOERR:
+        dbError = DBError::DB_ERROR_IO;
+        break;
+
+    default:
+        dbError = DBError::DB_ERROR_UNKNOWN;
+        break;
     }
 
     string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqliteError));
     LOG_err << operation << ": " << dbfile << err;
     assert(!operation.c_str());
 
-    if (mDBErrorCallBack && (sqliteError == SQLITE_FULL || sqliteError == SQLITE_IOERR))
+    if (mDBErrorCallBack && dbError != DBError::DB_ERROR_UNKNOWN)
     {
-        mDBErrorCallBack(sqliteError == SQLITE_FULL ? DBErrors::DB_ERROR_FULL : DBErrors::DB_ERROR_IO);
+        // Only notify DB errors related to disk-is-full and input/output failures
+        mDBErrorCallBack(dbError);
     }
 }
 
@@ -678,10 +669,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         }
     }
 
-    if (sqlResult != SQLITE_DONE)
-    {
-        handleDBError(sqlResult, "Process sql query", true);
-    }
+    errorHandler(sqlResult, "Process sql query", true);
 
     return sqlResult == SQLITE_DONE;
 }
@@ -700,10 +688,7 @@ bool SqliteAccountState::remove(NodeHandle nodehandle)
     snprintf(buf, sizeof(buf), "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     int sqlResult = sqlite3_exec(db, buf, 0, 0, NULL);
-    if (sqlResult == SQLITE_ERROR)
-    {
-        handleDBError(sqlResult, "Delete node", false);
-    }
+    errorHandler(sqlResult, "Delete node", false);
 
     return sqlResult == SQLITE_OK;
 }
@@ -718,10 +703,7 @@ bool SqliteAccountState::removeNodes()
     checkTransaction();
 
     int sqlResult = sqlite3_exec(db, "DELETE FROM nodes", 0, 0, NULL);
-    if (sqlResult == SQLITE_ERROR)
-    {
-        handleDBError(sqlResult, "Delete nodes", false);
-    }
+    errorHandler(sqlResult, "Delete nodes", false);
 
     return sqlResult == SQLITE_OK;
 }
@@ -753,10 +735,7 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
 
     }
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        handleDBError(sqlResult, "Update counter", false);
-    }
+    errorHandler(sqlResult, "Update counter", false);
 
     sqlite3_reset(mStmtUpdateNode);
 }
@@ -790,10 +769,7 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
         }
     }
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        handleDBError(sqlResult, "Update counter and flags", false);
-    }
+    errorHandler(sqlResult, "Update counter and flags", false);
 
     sqlite3_reset(mStmtUpdateNodeAndFlags);
 }
@@ -982,10 +958,7 @@ bool SqliteAccountState::put(Node *node)
         sqlResult = sqlite3_step(mStmtPutNode);
     }
 
-    if (sqlResult != SQLITE_DONE)
-    {
-        handleDBError(sqlResult, "Put node", false);
-    }
+    errorHandler(sqlResult, "Put node", false);
 
     sqlite3_reset(mStmtPutNode);
 
@@ -1032,7 +1005,7 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        handleDBError(sqlResult, "Get node", false);
+        errorHandler(sqlResult, "Get node", false);
     }
 
     sqlite3_reset(mStmtGetNode);
@@ -1063,10 +1036,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Get node by orig fingerprint", false);
-    }
+    errorHandler(sqlResult, "Get node by orig fingerprint", false);
 
     sqlite3_reset(mStmtNodeByOrigFp);
 
@@ -1094,10 +1064,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Get root nodes", false);
-    }
+    errorHandler(sqlResult, "Get root nodes", false);
 
     sqlite3_finalize(stmt);
 
@@ -1122,10 +1089,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Get nodes with shares or link", false);
-    }
+    errorHandler(sqlResult, "Get nodes with shares or link", false);
 
     sqlite3_finalize(stmt);
 
@@ -1162,12 +1126,9 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    sqlite3_reset(mStmtChildren);
+    errorHandler(sqlResult, "Get children", true);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Get children", true);
-    }
+    sqlite3_reset(mStmtChildren);
 
     return result;
 }
@@ -1206,12 +1167,9 @@ bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    sqlite3_reset(mStmtChildrenFromType);
+    errorHandler(sqlResult, "Get children from type", true);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Get children from type", true);
-    }
+    sqlite3_reset(mStmtChildrenFromType);
 
     return result;
 }
@@ -1241,12 +1199,9 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
         }
     }
 
-    sqlite3_reset(mStmtNumChildren);
+    errorHandler(sqlResult, "Get number of children", false);
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        handleDBError(sqlResult, "Get number of children", false);
-    }
+    sqlite3_reset(mStmtNumChildren);
 
     return numChildren;
 }
@@ -1294,10 +1249,7 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Search nodes by name", true);
-    }
+    errorHandler(sqlResult, "Search nodes by name", true);
 
     sqlite3_reset(mStmtNodeByName);
 
@@ -1349,10 +1301,7 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        handleDBError(sqlResult, "Search nodes by name without recursion", true);
-    }
+    errorHandler(sqlResult, "Search nodes by name without recursion", true);
 
     sqlite3_reset(mStmtNodeByNameNoRecursive);
 
@@ -1406,7 +1355,7 @@ bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, 
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Search shares or link by name", true);
+        errorHandler(sqlResult, "Search shares or link by name", true);
     }
 
     sqlite3_reset(mStmtInShareOutShareByName);
@@ -1438,7 +1387,7 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "get nodes by fingerprint", false);
+        errorHandler(sqlResult, "get nodes by fingerprint", false);
     }
 
     sqlite3_reset(mStmtNodesByFp);
@@ -1476,7 +1425,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Get node by fingerprint", false);
+        errorHandler(sqlResult, "Get node by fingerprint", false);
     }
 
     sqlite3_reset(mStmtNodeByFp);
@@ -1520,7 +1469,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Get recent nodes", false);
+        errorHandler(sqlResult, "Get recent nodes", false);
     }
 
     sqlite3_reset(mStmtRecents);
@@ -1561,7 +1510,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
 
     if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
     {
-        handleDBError(sqlResult, "Get favourites handles", false);
+        errorHandler(sqlResult, "Get favourites handles", false);
     }
 
     sqlite3_reset(mStmtFavourites);
@@ -1608,7 +1557,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Get nodes by name and type", false);
+        errorHandler(sqlResult, "Get nodes by name and type", false);
     }
 
     sqlite3_reset(mStmtChildNode);
@@ -1644,7 +1593,7 @@ bool SqliteAccountState::getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size,
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        handleDBError(sqlResult, "Get nodes by name, type and flags", false);
+        errorHandler(sqlResult, "Get nodes by name, type and flags", false);
     }
 
     sqlite3_reset(mStmtTypeAndSizeNode);
@@ -1696,7 +1645,7 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        handleDBError(sqlResult, "Is ancestor", true);
+        errorHandler(sqlResult, "Is ancestor", true);
     }
 
     sqlite3_reset(mStmtIsAncestor);
@@ -1724,7 +1673,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
 
     if (sqlResult != SQLITE_ROW)
     {
-        handleDBError(sqlResult, "Get number of nodes", false);
+        errorHandler(sqlResult, "Get number of nodes", false);
     }
 
     sqlite3_finalize(stmt);
@@ -1762,7 +1711,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
 
     if (sqlResult != SQLITE_ROW)
     {
-        handleDBError(sqlResult, "Get number of children by type", false);
+        errorHandler(sqlResult, "Get number of children by type", false);
     }
 
     sqlite3_reset(mStmtNumChild);
@@ -1808,7 +1757,7 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Get nodes by mime type", true);
+        errorHandler(sqlResult, "Get nodes by mime type", true);
     }
 
     sqlite3_reset(mStmtNodeByMimeType);
@@ -1870,7 +1819,7 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
     if (sqlResult != SQLITE_OK)
     {
-        handleDBError(sqlResult, "Get by mime type exclusive recurisve", true);
+        errorHandler(sqlResult, "Get by mime type exclusive recurisve", true);
     }
 
     sqlite3_reset(mStmtNodeByMimeTypeExcludeRecursiveFlags);

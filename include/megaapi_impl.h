@@ -3514,7 +3514,7 @@ protected:
 
 protected:
         // Notify sdk errors (DB, node serialization, ...) to apps
-        void notifyError(const char*, ErrorReason) override;
+        void notifyError(const char*, ErrorReason errorReason) override;
 
         // reload forced automatically by server
         void reloading() override;

@@ -31,14 +31,18 @@ class MEGA_API SqliteDbTable : public DbTable
 {
 protected:
     sqlite3* db = nullptr;
-    sqlite3_stmt* pStmt;
     LocalPath dbfile;
     FileSystemAccess *fsaccess;
+
+    sqlite3_stmt* pStmt = nullptr;
     sqlite3_stmt* mDelStmt = nullptr;
     sqlite3_stmt* mPutStmt = nullptr;
+
+    // handler for DB errors ('interrupt' is true if caller can be interrupted by CancelToken)
+    void errorHandler(int sqliteError, const std::string& operation, bool interrupt);
+
+    // callback to notify DB errors, provided at ctor
     DBErrorCallback mDBErrorCallBack;
-    // If caller can be interrupted by CancelToken, 'interrupt'  is true
-    void handleDBError(int sqliteError, const std::string& operation, bool interrupt);
 
 public:
     void rewind() override;
@@ -159,7 +163,7 @@ public:
 
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) override;
 
-    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0, DBErrorCallback dBErrorCallBack = nullptr) override;
+    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 
