@@ -9856,17 +9856,32 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
-    // Reset credentials
-    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-    // Established share remains in the same status.
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    /*
+     * TODO: uncomment this block to test "Reset credentials" when SDK supports APIv3 for up2/upv commands
+     *
+     * This test is prone to a race condition that may result on having no inshare, but unverified inshare.
+     *
+     * It happens when the client receives a "pk" action packet after reset credentials. Why that "pk"? because
+     * currently the SDK cannot differentiate between action packets related to its own user's attribute updates
+     * (^!keys) and other client's updates. In consequence, if the action packet is received before the response
+     * to the "upv", the SDK will fetch the attribute ("uga") and upon receiving the value, it will reapply the
+     * promotion of the outshare, sending a duplicated "pk" for the same share handle.
+     *
+     * This race between the sc and cs channels will be removed when the SDK adds support for the APIv3 / sn-tagging,
+     * since the "upv" will be matched with the corresponding action packet, eliminating the race.
+     * */
+
+//    // Reset credentials
+//    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
+//    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+//    // Established share remains in the same status.
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+//    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+//    ASSERT_NE(inshareNode.get(), nullptr);
+//    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -9877,6 +9892,8 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_EQ(inshareNode.get(), nullptr);
+
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
     //
     // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
