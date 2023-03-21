@@ -20873,15 +20873,14 @@ class MegaApi
          * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
          *
          * @param sid MegaHandle of target Set to get its public link/URL
-         * @param publicSetURL output parameter to set with the public URL if success, nullptr otherwise
          *
-         * @return error code with the result:
+         * @return const char* with the public URL if success, nullptr otherwise
+         * In any case, one of the followings error codes with the result can be found in the log:
          * - API_OK on success
-         * - API_EARGS if publicSetURL is nullptr
          * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
          * - API_EINTERNAL if there was an internal error composing the URL
          */
-        int getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL);
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
 
         /**
          * @brief Enable or disable the request status monitor

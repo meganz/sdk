@@ -11075,19 +11075,10 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Get public Set URL";
     auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
     {
-        char* publicSetURL = nullptr;
         bool isSuccessExpected = expectedResult == API_OK;
-        ASSERT_EQ(expectedResult, megaApi[0]->getPublicLinkForExportedSet(sh, &publicSetURL));
-        unique_ptr<char[]> publicSetLink(publicSetURL);
-        if (isSuccessExpected)
-        {
-            ASSERT_NE(publicSetLink, nullptr);
-            ASSERT_EQ(publicSetLink.get(), exportedSetURL);
-        }
-        else
-        {
-            ASSERT_EQ(publicSetLink, nullptr);
-        }
+        unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
+        if (isSuccessExpected) ASSERT_NE(publicSetLink.get(), nullptr);
+        else                   ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
     lCheckSetLink(API_OK);

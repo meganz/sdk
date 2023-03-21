@@ -2684,7 +2684,7 @@ class MegaApiImpl : public MegaApp
         bool isExportedSet(MegaHandle sid);
         void stopPublicSetPreview();
         bool inPublicSetPreview();
-        Error getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL);
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
 
     private:
         bool nodeInRubbishCheck(handle) const;

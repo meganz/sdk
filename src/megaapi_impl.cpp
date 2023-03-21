@@ -24539,29 +24539,30 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
     waiter->notify();
 }
 
-Error MegaApiImpl::getPublicLinkForExportedSet(MegaHandle sid, char** publicSetLink)
+const char* MegaApiImpl::getPublicLinkForExportedSet(MegaHandle sid)
 {
-    if (!publicSetLink || *publicSetLink)
-    {
-        LOG_err << "Sets: Error requesting public URL for Set " << toHandle(sid)
-                << ". publicSetLink is an output parameter which mustn't hold memory";
-        return API_EARGS;
-    }
-
     string retStr;
     error e;
     {
         SdkMutexGuard g(sdkMutex);
         std::tie(e, retStr) = client->getPublicSetLink(sid);
     }
+
+    char* link = nullptr;
     if (e == API_OK)
     {
         auto sz = retStr.size() + 1;
-        *publicSetLink = new char[sz];
-        std::strncpy(*publicSetLink, retStr.c_str(), sz);
+        link = new char[sz];
+        std::strncpy(link, retStr.c_str(), sz);
+        LOG_verbose << "Successfully created public link " << retStr << "for Set " << toHandle(sid);
+    }
+    else
+    {
+        LOG_err << "Failing to create a public link for Set " << toHandle(sid) << " with error code "
+                << e << "(" << MegaError::getErrorString(e) << ")";
     }
 
-    return e;
+    return link;
 }
 
 void TreeProcCopy::allocnodes()

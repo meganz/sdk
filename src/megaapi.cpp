@@ -5901,9 +5901,9 @@ void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listene
     return pImpl->getPreviewElementNode(eid, listener);
 }
 
-int MegaApi::getPublicLinkForExportedSet(MegaHandle sid, char** publicSetURL)
+const char* MegaApi::getPublicLinkForExportedSet(MegaHandle sid)
 {
-    return pImpl->getPublicLinkForExportedSet(sid, publicSetURL);
+    return pImpl->getPublicLinkForExportedSet(sid);
 }
 
 void MegaApi::enableRequestStatusMonitor(bool enable)
