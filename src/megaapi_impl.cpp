@@ -10910,15 +10910,6 @@ void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(callid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setSFUid(int sfuid)
 {
     SdkMutexGuard g(sdkMutex);
@@ -23466,14 +23457,25 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
-        case MegaRequest::TYPE_JOIN_CHAT_CALL:
+#endif
+        }
+    }
+}
+
+#ifdef ENABLE_CHAT
+void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
             if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->reqs.add(new CommandMeetingJoin(client, chatid, callid, [request, this](Error e, std::string sfuUrl)
@@ -23485,14 +23487,13 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-#endif
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
-#ifdef ENABLE_CHAT
 void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
