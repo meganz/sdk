@@ -30,6 +30,7 @@
 class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
     dispatch_semaphore_t semaphore;
+    CFURLRef sourceURL;
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
     const char* supportedformats() override;
