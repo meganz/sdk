@@ -12019,18 +12019,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
             ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
 
             // Verify contact credentials if they are not
-            if (!client0.isverified(email))
+            if (gManualVerification)
             {
-                ASSERT_TRUE(client0.verifyCredentials(email));
-            }
-            if (!client.isverified(email0))
-            {
-                ASSERT_TRUE(client.verifyCredentials(email0));
-            }
+                if (!client0.isverified(email))
+                {
+                    ASSERT_TRUE(client0.verifyCredentials(email));
+                }
+                if (!client.isverified(email0))
+                {
+                    ASSERT_TRUE(client.verifyCredentials(email0));
+                }
 
-            // Wait for contact verification
-            ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
-            ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+                // Wait for contact verification
+                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
+                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+            }
         };
 
         // Introduce the contacts to each other.

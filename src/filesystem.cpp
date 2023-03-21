@@ -950,7 +950,8 @@ bool FileAccess::isfile(const LocalPath& path)
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
-    fopen(path);
+    updatelocalname(path, true);
+    sysstat(&mtime, &size);
     return type == FOLDERNODE;
 }
 
