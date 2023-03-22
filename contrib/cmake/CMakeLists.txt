@@ -400,8 +400,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
         ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
-        ImportStdVcpkgLibrary(icu             icuucd icuuc libicuuc libicuuc)
-        ImportStdVcpkgLibrary(icudt           icudtd icudt libicudata libicudata)
+        ImportStdVcpkgLibrary(icuuc           icuucd icuuc libicuuc libicuuc)
+        ImportStdVcpkgLibrary(icudata         icudtd icudt libicudata libicudata)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
@@ -880,7 +880,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
-                        icu icudt
+                        icuuc icudata
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
