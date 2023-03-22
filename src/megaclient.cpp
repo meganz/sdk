@@ -13684,6 +13684,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
 
         mLastErrorDetected = errorReason;
         app->notifyError(reason.c_str(), errorReason);
+        // TODO: maybe it's worth a locallogout
     }
 }
 

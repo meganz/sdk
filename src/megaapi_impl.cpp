@@ -15023,9 +15023,6 @@ void MegaApiImpl::notifyError(const char* reason, ErrorReason errorReason)
     event->setNumber(static_cast<int64_t>(errorReason));
 
     fireOnEvent(event);
-
-    // TODO: when apps handle EVENT_FATAL_ERROR, fireOnReloadNeeded can be removed
-    fireOnReloadNeeded();
 }
 
 void MegaApiImpl::reloading()
@@ -16743,20 +16740,6 @@ void MegaApiImpl::fireOnSetElementsUpdate(MegaSetElementList* elements)
     for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
     {
         (*it++)->onSetElementsUpdate(api, elements);
-    }
-}
-
-void MegaApiImpl::fireOnReloadNeeded()
-{
-    assert(threadId == std::this_thread::get_id());
-    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
-    {
-        (*it++)->onReloadNeeded(api);
-    }
-
-    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
-    {
-        (*it++)->onReloadNeeded(api);
     }
 }
 

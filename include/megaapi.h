@@ -8283,7 +8283,7 @@ class MegaListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
-         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         * @obsolete Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
