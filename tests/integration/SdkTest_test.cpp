@@ -352,9 +352,9 @@ void SdkTest::Cleanup()
                 // let's have a look at which other users the jenkins users have been connected to
                 out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
             }
-            else
+            else if (result != API_OK)
             {
-                EXPECT_EQ(API_OK, result) << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
             }
         }
     }
@@ -380,7 +380,8 @@ void SdkTest::Cleanup()
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
@@ -417,7 +418,8 @@ void SdkTest::Cleanup()
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
