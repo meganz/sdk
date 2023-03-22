@@ -10424,7 +10424,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p->id(), INVALID_HANDLE);
     ASSERT_EQ(s1p->name(), name);
     ASSERT_NE(s1p->ts(), 0);
-    //ASSERT_NE(s1p->cts(), 0) << "Create-timestamp of a Set was not set"; // TODO: enable this after being deployed in production
+    ASSERT_NE(s1p->cts(), 0) << "Create-timestamp of a Set was not set";
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
     MegaHandle sh = s1p->id();
     int64_t setCrTs = s1p->cts();
