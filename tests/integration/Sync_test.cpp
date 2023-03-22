@@ -3532,18 +3532,18 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     // todo: make these calls to reqs thread safe. Low priority
 
     // wait for cmds in flight and queued, up to 120s
-    if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
+    if (client.reqs.cmdsInflight() || client.reqs.readyToSend())
     {
         LOG_debug << clientname << "waiting for requests to finish";
-        for (int i = 120000; i-- && (client.reqs.cmdspending() || client.reqs.cmdsinflight()); ) WaitMillisec(1);
+        for (int i = 120000; i-- && (client.reqs.readyToSend() || client.reqs.cmdsInflight()); ) WaitMillisec(1);
     }
 
     // check any pending command was completed
-    if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
+    if (client.reqs.cmdsInflight() || client.reqs.readyToSend())
     {
         LOG_err << clientname << "Failed to clean pending commands at cleanupForTestReuse():"
-                << " pending: " << client.reqs.cmdspending()
-                << " inflight: " << client.reqs.cmdsinflight();
+                << " pending: " << client.reqs.readyToSend()
+                << " inflight: " << client.reqs.cmdsInflight();
     }
     else
     {

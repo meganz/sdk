@@ -237,54 +237,85 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
+        bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
+        MegaHandle schedId;         // last scheduled meeting added
 #endif
 
         void receiveEvent(MegaEvent* e)
         {
             if (!e) return;
 
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             lastEvent.reset(e->copy());
             lastEvents.insert(e->getType());
         }
 
         void resetlastEvent()
         {
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             lastEvent.reset();
             lastEvents.clear();
         }
 
-        bool lastEventsContain(int type)
+        bool lastEventsContain(int type) const
         {
-            lock_guard<mutex> g(getEventMutex());
+            lock_guard<mutex> g(getResourceMutex());
             return lastEvents.find(type) != lastEvents.end();
         }
 
+        void setSid(const string& s) { sid = s; }
+        const string& getSid() const { return sid; }
+
+        void setAttributeValue(const string& v) { attributeValue = v; }
+        const string& getAttributeValue() const { return attributeValue; }
+
+        void setChatLink(const string& c) { chatlink = c; }
+        const string& getChatLink() const { return chatlink; }
+
+        void setBackupId(MegaHandle b) { mBackupId = b; }
+        MegaHandle getBackupId() const { return mBackupId; }
+
+        void setFavNodes(const MegaHandleList* f) { mMegaFavNodeList.reset(f); }
+        unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
+        MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
+
+        void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
+        unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
+        const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
+
+        void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
+        int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
+        const MegaStringList* getStringTableRow(int i) { return stringTable ? stringTable->get(i) : nullptr; }
+
     private:
-        static mutex& getEventMutex() { static mutex evMtx; return evMtx; } // a single mutex will do fine in tests
+        mutex& getResourceMutex() const
+        {
+            if (!resourceMtx) resourceMtx.reset(new mutex);
+            return *resourceMtx.get();
+        } // a single mutex will do fine in tests
+        mutable shared_ptr<mutex> resourceMtx;
+
         shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
         set<int> lastEvents;
+
+        // relevant values received in response of requests
+        string sid;
+        string attributeValue;
+        string chatlink;  // not really used anywhere, should it be removed ?
+        MegaHandle mBackupId = UNDEF;
+        shared_ptr<const MegaStringListMap> stringListMap;
+        shared_ptr<const MegaHandleList> mMegaFavNodeList;
+        shared_ptr<const MegaStringTable> stringTable;
     };
 
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
-    // relevant values received in response of requests
-    string chatlink;  // to be removed due to race conditions
-    string attributeValue;
-    string sid;
-    std::unique_ptr<MegaStringListMap> stringListMap;
-    std::unique_ptr<MegaStringTable> stringTable;
-
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
-
-    MegaHandle mBackupId = UNDEF;
-    unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:
     void SetUp() override;
@@ -297,6 +328,10 @@ protected:
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
+
+#ifdef ENABLE_CHAT
+    void delSchedMeetings();
+#endif
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
@@ -359,7 +394,6 @@ public:
     template<typename ... Args> int synchronousSendSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SEND_SIGNUP_LINK, [this, apiIndex, args...]() { megaApi[apiIndex]->sendSignupLink(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousConfirmSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CONFIRM_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->confirmAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFastLogin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_LOGIN, [this, apiIndex, args...]() { megaApi[apiIndex]->fastLogin(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousRemoveContact(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_REMOVE_CONTACT, [this, apiIndex, args...]() { megaApi[apiIndex]->removeContact(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousShare(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SHARE, [this, apiIndex, args...]() { megaApi[apiIndex]->share(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetRegisteredContacts(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_REGISTERED_CONTACTS, [this, apiIndex, args...]() { megaApi[apiIndex]->getRegisteredContacts(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetCountryCallingCodes(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, [this, apiIndex, args...]() { megaApi[apiIndex]->getCountryCallingCodes(args...); }); return mApi[apiIndex].lastError; }
@@ -472,9 +506,6 @@ public:
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetUserAttribute(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setUserAttribute(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetAvatar(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setAvatar(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->resetPassword(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousCheckRecoveryKey(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkRecoveryKey(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousConfirmResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmResetPassword(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
@@ -487,16 +518,22 @@ public:
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
-    void inviteContact(unsigned apiIndex, string email, string message, int action);
+    void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
+    void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
     void replyContact(MegaContactRequest *cr, int action);
-    void removeContact(string email, int timeout = maxTimeout);
+    int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
-
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
+
+#ifdef ENABLE_CHAT
+    void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
+#endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     MegaHandle importPublicLink(unsigned apiIndex, string link, MegaNode *parent);
