@@ -17437,6 +17437,9 @@ class MegaApi
          * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
          * this method will return a list that contains nodes of the same type as provided.
          *
+         * If param target is SEARCH_TARGET_INSHARE, SEARCH_TARGET_OUTSHARE or SEARCH_TARGET_PUBLICLINK
+         * recursive flag has to be true
+         *
          * You take the ownership of the returned value.
          *
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
