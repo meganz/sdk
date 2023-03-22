@@ -372,6 +372,11 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
@@ -404,6 +409,11 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
