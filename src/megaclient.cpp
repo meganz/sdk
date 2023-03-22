@@ -4696,6 +4696,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
+
+    mLastErrorDetected = REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::removeCaches()
@@ -5656,10 +5658,8 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        LOG_err << "Cache update DB write error - disabling caching";
+        LOG_err << "Cache update DB write error";
         assert(false);
-        sendevent(99467, "Writing in DB error", 0);
-        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -10657,7 +10657,11 @@ void MegaClient::opensctable()
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
+            {
+                handleDbError(error);
+            }));
+
             pendingsccommit = false;
 
             if (sctable)
@@ -10700,7 +10704,10 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBError error)
+            {
+                handleDbError(error);
+            }));
         }
     }
 }
@@ -13508,7 +13515,11 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
+    {
+        handleDbError(error);
+    }));
+
     if (!tctable)
     {
         return;
@@ -13611,7 +13622,11 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
+    {
+        handleDbError(error);
+    }));
+
     if (!tctable)
     {
         return;
@@ -13619,6 +13634,60 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
 
     purgeOrphanTransfers(true);
     closetc(true);
+}
+
+void MegaClient::handleDbError(DBError error)
+{
+    switch (error)
+    {
+        case DBError::DB_ERROR_FULL:
+            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+            break;
+        case DBError::DB_ERROR_IO:
+            fatalError(ErrorReason::REASON_ERROR_DB_IO);
+            break;
+        default:
+            fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
+            break;
+    }
+}
+
+void MegaClient::fatalError(ErrorReason errorReason)
+{
+    if (mLastErrorDetected != errorReason)
+    {
+#ifdef ENABLE_SYNC
+        syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+#endif
+
+        std::string reason;
+        switch (errorReason)
+        {
+            case ErrorReason::REASON_ERROR_DB_IO:
+                sendevent(99467, "Writing in DB error", 0);
+                reason = "Failed to write to database";
+                break;
+            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
+                reason = "Failed to unserialize a node";
+                sendevent(99468, "Failed to unserialize node", 0);
+                break;
+            case ErrorReason::REASON_ERROR_DB_FULL:
+                reason = "Data base is full";
+                break;
+            default:
+                reason = "Unknown reason";
+                break;
+        }
+
+        mLastErrorDetected = errorReason;
+        app->notifyError(reason.c_str(), errorReason);
+        // TODO: maybe it's worth a locallogout
+    }
+}
+
+bool MegaClient::accountShouldBeReloadedOrRestarted() const
+{
+    return mLastErrorDetected != REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::fetchnodes(bool nocache)
@@ -15232,7 +15301,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
-    if (mNodeManager.accountShouldBeReloaded())
+    if (accountShouldBeReloadedOrRestarted())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
         syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
