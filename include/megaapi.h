@@ -49,7 +49,7 @@ typedef int64_t MegaTimeStamp; // unix timestamp
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
-    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
+    const MegaTimeStamp MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -11220,6 +11220,17 @@ class MegaApi
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
          */
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+
+        /**
+         * @brief Set name used for logging by current thread.
+         *
+         * Rotative Performance Logger uses std::thread_id in log entries.
+         * You can use a custom name by calling this function from the desired thread.
+         *
+         * @param threadName Nmae of the therad to be used in log lines
+         */
+        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
+
 #endif
         /**
          * @brief Create a folder in the MEGA account
@@ -17425,6 +17436,9 @@ class MegaApi
          * The search is case-insensitive. If the search string is not provided but type has any value
          * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
          * this method will return a list that contains nodes of the same type as provided.
+         *
+         * If param target is SEARCH_TARGET_INSHARE, SEARCH_TARGET_OUTSHARE or SEARCH_TARGET_PUBLICLINK
+         * recursive flag has to be true
          *
          * You take the ownership of the returned value.
          *

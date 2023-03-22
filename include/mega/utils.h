@@ -1008,6 +1008,9 @@ struct SyncTransferCounts
     SyncTransferCount mUploads;
 };
 
+// creates a new id filling `id` with random bytes, up to `length`
+void resetId(char *id, size_t length, PrnGen& rng);
+
 } // namespace mega
 
 #endif
