@@ -460,6 +460,42 @@ void SdkTest::Cleanup()
             EXPECT_EQ(0, inshares->size()) << "some inshares were not removed";
         }
     }
+
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
+    {
+        if (megaApi[nApi] && megaApi[nApi]->isLoggedIn())
+        {
+            // Some tests finish logged in but without call to fetch nodes root nodes are undefined yet
+            uint64_t nodesInRoot = 0;
+            std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode());
+            if (rootNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rootNode.get())) << "Cannot get Folder Info for rootnode";
+                nodesInRoot = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesInRubbishBin = 0;
+            std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
+            if (rubbishbinNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rubbishbinNode.get())) << "Cannot get Folder Info for rubbis bin";
+                nodesInRubbishBin = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesInVault = 0;
+            std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode());
+            if (vaultNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, vaultNode.get())) << "Cannot get Folder Info for vault";
+                nodesInVault = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
+            {
+                LOG_warn << "Clean up for instance " << nApi << " hasn't finished properly. Nodes at root node: " << nodesInRoot << "   Nodes at rubbish bin: " << nodesInRubbishBin << "  Nodes at vault: " << nodesInVault;
+            }
+        }
+    }
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -12001,7 +12037,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_TRUE(rootnode);
 
     // Check if exists nodes with that name in the cloud
-    std::string stringSearch = "test";
+    std::string stringSearch = "check";
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     int nodesWithTest = nodeList->size();
 
@@ -12016,7 +12052,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     resetOnNodeUpdateCompletionCBs();
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string folder1_1 = "Folder1_1Test";
+    std::string folder1_1 = "Folder1_1Check";
     auto folder1_1Handle = createFolder(0, folder1_1.c_str(), folder1.get());
     ASSERT_NE(folderHandle, UNDEF);
     waitForResponse(&check);
@@ -12024,7 +12060,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_TRUE(folder1_1Test);
     resetOnNodeUpdateCompletionCBs();
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file1 = "file1Test";
+    std::string file1 = "file1Check";
     createFile(file1, false);
     MegaHandle file1Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file1Handle, file1.data(), folder1.get(),
@@ -12042,7 +12078,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(file1Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 1 node for scenario (error: " << mApi[0].lastError << ")";
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file2 = "file2Test";
+    std::string file2 = "file2Check";
     createFile(file2, false);
     MegaHandle file2Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file2Handle, file2.data(), folder1.get(),
@@ -12061,7 +12097,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 2 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file3 = "file3Test";
+    std::string file3 = "file3Check";
     createFile(file3, false);
     MegaHandle file3Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file3Handle, file3.data(), folder1.get(),
@@ -12080,7 +12116,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 3 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file4 = "file4Test";
+    std::string file4 = "file4Check";
     createFile(file4, false);
     MegaHandle file4Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file4Handle, file4.data(), folder1.get(),
@@ -12100,7 +12136,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     mApi[0].nodeUpdated = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
-    std::string file5 = "file5Test";
+    std::string file5 = "file5Check";
     createFile(file5, false);
     MegaHandle file5Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file5Handle, file5.data(), folder1.get(),
@@ -12119,7 +12155,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 5 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file6 = "file6Test";
+    std::string file6 = "file6Check";
     createFile(file6, false);
     MegaHandle file6Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file6Handle, file6.data(), rootnode.get(),
@@ -12138,7 +12174,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 6 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file7 = "file7Test";
+    std::string file7 = "file7Check";
     createFile(file7, false);
     MegaHandle file7Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file7Handle, file7.data(), folder1_1Test.get(),
@@ -12157,7 +12193,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 7 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file8 = "file8Test";
+    std::string file8 = "file8Check";
     createFile(file8, false);
     MegaHandle file8Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file8Handle, file8.data(), folder1_1Test.get(),
@@ -12179,14 +12215,14 @@ TEST_F(SdkTest, SdkGetNodesByName)
     // Tree structure
     // Root node
     //   - Folder1
-    //       - Folder1_1Test
-    //            - file7Test
-    //            - file8Test
-    //       - file1Test
-    //       - file2Test
-    //       - file3Test
-    //       - file4Test
-    //       - file5Test
+    //       - Folder1_1Check
+    //            - file7Check
+    //            - file8Check
+    //       - file1Check
+    //       - file2Check
+    //       - file3Check
+    //       - file4Check
+    //       - file5Check
     //   - file6Test
 
     stringSearch = file1;
@@ -12194,19 +12230,19 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2TEST", nullptr));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2CHECK", nullptr));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 
-    stringSearch = "file*Test";
+    stringSearch = "file*Check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 8);
 
-    stringSearch = "file*test";
+    stringSearch = "file*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 8);
 
-    stringSearch = "*test";
+    stringSearch = "*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 9 + nodesWithTest);
 
@@ -12229,7 +12265,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
-    stringSearch = std::string("file*test");
+    stringSearch = std::string("file*check");
     nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
     ASSERT_EQ(nodeList->size(), 5);
 
@@ -12281,7 +12317,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
     ASSERT_EQ(nodeList->size(), 1);
 
-    stringSearch = "FILE*test";
+    stringSearch = "FILE*check";
     nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
     ASSERT_EQ(nodeList->size(), 7);
@@ -12295,20 +12331,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 
     // --- Test search out shares ---
     stringSearch = file8;
@@ -12316,7 +12339,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 1);
 
-    stringSearch = "FILE*test";
+    stringSearch = "FILE*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 7);
@@ -12330,20 +12353,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 }
 
 /*

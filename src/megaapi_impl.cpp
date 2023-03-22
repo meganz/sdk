@@ -12237,6 +12237,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         else if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
             // always recursive
+            assert(recursive);
             // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find in-shares themselves
@@ -12259,6 +12260,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         else if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // always recursive
+            assert(recursive);
             // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find out-shares themselves
@@ -12289,6 +12291,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         else if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
         {
             // always recursive
+            assert(recursive);
             // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find public links themselves
