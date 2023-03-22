@@ -3139,7 +3139,6 @@ protected:
         void fireOnSetsUpdate(MegaSetList* sets);
         void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
-        void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
