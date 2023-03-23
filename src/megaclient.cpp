@@ -20170,13 +20170,13 @@ void MegaClient::sc_asr()
         switch (jsonsc.getnameid())
         {
         case MAKENAMEID2('i', 'd'):
-        {
+            {
             setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
-        }
+            }
 
         case EOO:
-            if (setId != UNDEF && !deleteSet(setId))
+            if (ISUNDEF(setId) || !deleteSet(setId))
             {
                 LOG_err << "Sets: Failed to remove Set in `asr` action packet for Set "
                         << toHandle(setId);
@@ -20241,8 +20241,8 @@ void MegaClient::sc_aer()
             setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
 
-        case EOO:
-            if (setId != UNDEF && elemId != UNDEF && !deleteSetElement(setId, elemId))
+          case EOO:
+            if (ISUNDEF(setId) || ISUNDEF(elemId) || !deleteSetElement(setId, elemId))
             {
                 LOG_err << "Sets: Failed to remove Element in `aer` action packet for Set "
                         << toHandle(setId) << " and Element " << toHandle(elemId);
