@@ -1527,7 +1527,7 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 }
 #endif
 
-void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
+void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
 {
     int apiIndex = 0;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
