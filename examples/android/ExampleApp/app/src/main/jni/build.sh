@@ -30,7 +30,7 @@ LIBDIR=${JNI_PATH}/../obj/local/armeabi
 JAVA_OUTPUT_PATH=${JNI_PATH}/../java
 APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
 ANDROID_API=21
-LOG_FILE=/home/mega/borrar/sdkAndroid.log
+LOG_FILE=/dev/null
 
 CRYPTOPP=cryptopp
 CRYPTOPP_VERSION=820
