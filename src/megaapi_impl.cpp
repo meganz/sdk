@@ -24425,19 +24425,17 @@ bool MegaApiImpl::isExportedSet(MegaHandle sid)
 
 void MegaApiImpl::exportSet(MegaHandle sid, bool create, MegaRequestListener* listener)
 {
-    SdkMutexGuard g(sdkMutex);
-
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
-    request->setTotalBytes(sid);
+    request->setNodeHandle(sid);
     request->setFlag(create);
     request->performRequest = [this, request]()
     {
-        client->exportSet(request->getTotalBytes(), request->getFlag(), [this, request](Error e)
+        client->exportSet(request->getNodeHandle(), request->getFlag(), [this, request](Error e)
         {
             if (e == API_OK)
             {
                 const bool isExport = request->getFlag();
-                const auto sid = request->getTotalBytes();
+                const auto sid = request->getNodeHandle();
                 const Set* updatedSet = client->getSet(sid);
                 if (!updatedSet)
                 {
@@ -24488,8 +24486,6 @@ void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener
 
 void MegaApiImpl::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
 {
-    SdkMutexGuard g(sdkMutex);
-
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
     request->setLink(publicSetLink);
     request->performRequest = [this, request]() -> ErrorCodes
@@ -24554,8 +24550,6 @@ MegaSetElementList* MegaApiImpl::getPublicSetElementsInPreview()
 
 void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
 {
-    SdkMutexGuard g(sdkMutex);
-
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT, listener);
 
     request->performRequest = [eid, this, request]()

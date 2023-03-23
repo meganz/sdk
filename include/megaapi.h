@@ -20756,7 +20756,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getTotalBytes - Returns id of the Set used as parameter
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
          * - MegaRequest::getFlag - Returns a boolean set to true representing the call was
          * meant to enable/create the export
          *
@@ -20780,7 +20780,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getTotalBytes - Returns id of the Set used as parameter
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
          * - MegaRequest::getFlag - Returns a boolean set to false representing the call was
          * meant to disable the export
          *

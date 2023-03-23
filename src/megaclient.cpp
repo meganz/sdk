@@ -20385,7 +20385,7 @@ void MegaClient::sc_ass()
     const auto existingSet = mSets.find(s.id());
     if (existingSet == mSets.end())
     {
-        LOG_debug << "Sets: Received action packet for Set " << toNodeHandle(s.id())
+        LOG_debug << "Sets: Received action packet for Set " << toHandle(s.id())
                   << " which is unrelated to current user";
     }
     else
