@@ -732,9 +732,9 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     if (!node)
     {
         assert(false);
-        LOG_err << "Failed to unserialize node. Requesting app to reload...";
-        mClient.sendevent(99468, "Failed to unserialize node", 0);
-        fatalError(ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE);
+        LOG_err << "Failed to unserialize node. Notifying the error to user";
+
+        mClient.fatalError(ErrorReason::REASON_ERROR_UNSERIALIZE_NODE);
 
         return nullptr;
     }
@@ -919,10 +919,7 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
-    mAccountReload = false;
-
-    if (mTable)
-        mTable->removeNodes();
+    if (mTable) mTable->removeNodes();
 }
 
 Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
@@ -1230,39 +1227,6 @@ void NodeManager::initCompleted()
     }
 
     mTable->createIndexes();
-}
-
-void NodeManager::fatalError(ReasonsToReload reloadReason)
-{
-    if (!mAccountReload)
-    {
-        mAccountReload = true;
-
-#ifdef ENABLE_SYNC
-        mClient.syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
-#endif
-
-        std::string reason;
-        switch (reloadReason)
-        {
-            case ReasonsToReload::REASON_ERROR_WRITE_DB:
-                reason = "Failed to write to database";
-                break;
-            case ReasonsToReload::REASON_ERROR_UNSERIALIZE_NODE:
-                reason = "Failed to unserialize a node";
-                break;
-            default:
-                reason = "Unknown reason";
-                break;
-        }
-
-        mClient.app->reload(reason.c_str(), reloadReason);
-    }
-}
-
-bool NodeManager::accountShouldBeReloaded() const
-{
-    return mAccountReload;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

@@ -3422,7 +3422,6 @@ protected:
         void fireOnSetsUpdate(MegaSetList* sets);
         void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
-        void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
@@ -3797,8 +3796,8 @@ protected:
         void backupput_result(const Error&, handle backupId) override;
 
 protected:
-        // suggest reload due to possible race condition with other clients
-        void reload(const char*, ReasonsToReload) override;
+        // Notify sdk errors (DB, node serialization, ...) to apps
+        void notifyError(const char*, ErrorReason errorReason) override;
 
         // reload forced automatically by server
         void reloading() override;
@@ -3867,6 +3866,12 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
+        error performRequest_backupPut(MegaRequestPrivate* request);
+        error performRequest_verifyCredentials(MegaRequestPrivate* request);
+        error performRequest_completeBackgroundUpload(MegaRequestPrivate* request);
+        error performRequest_getBackgroundUploadURL(MegaRequestPrivate* request);
+        error performRequest_getAchievements(MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);

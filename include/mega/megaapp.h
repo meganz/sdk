@@ -327,8 +327,8 @@ struct MEGA_API MegaApp
     // ----- that's the end of the sync callbacks, which occur on the syncs thread
     // ----- (other callbacks occur on the client thread)
 
-    // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*, ReasonsToReload) { }
+    // Notify fatal errors (ie. DB, node unserialization, ...) to apps
+    virtual void notifyError(const char*, ErrorReason) { }
 
     // reload forced automatically by server
     virtual void reloading() { }
