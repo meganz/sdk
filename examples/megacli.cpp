@@ -4251,6 +4251,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_ipc, sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i"))));
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(exec_getemail, sequence(text("getemail"), param("handle_b64")));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
                                                                           text("del"),
@@ -6087,6 +6088,28 @@ void exec_share(autocomplete::ACState& s)
     }
 }
 
+void exec_getemail(autocomplete::ACState& s)
+{
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to fetch user emails" << endl;
+        return;
+    }
+
+    client->getUserEmail(s.words[1].s.c_str());
+}
+void DemoApp::getuseremail_result(string *email, error e)
+{
+    if (e)
+    {
+        cout << "Failed to retrieve email: " << e << endl;
+    }
+    else
+    {
+        cout << "Email: " << email << endl;
+    }
+}
+
 void exec_users(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
@@ -7286,11 +7309,11 @@ void exec_decryptLink(autocomplete::ACState &s)
     error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
     if (e)
     {
-        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+        cout << "Failed to decrypt link: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password encrypted link: " << decryptedLink << endl;
+        cout << "Decrypted link: " << decryptedLink << endl;
     }
 
 }
@@ -9072,9 +9095,9 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
 }
 
 // reload needed
-void DemoApp::reload(const char* reason, ReasonsToReload reasonToReload)
+void DemoApp::notifyError(const char* reason, ErrorReason errorReason)
 {
-    cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
+    cout << "Error has been detected: " << errorReason << " (" << reason << ")" << endl;
 }
 
 void DemoApp::reloading()

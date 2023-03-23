@@ -1046,7 +1046,7 @@ bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, No
 {
     if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
         return false;
-    if (requiredFlags.any() || excludeFlags.any()) 
+    if (requiredFlags.any() || excludeFlags.any())
     {
         Node::Flags flags = getDBFlagsBitset();
         if ((flags & excludeFlags).any())
@@ -1397,7 +1397,7 @@ bool Node::applykey()
                 }
                 else
                 {
-                    sc = it->second.get();
+                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

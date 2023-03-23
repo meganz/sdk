@@ -19,7 +19,7 @@
  * program.
  */
 
-#import "MegaSetElement.h"
+#import "MEGASetElement.h"
 #import "megaapi.h"
 
 using namespace mega;

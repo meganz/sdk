@@ -326,8 +326,8 @@ struct MEGA_API MegaApp
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
 
-    // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*, ReasonsToReload) { }
+    // Notify fatal errors (ie. DB, node unserialization, ...) to apps
+    virtual void notifyError(const char*, ErrorReason) { }
 
     // reload forced automatically by server
     virtual void reloading() { }
