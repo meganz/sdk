@@ -20411,7 +20411,7 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
     error e = API_OK;
     string url = publicLinkURL(true /*newLinkFormat*/, TypeOfLink::SET, s.publicId(), Base64::btoa(s.key()).c_str());
 
-    if (url.empty()) e = API_EINTERNAL;
+    if (url.empty()) e = API_EARGS;
 
     return make_pair(e, url);
 }

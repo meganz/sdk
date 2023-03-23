@@ -20886,7 +20886,7 @@ class MegaApi
          * In any case, one of the followings error codes with the result can be found in the log:
          * - API_OK on success
          * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
-         * - API_EINTERNAL if there was an internal error composing the URL
+         * - API_EARGS if there was an internal error composing the URL
          */
         const char* getPublicLinkForExportedSet(MegaHandle sid);
 
