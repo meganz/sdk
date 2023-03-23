@@ -57,7 +57,7 @@ pipeline {
                             MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
-                                echo "MEGACHAT_BRANCH was not found on description so default will be develop"
+                                echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
                             }
                         }
                     }
@@ -84,7 +84,7 @@ pipeline {
                             ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println MEGACHAT_BRANCH
                             if (ANDROID_BRANCH == ""){
-                                echo "ANDROID_BRANCH was not found on description so default will be develop"
+                                echo "ANDROID_BRANCH was not found on description so develop will be used by default"
                             }
                         }
                     }
@@ -111,7 +111,7 @@ pipeline {
                             IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println IOS_BRANCH
                             if (IOS_BRANCH == ""){
-                                echo "IOS_BRANCH was not found on description so default will be develop"
+                                echo "IOS_BRANCH was not found on description so develop will be used by default"
                             }
                         }
                     }
@@ -139,7 +139,7 @@ pipeline {
                             println APIURL_TO_TEST
                             if (APIURL_TO_TEST == ""){
                                 APIURL_TO_TEST = "https://g.api.mega.co.nz/"
-                                echo "APIURL_TO_TEST was not found on description so default will be ${APIURL_TO_TEST}"
+                                echo "APIURL_TO_TEST was not found on description so ${APIURL_TO_TEST} will be used by default"
                             }
                             echo "APIURL_TO_TEST will be ${APIURL_TO_TEST}"
                         }
@@ -175,7 +175,7 @@ pipeline {
                         gitlabCommitStatus(name: 'macOS build') {
                             script {
                                 echo "Triggering SDK job for macOS."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
@@ -183,6 +183,7 @@ pipeline {
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_MACOS', value: true),
                                     ]
+                                env.TRIGGERED_BUILD_URL_MACOS = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -190,16 +191,19 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :green_apple: <b>macOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :green_apple: <b>macOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MACOS})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :green_apple: <b>macOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :green_apple: <b>macOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MACOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>macOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>macOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MACOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>macOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>macOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MACOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
                         }
@@ -220,7 +224,7 @@ pipeline {
                         gitlabCommitStatus(name: 'Linux build') {
                             script {
                                 echo "Triggering SDK job for Linux."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
@@ -228,6 +232,7 @@ pipeline {
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_LINUX', value: true)
                                     ]
+                                env.TRIGGERED_BUILD_URL_LINUX = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -235,16 +240,20 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>LINUX</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>LINUX</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
 
@@ -266,15 +275,15 @@ pipeline {
                         gitlabCommitStatus(name: 'Windows build') {
                             script {
                                 echo "Triggering SDK job for Windows."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
-                                    booleanParam(name: 'BUILD_LINUX', value: true),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
                                     string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_WINDOWS', value: true)
                                     ]
+                                env.TRIGGERED_BUILD_URL_WINDOWS = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -282,16 +291,19 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_WINDOWS})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} <b>Windows</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} <b>Windows</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_WINDOWS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_WINDOWS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_WINDOWS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
 
@@ -313,15 +325,15 @@ pipeline {
                         gitlabCommitStatus(name: 'SDK and MEGAchat Linux build') {
                             script {
                                 echo "Triggering SDK job for Windows."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
-                                    booleanParam(name: 'BUILD_LINUX', value: true),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
                                     string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_MEGACHAT', value: true)
                                     ]
+                                env.TRIGGERED_BUILD_URL_MEGACHAT = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -329,16 +341,19 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
 
@@ -359,17 +374,17 @@ pipeline {
                     steps {
                         gitlabCommitStatus(name: 'Android example and Android app build') {
                             script {
-                                echo "Triggering SDK job for Android Example App."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
+                                echo "Triggering SDK job for Android Example and Android App."
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
-                                    booleanParam(name: 'BUILD_LINUX', value: false),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
                                     string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'ANDROID_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_ANDROID', value: true)
                                     ]
+                                env.TRIGGERED_BUILD_URL_ANDROID = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -377,16 +392,19 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>SDK Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>SDK Android</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
 
@@ -408,16 +426,16 @@ pipeline {
                         gitlabCommitStatus(name: 'SDK and iOS build') {
                             script {
                                 echo "Triggering SDK job for Android Example App."
-                                build job: 'MegaSDK-MRs-private', wait: true, propagate: true, parameters: [
-                                    string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
-                                    string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
-                                    booleanParam(name: 'BUILD_LINUX', value: false),
-                                    string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                    string(name: 'IOS_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                    string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
-                                    booleanParam(name: 'BUILD_IOS', value: true)
-                                    ]
+                                def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
+                                        string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
+                                        string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
+                                        string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
+                                        string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
+                                        string(name: 'IOS_BRANCH', value: "${MEGACHAT_BRANCH}"),
+                                        string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
+                                        booleanParam(name: 'BUILD_IOS', value: true)
+                                        ]
+                                env.TRIGGERED_BUILD_URL_IOS = triggeredBuild.getAbsoluteUrl()
                             }
                         }
                     }
@@ -425,16 +443,19 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_IOS})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_IOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_IOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_IOS})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    error "Job failed"
                                 }
                             }
                         }
