@@ -469,17 +469,6 @@ public:
     template<typename ... requestArgs> int doCreateSet(unsigned apiIndex, MegaSet** s, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSet(args..., &rt); rt.waitForResult(); if (s && rt.request->getMegaSet()) *s = rt.request->getMegaSet()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetName(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetName(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doPutSetCover(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putSetCover(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doFetchSetInPreviewMode(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
-    {
-        RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchSetInPreviewMode(args..., &rt);
-        rt.waitForResult();
-        if (rt.result == API_OK)
-        {
-            if (s) *s = rt.request->getMegaSet()->copy();
-            if (els) *els = rt.request->getMegaSetElementList()->copy();
-        }
-        return rt.result;
-    }
     template<typename ... requestArgs> int doRemoveSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSet(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int doCreateBulkSetElements(unsigned apiIndex, MegaSetElementList** els, MegaIntegerList** errs, requestArgs... args)
     {
@@ -513,10 +502,10 @@ public:
         return rt.result;
     }
     template<typename ... requestArgs> int doDisableExportSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExportSet(args..., &rt); rt.waitForResult(); return rt.result; }
-    template<typename ... requestArgs> int doStartPublicSetPreview(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
+    template<typename ... requestArgs> int doFetchPublicSet(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->startPublicSetPreview(args..., &rt); rt.waitForResult();
+        megaApi[apiIndex]->fetchPublicSet(args..., &rt); rt.waitForResult();
         if (rt.result == API_OK)
         {
             if (s) *s = rt.request->getMegaSet()->copy();

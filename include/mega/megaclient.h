@@ -957,7 +957,7 @@ public:
     void logout(bool keepSyncConfigsFile, CommandLogout::Completion completion = nullptr);
 
     // free all state information
-    void locallogout(bool removecaches, bool keepSyncsConfigFile, bool keepSetsAndElements = false);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // SDK version
     const char* version();
@@ -2303,7 +2303,7 @@ public:
     void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSetInPreviewMode(std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    void fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion);
 
     // generate "aepb" command
     void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
@@ -2358,20 +2358,25 @@ public:
 
     void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
 
+    // meant for "ass" command procresult due to AP-only data
+    bool disableExportSet(handle sid);
+
     // returns result of the operation and the link created
     pair<error, string> getPublicSetLink(handle sid) const;
 
     // returns error code and public handle for the link provided as a param
-    error startSetPreview(const char* publicSetLink, std::function<void(Error, Set*, map<handle, SetElement>*)>);
+    error fetchPublicSet(const char* publicSetLink, std::function<void(Error, Set*, elementsmap_t*)>);
 
     void stopSetPreview() { if (mPreviewSet) mPreviewSet.reset(); }
 
-    bool inSetPreviewMode() const { return !!mPreviewSet; }
+    bool inPublicSetPreview() const { return !!mPreviewSet; }
 
     const SetElement* getPreviewSetElement(handle eid) const
     { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
 
-    const Set* getPreviewSet() const { return inSetPreviewMode() ? &mPreviewSet->mSet : nullptr; }
+    const Set* getPreviewSet() const { return inPublicSetPreview() ? &mPreviewSet->mSet : nullptr; }
+    const elementsmap_t* getPreviewSetElements() const
+    { return inPublicSetPreview() ? &mPreviewSet->mElements : nullptr; }
 
 private:
     error readSets(JSON& j, map<handle, Set>& sets);
@@ -2416,7 +2421,7 @@ private:
         string mPublicKey;
         string mPublicLink;
         Set mSet;
-        map<handle, SetElement> mElements;
+        elementsmap_t mElements;
     };
     unique_ptr<SetLink> mPreviewSet;
 

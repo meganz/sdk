@@ -11649,11 +11649,18 @@ public class MegaApiJava {
     }
 
     /**
-     * Request to fetch the Set and its Elements which are currently in preview mode
+     * @brief Request to fetch a public/exported Set and its Elements.
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+     * - MegaRequest::getLink - Returns the link used for the public Set fetch request
+     * <p>
+     * In addition to fetching the Set (including Elements), SDK's instance is set
+     * to preview mode for the public Set. This mode allows downloading of foreign
+     * SetElements included in the public Set.
+     * <p>
+     * To disable the preview mode and release resources used by the preview Set,
+     * use MegaApi::stopPublicSetPreview
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
@@ -11665,34 +11672,15 @@ public class MegaApiJava {
      * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
      * - MegaError::API_EARGS - Malformed (from API).
      * - MegaError::API_EACCESS - Permissions Error (from API).
-     *
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * <p>
+     * @param publicSetLink Public link to a Set in MEGA
      * @param listener MegaRequestListener to track this request
      */
-    public void fetchSetInPreviewMode(MegaRequestListenerInterface listener) {
-        megaApi.fetchSetInPreviewMode(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Request to fetch the Set and its Elements which are currently in preview mode
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaSet - Returns the Set
-     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-     * <p>
-     * On the onRequestFinish error, the error code associated to the MegaError can be:
-     * - MegaError::API_ENOENT - Set could not be found.
-     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-     * - MegaError::API_EARGS - Malformed (from API).
-     * - MegaError::API_EACCESS - Permissions Error (from API).
-     *
-     */
-    public void fetchSetInPreviewMode() {
-        megaApi.fetchSetInPreviewMode();
+    public void fetchPublicSet(String publicSetLink, MegaRequestListenerInterface listener)
+        megaApi.fetchPublicSet(publicSetLink, createDelegateRequestListener(listener));
     }
 
     /**

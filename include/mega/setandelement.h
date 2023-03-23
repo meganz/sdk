@@ -206,7 +206,7 @@ namespace mega {
         {
             this->mSetId = src.mSetId;
             this->mNodeHandle = src.mNodeHandle;
-            this->mOrder.reset(mOrder ? new int64_t(*src.mOrder) : nullptr);
+            this->mOrder.reset(src.mOrder ? new int64_t(*src.mOrder) : nullptr);
             this->mAttrsClearedByLastUpdate = src.mAttrsClearedByLastUpdate;
             this->mChanges = src.mChanges;
         }
@@ -258,7 +258,7 @@ namespace mega {
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
         bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
-        bool isExportedSet() const { return mPublicId != UNDEF; }
+        bool isExported() const { return mPublicId != UNDEF; }
 
         bool serialize(std::string*) override;
         static std::unique_ptr<Set> unserialize(std::string* d);
@@ -283,6 +283,7 @@ namespace mega {
         static const std::string coverTag; // "c", used for 'cover' attribute
     };
 
+    using elementsmap_t = std::map<handle, SetElement>;
 } //namespace
 
 #endif

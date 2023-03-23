@@ -4416,8 +4416,9 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("removeelement"), param("sid"), param("eid")),
                         sequence(text("export"), param("sid"), opt(flag("-disable"))),
                         sequence(text("getpubliclink"), param("sid")),
-                        sequence(text("previewmode"), param("publicsetlink"), opt(flag("-on")), opt(flag("-status"))),
-                        text("fetchsetinpreview"),
+                        sequence(text("fetchpublicset"), param("publicsetlink")),
+                        text("getsetinpreview"),
+                        text("stoppublicsetpreview"),
                         sequence(text("downloadelement"), param("sid"), param("eid"))
                         )));
 
@@ -7358,7 +7359,7 @@ void exec_logout(autocomplete::ACState& s)
         clientFolder = NULL;
     }
 
-    if (client->inSetPreviewMode())
+    if (client->inPublicSetPreview())
     {
         client->stopSetPreview();
     }
@@ -10764,32 +10765,13 @@ void printElements(const map<handle, SetElement>* elems)
     cout << endl;
 }
 
-void startSetPreviewMode(const string& publicSetLink)
-{
-    if (client->inSetPreviewMode())
-    {
-        cout << "\tPreview mode failed: client already with Set preview mode enabled; "
-             << "please, disable it first.\n";
-        return;
-    }
-    client->startSetPreview(publicSetLink.c_str(), [](Error e, Set* s, map<handle, SetElement>* elements)
-       {
-           if (e == API_OK)
-           {
-               if (s) cout << "\tPreview mode started for Set " << toHandle(s->id()) << endl;
-               else cout << "\tNull Set returned for started preview mode\n";
-
-               printSet(s);
-               printElements(elements);
-           }
-           else
-               cout << "\tPreview mode failed: " + verboseErrorString(e) << endl;
-       });
-}
-
 void exec_setsandelements(autocomplete::ACState& s)
 {
-    static const set<string> nonLoggedInCmds {"previewmode", "fetchsetinpreview", "downloadelement"};
+    static const set<string> nonLoggedInCmds {"fetchpublicset",
+                                              "getsetinpreview",
+                                              "downloadelement",
+                                              "stoppublicsetpreview"
+                                             };
 
     const auto command = s.words[1].s;
     const auto commandRequiresLoggingIn = [&command]() -> bool
@@ -10899,21 +10881,21 @@ void exec_setsandelements(autocomplete::ACState& s)
             });
     }
 
-    else if (command == "fetchsetinpreview")
+    else if (command == "getsetinpreview")
     {
-        client->fetchSetInPreviewMode([](Error e, Set* s, map<handle, SetElement>* els)
-            {
-                if (e == API_OK)
-                {
-                    cout << "Fetched Set successfully\n";
-                    printSet(s);
-                    printElements(els);
-                }
-                else
-                {
-                    cout << "Error fetching Set\n\t" << verboseErrorString(e) << endl;
-                }
-            });
+        if (!client->inPublicSetPreview())
+        {
+            cout << "Not in Public Set Preview currently\n";
+            return;
+        }
+        const Set* s = client->getPreviewSet();
+        if (s)
+        {
+            cout << "Fetched Set successfully\n";
+            printSet(s);
+            printElements(client->getPreviewSetElements());
+        }
+        else cout << "Error getting Set from preview: No Set received\n";
     }
 
     else if (command == "removeelement")
@@ -10966,34 +10948,37 @@ void exec_setsandelements(autocomplete::ACState& s)
              << endl;
     }
 
-    else if (command == "previewmode")
+    else if (command == "fetchpublicset")
     {
         string publicSetLink = s.words[2].s.c_str();
-        string buf;
-        bool setPreviewMode = (s.extractflagparam("-on", buf) || s.extractflag("-on"));
-        buf.clear();
-        bool showActiveMode = (s.extractflagparam("-status", buf) || s.extractflag("-status"));
-        buf.clear();
 
-        if (showActiveMode)
+        cout << "Fetching public Set with link " << publicSetLink << endl;
+        client->fetchPublicSet(publicSetLink.c_str(), [](Error e, Set* s, elementsmap_t* elements)
         {
-            cout << "Requesting preview mode status info\n\tCurrently, Set preview mode is "
-                 << (client->inSetPreviewMode() ? "en" : "dis") << "abled\n";
-            return;
-        }
+            unique_ptr<mega::Set> set(s);
+            unique_ptr<mega::elementsmap_t> els(elements);
+            if (e == API_OK)
+            {
+                if (set) cout << "\tPreview mode started for Set " << toHandle(set->id()) << endl;
+                else cout << "\tNull Set returned for started preview mode\n";
 
-        cout << "Requesting to " << (setPreviewMode ? "en" : "dis") << "able preview mode for Set "
-             << "link " << publicSetLink << endl;
-        if (setPreviewMode)
+                printSet(set.get());
+                printElements(els.get());
+            }
+            else cout << "\tPreview mode failed: " + verboseErrorString(e) << endl;
+        });
+    }
+
+    else if (command == "stoppublicsetpreview")
+    {
+        if (client->inPublicSetPreview())
         {
-            startSetPreviewMode(publicSetLink);
-        }
-        else if (client->inSetPreviewMode())
-        {
+            cout << "Stopping Public Set preview mode for Set " << toHandle(client->getPreviewSet()->id()) << "\n";
             client->stopSetPreview();
-            cout << "\tPreview mode stopped\n";
+            cout << "Public Set preview mode stopped " << (client->inPublicSetPreview() ? "un" : "")
+                 << "successfully\n";
         }
-        else cout << "\tPreview mode wasn't enabled\n";
+        else cout << "Not in Public Set Preview mode currently\n";
     }
 
     else if (command == "downloadelement")
@@ -11004,9 +10989,9 @@ void exec_setsandelements(autocomplete::ACState& s)
         cout << "Requesting to download Element " << toHandle(eid) << " from Set " << toHandle(sid)
              << endl;
 
-        cout << "\tSet preview mode " << (client->inSetPreviewMode() ? "en" : "dis") << "abled\n";
+        cout << "\tSet preview mode " << (client->inPublicSetPreview() ? "en" : "dis") << "abled\n";
         const SetElement* element = nullptr;
-        if (client->inSetPreviewMode())
+        if (client->inPublicSetPreview())
         {
             element = client->getPreviewSetElement(eid);
             if (element) cout << "\tElement found in preview Set\n";

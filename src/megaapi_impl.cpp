@@ -19169,10 +19169,6 @@ void MegaApiImpl::sendPendingRequests()
                 });
             break;
 
-        case MegaRequest::TYPE_FETCH_SET:
-            client->fetchSetInPreviewMode(fetchSetCompletionCB(request));
-            break;
-
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
         {
             SetElement el;
@@ -19221,9 +19217,20 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         const Set* updatedSet = client->getSet(sid);
                         bool isExport = request->getFlag();
-                        assert(updatedSet);
-                        assert((isExport && updatedSet->isExportedSet())
-                                || (!isExport && !updatedSet->isExportedSet()));
+                        if (!updatedSet)
+                        {
+                            LOG_err << "Sets: Set to be updated not found for " << (isExport ? "en" : "dis")
+                                    << "able export operation. Set id " << toHandle(sid);
+                            assert(false);
+                        }
+                        if((isExport && !updatedSet->isExported())
+                            || (!isExport && updatedSet->isExported()))
+                        {
+                            LOG_err << "Sets: Set " << (isExport ? "en" : "dis") << "able operation with"
+                                    << " incoherent result state isExported()==" << updatedSet->isExported()
+                                    << ". Set id " << toHandle(sid);
+                            assert(false);
+                        }
 
                         string url;
                         if (isExport)
@@ -19279,7 +19286,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout(false, true, slogin == SET_PREVIEW_LOGIN);
+            client->locallogout(false, true);
             if (sessionKey)
             {
                 client->login(Base64::atob(string(sessionKey)));
@@ -19290,17 +19297,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                if (login == SET_PREVIEW_LOGIN)
-                {
-                    auto& megaPublicSetLink = megaFolderLink;
-                    e = client->startSetPreview(megaPublicSetLink, fetchSetCompletionCB(request));
-                    if (e == API_OK) break; // fireOnRequestFinish triggered as part of the std::function passed
-                    // else megaPublicSetLink parsing failed
-                }
-                else
-                {
-                    e = client->folderaccess(megaFolderLink, password);
-                }
+                e = client->folderaccess(megaFolderLink, password);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -24148,34 +24145,6 @@ void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchSetInPreviewMode(MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-std::function<void(Error, Set*, map<handle, SetElement>*)>
-MegaApiImpl::fetchSetCompletionCB(MegaRequestPrivate* request)
-{
-    return [this, request](Error e, Set* s, map<handle, SetElement>* els)
-    {
-        unique_ptr<Set> sp(s);
-        unique_ptr<map<handle, SetElement>> elsp(els);
-
-        if (e == API_OK)
-        {
-            assert(sp && elsp);
-            if (sp && elsp)
-            {
-                request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*sp));
-                request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(elsp.get()));
-            }
-        }
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-    };
-}
-
 void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
@@ -24447,14 +24416,36 @@ void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener
     exportSet(sid, false, listener);
 }
 
-const string MegaApiImpl::SET_PREVIEW_LOGIN = "SET";
-void MegaApiImpl::startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener)
+void MegaApiImpl::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
 {
     SdkMutexGuard g(sdkMutex);
 
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
     request->setLink(publicSetLink);
-    request->setEmail(SET_PREVIEW_LOGIN.c_str());
+    request->performRequest = [this, request]() -> ErrorCodes
+    {
+        const auto e = client->fetchPublicSet(
+            request->getLink(),
+            [this, request](Error e, Set* s, elementsmap_t* els)
+            {
+                unique_ptr<Set> sp(s);
+                unique_ptr<elementsmap_t> elsp(els);
+
+                if (e == API_OK)
+                {
+                    assert(sp && elsp);
+                    if (sp && elsp)
+                    {
+                        request->setMegaSet(mega::make_unique<MegaSetPrivate>(*sp));
+                        request->setMegaSetElementList(mega::make_unique<MegaSetElementListPrivate>(elsp.get()));
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return e;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -24470,7 +24461,7 @@ bool MegaApiImpl::inPublicSetPreview()
 {
     SdkMutexGuard g(sdkMutex);
 
-    return client->inSetPreviewMode();
+    return client->inPublicSetPreview();
 }
 
 MegaSet* MegaApiImpl::getPublicSetInPreview()
@@ -24482,6 +24473,15 @@ MegaSet* MegaApiImpl::getPublicSetInPreview()
     return s ? new MegaSetPrivate(*s) : nullptr;
 }
 
+MegaSetElementList* MegaApiImpl::getPublicSetElementsInPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const auto els = client->getPreviewSetElements();
+
+    return els ? new MegaSetElementListPrivate(els) : nullptr;
+}
+
 void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
 {
     SdkMutexGuard g(sdkMutex);
@@ -24491,7 +24491,7 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
     request->performRequest = [eid, this, request]()
     {
         const string paramErr = "Error failed to get MegaNode for Set Element " + toHandle(eid) + ". ";
-        if (!client->inSetPreviewMode())
+        if (!client->inPublicSetPreview())
         {
             LOG_err << paramErr << "Public Set preview mode disable";
             return API_EACCESS;
@@ -24517,7 +24517,11 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 if (!fingerprint) // failed processing the command
                 {
                     LOG_err << "Sets: Link check failed: " << e;
-                    return true;
+                    if (e == API_OK)
+                    {
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
+                        return true;
+                    }
                 }
 
                 if (e)

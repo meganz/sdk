@@ -9264,24 +9264,16 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
             break;
 
         case MAKENAMEID1('u'):
-            if (u)
             {
-                *u = client->json.gethandle(MegaClient::USERHANDLE);
-            }
-            else if (!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.gethandle(MegaClient::USERHANDLE);
+                if (u) *u = buf;
             }
             break;
 
         case MAKENAMEID1('s'):
-            if (s)
             {
-                *s = client->json.gethandle(MegaClient::SETHANDLE);
-            }
-            else if (!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.gethandle(MegaClient::SETHANDLE);
+                if (s) *s = buf;
             }
             break;
 
@@ -9290,24 +9282,16 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
             break;
 
         case MAKENAMEID1('o'):
-            if (o)
             {
-                *o = client->json.getint();
-            }
-            else if (!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.getint();
+                if (o) *o = buf;
             }
             break;
 
         case MAKENAMEID2('p', 'h'):
-            if (ph)
             {
-                *ph = client->json.gethandle(MegaClient::PUBLICSETHANDLE);
-            }
-            else if(!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.gethandle(MegaClient::PUBLICSETHANDLE);
+                if (ph) *ph = buf;
             }
             break;
 
@@ -9438,11 +9422,11 @@ bool CommandRemoveSet::procresult(Result r)
 }
 
 CommandFetchSet::CommandFetchSet(MegaClient* cl,
-    std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+    std::function<void(Error, Set*, elementsmap_t*)> completion)
     : mCompletion(completion)
 {
     cmd("aft");
-    if(!cl->inSetPreviewMode())
+    if(!cl->inPublicSetPreview())
     {
         LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
         assert(false);
@@ -9462,7 +9446,7 @@ bool CommandFetchSet::procresult(Result r)
     }
 
     map<handle, Set> sets;
-    map<handle, map<handle, SetElement>> elements;
+    map<handle, elementsmap_t> elements;
     e = client->readSetsAndElements(client->json, sets, elements);
     if (e != API_OK)
     {
@@ -9479,9 +9463,9 @@ bool CommandFetchSet::procresult(Result r)
     if (mCompletion)
     {
         Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
-        map<handle, SetElement>* els = elements.empty()
-                ? new map<handle, SetElement>()
-            : new map<handle, SetElement>(move(elements.begin()->second));
+        elementsmap_t* els = elements.empty()
+                             ? new map<handle, SetElement>()
+                             : new elementsmap_t(move(elements.begin()->second));
         mCompletion(API_OK, s, els);
     }
 
@@ -9761,9 +9745,9 @@ CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std
 {
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
-    if (!makePublic) arg("d", 1);
 
-    notself(cl); // don't process its Action Packet after sending this
+    if (makePublic) notself(cl); // in enable, don't process its Action Packet
+    else            arg("d", 1); // in disable, proccess AP (to get ts)
 }
 
 bool CommandExportSet::procresult(Result r)
@@ -9772,17 +9756,38 @@ bool CommandExportSet::procresult(Result r)
     handle publicId = UNDEF;
     m_time_t ts = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
-    assert(sid == mSet->id());
+    const bool parsedErrorCode = procerrorcode(r, e);
+    bool parsedSetInfo = false;
+    if (!parsedErrorCode) parsedSetInfo = procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
+    const bool parsedOk = parsedErrorCode || parsedSetInfo;
 
-    if (parsedOk && e == API_OK)
+    if (sid != mSet->id())
     {
-        mSet->setPublicId(publicId);
-        mSet->setChanged(Set::CH_EXPORTED);
-        if (!client->updateSet(move(*mSet)))
+        LOG_err << "Sets: commad 'ass' in processing result. Received Set id " << toHandle(sid)
+                << " expected Set id " << toHandle(mSet->id());
+        assert(false);
+    }
+
+    if ((parsedOk) && e == API_OK)
+    {
+        if (parsedSetInfo)
         {
-            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
-            e = API_ENOENT;
+            mSet->setPublicId(publicId);
+            mSet->setTs(ts);
+            mSet->setChanged(Set::CH_EXPORTED);
+            if (!client->updateSet(move(*mSet)))
+            {
+                LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+                e = API_ENOENT;
+            }
+        }
+        else
+        {
+            if (!client->disableExportSet(mSet->id()))
+            {
+                LOG_warn << "Sets: command 'ass' disabled succeded, but Set was not found";
+                e = API_ENOENT;
+            }
         }
     }
 

@@ -1263,7 +1263,7 @@ public:
     /**
      * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
      *
-     * @return Set id.
+     * @return Public id of Set.
      */
     virtual MegaHandle publicId() const { return INVALID_HANDLE; }
 
@@ -1337,7 +1337,7 @@ public:
      *
      * @return true if this Set is exported
      */
-    virtual bool isExportedSet() const { return false; }
+    virtual bool isExported() const { return false; }
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -20512,28 +20512,6 @@ class MegaApi
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to fetch the Set and its Elements which are currently in preview mode
-         *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaSet - Returns the Set
-         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - Set could not be found.
-         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-         * - MegaError::API_EARGS - Malformed (from API).
-         * - MegaError::API_EACCESS - Permissions Error (from API).
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchSetInPreviewMode(MegaRequestListener* listener = nullptr);
-
-        /**
          * @brief Request creation of multiple Elements for a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
@@ -20766,6 +20744,9 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to true representing the call was
+         * meant to enable/create the export
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -20787,6 +20768,9 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTotalBytes - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to false representing the call was
+         * meant to disable the export
          *
          * MegaError::API_OK results in onSetsUpdate being triggered as well
          *
@@ -20799,14 +20783,18 @@ class MegaApi
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Starts public Set preview mode for current SDK instance
+         * @brief Request to fetch a public/exported Set and its Elements.
          *
-         * The associated request type with this request is MegaRequest::TYPE_LOGIN
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns id of the Set used for the public link (i.e. public id)
+         * - MegaRequest::getLink - Returns the link used for the public Set fetch request
          *
-         * In addition to setting SDK's instance to public Set preview mode, this request
-         * will fetch Set's information (including Elements) and provide it in the request result
+         * In addition to fetching the Set (including Elements), SDK's instance is set
+         * to preview mode for the public Set. This mode allows downloading of foreign
+         * SetElements included in the public Set.
+         *
+         * To disable the preview mode and release resources used by the preview Set,
+         * use MegaApi::stopPublicSetPreview
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -20825,7 +20813,7 @@ class MegaApi
          * @param publicSetLink Public link to a Set in MEGA
          * @param listener MegaRequestListener to track this request
          */
-        void startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        void fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Stops public Set preview mode for current SDK instance
@@ -20854,6 +20842,18 @@ class MegaApi
          *
          */
         MegaSet* getPublicSetInPreview();
+
+        /**
+         * @brief Get current public/exported SetElements in Preview mode
+         *
+         * The response value is stored as a MegaSetElementList.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported SetElements in preview mode or nullptr if there is none
+         *
+         */
+        MegaSetElementList* getPublicSetElementsInPreview();
 
         /**
          * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element

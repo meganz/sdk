@@ -4579,7 +4579,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 #endif
 }
 
-void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile, bool keepSetsAndElements)
+void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
@@ -4629,11 +4629,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile, bool k
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
-    if (!keepSetsAndElements)
-    {
-        mSets.clear();
-        mSetElements.clear();
-    }
+    mSets.clear();
+    mSetElements.clear();
 
 #ifdef ENABLE_CHAT
     mSfuid = sfu_invalid_id;
@@ -18364,10 +18361,10 @@ std::string MegaClient::getAuthURI(bool supressSID, bool supressAuthKey)
             auth.append(Base64::btoa(sid));
         }
 
-        if (inSetPreviewMode())
+        if (inPublicSetPreview())
         {
             auth.append("&s=");
-            auth.append(Base64Str<NODEHANDLE>(mPreviewSet->mPublicId));
+            auth.append(Base64Str<PUBLICSETHANDLE>(mPreviewSet->mPublicId));
         }
     }
 
@@ -19355,30 +19352,6 @@ void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchSetInPreviewMode(std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
-{
-    if (!inSetPreviewMode())
-    {
-        LOG_err << "Sets: Fetch set request with public Set preview mode disabled";
-        completion(API_EACCESS, nullptr, nullptr);
-        return;
-    }
-
-    auto clientUpdateOnCompletion =
-        [completion, this](Error e, Set* s, map<handle, SetElement>* els)
-        {
-            if ((e == API_OK) && s && els && inSetPreviewMode())
-            {
-                auto& previewSet = mPreviewSet->mSet;
-                previewSet = *s;
-                auto& previewMapElements = mPreviewSet->mElements;
-                previewMapElements = *els;
-            }
-            completion(e, s, els);
-        };
-    reqs.add(new CommandFetchSet(this, clientUpdateOnCompletion));
-}
-
 void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
 {
     // set-id is required
@@ -19584,10 +19557,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
             bool enteredSetArray = j.enterarray();
 
             error e = readSets(j, newSets);
-            if (e != API_OK)
-            {
-                return e;
-            }
+            if (e != API_OK) return e;
 
             if (enteredSetArray)
             {
@@ -19600,8 +19570,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         case MAKENAMEID1('e'):
         {
             error e = readElements(j, newElements);
-            if (e != API_OK)
-                return e;
+            if (e != API_OK) return e;
             break;
         }
 
@@ -19611,8 +19580,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
             if (!newSets.empty())
             {
                 error e = readSetsPublicHandles(j, newSets);
-                if (e != API_OK)
-                    return e;
+                if (e != API_OK) return e;
             }
             break;
         }
@@ -19681,7 +19649,7 @@ error MegaClient::decryptSetData(Set& s)
         return API_EINTERNAL;
     }
 
-    if (inSetPreviewMode())
+    if (inPublicSetPreview())
     {
         if ((mPreviewSet->mSet.id() == UNDEF)    // first time receiving Set data for preview Set
             || mPreviewSet->mSet.id() == s.id()) // followup receiving Set data for preview Set
@@ -20359,7 +20327,7 @@ void MegaClient::sc_ass()
 {
     Set s;
     auto exportRemoved = std::make_pair(false, static_cast<m_off_t>(0));
-    error e = readExportedSet(jsonsc, s, exportRemoved);
+    const error e = readExportedSet(jsonsc, s, exportRemoved);
 
     if (e != API_OK)
     {
@@ -20367,37 +20335,65 @@ void MegaClient::sc_ass()
         return;
     }
 
-    if (!updateSet(move(s)))
+    const auto existingSet = mSets.find(s.id());
+    if (existingSet == mSets.end())
     {
         LOG_debug << "Sets: Received action packet for Set " << toNodeHandle(s.id())
                   << " which is unrelated to current user";
     }
+    else
+    {
+        Set updatedSet(existingSet->second);
+        updatedSet.setPublicId(s.publicId());
+        updatedSet.setTs(s.ts());
+        updatedSet.setChanged(Set::CH_EXPORTED);
+        updateSet(move(updatedSet));
+    }
+}
+
+bool MegaClient::disableExportSet(handle sid)
+{
+    const auto& setIt = mSets.find(sid);
+    if (setIt == end(mSets))
+    {
+        LOG_err << "Sets: Incorrect parameters to disable public Set for Set " << toHandle(sid)
+                << ". Provided Set id doesn't match any owned Set";
+        return false;
+    }
+
+    setIt->second.setPublicId(UNDEF);
+
+    return true;
 }
 
 bool MegaClient::isExportedSet(handle sid) const
 {
     auto s = getSet(sid);
-    return s && s->isExportedSet();
+    return s && s->isExported();
 }
 
 void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error)> completion)
 {
-    if (getSet(sid))
+    const auto setToBeUpdated = getSet(sid);
+    if (setToBeUpdated)
     {
-        Set s;
-        s.setId(sid);
-        reqs.add(new CommandExportSet(this, move(s), makePublic, completion));
+        if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
+        else
+        {
+            Set s(*setToBeUpdated);
+            reqs.add(new CommandExportSet(this, move(s), makePublic, completion));
+        }
     }
-    else if (completion)
+    else
     {
-        LOG_warn << "Sets: export requested for non-retreived Set " << toNodeHandle(sid);
-        completion(API_ENOENT);
+        LOG_warn << "Sets: export requested for unknown Set " << toHandle(sid);
+        if (completion) completion(API_ENOENT);
     }
 }
 
 pair<error,string> MegaClient::getPublicSetLink(handle sid) const
 {
-    const string paramErrMsg = "Incorrect parameters to create a public link for Set " + toHandle(sid);
+    const string paramErrMsg = "Sets: Incorrect parameters to create a public link for Set " + toHandle(sid);
     const auto& setIt = mSets.find(sid);
     if (setIt == end(mSets))
     {
@@ -20406,7 +20402,7 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
     }
 
     const Set& s = setIt->second;
-    if (!s.isExportedSet())
+    if (!s.isExported())
     {
         LOG_err << paramErrMsg << ". Provided Set is not exported";
         return make_pair(API_ENOENT, string());
@@ -20420,11 +20416,36 @@ pair<error,string> MegaClient::getPublicSetLink(handle sid) const
     return make_pair(e, url);
 }
 
-error MegaClient::startSetPreview(const char* publicSetLink,
-                                  std::function<void(Error, Set*, map<handle,SetElement>*)> completion)
+void MegaClient::fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion)
 {
-    stopSetPreview();
+    if (!inPublicSetPreview())
+    {
+        LOG_err << "Sets: Fetch set request with public Set preview mode disabled";
+        completion(API_EACCESS, nullptr, nullptr);
+        return;
+    }
 
+    auto clientUpdateOnCompletion = [completion, this](Error e, Set* s, elementsmap_t* els)
+    {
+        if ((e == API_OK) && s && els && inPublicSetPreview())
+        {
+            auto& previewSet = mPreviewSet->mSet;
+            previewSet = *s;
+            auto& previewMapElements = mPreviewSet->mElements;
+            previewMapElements = *els;
+        }
+        else if (e != API_OK && inPublicSetPreview())
+        {
+            stopSetPreview();
+        }
+        completion(e, s, els);
+    };
+    reqs.add(new CommandFetchSet(this, clientUpdateOnCompletion));
+}
+
+error MegaClient::fetchPublicSet(const char* publicSetLink,
+                                  std::function<void(Error, Set*, elementsmap_t*)> completion)
+{
     handle publicSetId = UNDEF;
     std::array<byte, SETNODEKEYLENGTH> publicSetKey;
     error e = parsepubliclink(publicSetLink, publicSetId, publicSetKey.data(), TypeOfLink::SET);
@@ -20432,8 +20453,18 @@ error MegaClient::startSetPreview(const char* publicSetLink,
     {
         assert(publicSetId != UNDEF);
 
+        if (inPublicSetPreview())
+        {
+            if (mPreviewSet->mPublicId == publicSetId)
+            {
+                completion(API_OK, new Set(mPreviewSet->mSet), new elementsmap_t(mPreviewSet->mElements));
+                return e;
+            }
+            else stopSetPreview();
+        }
+
         // 1. setup member mPreviewSet: publicId, key, publicSetLink
-        mPreviewSet = make_unique<SetLink>();
+        mPreviewSet = mega::make_unique<SetLink>();
         mPreviewSet->mPublicId = publicSetId;
         mPreviewSet->mPublicKey.assign(reinterpret_cast<char*>(publicSetKey.data()), publicSetKey.size());
         mPreviewSet->mPublicLink.assign(publicSetLink);

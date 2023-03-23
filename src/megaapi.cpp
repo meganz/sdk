@@ -5800,11 +5800,6 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->removeSet(sid, listener);
 }
 
-void MegaApi::fetchSetInPreviewMode(MegaRequestListener* listener)
-{
-    pImpl->fetchSetInPreviewMode(listener);
-}
-
 void MegaApi::createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     pImpl->putSetElements(sid, nodes, names, listener);
@@ -5881,9 +5876,9 @@ void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
     return pImpl->disableExportSet(sid, listener);
 }
 
-void MegaApi::startPublicSetPreview(const char* publicSetLink, MegaRequestListener* listener)
+void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
 {
-    return pImpl->startPublicSetPreview(publicSetLink, listener);
+    pImpl->fetchPublicSet(publicSetLink, listener);
 }
 
 void MegaApi::stopPublicSetPreview()
@@ -5899,6 +5894,12 @@ bool MegaApi::inPublicSetPreview()
 MegaSet* MegaApi::getPublicSetInPreview()
 {
     return pImpl->getPublicSetInPreview();
+}
+
+
+MegaSetElementList* MegaApi::getPublicSetElementsInPreview()
+{
+    return pImpl->getPublicSetElementsInPreview();
 }
 
 void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
