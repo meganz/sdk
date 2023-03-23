@@ -4224,7 +4224,6 @@ void MegaClient::dispatchTransfers()
                         {
                             auto tslot = ts;
                             auto priv = hprivate;
-                            auto ph = h.as8byte();
 
                             tslot->pendingcmd = nullptr;
 
@@ -4245,7 +4244,7 @@ void MegaClient::dispatchTransfers()
 
                                 if (priv)
                                 {
-                                    Node *n = nodebyhandle(ph);
+                                    Node *n = nodeByHandle(h);
                                     if (n)
                                     {
                                         n->size = s;
@@ -4261,6 +4260,7 @@ void MegaClient::dispatchTransfers()
                             if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                             {
                                 tslot->transfer->tempurls = tempurls;
+                                tslot->transfer->downloadFileHandle = h;
                                 tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                 tslot->progress();
                                 return true;
@@ -17749,15 +17749,30 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 assert(it->second->files.empty());
                 if (it->second->localfilename.empty()) continue;
 
-                if (it->second->localfilename == f->getLocalname())
+                if (d == PUT)
                 {
-                    // the exact same file, so use this one (fingerprint is double checked below)
-                    t = it->second;
-                    break;
+                    // for uploads, check for the same source file
+                    if (it->second->localfilename == f->getLocalname())
+                    {
+                        // the exact same file, so use this one (fingerprint is double checked below)
+                        t = it->second;
+                        break;
+                    }
+                }
+                else
+                {
+                    // for downloads, check for the same source node
+                    if (it->second->downloadFileHandle == f->h &&
+                       !it->second->downloadFileHandle.isUndef())
+                    {
+                        // the exact same cloud file, so use this one
+                        t = it->second;
+                        break;
+                    }
                 }
             }
 
-            if (!t)
+            if (!t && d == PUT)
             {
                 // look to see if there a cached transfer that is similar enough
                 // this case could occur if there were multiple Files before the transfer
