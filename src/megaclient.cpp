@@ -20394,21 +20394,6 @@ void MegaClient::sc_ass()
     }
 }
 
-bool MegaClient::disableExportSet(handle sid)
-{
-    const auto& setIt = mSets.find(sid);
-    if (setIt == end(mSets))
-    {
-        LOG_err << "Sets: Incorrect parameters to disable public Set for Set " << toHandle(sid)
-                << ". Provided Set id doesn't match any owned Set";
-        return false;
-    }
-
-    setIt->second.setPublicId(UNDEF);
-
-    return true;
-}
-
 bool MegaClient::isExportedSet(handle sid) const
 {
     auto s = getSet(sid);

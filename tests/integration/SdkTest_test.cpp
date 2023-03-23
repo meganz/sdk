@@ -11509,18 +11509,17 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     differentApiDtlsPtr->setUpdated = false;
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     isExpectedToBeExported = false;
-    // wait for action packets on both APIs (disable updates through APs)
-    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
-    WaitMillisec(500); // wait a bit to received APs in main Api and update Set's ts
     unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
     lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
     const auto exportDisabledTs = s1pDisabledExport->ts();
+    // wait for action packets on both APIs (disable updates through APs)
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
     const auto exportDisabledTsDiffApi = s1pDisabledExport->ts();
     lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
-    ASSERT_EQ(exportDisabledTs, exportDisabledTsDiffApi);
-    ASSERT_TRUE((exportDisabledTs != exportEnabledTs)
+    ASSERT_LE(exportDisabledTs, exportDisabledTsDiffApi);
+    ASSERT_TRUE((exportDisabledTs > exportEnabledTs)
                 || (exportDisabledTsDiffApi == exportEnabledTs))
         << "Error on disable export ts update for APs";
     // test shortcut on disable export

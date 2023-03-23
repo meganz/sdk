@@ -9777,21 +9777,18 @@ CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std
 {
     cmd("ass");
     arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
+    if (!makePublic) arg("d", 1);
 
-    if (makePublic) notself(cl); // in enable, don't process its Action Packet
-    else            arg("d", 1); // in disable, proccess AP (to get ts)
+    notself(cl);
 }
 
 bool CommandExportSet::procresult(Result r)
 {
     handle sid = mSet->id();
     handle publicId = UNDEF;
-    m_time_t ts = 0;
+    m_time_t ts = m_time(nullptr); // made it up for case that API returns [0] (like for "d":1)
     Error e = API_OK;
-    const bool parsedErrorCode = procerrorcode(r, e);
-    bool parsedSetInfo = false;
-    if (!parsedErrorCode) parsedSetInfo = procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
-    const bool parsedOk = parsedErrorCode || parsedSetInfo;
+    const bool parsedOk = procerrorcode(r, e) || procresultid(r, sid, ts, nullptr, nullptr, nullptr, &publicId);
 
     if (sid != mSet->id())
     {
@@ -9802,24 +9799,13 @@ bool CommandExportSet::procresult(Result r)
 
     if ((parsedOk) && e == API_OK)
     {
-        if (parsedSetInfo)
+        mSet->setPublicId(publicId);
+        mSet->setTs(ts);
+        mSet->setChanged(Set::CH_EXPORTED);
+        if (!client->updateSet(move(*mSet)))
         {
-            mSet->setPublicId(publicId);
-            mSet->setTs(ts);
-            mSet->setChanged(Set::CH_EXPORTED);
-            if (!client->updateSet(move(*mSet)))
-            {
-                LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
-                e = API_ENOENT;
-            }
-        }
-        else
-        {
-            if (!client->disableExportSet(mSet->id()))
-            {
-                LOG_warn << "Sets: command 'ass' disabled succeded, but Set was not found";
-                e = API_ENOENT;
-            }
+            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+            e = API_ENOENT;
         }
     }
 

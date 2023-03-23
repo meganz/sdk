@@ -2373,9 +2373,6 @@ public:
 
     void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
 
-    // meant for "ass" command procresult due to AP-only data
-    bool disableExportSet(handle sid);
-
     // returns result of the operation and the link created
     pair<error, string> getPublicSetLink(handle sid) const;
 

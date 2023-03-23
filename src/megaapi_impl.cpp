@@ -19115,47 +19115,6 @@ void MegaApiImpl::sendPendingRequests()
                 });
             break;
 
-        case MegaRequest::TYPE_EXPORT_SET:
-            client->exportSet(request->getTotalBytes(), request->getFlag(),
-                [this, request](Error e)
-                {
-                    auto sid = request->getTotalBytes();
-                    if (e == API_OK)
-                    {
-                        const Set* updatedSet = client->getSet(sid);
-                        bool isExport = request->getFlag();
-                        if (!updatedSet)
-                        {
-                            LOG_err << "Sets: Set to be updated not found for " << (isExport ? "en" : "dis")
-                                    << "able export operation. Set id " << toHandle(sid);
-                            assert(false);
-                        }
-                        if((isExport && !updatedSet->isExported())
-                            || (!isExport && updatedSet->isExported()))
-                        {
-                            LOG_err << "Sets: Set " << (isExport ? "en" : "dis") << "able operation with"
-                                    << " incoherent result state isExported()==" << updatedSet->isExported()
-                                    << ". Set id " << toHandle(sid);
-                            assert(false);
-                        }
-
-                        string url;
-                        if (isExport)
-                        {
-                            std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
-                        }
-                        if (e == API_OK)
-                        {
-                            request->setLink(url.c_str());
-                            request->setMegaSet(unique_ptr<MegaSet>(new MegaSetPrivate(*updatedSet)));
-                            unique_ptr<MegaSetListPrivate> updatedSetList(new MegaSetListPrivate(&updatedSet, 1));
-                            fireOnSetsUpdate(updatedSetList.get());
-                        }
-                    }
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                });
-            break;
-
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute->exec();
             //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
@@ -24471,6 +24430,48 @@ void MegaApiImpl::exportSet(MegaHandle sid, bool create, MegaRequestListener* li
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
     request->setTotalBytes(sid);
     request->setFlag(create);
+    request->performRequest = [this, request]()
+    {
+        client->exportSet(request->getTotalBytes(), request->getFlag(), [this, request](Error e)
+        {
+            if (e == API_OK)
+            {
+                const bool isExport = request->getFlag();
+                const auto sid = request->getTotalBytes();
+                const Set* updatedSet = client->getSet(sid);
+                if (!updatedSet)
+                {
+                    LOG_err << "Sets: Set to be updated not found for " << (isExport ? "en" : "dis")
+                            << "able export operation. Set id " << toHandle(sid);
+                    assert(false);
+                }
+                if((isExport && !updatedSet->isExported())
+                   || (!isExport && updatedSet->isExported()))
+                {
+                    LOG_err << "Sets: Set " << (isExport ? "en" : "dis") << "able operation with"
+                            << " incoherent result state isExported()==" << updatedSet->isExported()
+                            << ". Set id " << toHandle(sid);
+                    assert(false);
+                }
+
+                string url;
+                if (isExport)
+                {
+                    std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
+                }
+                if (e == API_OK)
+                {
+                    request->setLink(url.c_str());
+                    request->setMegaSet(unique_ptr<MegaSet>(new MegaSetPrivate(*updatedSet)));
+                    unique_ptr<MegaSetListPrivate> updatedSetList(new MegaSetListPrivate(&updatedSet, 1));
+                    fireOnSetsUpdate(updatedSetList.get());
+                }
+            }
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+        return API_OK;
+    };
     requestQueue.push(request);
     waiter->notify();
 }

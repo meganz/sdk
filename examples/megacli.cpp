@@ -10906,11 +10906,11 @@ void exec_setsandelements(autocomplete::ACState& s)
             cout << "Not in Public Set Preview currently\n";
             return;
         }
-        const Set* s = client->getPreviewSet();
-        if (s)
+        const Set* ps = client->getPreviewSet();
+        if (ps)
         {
             cout << "Fetched Set successfully\n";
-            printSet(s);
+            printSet(ps);
             printElements(client->getPreviewSetElements());
         }
         else cout << "Error getting Set from preview: No Set received\n";
