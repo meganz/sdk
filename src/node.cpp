@@ -1046,7 +1046,7 @@ bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, No
 {
     if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
         return false;
-    if (requiredFlags.any() || excludeFlags.any()) 
+    if (requiredFlags.any() || excludeFlags.any())
     {
         Node::Flags flags = getDBFlagsBitset();
         if ((flags & excludeFlags).any())
@@ -1379,27 +1379,30 @@ bool Node::applykey()
         }
         else
         {
-            // look for share key if not folder access with folder master key
-            // this is a share node handle - check if share key is available at key's repository
-            // if not available, check if the node already has the share key
-            auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-            if (it == client->mNewKeyRepository.end())
+            // look for share key if not folder link access with folder master key
+            if (h != me)
             {
-                Node* n;
-                if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                // this is a share node handle - check if share key is available at key's repository
+                // if not available, check if the node already has the share key
+                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                if (it == client->mNewKeyRepository.end())
                 {
-                    continue;
+                    Node* n;
+                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    {
+                        continue;
+                    }
+
+                    sc = n->sharekey;
+                }
+                else
+                {
+                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
                 }
 
-                sc = n->sharekey;
+                // this key will be rewritten when the node leaves the outbound share
+                foreignkey = true;
             }
-            else
-            {
-                sc = it->second.get();
-            }
-
-            // this key will be rewritten when the node leaves the outbound share
-            foreignkey = true;
         }
 
         k = nodekeydata.c_str() + t;

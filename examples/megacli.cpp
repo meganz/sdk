@@ -577,6 +577,8 @@ static const char* treestatename(treestate_t ts)
             return "Pending";
         case TREESTATE_SYNCING:
             return "Syncing";
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";
@@ -4244,6 +4246,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_ipc, sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i"))));
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(exec_getemail, sequence(text("getemail"), param("handle_b64")));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
                                                                           text("del"),
@@ -4266,6 +4269,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_manualverif, sequence(text("verification"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -6074,6 +6078,28 @@ void exec_share(autocomplete::ACState& s)
     }
 }
 
+void exec_getemail(autocomplete::ACState& s)
+{
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to fetch user emails" << endl;
+        return;
+    }
+
+    client->getUserEmail(s.words[1].s.c_str());
+}
+void DemoApp::getuseremail_result(string *email, error e)
+{
+    if (e)
+    {
+        cout << "Failed to retrieve email: " << e << endl;
+    }
+    else
+    {
+        cout << "Email: " << email << endl;
+    }
+}
+
 void exec_users(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
@@ -7273,11 +7299,11 @@ void exec_decryptLink(autocomplete::ACState &s)
     error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
     if (e)
     {
-        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+        cout << "Failed to decrypt link: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password encrypted link: " << decryptedLink << endl;
+        cout << "Decrypted link: " << decryptedLink << endl;
     }
 
 }
@@ -9058,9 +9084,9 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
 }
 
 // reload needed
-void DemoApp::reload(const char* reason, ReasonsToReload reasonToReload)
+void DemoApp::notifyError(const char* reason, ErrorReason errorReason)
 {
-    cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
+    cout << "Error has been detected: " << errorReason << " (" << reason << ")" << endl;
 }
 
 void DemoApp::reloading()
@@ -11049,4 +11075,16 @@ void exec_secure(autocomplete::ACState &s)
     }
 
     cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
+}
+
+void exec_manualverif(autocomplete::ACState &s)
+{
+    if (s.extractflag("-on"))
+    {
+        client->mKeyManager.setManualVerificationFlag(true);
+    }
+    else if (s.extractflag("-off"))
+    {
+        client->mKeyManager.setManualVerificationFlag(false);
+    }
 }

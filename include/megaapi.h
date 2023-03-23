@@ -49,7 +49,7 @@ typedef int64_t MegaTimeStamp; // unix timestamp
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
-    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
+    const MegaTimeStamp MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -5103,17 +5103,18 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
-        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
     {
-        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
-        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
-        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
-        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
+        REASON_ERROR_UNKNOWN                    = -1,   // Unknown reason
+        REASON_ERROR_NO_ERROR                   = 0,    // No error
+        REASON_ERROR_FAILURE_UNSERIALIZE_NODE   = 1,    // Failure when node is unserialized from DB
+        REASON_ERROR_DB_IO_FAILURE              = 2,    // Input/output error at DB layer
+        REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
     };
 
     virtual ~MegaEvent();
@@ -5155,11 +5156,12 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_RELOAD, these values can be taken:
-     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
-     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     * For event EVENT_ERROR, these values can be taken:
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
      *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
+     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
+     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
      *
      * @return Number relative to this event
      */
@@ -8281,7 +8283,7 @@ class MegaListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
-         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         * @obsolete Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
@@ -11220,6 +11222,17 @@ class MegaApi
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
          */
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+
+        /**
+         * @brief Set name used for logging by current thread.
+         *
+         * Rotative Performance Logger uses std::thread_id in log entries.
+         * You can use a custom name by calling this function from the desired thread.
+         *
+         * @param threadName Nmae of the therad to be used in log lines
+         */
+        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
+
 #endif
         /**
          * @brief Create a folder in the MEGA account
@@ -11505,12 +11518,14 @@ class MegaApi
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
          *
-         * With this feature flag set, the client will manage encryption keys for
+         * With this feature flag set, the client will manage encryption keys exchange for
          * shared folders in a secure way. Legacy clients won't be able to decrypt
          * shared folders created with this flag enabled.
          *
          * Manual verification of credentials of users (both sharers AND sharees) is
-         * required in order to decrypt shared folders correctly.
+         * required in order to decrypt shared folders correctly if, also, the
+         * "Manual Verification" flag is set to true.
+         * @see MegaApi::setManualVerification for more information.
          *
          * @note This flag should be changed before login+fetchnodes. Otherwise, it may
          * result on unexpected behavior.
@@ -11518,6 +11533,22 @@ class MegaApi
          * @param enable New value of the flag
          */
         void setSecureFlag(bool enable);
+
+        /**
+         * @brief Allows to change the hardcoded value of the "Manual Verification" flag
+         *
+         * With this feature flag set, the client will require manual verification of
+         * contact credentials of users (both sharers AND sharees) in order to decrypt
+         * shared folders correctly if the "secure" flag is set to true.
+         * 
+         * The default value is "false".
+         *
+         * @note If the "secure" flag is disabled, "Manual Verification" flag has no
+         * effect.
+         *
+         * @param enable New value of the flag
+         */
+        void setManualVerificationFlag(bool enable);
 
         /**
          * @brief Creates a new share key for the node if there is no share key already created.
@@ -17408,6 +17439,9 @@ class MegaApi
          * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
          * this method will return a list that contains nodes of the same type as provided.
          *
+         * If param target is SEARCH_TARGET_INSHARE, SEARCH_TARGET_OUTSHARE or SEARCH_TARGET_PUBLICLINK
+         * recursive flag has to be true
+         *
          * You take the ownership of the returned value.
          *
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
@@ -17490,7 +17524,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -20507,7 +20541,7 @@ class MegaApi
          * the same size() as param nodes)
          * @param listener MegaRequestListener to track this request
          */
-        void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
+        void createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set
@@ -20605,7 +20639,7 @@ class MegaApi
          * @param eids the ids of Elements to be removed
          * @param listener MegaRequestListener to track this request
          */
-        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
+        void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to remove an Element

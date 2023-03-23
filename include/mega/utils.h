@@ -989,10 +989,10 @@ struct SyncTransferCount
     bool operator!=(const SyncTransferCount& rhs) const;
     void operator-=(const SyncTransferCount& rhs);
 
-    size_t mCompleted = 0;
-    size_t mCompletedBytes = 0;
-    size_t mPending = 0;
-    size_t mPendingBytes = 0;
+    uint32_t mCompleted = 0;
+    uint32_t mPending = 0;
+    uint64_t mCompletedBytes = 0;
+    uint64_t mPendingBytes = 0;
 };
 
 struct SyncTransferCounts
@@ -1007,6 +1007,9 @@ struct SyncTransferCounts
     SyncTransferCount mDownloads;
     SyncTransferCount mUploads;
 };
+
+// creates a new id filling `id` with random bytes, up to `length`
+void resetId(char *id, size_t length, PrnGen& rng);
 
 } // namespace mega
 
