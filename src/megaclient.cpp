@@ -4631,6 +4631,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #endif
     mSets.clear();
     mSetElements.clear();
+    stopSetPreview();
 
 #ifdef ENABLE_CHAT
     mSfuid = sfu_invalid_id;

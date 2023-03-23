@@ -9763,7 +9763,7 @@ bool CommandExportSet::procresult(Result r)
 
     if (sid != mSet->id())
     {
-        LOG_err << "Sets: commad 'ass' in processing result. Received Set id " << toHandle(sid)
+        LOG_err << "Sets: command 'ass' in processing result. Received Set id " << toHandle(sid)
                 << " expected Set id " << toHandle(mSet->id());
         assert(false);
     }
