@@ -515,7 +515,7 @@ typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
 
 typedef vector<LocalNode*> localnode_vector;
 
-// fsid is not necessarily unique becuase multiple filesystems may be involved
+// fsid is not necessarily unique because multiple filesystems may be involved
 // Hence, we use a multimap and check other parameters too when looking for a match.
 typedef multimap<handle, LocalNode*> fsid_localnode_map;
 
@@ -692,7 +692,7 @@ typedef enum { TREESTATE_NONE = 0,
                TREESTATE_SYNCED,
                TREESTATE_PENDING,
                TREESTATE_SYNCING,
-			   TREESTATE_IGNORED,
+               TREESTATE_IGNORED,
                } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,

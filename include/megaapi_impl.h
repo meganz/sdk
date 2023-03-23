@@ -2424,7 +2424,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
         {
             unsigned int count(0);
 
-            if(cloudSide)
+            if (cloudSide)
             {
                 if(!info.cloudPath1.cloudPath.empty())
                 {

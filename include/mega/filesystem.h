@@ -252,7 +252,7 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
-inline std::ostream& operator<<(std::ostream& os, const LocalPath& p) 
+inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {
     return os << p.toPath(false);
 }
@@ -384,7 +384,7 @@ class FileDistributor
     // Taking into account that the sync thread will do some of the moving/copying
     // So it has to operate properly across threads.
     // Note that the file is not always "tmp", one of the target locations
-    // may actually be the place it was downlaoded to, rather than a tmp location.
+    // may actually be the place it was downloaded to, rather than a tmp location.
 
     recursive_mutex mMutex;
     LocalPath theFile;

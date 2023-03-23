@@ -1536,7 +1536,7 @@ public:
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
 
-    // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
+    // This flag is used to ensure we load Syncs just once per user session, even if a fetchnodes reload occurs after the first one
     bool syncsAlreadyLoadedOnStatecurrent = false;
 
     // subsequent fetchnodes should use the 'nocache' flag, so that we don't have difficulties with actionpackets getting to a later SCSN than we had before

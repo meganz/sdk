@@ -289,7 +289,7 @@ bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-    
+
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -1188,7 +1188,7 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            LocalPath::local2path(&localdata, &utf8data, true);  // true becuase that was the case historically
+            LocalPath::local2path(&localdata, &utf8data, true);  // true because that was the case historically
             id->append(utf8data);
         }
         RegCloseKey(hKey);
