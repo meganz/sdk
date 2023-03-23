@@ -65,11 +65,11 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type)
+std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
 {
     bool error = false;
     TypeOfLink lType = TypeOfLink::FOLDER;
-    switch(static_cast<nodetype_t>(type))
+    switch(type)
     {
     case FOLDERNODE: break;
     case FILENODE:
