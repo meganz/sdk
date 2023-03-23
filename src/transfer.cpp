@@ -241,14 +241,12 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     direction_t type;
     string filepath;
     if (!r.unserializedirection(type) ||
+        (type != GET && type != PUT) ||
         !r.unserializestring(filepath))
     {
-        if (type != GET && type != PUT)
-        {
-            assert(false);
-            LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
-            return NULL;
-        }
+        assert(false);
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
 
     unique_ptr<Transfer> t(new Transfer(client, type));
@@ -307,7 +305,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
-        return NULL;
+        return nullptr;
     }
 
     if (state == TRANSFERSTATE_PAUSED)
