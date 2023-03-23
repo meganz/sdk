@@ -415,8 +415,10 @@ void URLCodec::escape(string *plain, string *escaped)
     }
 
     escaped->clear();
-    for (char c: *plain)
+    size_t len = plain->size();
+    for (size_t i = 0; i < len; i++)
     {
+        unsigned char c = (unsigned char)(*plain)[i];
         if (issafe(c))
         {
             escaped->push_back(c);
