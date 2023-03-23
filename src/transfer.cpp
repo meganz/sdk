@@ -283,7 +283,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     std::string combinedUrls;
     int8_t state;
     int8_t version;
-    if (hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN) ||
+    if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
         !r.unserializestring(combinedUrls) ||
         !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) ||
