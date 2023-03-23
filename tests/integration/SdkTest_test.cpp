@@ -330,21 +330,31 @@ void SdkTest::Cleanup()
         }
     }
 
+    set<string> alreadyRemoved;
+
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
         for (int i = 0; i < contacts->size(); i++)
         {
+            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
+            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
+            string email1 = string(megaApi[nApi]->getMyEmail());
+            string email2 = string(contacts->get(i)->getEmail());
+            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
+            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
+            alreadyRemoved.insert(email1+email2);
+
             auto result = synchronousRemoveContact(nApi, contacts->get(i));
             if (result == API_EARGS)
             {
                 // let's have a look at which other users the jenkins users have been connected to
                 out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
             }
-            else
+            else if (result != API_OK)
             {
-                EXPECT_EQ(API_OK, result) << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
             }
         }
     }
@@ -362,10 +372,16 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
@@ -394,10 +410,16 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
@@ -6965,7 +6987,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     ASSERT_TRUE(sharedSubFolderA) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " not found";
     ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " found but not sensitive";
-    
+
     // ---------------------------------------------------------------------------------------------------------------------------
 
     subFolderA.reset(megaApi[0]->getNodeByPath((string("/") + folderAName + "/" + subFolderAName).c_str(), unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get()));
