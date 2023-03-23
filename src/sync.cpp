@@ -707,7 +707,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         // Note, we opened dbaccess in thread-safe mode
             statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
             {
-                client->handleDbError(error);
+                syncs.mClient.handleDbError(error);
             }));
 
         // Did the call above create the database?

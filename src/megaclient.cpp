@@ -13115,7 +13115,7 @@ void MegaClient::fatalError(ErrorReason errorReason)
     if (mLastErrorDetected != errorReason)
     {
 #ifdef ENABLE_SYNC
-        syncs.disableSyncs(true, FAILURE_ACCESSING_PERSISTENT_STORAGE, false, nullptr);
+        syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
 #endif
 
         std::string reason;

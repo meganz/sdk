@@ -710,7 +710,7 @@ public:
         auto& rng = client.rng;
 
         // Try and open the state cache.
-        DbTablePtr db(dbAccess.open(rng, fsAccess, name, flags));
+        DbTablePtr db(dbAccess.open(rng, fsAccess, name, flags, nullptr));
 
         // Try and load the state cache.
         return db && read(*db, client.key);
