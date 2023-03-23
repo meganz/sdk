@@ -50,6 +50,7 @@
 #import "MEGAPaymentMethod.h"
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
+#import "MEGAUserAlert.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
