@@ -2442,6 +2442,12 @@ using namespace mega;
     }
 }
 
+- (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startStreaming(node.getCPtr, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size {
     if (self.megaApi) {
         self.megaApi->startStreaming(node.getCPtr, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, NULL);
