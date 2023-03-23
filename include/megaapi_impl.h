@@ -793,7 +793,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
+    MegaSetElementListPrivate(const elementsmap_t* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }

@@ -9505,7 +9505,7 @@ bool CommandFetchSet::procresult(Result r)
     {
         Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
         elementsmap_t* els = elements.empty()
-                             ? new map<handle, SetElement>()
+                             ? new elementsmap_t()
                              : new elementsmap_t(move(elements.begin()->second));
         mCompletion(API_OK, s, els);
     }

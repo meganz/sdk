@@ -19569,7 +19569,7 @@ bool MegaClient::procaesp()
     if (ok)
     {
         map<handle, Set> newSets;
-        map<handle, map<handle, SetElement>> newElements;
+        map<handle, elementsmap_t> newElements;
         ok &= (readSetsAndElements(json, newSets, newElements) == API_OK);
 
         if (ok)
@@ -19585,7 +19585,7 @@ bool MegaClient::procaesp()
     return ok;
 }
 
-error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements)
+error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
     bool loopAgain = true;
 
@@ -19904,7 +19904,7 @@ error MegaClient::readSet(JSON& j, Set& s)
     }
 }
 
-error MegaClient::readElements(JSON& j, map<handle, map<handle, SetElement>>& elements)
+error MegaClient::readElements(JSON& j, map<handle, elementsmap_t>& elements)
 {
     if (!j.enterarray())
     {
@@ -20067,7 +20067,7 @@ const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
     return nullptr;
 }
 
-const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
+const elementsmap_t* MegaClient::getSetElements(handle sid) const
 {
     auto itS = mSetElements.find(sid);
     return itS == mSetElements.end() ? nullptr : &itS->second;

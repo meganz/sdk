@@ -2336,7 +2336,7 @@ public:
     bool procaesp();
 
     // load Sets and Elements from json
-    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
 
     // return Set with given sid or nullptr if it was not found
     const Set* getSet(handle sid) const;
@@ -2360,7 +2360,7 @@ public:
     const SetElement* getSetElement(handle sid, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
-    const map<handle, SetElement>* getSetElements(handle sid) const;
+    const elementsmap_t* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
@@ -2393,7 +2393,7 @@ public:
 private:
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
-    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
+    error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
@@ -2425,7 +2425,7 @@ private:
     void notifysetelement(SetElement*);
     void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
-    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+    map<handle, elementsmap_t> mSetElements; // indexed by Set id, then Element id
 
     struct SetLink
     {

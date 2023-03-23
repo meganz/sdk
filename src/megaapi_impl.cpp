@@ -24394,7 +24394,7 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const elementsmap_t* elements, const std::function<bool(handle)>& filterOut)
 {
     if (elements)
     {

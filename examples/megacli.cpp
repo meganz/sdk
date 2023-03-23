@@ -10761,7 +10761,7 @@ void printSet(const Set* s)
     cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
     cout << endl;
 }
-void printElements(const map<handle, SetElement>* elems)
+void printElements(const elementsmap_t* elems)
 {
     if (!elems)
     {
