@@ -48,6 +48,9 @@ namespace mega {
         // get timestamp
         const m_time_t& ts() const { return mTs; }
 
+        // get creation timestamp
+        const m_time_t& cts() const { return mCTs; }
+
         // get own name
         const std::string& name() const { return getAttr(nameTag); }
 
@@ -60,6 +63,9 @@ namespace mega {
 
         // set timestamp
         void setTs(m_time_t ts) { mTs = ts; }
+
+        // set creation timestamp
+        void setCTs(m_time_t ts) { mCTs = ts; }
 
         // set own name
         void setName(std::string&& name);
@@ -94,7 +100,8 @@ namespace mega {
         handle mId = UNDEF;
         std::string mKey;
         std::unique_ptr<string_map> mAttrs;
-        m_time_t mTs = 0;
+        m_time_t mTs = 0;  // timestamp
+        m_time_t mCTs = 0; // creation timestamp
 
         void setAttr(const std::string& tag, std::string&& value); // set any non-standard attr
         const std::string& getAttr(const std::string& tag) const;

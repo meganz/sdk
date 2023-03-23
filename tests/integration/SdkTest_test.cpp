@@ -10827,8 +10827,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p->id(), INVALID_HANDLE);
     ASSERT_EQ(s1p->name(), name);
     ASSERT_NE(s1p->ts(), 0);
+    ASSERT_NE(s1p->cts(), 0) << "Create-timestamp of a Set was not set";
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
     MegaHandle sh = s1p->id();
+    int64_t setCrTs = s1p->cts();
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set create AP not received after " << maxTimeout << " seconds";
@@ -10837,6 +10839,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->id(), s1p->id());
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1p->ts());
+    ASSERT_EQ(s2p->cts(), s1p->cts()) << "Create-timestamp of a Set differed in Action Packet";
     ASSERT_EQ(s2p->user(), s1p->user());
 
     // Clear Set name
@@ -10846,11 +10849,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     unique_ptr<MegaSet> s1clearname(megaApi[0]->getSet(sh));
     ASSERT_NE(s1clearname, nullptr);
     ASSERT_STREQ(s1clearname->name(), "");
+    ASSERT_EQ(s1clearname->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change";
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
     ASSERT_STREQ(s2p->name(), "");
+    ASSERT_EQ(s2p->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change AP";
 
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;

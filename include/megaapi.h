@@ -1282,6 +1282,13 @@ public:
     virtual int64_t ts() const { return 0; }
 
     /**
+     * @brief Returns creation timestamp of current Set.
+     *
+     * @return timestamp value.
+     */
+    virtual int64_t cts() const { return 0; }
+
+    /**
      * @brief Returns name of current Set.
      *
      * The MegaSet object retains the ownership of the returned string, it will be valid until
