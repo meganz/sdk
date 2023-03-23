@@ -124,6 +124,15 @@ struct LogLinkedList
 
 class RotativePerformanceLoggerLoggingThread
 {
+    template <typename ExitCallback>
+    class ScopeGuard
+    {
+        ExitCallback mExitCb;
+    public:
+        ScopeGuard(ExitCallback&& exitCb) : mExitCb{std::move(exitCb)} { }
+        ~ScopeGuard() { mExitCb(); }
+    };
+
     std::unique_ptr<std::thread> mLogThread;
     std::condition_variable mLogConditionVariable;
     std::mutex mLogMutex;
@@ -421,6 +430,51 @@ private:
         outputFile << "----------------------------- program start -----------------------------\n";
         long long outFileSize = outputFile.tellp();
 
+        // Auxiliary thread used for zipping in the background:
+        std::atomic_bool zippingThreadExit = false;
+        std::mutex zippingQueueMutex;
+        std::deque<LocalPath> zippingQueueFiles;
+        std::condition_variable zippingWakeCv;
+
+        std::thread zippingThread([&](){
+            LocalPath newNameDone;
+
+            while(!zippingThreadExit)
+            {
+                {
+                    std::unique_lock<std::mutex> lock(zippingQueueMutex);
+                    zippingWakeCv.wait(lock, [&](){ return zippingThreadExit || !zippingQueueFiles.empty();});
+                    if (zippingThreadExit)
+                    {
+                        return;
+                    }
+                    newNameDone = std::move(zippingQueueFiles.front());
+                    zippingQueueFiles.pop_front();
+                }
+                {   //do zip
+                    auto newNameZipping = newNameDone;
+                    newNameZipping.append(LocalPath::fromRelativePath(".zipping"));
+
+                    std::lock_guard<std::mutex> g(mLogRotationMutex); // Ensure no concurrency issue with while rotating thread regarding cleanups/.zipping file removals
+                    gzipCompressOnRotate(newNameZipping, newNameDone);
+                }
+            }
+        });
+        // Ensure we finish and wait for zipping thread
+        ScopeGuard g([&](){
+            zippingThreadExit = true;
+            zippingWakeCv.notify_one();
+            zippingThread.join();
+        });
+        auto pushToZippingThread = [&](LocalPath &&newNameDone)
+        {
+            {
+                std::lock_guard<std::mutex> g(zippingQueueMutex);
+                zippingQueueFiles.push_back(std::move(newNameDone));
+            }
+            zippingWakeCv.notify_one();
+        };
+
         while (!mLogExit)
         {
             if (!threadErrors.empty())
@@ -459,20 +513,21 @@ private:
                 newNameZipping.append(LocalPath::fromRelativePath(".zipping"));
 
                 outputFile.close();
+
+                // Ensure there does not exist a clashing .zipping file:
                 if (!mFsAccess->unlinklocal(newNameZipping))
                 {
                     threadErrors += "Failed to unlink log file: " + newNameZipping.toPath(true) + "\n";
                 }
-                if (!mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true))
+                // rename to .zipping and queue the zipping into the zipping thread:
+                if (mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true))
+                {
+                    pushToZippingThread(std::move(newNameDone));
+                }
+                else
                 {
                     threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath(true) + " to " + newNameZipping.toPath(true) + "\n";
                 }
-
-                std::thread t([=]() {
-                    std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
-                    gzipCompressOnRotate(newNameZipping, newNameDone);
-                });
-                t.detach();
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
                 outFileSize = 0;
