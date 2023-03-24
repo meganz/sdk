@@ -11679,7 +11679,7 @@ public class MegaApiJava {
      * @param publicSetLink Public link to a Set in MEGA
      * @param listener MegaRequestListener to track this request
      */
-    public void fetchPublicSet(String publicSetLink, MegaRequestListenerInterface listener)
+    public void fetchPublicSet(String publicSetLink, MegaRequestListenerInterface listener) {
         megaApi.fetchPublicSet(publicSetLink, createDelegateRequestListener(listener));
     }
 
