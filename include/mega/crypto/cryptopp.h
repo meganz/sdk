@@ -202,7 +202,7 @@ public:
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
      */
-    void cbc_encrypt_with_key(const std::string &plain, std::string &cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
+    bool cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode.
@@ -228,7 +228,7 @@ public:
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
      */
-    void cbc_decrypt_with_key(const std::string &cipher, std::string &plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
+    bool cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
