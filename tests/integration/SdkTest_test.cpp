@@ -11453,95 +11453,87 @@ TEST_F(SdkTest, SdkUserAlerts)
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
-    A1dtls.userUpdated = false;
     B1dtls.userAlertList.reset();
-
-    size_t apiIndex = 0;
+    A1dtls.userUpdated = false; // What should this be used for ?
+    A1dtls.schedId = UNDEF;
+    A1dtls.chatid = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     MegaHandle chatid = UNDEF;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].chatid = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     createChatScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting creation not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
 
-    bool expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_NEW)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for new scheduled meeting";
+    ASSERT_EQ(count, 1) << "NewScheduledMeeting";
+    ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
+    bkpAlerts.emplace_back(a->copy());
 
     // UpdateScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false;
-    mApi[apiIndex].chatid = UNDEF;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    A1dtls.userUpdated = false; // What should this be used for ?
+    A1dtls.schedId = UNDEF;
+    A1dtls.chatid = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     updateScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting update not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
 
-    expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_UPDATED)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting update";
+    ASSERT_EQ(count, 1) << "UpdateScheduledMeeting";
+    ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+    bkpAlerts.emplace_back(a->copy());
 
     // DeleteScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
+    A1dtls.userUpdated = false; // What should this be used for ?
+    A1dtls.schedId = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
     deleteScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
 
-    expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_DELETED)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting removal";
+    ASSERT_EQ(count, 1) << "DeleteScheduledMeeting";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";  // Should this mention "deleted" rather than "updated"?
+    bkpAlerts.emplace_back(a->copy());
 #endif
 
     // NewShare
@@ -11564,7 +11556,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
     // Wait for node to be decrypted in B account
-    ASSERT_TRUE(WaitFor([this, &B1, hSharedFolder]()
+    ASSERT_TRUE(WaitFor([&B1, hSharedFolder]()
     {
         std::unique_ptr<MegaNode> inshareNode(B1.getNodeByHandle(hSharedFolder));
         return inshareNode && inshareNode->isNodeKeyDecrypted();
