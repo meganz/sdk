@@ -100,6 +100,36 @@ bool SymmCipher::setkey(const string* key)
     return false;
 }
 
+void SymmCipher::cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv)
+{
+    try
+    {
+        CBC_Mode<AES>::Encryption e;
+        e.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        StringSource ss(plain, true, new StreamTransformationFilter(e, new StringSink(cipher)));
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC encryption" << e.what();
+        return;
+    }
+}
+
+void SymmCipher::cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv)
+{
+    try
+    {
+        CBC_Mode<AES>::Decryption d;
+        d.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        StringSource ss(cipher, true, new StreamTransformationFilter(d, new StringSink(plain)));
+    }
+    catch(const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC decryption" << e.what();
+        return;
+    }
+}
+
 void SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);

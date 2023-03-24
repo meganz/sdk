@@ -190,6 +190,21 @@ public:
     void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
+     * @brief Encrypt symmetrically using AES in CBC mode.
+     *
+     * This method also sets the encryption key and the initialization vector in the symetric cipher in one step
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param plain Data to be encrypted
+     * @param cipher Resulting encrypted data
+     * @param key Encryption key
+     * @param keylength Length of encryption key
+     * @param iv Initialization vector to use.
+     */
+    void cbc_encrypt_with_key(const std::string &plain, std::string &cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
+
+    /**
      * @brief Decrypt symmetrically using AES in CBC mode.
      *
      * The size of the IV is one block in AES-128 (16 bytes).
@@ -199,6 +214,21 @@ public:
      * @param iv Initialisation vector.
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
+
+    /**
+     * @brief Decrypt symmetrically using AES in CBC mode.
+     *
+     * This method also sets the encryption key and the initialization vector in the symetric cipher in one step
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param cipher Encrypted data to be decrypted
+     * @param plain Resulting decrypted data
+     * @param key Decryption key
+     * @param keylength Length of encryption key
+     * @param iv Initialization vector to use.
+     */
+    void cbc_decrypt_with_key(const std::string &cipher, std::string &plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
