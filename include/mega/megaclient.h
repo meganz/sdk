@@ -766,6 +766,9 @@ public:
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
+    // move as many as possible from pendingfa to activefa
+    void activatefa();
+
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
@@ -1524,8 +1527,8 @@ public:
     //  - app requests to attach a thumbnail/preview to a node
     //  - app requests for media upload (which return the fa handle)
     // initially added to queuedfa, and up to 10 moved to activefa.
-    putfa_list queuedfa;
-    putfa_list activefa;
+    list<shared_ptr<HttpReqFA>> queuedfa;
+    list<shared_ptr<HttpReqFA>> activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
