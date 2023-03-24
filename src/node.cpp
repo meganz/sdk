@@ -2088,7 +2088,7 @@ bool LocalNode::scanRequired() const
     return scanAgain != TREE_RESOLVED;
 }
 
-void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>& childRows)
+void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<SyncRow>& childRows)
 {
     if (lastFolderScan &&
         lastFolderScan->size() == children.size())
@@ -2167,7 +2167,7 @@ bool isDoNotSyncFileName(const string& name)
            || name == "Icon\x0d";
 }
 
-bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
+bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
 {
     bool syncHere = false;
 

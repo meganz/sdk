@@ -114,7 +114,7 @@ public:
     };
 };
 
-bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
+bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
 {
     if (row.isNoName())
     {
@@ -682,7 +682,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     else if (us.mConfig.mLocalPathFsid != UNDEF &&
             us.mConfig.mLocalPathFsid != fas->fsid)
     {
-        // We can't start a sync with the wrong root folder fsid becuase that is part of
+        // We can't start a sync with the wrong root folder fsid because that is part of
         // the name of the sync database.  So we can't retrieve the sync state
         LOG_err << "Sync root folder does not have the same fsid as before: " << mLocalPath
                 << " was " << toHandle(us.mConfig.mLocalPathFsid) << " now " << toHandle(fas->fsid);
@@ -705,7 +705,10 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
         // Note, we opened dbaccess in thread-safe mode
-        statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_RECYCLE |  DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
+            {
+                syncs.mClient.handleDbError(error);
+            }));
 
         // Did the call above create the database?
         us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -1337,9 +1340,9 @@ struct ProgressingMonitor
     bool resolved = false;
     Sync& sync;
     SyncFlags& sf;
-    syncRow& sr;
+    SyncRow& sr;
     SyncPath& sp;
-    ProgressingMonitor(Sync& s, syncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {}
+    ProgressingMonitor(Sync& s, SyncRow& row, SyncPath& fullPath) : sync(s), sf(*s.syncs.mSyncFlags), sr(row), sp(fullPath) {}
 
     bool isContainingNodePath(const string& a, const string& b)
     {
@@ -1400,7 +1403,7 @@ struct ProgressingMonitor
 };
 
 
-bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode)
+bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode)
 {
     // We have detected that this LocalNode might be a move/rename target (the moved-to location).
     // Ie, there is a new/different FSItem in this row.
@@ -2258,7 +2261,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
  }
  #endif
 
-bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult)
+bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult)
 {
     // if this cloud move was a sync decision, don't look to make it locally too
     if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere &&
@@ -2381,7 +2384,7 @@ bool Sync::checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, Sy
 
 
 
-bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode)
+bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode)
 {
     // We have detected that this LocalNode might be a move/rename target (the moved-to location).
     // Ie, there is a new/different CloudNode in this row.
@@ -5716,7 +5719,7 @@ bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
     assert(syncs.onSyncThread());
 
     FSNode rootFsNode(localroot->getLastSyncedFSDetails());
-    syncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
+    SyncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
     SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
     recursiveCollectNameConflicts(row, conflicts, pathBuffer);
     return !conflicts.empty();
@@ -5774,11 +5777,11 @@ void Sync::purgeStaleDownloads()
     });
 }
 
-void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
+void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
                 bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid)
 {
     // This is the function that determines the list of syncRows that recursiveSync() will operate on for this folder.
-    // Each syncRow a (CloudNodes, SyncNodes, FSNodes) tuple that all match up by name (taking escapes/case into account)
+    // Each SyncRow a (CloudNodes, SyncNodes, FSNodes) tuple that all match up by name (taking escapes/case into account)
     // For the case of a folder that contains already-synced content, and in which nothing changed, we can "infer" the set
     // much more efficiently, by generating it from SyncNodes alone.
     // Otherwise we need to calculate it, which involves sorting the three sets and matching them up.
@@ -5827,7 +5830,7 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
 }
 
 
-void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, SyncPath& fullPath)
+void Sync::recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& ncs, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
 
@@ -5838,7 +5841,7 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 
     // Get sync triplets.
-    vector<syncRow> childRows;
+    vector<SyncRow> childRows;
     vector<FSNode> fsInferredChildren;
     vector<FSNode> fsChildren;
     vector<CloudNode> cloudChildren;
@@ -5900,22 +5903,22 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs, 
     }
 }
 
-bool syncRow::hasClashes() const
+bool SyncRow::hasClashes() const
 {
     return !cloudClashingNames.empty() || !fsClashingNames.empty();
 }
 
-bool syncRow::hasCloudPresence() const
+bool SyncRow::hasCloudPresence() const
 {
     return cloudNode || !cloudClashingNames.empty();
 }
 
-bool syncRow::hasLocalPresence() const
+bool SyncRow::hasLocalPresence() const
 {
     return fsNode || !fsClashingNames.empty();
 }
 
-const LocalPath& syncRow::comparisonLocalname() const
+const LocalPath& SyncRow::comparisonLocalname() const
 {
     if (syncNode)
     {
@@ -5937,7 +5940,7 @@ const LocalPath& syncRow::comparisonLocalname() const
     }
 }
 
-SyncRowType syncRow::type() const
+SyncRowType SyncRow::type() const
 {
     auto c = static_cast<unsigned>(cloudNode != nullptr);
     auto s = static_cast<unsigned>(syncNode != nullptr);
@@ -5946,7 +5949,7 @@ SyncRowType syncRow::type() const
     return static_cast<SyncRowType>(c * 4 + s * 2 + f);
 }
 
-bool syncRow::ignoreFileChanged() const
+bool SyncRow::ignoreFileChanged() const
 {
     assert(syncNode);
     assert(syncNode->type == FOLDERNODE);
@@ -5954,7 +5957,7 @@ bool syncRow::ignoreFileChanged() const
     return mIgnoreFileChanged;
 }
 
-void syncRow::ignoreFileChanging()
+void SyncRow::ignoreFileChanging()
 {
     assert(syncNode);
     assert(syncNode->type == FOLDERNODE);
@@ -5962,7 +5965,7 @@ void syncRow::ignoreFileChanging()
     mIgnoreFileChanged = true;
 }
 
-bool syncRow::ignoreFileStable() const
+bool SyncRow::ignoreFileStable() const
 {
     assert(syncNode);
     assert(syncNode->type == FOLDERNODE);
@@ -5971,7 +5974,7 @@ bool syncRow::ignoreFileStable() const
            && !syncNode->waitingForIgnoreFileLoad();
 }
 
-ExclusionState syncRow::exclusionState(const CloudNode& node) const
+ExclusionState SyncRow::exclusionState(const CloudNode& node) const
 {
     assert(syncNode);
     assert(syncNode->type > FILENODE);
@@ -5981,7 +5984,7 @@ ExclusionState syncRow::exclusionState(const CloudNode& node) const
                                     node.fingerprint.size);
 }
 
-ExclusionState syncRow::exclusionState(const FSNode& node) const
+ExclusionState SyncRow::exclusionState(const FSNode& node) const
 {
     assert(syncNode);
     assert(syncNode->type > FILENODE);
@@ -5991,7 +5994,7 @@ ExclusionState syncRow::exclusionState(const FSNode& node) const
                                     node.fingerprint.size);
 }
 
-ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type, m_off_t size) const
+ExclusionState SyncRow::exclusionState(const LocalPath& name, nodetype_t type, m_off_t size) const
 {
     assert(syncNode);
     assert(syncNode->type != FILENODE);
@@ -5999,7 +6002,7 @@ ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type, m
     return syncNode->exclusionState(name, type, size);
 }
 
-bool syncRow::hasCaseInsensitiveCloudNameChange() const
+bool SyncRow::hasCaseInsensitiveCloudNameChange() const
 {
     // only call this if the sync is mCaseInsensitive
     return fsNode && syncNode && cloudNode &&
@@ -6009,7 +6012,7 @@ bool syncRow::hasCaseInsensitiveCloudNameChange() const
         0 != compareUtf(fsNode->localname, true, cloudNode->name, true, false);
 }
 
-bool syncRow::hasCaseInsensitiveLocalNameChange() const
+bool SyncRow::hasCaseInsensitiveLocalNameChange() const
 {
     // only call this if the sync is mCaseInsensitive
     return fsNode && syncNode && cloudNode &&
@@ -6019,7 +6022,7 @@ bool syncRow::hasCaseInsensitiveLocalNameChange() const
         0 != compareUtf(cloudNode->name, true, fsNode->localname, true, false);
 }
 
-bool syncRow::isIgnoreFile() const
+bool SyncRow::isIgnoreFile() const
 {
     struct Predicate
     {
@@ -6059,7 +6062,7 @@ bool syncRow::isIgnoreFile() const
     return false;
 }
 
-bool syncRow::isNoName() const
+bool SyncRow::isNoName() const
 {
     // Can't be a no-name triplet if we've been paired.
     if (fsNode || syncNode)
@@ -6077,7 +6080,7 @@ bool syncRow::isNoName() const
     return cloudNode && cloudNode->name.empty();
 }
 
-void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const
+void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::iterator b) const
 {
     assert(syncs.onSyncThread());
 
@@ -6094,8 +6097,8 @@ void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::itera
 //#endif
 
     // match up elements that are still present and were alrady synced
-    vector<syncRow>::iterator lastFullySynced = b;
-    vector<syncRow>::iterator lastNotFullySynced = b;
+    vector<SyncRow>::iterator lastFullySynced = b;
+    vector<SyncRow>::iterator lastNotFullySynced = b;
     unsigned syncNode_nfs_count = 0;
 
     for (auto i = a; i != b; ++i)
@@ -6236,20 +6239,20 @@ void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::itera
 #endif
 }
 
-auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
+auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<SyncRow>
 {
     assert(syncs.onSyncThread());
 
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.computeSyncTripletsTime);
 
-    vector<syncRow> triplets;
+    vector<SyncRow> triplets;
     triplets.reserve(cloudNodes.size() + syncParent.children.size() + fsNodes.size());
 
     for (auto& cn : cloudNodes)          triplets.emplace_back(&cn, nullptr, nullptr);
     for (auto& sn : syncParent.children) triplets.emplace_back(nullptr, sn.second, nullptr);
     for (auto& fsn : fsNodes)            triplets.emplace_back(nullptr, nullptr, &fsn);
 
-    auto tripletCompare = [this](const syncRow& lhs, const syncRow& rhs) -> int {
+    auto tripletCompare = [this](const SyncRow& lhs, const SyncRow& rhs) -> int {
         // Sanity.
         assert(!lhs.fsNode || !lhs.fsNode->localname.empty());
         assert(!rhs.fsNode || !rhs.fsNode->localname.empty());
@@ -6311,7 +6314,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
     };
 
     std::sort(triplets.begin(), triplets.end(),
-           [=](const syncRow& lhs, const syncRow& rhs)
+           [=](const SyncRow& lhs, const SyncRow& rhs)
            { return tripletCompare(lhs, rhs) < 0; });
 
     auto currSet = triplets.begin();
@@ -6332,13 +6335,13 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
         currSet = nextSet;
     }
 
-    auto newEnd = std::remove_if(triplets.begin(), triplets.end(), [](syncRow& row){ return row.empty(); });
+    auto newEnd = std::remove_if(triplets.begin(), triplets.end(), [](SyncRow& row){ return row.empty(); });
     triplets.erase(newEnd, triplets.end());
 
     return triplets;
 }
 
-bool Sync::inferRegeneratableTriplets(vector<CloudNode>& cloudChildren, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes, vector<syncRow>& inferredRows) const
+bool Sync::inferRegeneratableTriplets(vector<CloudNode>& cloudChildren, const LocalNode& syncParent, vector<FSNode>& inferredFsNodes, vector<SyncRow>& inferredRows) const
 {
     assert(syncs.onSyncThread());
 
@@ -6392,7 +6395,7 @@ using IndexPairVector = vector<IndexPair>;
 CodeCounter::ScopeStats computeSyncSequencesStats = { "computeSyncSequences" };
 
 
-static IndexPairVector computeSyncSequences(vector<syncRow>& children)
+static IndexPairVector computeSyncSequences(vector<SyncRow>& children)
 {
     // No children, no work to be done.
     if (children.empty())
@@ -6401,7 +6404,7 @@ static IndexPairVector computeSyncSequences(vector<syncRow>& children)
     CodeCounter::ScopeTimer rst(computeSyncSequencesStats);
 
     // Separate our children into those that are ignore files and those that are not.
-    auto i = std::partition(children.begin(), children.end(), [](const syncRow& child) {
+    auto i = std::partition(children.begin(), children.end(), [](const SyncRow& child) {
         return child.isIgnoreFile();
     });
 
@@ -6432,7 +6435,7 @@ static IndexPairVector computeSyncSequences(vector<syncRow>& children)
     return sequences;
 }
 
-bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
+bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth)
 {
     assert(syncs.onSyncThread());
 
@@ -6565,7 +6568,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         row.syncNode->conflicts = TREE_RESOLVED;
 
         // Get sync triplets.
-        vector<syncRow> childRows;
+        vector<SyncRow> childRows;
         vector<FSNode> fsInferredChildren;
         vector<FSNode> fsChildren;
         vector<CloudNode> cloudChildren;
@@ -6923,7 +6926,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     return !earlyExit;
 }
 
-string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
+string Sync::logTriplet(SyncRow& row, SyncPath& fullPath)
 {
     ostringstream s;
     s << " triplet:" <<
@@ -6933,7 +6936,7 @@ string Sync::logTriplet(syncRow& row, SyncPath& fullPath)
     return s.str();
 }
 
-bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath,
+bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath,
         bool belowRemovedCloudNode, bool belowRemovedFsNode)
 {
     assert(syncs.onSyncThread());
@@ -7091,7 +7094,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
 
         // Is this clash due to multiple ignore files being present in the cloud?
-        auto isIgnoreFileClash = [](const syncRow& row) {
+        auto isIgnoreFileClash = [](const SyncRow& row) {
             // Any clashes in the cloud?
             if (row.cloudClashingNames.empty())
                 return false;
@@ -7128,7 +7131,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     auto downloadPtr = std::dynamic_pointer_cast<SyncDownload_inClient>(row.syncNode->transferSP);
     if (!downloadPtr) return true;
@@ -7264,7 +7267,7 @@ bool Sync::syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, Sy
     return true;  // carry on with checkItem()
 }
 
-bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
+bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
 
@@ -7724,7 +7727,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFol
     return false;
 }
 
-bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
+bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
 {
     // Convenience.
     auto target = row.syncNode;
@@ -7807,7 +7810,7 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
     return true;
 }
 
-bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     // Confirm that the move details are the same as recorded (LocalNodes may have changed or been deleted by now, etc.
     auto movePtr = row.syncNode->rare().moveToHere;
@@ -7870,7 +7873,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
     return sourceSyncNode != nullptr;
 }
 
-bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
+bool Sync::resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
 
@@ -7949,7 +7952,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 }
 
 
-bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
+bool Sync::resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8003,7 +8006,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
     return false;
 }
 
-bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced)
+bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8049,7 +8052,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     return false;
 }
 
-bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter)
+bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8218,7 +8221,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     return false;
 }
 
-bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
+bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8581,7 +8584,7 @@ void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name)
     });
 };
 
-bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
+bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8804,7 +8807,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
 
 
-bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_userIntervention(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -8854,7 +8857,7 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
     return false;
 }
 
-bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     enum MoveType {
         // Not a possible move.
@@ -9372,7 +9375,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
     return waitforupdate;
 }
 
-bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -10874,7 +10877,7 @@ void Syncs::syncLoop()
                      us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
             {
                 // If we shut the sync down before because the local path wasn't available (yet)
-                // And it's safe to resume the sync becuase it's in Suspend (rather than disable)
+                // And it's safe to resume the sync because it's in Suspend (rather than disable)
                 // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
 
                 fsfp_t filesystemId = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
@@ -11048,7 +11051,7 @@ void Syncs::syncLoop()
                     SyncPath pathBuffer(*this, sync->localroot->localname, sync->cloudRootPath);
 
                     FSNode rootFsNode(sync->localroot->getLastSyncedFSDetails());
-                    syncRow row{&sync->cloudRoot, sync->localroot.get(), &rootFsNode};
+                    SyncRow row{&sync->cloudRoot, sync->localroot.get(), &rootFsNode};
 
                     {
                         // later we can make this lock much finer-grained

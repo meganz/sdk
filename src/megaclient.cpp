@@ -914,7 +914,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        vector<byte> derivedKey = deriveKey(password, salt);
+        vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
         string hashedauthkey;
         const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
@@ -1709,10 +1709,10 @@ void MegaClient::exec()
         if (activefa.size())
         {
             TransferDbCommitter committer(tctable);
-            putfa_list::iterator curfa = activefa.begin();
+            auto curfa = activefa.begin();
             while (curfa != activefa.end())
             {
-                HttpReqCommandPutFA* fa = *curfa;
+                shared_ptr<HttpReqFA> fa = *curfa;
 
                 auto erasePos = curfa;
                 ++curfa;
@@ -1804,7 +1804,6 @@ void MegaClient::exec()
                             }
                         }
 
-                        delete fa;
                         activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
@@ -1813,7 +1812,7 @@ void MegaClient::exec()
 
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
-                        LOG_warn << "Error setting file attribute";
+                        LOG_warn << "Error setting file attribute. Will retry after backoff";
                         activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
@@ -1853,18 +1852,7 @@ void MegaClient::exec()
         if (btpfa.armed())
         {
             faretrying = false;
-            while (queuedfa.size() && activefa.size() < MAXPUTFA)
-            {
-                // dispatch most recent file attribute put
-                putfa_list::iterator curfa = queuedfa.begin();
-                HttpReqCommandPutFA* fa = *curfa;
-                queuedfa.erase(curfa);
-                activefa.push_back(fa);
-
-                LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-                reqs.add(fa);
-            }
+            activatefa();
         }
 
         if (fafcs.size())
@@ -2041,7 +2029,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdsInflight() && scsn.ready())
+                                if (sctable && pendingsccommit && !reqs.readyToSend() && scsn.ready())
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
@@ -3789,7 +3777,7 @@ void MegaClient::disconnect()
         (it++)->second->retry(API_OK);
     }
 
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
+    for (auto it = activefa.begin(); it != activefa.end(); it++)
     {
         (*it)->disconnect();
     }
@@ -3878,7 +3866,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
-    LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
+    LOG_debug << clientname << "executing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
 
     mAsyncQueue.clearDiscardable();
@@ -3971,16 +3959,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mBlocked = false;
     mBlockedSet = false;
 
-    for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
-    {
-        delete *it;
-    }
-
-    for (putfa_list::iterator it = activefa.begin(); it != activefa.end(); it++)
-    {
-        delete *it;
-    }
-
     for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
     {
         delete it->second;
@@ -4065,6 +4043,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
+
+    mLastErrorDetected = REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::removeCaches()
@@ -4221,7 +4201,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!reqs.cmdsInflight())
+                        if (!pendingcs && !csretrying && !reqs.readyToSend())
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
@@ -5043,10 +5023,8 @@ void MegaClient::finalizesc(bool complete)
     }
     else
     {
-        LOG_err << "Cache update DB write error - disabling caching";
+        LOG_err << "Cache update DB write error";
         assert(false);
-        sendevent(99467, "Writing in DB error", 0);
-        mNodeManager.fatalError(ReasonsToReload::REASON_ERROR_WRITE_DB);
     }
 }
 
@@ -5181,18 +5159,26 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
+    queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
+    activatefa();
+}
+
+void MegaClient::activatefa()
+{
     while (activefa.size() < MAXPUTFA && queuedfa.size())
     {
-        putfa_list::iterator curfa = queuedfa.begin();
-        HttpReqCommandPutFA *fa = *curfa;
+        auto curfa = queuedfa.begin();
+        shared_ptr<HttpReqFA> fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
+
+        LOG_debug << "Adding file attribute to the active queue";
+
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
-        reqs.add(fa);
+        reqs.add(fa->getURLForFACmd());
     }
 }
 
@@ -9749,7 +9735,7 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    vector<byte> derivedKey = deriveKey(password, bsalt);
+    vector<byte> derivedKey = deriveKey(password, bsalt, 2 * SymmCipher::KEYLENGTH);
 
     login2(email, derivedKey.data(), pin);
 }
@@ -9906,7 +9892,7 @@ error MegaClient::validatepwd(const char* pswd)
     }
     else if (accountversion == 2)
     {
-        vector<byte> dk = deriveKey(pswd, accountsalt);
+        vector<byte> dk = deriveKey(pswd, accountsalt, 2 * SymmCipher::KEYLENGTH);
         dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
         reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
 
@@ -10116,7 +10102,11 @@ void MegaClient::opensctable()
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
+            {
+                handleDbError(error);
+            }));
+
             pendingsccommit = false;
 
             if (sctable)
@@ -10159,7 +10149,10 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE, [this](DBError error)
+            {
+                handleDbError(error);
+            }));
         }
     }
 }
@@ -12241,7 +12234,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    vector<byte> derivedKey = deriveKey(pwd, salt);
+    vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
     byte hmacComputed[32];
     if (algorithm == 1)
@@ -12298,7 +12291,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         // Derive MAC key with salt+pwd
         string salt(32u, '\0');
         rng.genblock((byte*)salt.data(), salt.size());
-        vector<byte> derivedKey = deriveKey(pwd, salt);
+        vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
         // Prepare encryption key
         string encKey;
@@ -12518,7 +12511,7 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
@@ -12536,9 +12529,9 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     return API_OK;
 }
 
-vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt, size_t derivedKeySize)
 {
-    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    vector<byte> derivedKey(derivedKeySize);
     CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
         (const byte*)salt.data(), salt.size(), 100000);
@@ -12607,7 +12600,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
@@ -12980,7 +12973,11 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
+    {
+        handleDbError(error);
+    }));
+
     if (!tctable)
     {
         return;
@@ -13083,7 +13080,11 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED, [this](DBError error)
+    {
+        handleDbError(error);
+    }));
+
     if (!tctable)
     {
         return;
@@ -13091,6 +13092,60 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
 
     purgeOrphanTransfers(true);
     closetc(true);
+}
+
+void MegaClient::handleDbError(DBError error)
+{
+    switch (error)
+    {
+        case DBError::DB_ERROR_FULL:
+            fatalError(ErrorReason::REASON_ERROR_DB_FULL);
+            break;
+        case DBError::DB_ERROR_IO:
+            fatalError(ErrorReason::REASON_ERROR_DB_IO);
+            break;
+        default:
+            fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
+            break;
+    }
+}
+
+void MegaClient::fatalError(ErrorReason errorReason)
+{
+    if (mLastErrorDetected != errorReason)
+    {
+#ifdef ENABLE_SYNC
+        syncs.disableSyncs(FAILURE_ACCESSING_PERSISTENT_STORAGE, false, true);
+#endif
+
+        std::string reason;
+        switch (errorReason)
+        {
+            case ErrorReason::REASON_ERROR_DB_IO:
+                sendevent(99467, "Writing in DB error", 0);
+                reason = "Failed to write to database";
+                break;
+            case ErrorReason::REASON_ERROR_UNSERIALIZE_NODE:
+                reason = "Failed to unserialize a node";
+                sendevent(99468, "Failed to unserialize node", 0);
+                break;
+            case ErrorReason::REASON_ERROR_DB_FULL:
+                reason = "Data base is full";
+                break;
+            default:
+                reason = "Unknown reason";
+                break;
+        }
+
+        mLastErrorDetected = errorReason;
+        app->notifyError(reason.c_str(), errorReason);
+        // TODO: maybe it's worth a locallogout
+    }
+}
+
+bool MegaClient::accountShouldBeReloadedOrRestarted() const
+{
+    return mLastErrorDetected != REASON_ERROR_NO_ERROR;
 }
 
 void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServers)
@@ -14667,7 +14722,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)
-    if (mNodeManager.accountShouldBeReloaded())
+    if (accountShouldBeReloadedOrRestarted())
     {
         LOG_warn << "Cannot re-enable sync until account's reload (unserialize errors)";
         syncConfig.mError = FAILURE_ACCESSING_PERSISTENT_STORAGE;
@@ -15543,6 +15598,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 {
                     // the exact same file, so use this one (fingerprint is double checked below)
                     t = it->second;
+                    multi_cachedtransfers[d].erase(it);
                     break;
                 }
             }
@@ -15570,7 +15626,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                                                    *it->first, ext2))
                         {
                             t = it->second;
-                            range.first = it;
+                            multi_cachedtransfers[d].erase(it);
                             break;
                         }
                     }
@@ -15645,7 +15701,6 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                     }
                 }
-                multi_cachedtransfers[d].erase(range.first);
                 LOG_debug << "Transfer resumed";
             }
 

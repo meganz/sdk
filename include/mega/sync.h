@@ -264,9 +264,9 @@ enum SyncRowType : unsigned {
     SRT_CSF
 }; // SyncRowType
 
-struct syncRow
+struct SyncRow
 {
-    syncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
+    SyncRow(CloudNode* node, LocalNode* syncNode, FSNode* fsNode)
         : cloudNode(node)
         , syncNode(syncNode)
         , fsNode(fsNode)
@@ -274,8 +274,8 @@ struct syncRow
     };
 
     // needs to be move constructable/assignable for sorting (note std::list of non-copyable below)
-    syncRow(syncRow&&) = default;
-    syncRow& operator=(syncRow&&) = default;
+    SyncRow(SyncRow&&) = default;
+    SyncRow& operator=(SyncRow&&) = default;
 
     CloudNode* cloudNode;
     LocalNode* syncNode;
@@ -299,7 +299,7 @@ struct syncRow
     bool recurseBelowRemovedCloudNode = false;
     bool recurseBelowRemovedFsNode = false;
 
-    vector<syncRow>* rowSiblings = nullptr;
+    vector<SyncRow>* rowSiblings = nullptr;
     const LocalPath& comparisonLocalname() const;
 
     // This list stores "synthesized" FSNodes: That is, nodes that we
@@ -310,7 +310,7 @@ struct syncRow
     // to this list so that we recurse into it immediately.
     list<FSNode> fsAddedSiblings;
 
-    void inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
+    void inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
             bool belowRemovedFsNode, fsid_localnode_map& localnodeByScannedFsid);
 
     bool empty() { return !cloudNode && !syncNode && !fsNode && cloudClashingNames.empty() && fsClashingNames.empty(); }
@@ -355,7 +355,7 @@ struct SyncPath
     // this one purely from the sync root (using cloud name, to avoid escaped names)
     string syncPath;
 
-    bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
+    bool appendRowNames(const SyncRow& row, FileSystemType filesystemType);
 
     SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
 private:
@@ -490,9 +490,9 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);
 
-    void combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const;
+    void combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::iterator b) const;
 
-    vector<syncRow> computeSyncTriplets(
+    vector<SyncRow> computeSyncTriplets(
         vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes) const;
@@ -500,7 +500,7 @@ public:
         vector<CloudNode>& cloudNodes,
         const LocalNode& root,
         vector<FSNode>& fsNodes,
-        vector<syncRow>& inferredRows) const;
+        vector<SyncRow>& inferredRows) const;
 
     struct PerFolderLogSummaryCounts
     {
@@ -512,35 +512,35 @@ public:
         bool report(string&);
     };
 
-    bool recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
-    bool syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
-    bool syncItem_checkDownloadCompletion(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
+    bool recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
+    bool syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 
-    string logTriplet(syncRow& row, SyncPath& fullPath);
+    string logTriplet(SyncRow& row, SyncPath& fullPath);
 
-    bool resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath);
-    bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
-    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool considerSynced);
-    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
-    bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    bool resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath);
+    bool resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_userIntervention(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
+    bool resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
+    bool resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
+    bool resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc);
+    bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
 
     bool syncEqual(const CloudNode&, const FSNode&);
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
-    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
-    bool checkForCompletedCloudMoveToHere(syncRow& row, syncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
+    bool checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
+    bool checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     void checkForFilenameAnomaly(const SyncPath& path, const string& name);
 
-    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
+    void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     void purgeStaleDownloads();
@@ -881,8 +881,8 @@ struct SyncStallEntry
 
     // These are the paths involved with the stall case.
     // If a path is empty, it's irrelevant to the case
-    // The problem might be local or remote, chck the correpsonding PathProblem.
-    // Typically we tried to do soemthing on the problem side
+    // The problem might be local or remote, check the correpsonding PathProblem.
+    // Typically we tried to do something on the problem side
     // The paths on the other side are what motivated the attempt.
     // Eg. Saw in the cloud cloudPath1 moved to cloudPath2
     //     Tried to move localPath1 to localPath2, got error localPath2Problem.

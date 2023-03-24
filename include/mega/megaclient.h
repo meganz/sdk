@@ -776,6 +776,9 @@ public:
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
+    // move as many as possible from pendingfa to activefa
+    void activatefa();
+
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
@@ -1510,6 +1513,18 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
+    void handleDbError(DBError error);
+
+    // notify the app about a fatal error (ie. DB critical error like disk is full)
+    void fatalError(ErrorReason errorReason);
+
+    // This method returns true when fatal failure has been detected
+    // None actions has been taken yet (reload, restart app, ...)
+    bool accountShouldBeReloadedOrRestarted() const;
+
+    // This flag keeps the last error detected. It's overwritten by new errors and reset upon logout.It's cleaned after reload or other error is generated
+    ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
@@ -1521,7 +1536,7 @@ public:
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
 
-    // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
+    // This flag is used to ensure we load Syncs just once per user session, even if a fetchnodes reload occurs after the first one
     bool syncsAlreadyLoadedOnStatecurrent = false;
 
     // subsequent fetchnodes should use the 'nocache' flag, so that we don't have difficulties with actionpackets getting to a later SCSN than we had before
@@ -1532,8 +1547,8 @@ public:
     //  - app requests to attach a thumbnail/preview to a node
     //  - app requests for media upload (which return the fa handle)
     // initially added to queuedfa, and up to 10 moved to activefa.
-    putfa_list queuedfa;
-    putfa_list activefa;
+    list<shared_ptr<HttpReqFA>> queuedfa;
+    list<shared_ptr<HttpReqFA>> activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -2226,7 +2241,7 @@ private:
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
 
-    static vector<byte> deriveKey(const char* password, const string& salt);
+    static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
 
 //

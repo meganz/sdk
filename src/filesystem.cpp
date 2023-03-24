@@ -936,7 +936,7 @@ bool FileAccess::fopen(const LocalPath& name)
     updatelocalname(name, true);
 
     fopenSucceeded = sysstat(&mtime, &size);
-    if (!fopenSucceeded) 
+    if (!fopenSucceeded)
     {
         LOG_err_if(!isErrorFileNotFound(errorcode)) << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
     }
@@ -1957,7 +1957,7 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
         {
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
-            LOG_debug << "File move failed even after moving the obstruction to local debris. Target name: " << target;
+            LOG_warn << "File move failed even after moving the obstruction to local debris. Target name: " << target;
         }
         else
         {

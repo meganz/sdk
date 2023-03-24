@@ -249,7 +249,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     static const vector<string> attributesToCopyIntoPreviousVersions;
-    
+
     // 'sen' attribute
     bool isMarkedSensitive() const;
     bool isSensitiveInherited() const;
@@ -393,7 +393,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         FLAGS_SIZE = 3
     };
 
-    typedef std::bitset<FLAGS_SIZE> Flags; 
+    typedef std::bitset<FLAGS_SIZE> Flags;
 
     // check if any of the flags are set in any of the anesestors
     bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
@@ -465,7 +465,7 @@ inline TreeState propagateSubtreeFlag(TreeState nodeFlag, TreeState childFlag)
     return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : TreeState(childFlag);
 }
 
-struct syncRow;
+struct SyncRow;
 struct SyncPath;
 
 struct MEGA_API LocalNode;
@@ -537,7 +537,7 @@ struct MEGA_API LocalNode
     std::unique_ptr<vector<FSNode>> lastFolderScan;
 
     // If we can regenerate the filsystem data at this node, no need to store it, save some RAM
-    void clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>& childRows);
+    void clearRegeneratableFolderScan(SyncPath& fullPath, vector<SyncRow>& childRows);
 
     fsid_localnode_map::iterator fsid_lastSynced_it;
 
@@ -755,7 +755,7 @@ struct MEGA_API LocalNode
 
     // Queue a scan request for this node if needed, and if a slot is available (just one per sync)
     // Also receive the results if they are ready
-    bool processBackgroundFolderScan(syncRow& row, SyncPath& fullPath);
+    bool processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath);
 
     void reassignUnstableFsidsOnceOnly(const FSNode* fsnode);
 
@@ -793,7 +793,7 @@ struct MEGA_API LocalNode
     void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst, NodeHandle ovHandleIfShortcut);
     void queueClientDownload(shared_ptr<SyncDownload_inClient> upload, bool queueFirst);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
-    void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
+    void checkTransferCompleted(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
     bool transferResetUnlessMatched(direction_t, const FileFingerprint& fingerprint);
     shared_ptr<SyncTransfer_inClient> transferSP;

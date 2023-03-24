@@ -7312,11 +7312,11 @@ void exec_decryptLink(autocomplete::ACState &s)
     error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
     if (e)
     {
-        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+        cout << "Failed to decrypt link: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password encrypted link: " << decryptedLink << endl;
+        cout << "Decrypted link: " << decryptedLink << endl;
     }
 
 }
@@ -9097,9 +9097,9 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
 }
 
 // reload needed
-void DemoApp::reload(const char* reason, ReasonsToReload reasonToReload)
+void DemoApp::notifyError(const char* reason, ErrorReason errorReason)
 {
-    cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
+    cout << "Error has been detected: " << errorReason << " (" << reason << ")" << endl;
 }
 
 void DemoApp::reloading()
