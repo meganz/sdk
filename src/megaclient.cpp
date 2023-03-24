@@ -2029,7 +2029,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.readyToSend())
+                                if (sctable && pendingsccommit && !reqs.readyToSend() && scsn.ready())
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
