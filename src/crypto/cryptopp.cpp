@@ -310,19 +310,6 @@ bool SymmCipher::gcm_encrypt_add(const byte* data, const size_t datasize,
     return gcm_encrypt(data, datasize, nullptr /*key*/, 0 /*keylen*/, additionalData, additionalDatalen, iv, ivlen, taglen, result, expectedSize);
 }
 
-bool SymmCipher::gcm_encrypt_with_key(const byte* data, const size_t datasize,
-                                       const byte* key, const size_t keylen,
-                                       const byte* iv, const size_t ivlen, const size_t taglen,
-                                       std::string& result, const size_t expectedSize)
-{
-    if (!key || !keylen)
-    {
-        LOG_err << "Failed AES-GCM encryption. Invalid encryption key";
-        return false;
-    }
-    return gcm_encrypt(data, datasize, key, keylen, nullptr /*additionalData*/, 0 /*additionalDatalen*/, iv, ivlen, taglen, result, expectedSize);
-}
-
 bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize,
                                        const byte* key, const size_t keylen,
                                        const byte* additionalData, const size_t additionalDatalen,
