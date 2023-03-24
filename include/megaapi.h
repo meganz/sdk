@@ -20770,7 +20770,7 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
-         * @param Set MegaHandle to get the public link
+         * @param sid Set MegaHandle to get the public link
          * @param listener MegaRequestListener to track this request
          */
         void exportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
@@ -20789,7 +20789,7 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
-         * @param Set MegaHandle to stop sharing
+         * @param sid Set MegaHandle to stop sharing
          * @param listener MegaRequestListener to track this request
          */
         void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
