@@ -682,7 +682,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     else if (us.mConfig.mLocalPathFsid != UNDEF &&
             us.mConfig.mLocalPathFsid != fas->fsid)
     {
-        // We can't start a sync with the wrong root folder fsid becuase that is part of
+        // We can't start a sync with the wrong root folder fsid because that is part of
         // the name of the sync database.  So we can't retrieve the sync state
         LOG_err << "Sync root folder does not have the same fsid as before: " << mLocalPath
                 << " was " << toHandle(us.mConfig.mLocalPathFsid) << " now " << toHandle(fas->fsid);
@@ -10877,7 +10877,7 @@ void Syncs::syncLoop()
                      us->mConfig.mError == LOCAL_PATH_TEMPORARY_UNAVAILABLE))
             {
                 // If we shut the sync down before because the local path wasn't available (yet)
-                // And it's safe to resume the sync becuase it's in Suspend (rather than disable)
+                // And it's safe to resume the sync because it's in Suspend (rather than disable)
                 // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
 
                 fsfp_t filesystemId = fsaccess->fsFingerprint(us->mConfig.mLocalPath);

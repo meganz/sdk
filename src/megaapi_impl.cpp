@@ -20005,7 +20005,7 @@ void MegaApiImpl::sendPendingRequests()
                 bool keepSyncConfigsFile = request->getTransferTag();
 
                 client->logout(keepSyncConfigsFile, [this, request](error result) {
-                    LOG_debug << "exectuing logout completion, error: " << result;  // track possible lack of logout callbacks
+                    LOG_debug << "executing logout completion, error: " << result;  // track possible lack of logout callbacks
                     logout_result(result, request);
                 });
             }
