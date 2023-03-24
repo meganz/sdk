@@ -17756,6 +17756,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     {
                         // the exact same file, so use this one (fingerprint is double checked below)
                         t = it->second;
+                        multi_cachedtransfers[d].erase(it);
                         break;
                     }
                 }
@@ -17767,6 +17768,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     {
                         // the exact same cloud file, so use this one
                         t = it->second;
+                        multi_cachedtransfers[d].erase(it);
                         break;
                     }
                 }
@@ -17795,7 +17797,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                                                    *it->first, ext2))
                         {
                             t = it->second;
-                            range.first = it;
+                            multi_cachedtransfers[d].erase(it);
                             break;
                         }
                     }
@@ -17870,7 +17872,6 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                     }
                 }
-                multi_cachedtransfers[d].erase(range.first);
                 LOG_debug << "Transfer resumed";
             }
 
