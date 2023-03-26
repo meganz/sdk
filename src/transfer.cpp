@@ -254,7 +254,7 @@ bool Transfer::serialize(string *d)
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
     assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
-    assert(t->badfp == badfp);
+    assert(t->badfp == badfp || (!t->badfp.isvalid && !badfp.isvalid));
     assert(t->downloadFileHandle == downloadFileHandle);
 #endif
 
