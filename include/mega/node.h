@@ -80,8 +80,6 @@ struct CloudNode
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int OLDUPLOADTOKENLEN = 27;
-
     string nodekey;
 
     newnodesource_t source = NEW_NODE;

@@ -5825,14 +5825,6 @@ bool MegaApiImpl::isEphemeralPlusPlus()
     return isLoggedIn() == EPHEMERALACCOUNTPLUSPLUS;
 }
 
-void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
-    request->setFlag(logout);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 char* MegaApiImpl::getMyEmail()
 {
     User* u;
@@ -10820,32 +10812,6 @@ void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissi
     waiter->notify();
 }
 
-void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_URL, listener);
-    request->setNodeHandle(publichandle);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PRIVATE_MODE, listener);
-    request->setNodeHandle(chatid);
-    request->setText(title);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
-    request->setNodeHandle(publichandle);
-    request->setSessionKey(unifiedkey);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
@@ -11740,47 +11706,6 @@ void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequest
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
     request->setLink(url);
     request->setFile(dstpath);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
-    request->setFlag(renew);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_QUERY, listener);
-    request->setNodeHandle(handle);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
-    request->setNodeHandle(handle);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KEEP_ME_ALIVE, listener);
-    request->setParamType(type);
-    request->setFlag(enable);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getPSA(bool urlSupported, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
-    request->setFlag(urlSupported);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -17874,17 +17799,6 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     return client->mNodeManager.hasVersion(NodeHandle().set6byte(node->getHandle()));
 }
 
-void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FOLDER_INFO, listener);
-    if (node)
-    {
-        request->setNodeHandle(node->getHandle());
-    }
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE || type < nodetype_t::FILENODE || type > nodetype_t::FOLDERNODE)
@@ -22825,143 +22739,234 @@ void MegaApiImpl::sendPendingRequests()
             client->chatlink(chatid, del, createifmissing);
             break;
         }
+#endif
+        }
+    }
+}
 
-        case MegaRequest::TYPE_CHAT_LINK_URL:
+#ifdef ENABLE_CHAT
+void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_URL, listener);
+    request->setNodeHandle(publichandle);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle publichandle = request->getNodeHandle();
             if (publichandle == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             client->chatlinkurl(publichandle);
-            break;
-        }
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_SET_PRIVATE_MODE:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char* title, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PRIVATE_MODE, listener);
+    request->setNodeHandle(chatid);
+    request->setText(title);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             const char *title = request->getText();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (!chat->publicchat)
             {
-                e = API_EEXIST;
-                break;
+                return API_EEXIST;
             }
             if (!chat->group || chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
             if (!chat->title.empty() && (!title || title[0] == '\0'))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->chatlinkclose(chatid, title);
-            break;
-        }
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char* unifiedkey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
+    request->setNodeHandle(publichandle);
+    request->setSessionKey(unifiedkey);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle publichandle = request->getNodeHandle();
             const char *unifiedkey = request->getSessionKey();
 
             if (publichandle == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             if (unifiedkey == NULL)
             {
-                e = API_EINCOMPLETE;
-                break;
+                return API_EINCOMPLETE;
             }
             client->chatlinkjoin(publichandle, unifiedkey);
-            break;
-        }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
-        case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
+
+void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
+    request->setFlag(logout);
+
+    request->performRequest = [this, request]()
         {
             client->whyamiblocked();
-            break;
-        }
-        case MegaRequest::TYPE_CONTACT_LINK_CREATE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
+    request->setFlag(renew);
+
+    request->performRequest = [this, request]()
         {
             client->contactlinkcreate(request->getFlag());
-            break;
-        }
-        case MegaRequest::TYPE_CONTACT_LINK_QUERY:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkQuery(MegaHandle h, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_QUERY, listener);
+    request->setNodeHandle(h);
+
+    request->performRequest = [this, request]()
         {
             handle h = request->getNodeHandle();
             if (ISUNDEF(h))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->contactlinkquery(h);
-            break;
-        }
-        case MegaRequest::TYPE_CONTACT_LINK_DELETE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkDelete(MegaHandle h, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
+    request->setNodeHandle(h);
+
+    request->performRequest = [this, request]()
         {
             handle h = request->getNodeHandle();
             client->contactlinkdelete(h);
-            break;
-        }
-        case MegaRequest::TYPE_KEEP_ME_ALIVE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_KEEP_ME_ALIVE, listener);
+    request->setParamType(type);
+    request->setFlag(enable);
+
+    request->performRequest = [this, request]()
         {
             int type = request->getParamType();
             bool enable = request->getFlag();
 
             if (type != MegaApi::KEEP_ALIVE_CAMERA_UPLOADS)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->keepmealive(type, enable);
-            break;
-        }
-        case MegaRequest::TYPE_GET_PSA:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getPSA(bool urlSupported, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    request->setFlag(urlSupported);
+
+    request->performRequest = [this, request]()
         {
             client->getpsa(request->getFlag());
-            break;
-        }
-        case MegaRequest::TYPE_FOLDER_INFO:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getFolderInfo(MegaNode* node, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FOLDER_INFO, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->performRequest = [this, request]()
         {
             MegaHandle h = request->getNodeHandle();
             if (ISUNDEF(h))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             Node *node = client->nodebyhandle(h);
             if (!node)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             if (node->type == FILENODE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             NodeCounter nc = node->getCounter();
@@ -22969,10 +22974,11 @@ void MegaApiImpl::sendPendingRequests()
             request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            break;
-        }
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 error MegaApiImpl::performRequest_getAchievements(MegaRequestPrivate* request)
