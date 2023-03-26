@@ -823,15 +823,7 @@ bool Node::serialize(string* d)
         }
     }
 
-    // Encrypted nodes have no attributes.
-    if (attrstring)
-    {
-        d->append(1, '\0');
-    }
-    else
-    {
-        attrs.serialize(d);
-    }
+    attrs.serialize(d);
 
     if (isExported)
     {

@@ -877,6 +877,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 }
             }
 
+#ifdef ENABLE_SYNC
             for (file_list::iterator it = files.begin(); it != files.end(); )
             {
                 // now that the file itself is moved (if started as a manual download),
@@ -886,7 +887,6 @@ void Transfer::complete(TransferDbCommitter& committer)
                 // pass the distribution responsibility to the sync, for sync requested downloads
                 if (f->syncxfer)
                 {
-#ifdef ENABLE_SYNC
                     auto dl = dynamic_cast<SyncDownload_inClient*>(f);
                     assert(dl);
                     dl->downloadDistributor = downloadDistributor;
@@ -896,10 +896,10 @@ void Transfer::complete(TransferDbCommitter& committer)
                     f->transfer = NULL;
                     f->completed(this, PUTNODES_SYNC);  // sets wasCompleted == true, and the sync thread can then call the distributor
                     it = files.erase(it);
-#endif // ENABLE_SYNC
                 }
                 else it++;
             }
+#endif // ENABLE_SYNC
 
             if (!files.size())
             {
