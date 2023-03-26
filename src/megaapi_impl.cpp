@@ -10622,71 +10622,18 @@ void MegaApiImpl::grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle u
     waiter->notify();
 }
 
-void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE_ACCESS, listener);
-    request->setParentHandle(chatid);
-    request->setNodeHandle(n->getHandle());
-
-    char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-    uid[11] = 0;
-
-    request->setEmail(uid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(uh);
-    request->setAccess(privilege);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_TRUNCATE, listener);
-    request->setNodeHandle(chatid);
-    request->setParentHandle(messageid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_SET_TITLE, listener);
-    request->setNodeHandle(chatid);
-    request->setText(title);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getChatPresenceURL(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_PRESENCE_URL, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION, listener);
-    request->setNumber(deviceType);
-    request->setText(token);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
     request->setNumber(port);
     request->setParamType(1);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_chatStats(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10699,6 +10646,12 @@ void MegaApiImpl::sendChatLogs(const char *data, MegaHandle userid, MegaHandle c
     request->setParentHandle(callid);
     request->setParamType(2);
     request->setNumber(port);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_chatStats(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10771,42 +10724,6 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
         fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
     }
     return fileAttributes;
-}
-
-void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
-    request->setNodeHandle(chatid);
-    request->setFlag(archive);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
-    request->setNodeHandle(chatid);
-    request->setTotalBytes(period);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
-    request->setLink(url);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_HANDLE, listener);
-    request->setNodeHandle(chatid);
-    request->setFlag(del);
-    request->setAccess(createifmissing ? 1 : 0);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
@@ -22541,7 +22458,25 @@ void MegaApiImpl::sendPendingRequests()
             client->grantAccessInChat(chatid, h, uid);
             break;
         }
-        case MegaRequest::TYPE_CHAT_REMOVE_ACCESS:
+#endif
+        }
+    }
+}
+
+#ifdef ENABLE_CHAT
+void MegaApiImpl::removeAccessInChat(MegaHandle chatid, MegaNode* n, MegaHandle uh, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE_ACCESS, listener);
+    request->setParentHandle(chatid);
+    request->setNodeHandle(n->getHandle());
+
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
+
+    request->setEmail(uid);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getParentHandle();
             handle h = request->getNodeHandle();
@@ -22549,14 +22484,25 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             client->removeAccessInChat(chatid, h, uid);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(uh);
+    request->setAccess(privilege);
+
+    request->performRequest = [this, request]()
         {
             handle chatid = request->getNodeHandle();
             handle uh = request->getParentHandle();
@@ -22564,154 +22510,207 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (!chat->group || chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->updateChatPermissions(chatid, uh, access);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_TRUNCATE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_TRUNCATE, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(messageid);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             handle messageid = request->getParentHandle();
             if (chatid == INVALID_HANDLE || messageid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->truncateChat(chatid, messageid);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_SET_TITLE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setChatTitle(MegaHandle chatid, const char* title, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_SET_TITLE, listener);
+    request->setNodeHandle(chatid);
+    request->setText(title);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             const char *title = request->getText();
             if (chatid == INVALID_HANDLE || title == NULL)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (!chat->group || chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->setChatTitle(chatid, title);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_PRESENCE_URL:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getChatPresenceURL(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_PRESENCE_URL, listener);
+
+    request->performRequest = [this, request]()
         {
             client->getChatPresenceUrl();
-            break;
-        }
-        case MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::registerPushNotification(int deviceType, const char* token, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION, listener);
+    request->setNumber(deviceType);
+    request->setText(token);
+
+    request->performRequest = [this, request]()
         {
             int deviceType = int(request->getNumber());
-            const char *token = request->getText();
+            const char* token = request->getText();
 
             if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
-                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
-                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD &&
-                 deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI)
-                    || token == NULL)
+                deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
+                deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD &&
+                deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI)
+                || token == NULL)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->registerPushNotification(deviceType, token);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_ARCHIVE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(archive);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             bool archive = request->getFlag();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             client->archiveChat(chatid, archive);
-            break;
-        }
-        case MegaRequest::TYPE_SET_RETENTION_TIME:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
+    request->setNodeHandle(chatid);
+    request->setTotalBytes(period);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             unsigned period = static_cast <unsigned>(request->getTotalBytes());
 
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->setchatretentiontime(chatid, period);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_STATS:
-        {
-            const char *json = request->getName();
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_chatStats(MegaRequestPrivate* request)
+{
+            const char* json = request->getName();
             if (!json)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             int port = int(request->getNumber());
             if (port < 0 || port > 65535)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             int type = request->getParamType();
@@ -22724,8 +22723,7 @@ void MegaApiImpl::sendPendingRequests()
                 handle userid = request->getNodeHandle();
                 if (userid == UNDEF)
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
 
                 handle callid = request->getParentHandle();
@@ -22734,61 +22732,72 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_EARGS;
+                return API_EARGS;
             }
-            break;
-        }
+            return API_OK;
+}
 
-        case MegaRequest::TYPE_RICH_LINK:
+void MegaApiImpl::requestRichPreview(const char* url, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
+    request->setLink(url);
+
+    request->performRequest = [this, request]()
         {
             const char *url = request->getLink();
             if (!url)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->richlinkrequest(url);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_LINK_HANDLE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_HANDLE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(del);
+    request->setAccess(createifmissing ? 1 : 0);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
             bool createifmissing = request->getAccess();
             if (del && createifmissing)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
             if (chatid == INVALID_HANDLE)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
             TextChat *chat = it->second;
             if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
                     || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             client->chatlink(chatid, del, createifmissing);
-            break;
-        }
-#endif
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
-#ifdef ENABLE_CHAT
 void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_URL, listener);

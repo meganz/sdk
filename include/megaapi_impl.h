@@ -3590,6 +3590,9 @@ private:
         error performRequest_completeBackgroundUpload(MegaRequestPrivate* request);
         error performRequest_getBackgroundUploadURL(MegaRequestPrivate* request);
         error performRequest_getAchievements(MegaRequestPrivate* request);
+#ifdef ENABLE_CHAT
+        error performRequest_chatStats(MegaRequestPrivate* request);
+#endif
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
