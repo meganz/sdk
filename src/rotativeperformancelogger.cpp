@@ -439,13 +439,14 @@ private:
         std::thread zippingThread([&](){
             LocalPath newNameDone;
 
-            while(!zippingThreadExit)
+            while(true)
             {
                 {
                     std::unique_lock<std::mutex> lock(zippingQueueMutex);
                     zippingWakeCv.wait(lock, [&](){ return zippingThreadExit || !zippingQueueFiles.empty();});
-                    if (zippingThreadExit)
+                    if (zippingQueueFiles.empty()) // Let it deplete the queue and zip all the pending ones before exiting
                     {
+                        assert(zippingThreadExit);
                         return;
                     }
                     newNameDone = std::move(zippingQueueFiles.front());
