@@ -82,7 +82,7 @@ pipeline {
                         script{
                             println "${env.gitlabMergeRequestDescription}"
                             ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println MEGACHAT_BRANCH
+                            println ANDROID_BRANCH
                             if (ANDROID_BRANCH == ""){
                                 echo "ANDROID_BRANCH was not found on description so develop will be used by default"
                             }
@@ -380,7 +380,7 @@ pipeline {
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
                                     string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                    string(name: 'ANDROID_BRANCH', value: "${MEGACHAT_BRANCH}"),
+                                    string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     booleanParam(name: 'BUILD_ANDROID', value: true)
                                     ]
@@ -431,7 +431,7 @@ pipeline {
                                         string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                         string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
                                         string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                        string(name: 'IOS_BRANCH', value: "${MEGACHAT_BRANCH}"),
+                                        string(name: 'IOS_BRANCH', value: "${IOS_BRANCH}"),
                                         string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                         booleanParam(name: 'BUILD_IOS', value: true)
                                         ]
