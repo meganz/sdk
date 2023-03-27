@@ -96,16 +96,17 @@ public:
     static const std::string TLV_KEY;
     bool initializationOK = false;
 
-    unsigned char privKey[PRIVATE_KEY_LENGTH];
-    unsigned char pubKey[PUBLIC_KEY_LENGTH];
+    unsigned char privKey[PRIVATE_KEY_LENGTH];  // move to private section when all usages have been replaced by getter
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];    // move to private section when all usages have been replaced by getter
 
-    // generate new key pair
-    ECDH();
-
-    // initialize the private key (and derive public key)
-    ECDH(const std::string &privKey);
-
+    ECDH(); // constructs an instance of ECDH and generates a new x25519 key pair
+    ECDH(const std::string &privKey); // initialize the private key (and derive public key)
+    ECDH(const ECDH& aux);
+    ECDH* copy() const { return new ECDH(*this); }
     ~ECDH();
+
+    const unsigned char* getPrivKey() const { return privKey; }
+    const unsigned char* getPubKey()  const { return pubKey;  }
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -146,55 +147,6 @@ public:
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
                  const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
-};
-
-typedef unsigned char byte;
-static constexpr int X25519_PRIV_KEY_LEN = crypto_box_SECRETKEYBYTES;
-static constexpr int X25519_PUB_KEY_LEN  = crypto_box_PUBLICKEYBYTES;
-
-// Class to store a X25519 keypair
-class X25519KeyPair
-{
-public:
-    X25519KeyPair() = default;
-    ~X25519KeyPair() = default;
-    X25519KeyPair(const X25519KeyPair&&) = delete;
-    X25519KeyPair& operator=(const X25519KeyPair&) = delete;
-    X25519KeyPair& operator=(const X25519KeyPair&&) = delete;
-    X25519KeyPair(const X25519KeyPair& aux): mPrivKey(aux.mPrivKey), mPubKey(aux.mPubKey) { }
-    X25519KeyPair(const std::vector<byte>& priv, const std::vector<byte>& pub):mPrivKey(priv), mPubKey(pub) { }
-    X25519KeyPair* copy() const { return new X25519KeyPair(*this); }
-
-    void importPubKey(const byte* key, const size_t keylen)
-    {
-        mPubKey.clear();
-        if (key && keylen == X25519_PUB_KEY_LEN)
-        {
-            mPubKey.reserve(keylen);
-            std::copy(key, key + keylen, std::back_inserter(mPubKey));
-        }
-    }
-
-    void importPrivKey(const byte* key, const size_t keylen)
-    {
-        mPrivKey.clear();
-        if (key && keylen == X25519_PUB_KEY_LEN)
-        {
-            mPrivKey.reserve(keylen);
-            std::copy(key, key + keylen, std::back_inserter(mPrivKey));
-        }
-    }
-
-    const byte* getPubKey()     const { return mPubKey.data(); }
-    const byte* getPrivKey()    const { return mPrivKey.data(); }
-    size_t pubKeySize()         const { return mPubKey.size(); }
-    size_t privKeySize()        const { return mPrivKey.size(); }
-    bool hasValidPubKey()       const { return mPubKey.size() == X25519_PUB_KEY_LEN; }
-    bool hasValidPrivKey()      const { return mPrivKey.size() == X25519_PRIV_KEY_LEN; }
-
-private:
-    std::vector<byte> mPrivKey;
-    std::vector<byte> mPubKey;
 };
 } // namespace
 

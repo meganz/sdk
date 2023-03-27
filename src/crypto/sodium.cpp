@@ -149,6 +149,13 @@ ECDH::ECDH()
     initializationOK = true;
 }
 
+
+ECDH::ECDH (const ECDH& aux)
+{
+    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, privKey);
+    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, pubKey);
+}
+
 ECDH::ECDH(const string& privKey)
 {
     if (sodium_init() == -1)
