@@ -165,7 +165,7 @@ public:
     X25519KeyPair(const std::vector<byte>& priv, const std::vector<byte>& pub):mPrivKey(priv), mPubKey(pub) { }
     X25519KeyPair* copy() const { return new X25519KeyPair(*this); }
 
-    void setPubKey(const byte* key, const size_t keylen)
+    void importPubKey(const byte* key, const size_t keylen)
     {
         mPubKey.clear();
         if (key && keylen == X25519_PUB_KEY_LEN)
@@ -175,7 +175,7 @@ public:
         }
     }
 
-    void setPrivKey(const byte* key, const size_t keylen)
+    void importPrivKey(const byte* key, const size_t keylen)
     {
         mPrivKey.clear();
         if (key && keylen == X25519_PUB_KEY_LEN)
