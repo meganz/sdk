@@ -23,6 +23,7 @@
 #define SODIUM_H 1
 
 #include <sodium.h>
+#include <vector>
 
 namespace mega {
 
@@ -147,6 +148,54 @@ public:
                  const unsigned char* pubKey, const unsigned char* privKey);
 };
 
+typedef unsigned char byte;
+static constexpr int X25519_PRIV_KEY_LEN = crypto_box_SECRETKEYBYTES;
+static constexpr int X25519_PUB_KEY_LEN  = crypto_box_PUBLICKEYBYTES;
+
+// Class to store a X25519 keypair
+class X25519KeyPair
+{
+public:
+    X25519KeyPair() = default;
+    ~X25519KeyPair() = default;
+    X25519KeyPair(const X25519KeyPair&&) = delete;
+    X25519KeyPair& operator=(const X25519KeyPair&) = delete;
+    X25519KeyPair& operator=(const X25519KeyPair&&) = delete;
+    X25519KeyPair(const X25519KeyPair& aux): mPrivKey(aux.mPrivKey), mPubKey(aux.mPubKey) { }
+    X25519KeyPair(const std::vector<byte>& priv, const std::vector<byte>& pub):mPrivKey(priv), mPubKey(pub) { }
+    X25519KeyPair* copy() const { return new X25519KeyPair(*this); }
+
+    void setPubKey(const byte* key, const size_t keylen)
+    {
+        mPubKey.clear();
+        if (key && keylen == X25519_PUB_KEY_LEN)
+        {
+            mPubKey.reserve(keylen);
+            std::copy(key, key + keylen, std::back_inserter(mPubKey));
+        }
+    }
+
+    void setPrivKey(const byte* key, const size_t keylen)
+    {
+        mPrivKey.clear();
+        if (key && keylen == X25519_PUB_KEY_LEN)
+        {
+            mPrivKey.reserve(keylen);
+            std::copy(key, key + keylen, std::back_inserter(mPrivKey));
+        }
+    }
+
+    const byte* getPubKey()     const { return mPubKey.data(); }
+    const byte* getPrivKey()    const { return mPrivKey.data(); }
+    size_t pubKeySize()         const { return mPubKey.size(); }
+    size_t privKeySize()        const { return mPrivKey.size(); }
+    bool hasValidPubKey()       const { return mPubKey.size() == X25519_PUB_KEY_LEN; }
+    bool hasValidPrivKey()      const { return mPrivKey.size() == X25519_PRIV_KEY_LEN; }
+
+private:
+    std::vector<byte> mPrivKey;
+    std::vector<byte> mPubKey;
+};
 } // namespace
 
 #endif
