@@ -431,7 +431,9 @@ private:
         long long outFileSize = outputFile.tellp();
 
         // Auxiliary thread used for zipping in the background:
-        std::atomic_bool zippingThreadExit = false;
+        std::atomic_bool zippingThreadExit;
+        zippingThreadExit.store(false);
+
         std::mutex zippingQueueMutex;
         std::deque<LocalPath> zippingQueueFiles;
         std::condition_variable zippingWakeCv;
@@ -443,10 +445,10 @@ private:
             {
                 {
                     std::unique_lock<std::mutex> lock(zippingQueueMutex);
-                    zippingWakeCv.wait(lock, [&](){ return zippingThreadExit || !zippingQueueFiles.empty();});
+                    zippingWakeCv.wait(lock, [&](){ return zippingThreadExit.load() || !zippingQueueFiles.empty();});
                     if (zippingQueueFiles.empty()) // Let it deplete the queue and zip all the pending ones before exiting
                     {
-                        assert(zippingThreadExit);
+                        assert(zippingThreadExit.load());
                         return;
                     }
                     newNameDone = std::move(zippingQueueFiles.front());
@@ -462,8 +464,8 @@ private:
             }
         });
         // Ensure we finish and wait for zipping thread
-        ScopeGuard g([&](){
-            zippingThreadExit = true;
+        ScopeGuard<std::function<void(void)>> g([&](){
+            zippingThreadExit.store(true);
             zippingWakeCv.notify_one();
             zippingThread.join();
         });
