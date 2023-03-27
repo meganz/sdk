@@ -304,7 +304,8 @@ TEST(FileFingerprint, serialize_unserialize)
 
     std::string data;
     ASSERT_TRUE(ffp.serialize(&data));
-    auto ffp2 = std::unique_ptr<mega::FileFingerprint>{mega::FileFingerprint::unserialize(&data)};
+    const char* start = data.data();
+    auto ffp2 = mega::FileFingerprint::unserialize(start, start + data.size());
 
     ASSERT_EQ(ffp2->size, ffp.size);
     ASSERT_EQ(ffp2->mtime, ffp.mtime);
@@ -326,9 +327,9 @@ TEST(FileFingerprint, unserialize_32bit)
         0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
         0x05, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01
     };
-    std::string data(rawData.data(), rawData.size());
 
-    auto ffp2 = std::unique_ptr<mega::FileFingerprint>{mega::FileFingerprint::unserialize(&data)};
+    const char* start = rawData.data();
+    auto ffp2 = mega::FileFingerprint::unserialize(start, start + rawData.size());
 
     ASSERT_EQ(ffp2->size, ffp.size);
     ASSERT_EQ(ffp2->mtime, ffp.mtime);
@@ -339,7 +340,8 @@ TEST(FileFingerprint, unserialize_32bit)
 TEST(FileFingerprint, unserialize_butStringTooShort)
 {
     std::string data = "blah";
-    ASSERT_EQ(nullptr, mega::FileFingerprint::unserialize(&data));
+    const char* start = data.data();
+    ASSERT_EQ(nullptr, mega::FileFingerprint::unserialize(start, start + data.size()));
 }
 
 TEST(FileFingerprint, serializefingerprint_unserializefingerprint)

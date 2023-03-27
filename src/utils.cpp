@@ -227,6 +227,11 @@ void CacheableWriter::serializenodehandle(handle field)
     dest.append((const char*)&field, MegaClient::NODEHANDLE);
 }
 
+void CacheableWriter::serializeNodeHandle(NodeHandle field)
+{
+    serializenodehandle(field.as8byte());
+}
+
 void CacheableWriter::serializefsfp(fsfp_t field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -692,6 +697,17 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
+bool CacheableReader::unserializefingerprint(FileFingerprint& fp)
+{
+    if (auto newfp = fp.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fp = *newfp;
+        fieldnum += 1;
+        return true;
+    }
+    return false;
+}
+
 bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
@@ -816,6 +832,14 @@ bool CacheableReader::unserializenodehandle(handle& field)
     return true;
 }
 
+bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
+{
+    handle h;
+    if (!unserializenodehandle(h)) return false;
+    field.set6byte(h);
+    return true;
+}
+
 bool CacheableReader::unserializefsfp(fsfp_t& field)
 {
     if (ptr + sizeof(fsfp_t) > end)
@@ -885,6 +909,21 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     fieldnum += 1;
     return true;
 }
+
+bool CacheableReader::unserializedirection(direction_t& field)
+{
+    // TODO:  this one should be removed when we next update the transfer db format.  sizeof(direction_t) is not the same for all compilers.  And could even change if someone edits the enum
+    if (ptr + sizeof(direction_t) > end)
+    {
+        return false;
+    }
+
+    field = MemAccess::get<direction_t>(ptr);
+    ptr += sizeof(direction_t);
+    fieldnum += 1;
+    return true;
+}
+
 
 /**
  * @brief Encrypts a string after padding it to block length.
