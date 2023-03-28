@@ -927,6 +927,10 @@ bool add(const string& text, SizeFilterPtr& filter)
             // Gigabytes.
             shift = 30;
             break;
+        case 't':
+            // Terabytes.
+            shift = 40;
+            break;
         default:
             // Invalid!
             break;

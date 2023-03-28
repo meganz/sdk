@@ -8985,7 +8985,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
-    // perform fetchnodes (via megaapi_impl) while nodes are alrady loaded
+    // perform fetchnodes (via megaapi_impl) while nodes are already loaded
     // and a sync is running
     // and check that the Nodes don't seem to disappear while it happens
     // (similar dealing with an ETOOMANY error)

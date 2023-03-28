@@ -2904,9 +2904,14 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
 
     auto localpath = n->getLocalPath().toName(*client.fsaccess);
     string n_localname = n->localname.toName(*client.fsaccess);
-    if (n_localname.size() && n->parent)  // the sync root node's localname contains an absolute path, not just the leaf name.  Also the filesystem sync root folder and cloud sync root folder don't have to have the same name.
+    if (n_localname.size() && n->parent)
     {
-        //EXPECT_EQ(n->name, n_localname);
+        EXPECT_EQ(compareUtf(mn->fsName(), false, n->localname, false, false), 0)
+            << "Localnode's localname vs model node fsname mismatch: '"
+            << n->localname.toPath(false)
+            << "', '"
+            << mn->fsName()
+            << "'";
     }
     if (localNodesMustHaveNodes)
     {
@@ -18844,11 +18849,11 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
     ASSERT_TRUE(noSyncStalled(waitResult));
 
-    //Model model;
-    //model.addfile(name1)->fsName(name2);
+    Model model;
+    model.addfile(name1)->fsName(name2);
 
     // Make sure everything was uploaded successfully.
-    //ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
 
 }
