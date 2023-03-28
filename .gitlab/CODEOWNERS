@@ -10,8 +10,3 @@
 /bindings/qt/ @desktop
 /src/gfx/GfxProcCG.mm @mobile/iOS
 /src/osx/osxutils.mm @mobile/iOS @desktop
-
-# ... and Rotative Performance Logger (RPL) files
-
-/include/mega/rotativeperformancelogger.h @apps/megaproxy_devs_group
-/src/rotativeperformancelogger.cpp @apps/megaproxy_devs_group
