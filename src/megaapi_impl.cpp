@@ -956,7 +956,8 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     char *base64k = getBase64Key();
-    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    TypeOfLink lType = MegaClient::validTypeForPublicURL(static_cast<nodetype_t>(type));
+    string strlink = MegaClient::publicLinkURL(mNewLinkFormat, lType, plink->ph, (includeKey ? base64k : nullptr));
     delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
@@ -4230,6 +4231,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
+        case TYPE_EXPORT_SET: return "EXPORT_SET";
         case TYPE_PUT_SET: return "PUT_SET";
         case TYPE_REMOVE_SET: return "REMOVE_SET";
         case TYPE_FETCH_SET: return "FETCH_SET";
@@ -4241,6 +4243,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING_OCCURRENCES: return "FETCH_SCHEDULED_MEETING_EVENTS";
+        case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
     }
@@ -7128,7 +7131,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
 const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     handle ph = MegaApi::base64ToHandle(publicHandle);
-    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    string link = client->publicLinkURL(client->mNewLinkFormat, isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE, ph, key);
     return MegaApi::strdup(link.c_str());
 }
 
@@ -18904,26 +18907,6 @@ void MegaApiImpl::sendPendingRequests()
                 });
             break;
 
-        case MegaRequest::TYPE_FETCH_SET:
-            client->fetchSet(request->getParentHandle(),
-                [this, request](Error e, Set* s, map<handle, SetElement>* els)
-                {
-                    unique_ptr<Set> sp(s);
-                    unique_ptr<map<handle, SetElement>> elsp(els);
-
-                    if (e == API_OK)
-                    {
-                        assert(sp && elsp);
-                        if (sp && elsp)
-                        {
-                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*sp));
-                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(elsp.get()));
-                        }
-                    }
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                });
-            break;
-
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
         {
             SetElement el;
@@ -19639,7 +19622,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle ph = UNDEF;
             byte key[FILENODEKEYLENGTH];
-            e = client->parsepubliclink(megaFileLink, ph, key, false);
+            e = client->parsepubliclink(megaFileLink, ph, key, TypeOfLink::FILE);
             if (e == API_OK)
             {
                 client->openfilelink(ph, key);
@@ -19765,7 +19748,8 @@ void MegaApiImpl::sendPendingRequests()
                             return;
                         }
 
-                        string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
+                        TypeOfLink lType = client->validTypeForPublicURL(n->type);
+                        string link = client->publicLinkURL(client->mNewLinkFormat, lType, ph, key);
                         request->setLink(link.c_str());
                         if (n->plink && n->plink->mAuthKey.size())
                         {
@@ -23076,7 +23060,7 @@ void MegaApiImpl::getPublicLinkInformation(const char* megaFolderLink, MegaReque
 
             handle h = UNDEF;
             byte folderkey[FOLDERNODEKEYLENGTH];
-            error e = client->parsepubliclink(link, h, folderkey, true);
+            error e = client->parsepubliclink(link, h, folderkey, TypeOfLink::FOLDER);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);
@@ -24204,14 +24188,6 @@ void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
-    request->setParentHandle(sid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
@@ -24391,8 +24367,6 @@ MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
     return el ? (new MegaSetElementPrivate(*el)) : nullptr;
 }
 
-
-
 MegaSetListPrivate::MegaSetListPrivate(const Set *const* sets, int count)
 {
     if (sets && count)
@@ -24435,7 +24409,7 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* el
     }
 }
 
-MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut)
+MegaSetElementListPrivate::MegaSetElementListPrivate(const elementsmap_t* elements, const std::function<bool(handle)>& filterOut)
 {
     if (elements)
     {
@@ -24457,6 +24431,231 @@ void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
     mElements.emplace_back(move(el));
 }
 
+bool MegaApiImpl::isExportedSet(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return client->isExportedSet(sid);
+}
+
+void MegaApiImpl::exportSet(MegaHandle sid, bool create, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT_SET, listener);
+    request->setNodeHandle(sid);
+    request->setFlag(create);
+    request->performRequest = [this, request]()
+    {
+        client->exportSet(request->getNodeHandle(), request->getFlag(), [this, request](Error e)
+        {
+            if (e == API_OK)
+            {
+                const bool isExport = request->getFlag();
+                const auto sid = request->getNodeHandle();
+                const Set* updatedSet = client->getSet(sid);
+                if (!updatedSet)
+                {
+                    LOG_err << "Sets: Set to be updated not found for " << (isExport ? "en" : "dis")
+                            << "able export operation. Set id " << toHandle(sid);
+                    assert(false);
+                }
+                if((isExport && !updatedSet->isExported())
+                   || (!isExport && updatedSet->isExported()))
+                {
+                    LOG_err << "Sets: Set " << (isExport ? "en" : "dis") << "able operation with"
+                            << " incoherent result state isExported()==" << updatedSet->isExported()
+                            << ". Set id " << toHandle(sid);
+                    assert(false);
+                }
+
+                string url;
+                if (isExport)
+                {
+                    std::tie(e, url) = client->getPublicSetLink(updatedSet->id());
+                }
+                if (e == API_OK)
+                {
+                    request->setLink(url.c_str());
+                    request->setMegaSet(unique_ptr<MegaSet>(new MegaSetPrivate(*updatedSet)));
+                    unique_ptr<MegaSetListPrivate> updatedSetList(new MegaSetListPrivate(&updatedSet, 1));
+                    fireOnSetsUpdate(updatedSetList.get());
+                }
+            }
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+
+        return API_OK;
+    };
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::exportSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    exportSet(sid, true, listener);
+}
+
+void MegaApiImpl::disableExportSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    exportSet(sid, false, listener);
+}
+
+void MegaApiImpl::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
+    request->setLink(publicSetLink);
+    request->performRequest = [this, request]() -> ErrorCodes
+    {
+        const auto e = client->fetchPublicSet(
+            request->getLink(),
+            [this, request](Error e, Set* s, elementsmap_t* els)
+            {
+                unique_ptr<Set> sp(s);
+                unique_ptr<elementsmap_t> elsp(els);
+
+                if (e == API_OK)
+                {
+                    assert(sp && elsp);
+                    if (sp && elsp)
+                    {
+                        request->setMegaSet(mega::make_unique<MegaSetPrivate>(*sp));
+                        request->setMegaSetElementList(mega::make_unique<MegaSetElementListPrivate>(elsp.get()));
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        return e;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::stopPublicSetPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    client->stopSetPreview();
+}
+
+bool MegaApiImpl::inPublicSetPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return client->inPublicSetPreview();
+}
+
+MegaSet* MegaApiImpl::getPublicSetInPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const auto s = client->getPreviewSet();
+
+    return s ? new MegaSetPrivate(*s) : nullptr;
+}
+
+MegaSetElementList* MegaApiImpl::getPublicSetElementsInPreview()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const auto els = client->getPreviewSetElements();
+
+    return els ? new MegaSetElementListPrivate(els) : nullptr;
+}
+
+void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT, listener);
+
+    request->performRequest = [eid, this, request]()
+    {
+        const string paramErr = "Error failed to get MegaNode for Set Element " + toHandle(eid) + ". ";
+        if (!client->inPublicSetPreview())
+        {
+            LOG_err << paramErr << "Public Set preview mode disable";
+            return API_EACCESS;
+        }
+
+        auto element = client->getPreviewSetElement(eid);
+        if (!element)
+        {
+            LOG_err << paramErr << "Element not found in preview mode Set "
+                    << toHandle(client->getPreviewSet()->id());
+            return API_EARGS;
+        }
+
+        std::array<byte, FILENODEKEYLENGTH> ekey;
+        handle enode = element->node();
+        memcpy(ekey.data(), element->key().c_str(), ekey.size());
+        auto commandCB =
+            [ekey, enode, request, this] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+            dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
+            std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
+            const std::vector<std::string> &/*ips*/)
+            {
+                if (!fingerprint) // failed processing the command
+                {
+                    LOG_err << "Sets: Link check failed: " << e;
+                    if (e == API_OK)
+                    {
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
+                        return true;
+                    }
+                }
+
+                if (e)
+                {
+                    LOG_err << "Sets: Not available: " << e;
+                }
+                else
+                {
+                    auto ekeyStr = string((char*)ekey.data());
+                    unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
+                                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
+                                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
+                                                                       false /*isPublic*/, true /*isForeign*/));
+                    request->setPublicNode(ret.get());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                return true;
+            };
+
+        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
+                                            true /*private*/, nullptr, nullptr, nullptr, false,
+                                            commandCB));
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+const char* MegaApiImpl::getPublicLinkForExportedSet(MegaHandle sid)
+{
+    string retStr;
+    error e;
+    {
+        SdkMutexGuard g(sdkMutex);
+        std::tie(e, retStr) = client->getPublicSetLink(sid);
+    }
+
+    char* link = nullptr;
+    if (e == API_OK)
+    {
+        auto sz = retStr.size() + 1;
+        link = new char[sz];
+        std::strncpy(link, retStr.c_str(), sz);
+        LOG_verbose << "Successfully created public link " << retStr << "for Set " << toHandle(sid);
+    }
+    else
+    {
+        LOG_err << "Failing to create a public link for Set " << toHandle(sid) << " with error code "
+                << e << "(" << MegaError::getErrorString(e) << ")";
+    }
+
+    return link;
+}
 
 void TreeProcCopy::allocnodes()
 {
@@ -29930,7 +30129,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
-            string link = MegaClient::publicLinkURL(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
+            string link = MegaClient::publicLinkURL(httpctx->megaApi->getMegaClient()->mNewLinkFormat, TypeOfLink::FILE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
