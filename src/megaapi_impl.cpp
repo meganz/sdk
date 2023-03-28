@@ -30,10 +30,6 @@
 #include "megaapi.h"
 #include "mega/mediafileattribute.h"
 
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-#include "mega/rotativeperformancelogger.h"
-#endif
-
 #include <iomanip>
 #include <algorithm>
 #include <functional>
@@ -5956,19 +5952,6 @@ void MegaApiImpl::setLoggingName(const char* loggingName)
         client->clientname.clear();
     }
 }
-
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
-{
-    mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
-    mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-}
-
-void MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
-{
-    mega::RotativePerformanceLogger::sThreadName = threadName;
-}
-#endif
 
 void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
 {
