@@ -1330,7 +1330,7 @@ public:
      * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORTED              = 0x04
+     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
