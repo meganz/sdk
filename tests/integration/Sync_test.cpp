@@ -47,7 +47,7 @@ bool suppressfiles = false;
 #define SCAN_INTERVAL_SEC 3600
 
 // Don't use size filters.
-#define NO_SIZE_FILTER 1
+//#define NO_SIZE_FILTER
 
 bool adjustLastModificationTime(const fs::path& path, int adjustment)
 {
@@ -13816,7 +13816,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     //
     // This is expected as size filters have no effect if a file that
     // would be excluded exists locally and in the cloud.
-    cu.triggerPeriodicScanEarly(id);
+    cu->triggerPeriodicScanEarly(id);
     waitOnSyncs(cu);
 
     // Remove the file locally.
@@ -15072,7 +15072,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Make sure cdu is aware of du/fi.
-    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get())));
+    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), chrono::seconds(20)));
 
     // Remove du/fi in the cloud.
     {
