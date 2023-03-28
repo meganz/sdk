@@ -107,6 +107,7 @@ public:
 
     const unsigned char* getPrivKey() const { return privKey; }
     const unsigned char* getPubKey()  const { return pubKey;  }
+    bool deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const;
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
