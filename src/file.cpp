@@ -141,20 +141,19 @@ File *File::unserialize(string *d)
 
     d->erase(0, 1);
 
-    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    auto fp = FileFingerprint::unserialize(ptr, end);
     if (!fp)
     {
         LOG_err << "Error unserializing File: Unable to unserialize FileFingerprint";
         return NULL;
     }
 
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
     if (ptr + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - serialized string too short";
-        delete fp;
         return NULL;
     }
 
@@ -164,7 +163,6 @@ File *File::unserialize(string *d)
     if (ptr + namelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - name too long";
-        delete fp;
         return NULL;
     }
     const char *name = ptr;
@@ -176,7 +174,6 @@ File *File::unserialize(string *d)
     if (ptr + localnamelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - localname too long";
-        delete fp;
         return NULL;
     }
     const char *localname = ptr;
@@ -188,7 +185,6 @@ File *File::unserialize(string *d)
     if (ptr + targetuserlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - targetuser too long";
-        delete fp;
         return NULL;
     }
     const char *targetuser = ptr;
@@ -200,7 +196,6 @@ File *File::unserialize(string *d)
     if (ptr + privauthlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - private auth too long";
-        delete fp;
         return NULL;
     }
     const char *privauth = ptr;
@@ -212,15 +207,14 @@ File *File::unserialize(string *d)
             + sizeof(bool) + sizeof(bool) + 10 > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
-        delete fp;
         return NULL;
     }
     const char *pubauth = ptr;
     ptr += pubauthlen;
 
     File *file = new File();
-    *(FileFingerprint *)file = *(FileFingerprint *)fp;
-    delete fp;
+    *(FileFingerprint *)file = *fp;
+    fp.reset();
 
     file->name.assign(name, namelen);
     file->setLocalname(LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));

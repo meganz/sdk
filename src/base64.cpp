@@ -415,7 +415,7 @@ void URLCodec::escape(string *plain, string *escaped)
     }
 
     escaped->clear();
-    for (char c: *plain)
+    for (const char& c: *plain)
     {
         if (issafe(c))
         {
@@ -424,7 +424,7 @@ void URLCodec::escape(string *plain, string *escaped)
         else
         {
             char buf[4];
-            snprintf(buf, sizeof(buf), "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", (unsigned char)c); // cast it to avoid being sign-extended
             escaped->append(buf);
         }
     }
