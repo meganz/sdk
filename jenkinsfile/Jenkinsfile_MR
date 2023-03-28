@@ -161,10 +161,10 @@ pipeline {
 
         stage('Build SDK'){
             parallel{
-                stage('Build SDK on macOS'){
+                stage('Build macOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation macos'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation macos'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -172,7 +172,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'macOS build') {
+                        gitlabCommitStatus(name: 'macOS build & test') {
                             script {
                                 echo "Triggering SDK job for macOS."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
@@ -210,10 +210,10 @@ pipeline {
                     }
                 }
 
-                stage('Build SDK on linux'){
+                stage('Build Linux'){
                     when{
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation linux'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation linux'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -221,7 +221,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'Linux build') {
+                        gitlabCommitStatus(name: 'Linux build & test') {
                             script {
                                 echo "Triggering SDK job for Linux."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
@@ -240,7 +240,7 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>LINUX</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_LINUX})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
@@ -261,10 +261,10 @@ pipeline {
                     }
                 }
 
-                stage('Build SDK on Windows'){
+                stage('Build Windows'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation windows'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation windows'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -272,7 +272,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'Windows build') {
+                        gitlabCommitStatus(name: 'Windows build & test') {
                             script {
                                 echo "Triggering SDK job for Windows."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
@@ -311,10 +311,10 @@ pipeline {
                     }
                 }
 
-                stage('Build SDK and MEGAchat on Linux'){
+                stage('Build MEGAchat'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation megachat'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation megachat'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -322,7 +322,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'SDK and MEGAchat Linux build') {
+                        gitlabCommitStatus(name: 'MEGAchat build & test') {
                             script {
                                 echo "Triggering SDK job for Windows."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
@@ -341,18 +341,18 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat and SDK on Linux</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>MEGAchat</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_MEGACHAT})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }
                             }
@@ -361,10 +361,10 @@ pipeline {
                     }
                 }
 
-                stage('Build SDk Android Example and Android App'){
+                stage('Build Android'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation android'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation android'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -372,7 +372,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'Android example and Android app build') {
+                        gitlabCommitStatus(name: 'Android build') {
                             script {
                                 echo "Triggering SDK job for Android Example and Android App."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
@@ -392,18 +392,18 @@ pipeline {
                         always {
                             script{
                                 if (currentBuild.currentResult == 'SUCCESS'){
-                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":white_check_mark: ${env.JOB_NAME} :penguin: <b>Android</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
                                 }                                
                                 if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} :penguin: <b>Android</b> FAILURE  :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }
                                 if (currentBuild.currentResult == 'ABORTED'){
-                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Android</b> ABORTED  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }                                
                                 if (currentBuild.currentResult == 'UNSTABLE'){
-                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>SDK Android App and example</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
+                                    addGitLabMRComment(comment: ":interrobang: ${env.JOB_NAME} :penguin: <b>Android</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.TRIGGERED_BUILD_URL_ANDROID})<br/>Commit: ${env.GIT_COMMIT}" )
                                     error "Job failed"
                                 }
                             }
@@ -415,7 +415,7 @@ pipeline {
                 stage('Build iOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation ios'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation ios'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -423,7 +423,7 @@ pipeline {
                         }
                     }
                     steps {
-                        gitlabCommitStatus(name: 'SDK and iOS build') {
+                        gitlabCommitStatus(name: 'iOS build') {
                             script {
                                 echo "Triggering SDK job for Android Example App."
                                 def triggeredBuild = build job: 'MegaSDK-MRs-private', wait: true, propagate: false, parameters: [
