@@ -1321,9 +1321,6 @@ public:
     // notify URL for new server-client commands
     string scnotifyurl;
 
-    // unique request ID
-    char reqid[10];
-
     // lang URI component for API requests
     string lang;
 
@@ -1596,7 +1593,7 @@ public:
     // out-shares: populated from 'ok0' element from `f` command
     // in-shares: populated from readnodes() for `f` command
     // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
-    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+    std::map<NodeHandle, std::vector<byte>> mNewKeyRepository;
 
     // current request tag
     int reqtag;
@@ -2289,13 +2286,10 @@ private:
     // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
     SymmCipher tmptransfercipher;
 
-    // creates a new id filling `id` with random bytes, up to `length`
-    void resetId(char *id, size_t length);
-
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
 
-    static vector<byte> deriveKey(const char* password, const string& salt);
+    static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
 
 //

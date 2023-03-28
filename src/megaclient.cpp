@@ -362,21 +362,19 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         }
         else
         {
+            if (n->inshare)
+            {
+                n->inshare->user->sharing.erase(n->nodehandle);
+                notifyuser(n->inshare->user);
+                delete n->inshare;
+                n->inshare = NULL;
+            }
+
             // incoming share deleted - remove tree
-            if (!n->parent)
+            if (!n->parent || n->parent->changed.removed)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
-            }
-            else
-            {
-                if (n->inshare)
-                {
-                    n->inshare->user->sharing.erase(n->nodehandle);
-                    notifyuser(n->inshare->user);
-                    delete n->inshare;
-                    n->inshare = NULL;
-                }
             }
         }
     }
@@ -916,7 +914,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
-        vector<byte> derivedKey = deriveKey(password, salt);
+        vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
         string hashedauthkey;
         const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
@@ -1340,10 +1338,7 @@ void MegaClient::init()
 
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
-    resetId(sessionid, sizeof sessionid);
-
-    // initialize random API request sequence ID (server API is idempotent)
-    resetId(reqid, sizeof reqid);
+    resetId(sessionid, sizeof sessionid, rng);
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1372,6 +1367,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     , mSyncMonitorRetry(false)
     , mSyncMonitorTimer(rng)
 #endif
+   , reqs(rng)
    , mKeyManager(*this)
 {
     mNodeManager.reset();
@@ -1512,7 +1508,7 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-void MegaClient::resetId(char *id, size_t length)
+void resetId(char *id, size_t length, PrnGen& rng)
 {
     for (size_t i = length; i--; )
     {
@@ -2061,7 +2057,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                if (sctable && pendingsccommit && !reqs.readyToSend())
                                 {
                                     LOG_debug << "Executing postponed DB commit 2 (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                                     sctable->commit();
@@ -2069,19 +2065,6 @@ void MegaClient::exec()
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
-                                }
-
-                                // increment unique request ID
-                                for (int i = sizeof reqid; i--; )
-                                {
-                                    if (reqid[i]++ < 'z')
-                                    {
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        reqid[i] = 'a';
-                                    }
                                 }
 
                                 if (auto completion = std::move(mOnCSCompletion))
@@ -2167,10 +2150,6 @@ void MegaClient::exec()
                             {
                                 reason = RETRY_CONNECTIVITY;
                             }
-                            else
-                            {
-                                reason = RETRY_UNKNOWN;
-                            }
                         }
 
                         if (fetchingnodes && pendingcs->httpstatus != 200)
@@ -2210,12 +2189,15 @@ void MegaClient::exec()
                         delete pendingcs;
                         pendingcs = NULL;
 
+                        if (!reason) reason = RETRY_UNKNOWN;
+
                         btcs.backoff();
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
 
-                        reqs.requeuerequest();
+                        // the in-progress request will be resent, unchanged (for idempotence), when we are ready again.
+                        reqs.inflightFailure(reason);
 
                     default:
                         ;
@@ -2229,7 +2211,7 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (reqs.cmdspending())
+                if (reqs.readyToSend())
                 {
                     abortlockrequest();
                     pendingcs = new HttpReq();
@@ -2238,12 +2220,13 @@ void MegaClient::exec()
                     pendingcs_serverBusySent = false;
 
                     bool suppressSID, v3;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
+                    string idempotenceId;
+                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
 
                     pendingcs->posturl.append("cs?id=");
-                    pendingcs->posturl.append(reqid, sizeof reqid);
+                    pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI(suppressSID));
                     pendingcs->posturl.append(appkey);
 
@@ -3377,7 +3360,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
     NodeCounter nc = mNodeManager.getCounterOfRootNodes();
@@ -4241,7 +4224,6 @@ void MegaClient::dispatchTransfers()
                         {
                             auto tslot = ts;
                             auto priv = hprivate;
-                            auto ph = h.as8byte();
 
                             tslot->pendingcmd = nullptr;
 
@@ -4262,7 +4244,7 @@ void MegaClient::dispatchTransfers()
 
                                 if (priv)
                                 {
-                                    Node *n = nodebyhandle(ph);
+                                    Node *n = nodeByHandle(h);
                                     if (n)
                                     {
                                         n->size = s;
@@ -4278,6 +4260,7 @@ void MegaClient::dispatchTransfers()
                             if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                             {
                                 tslot->transfer->tempurls = tempurls;
+                                tslot->transfer->downloadFileHandle = h;
                                 tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                 tslot->progress();
                                 return true;
@@ -4870,7 +4853,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        if (!pendingcs && !csretrying && !reqs.readyToSend())
                         {
                             LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
                             sctable->commit();
@@ -9309,7 +9292,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
             else
             {
-                byte buf[SymmCipher::KEYLENGTH];
+                vector<byte> buf(SymmCipher::KEYLENGTH);
 
                 if (!ISUNDEF(su))
                 {
@@ -9333,7 +9316,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             if (sk)
                             {
-                                decryptkey(sk, buf, sizeof buf, &key, 1, h);
+                                decryptkey(sk, buf.data(), static_cast<int>(buf.size()), &key, 1, h);
                             }
                         }
                         else
@@ -9388,10 +9371,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
-                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
+                    newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf.data() : NULL));
                     if (sk) // only if the key is valid, add it to the repository
                     {
-                        mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                        mNewKeyRepository[NodeHandle().set6byte(h)] = move(buf);
                     }
                 }
 
@@ -9537,7 +9520,6 @@ void MegaClient::readokelement(JSON* j)
 {
     handle h = UNDEF;
     byte ha[SymmCipher::BLOCKSIZE];
-    byte buf[SymmCipher::BLOCKSIZE];
     byte auth[SymmCipher::BLOCKSIZE];
     int have_ha = 0;
     const char* k = NULL;
@@ -9579,15 +9561,16 @@ void MegaClient::readokelement(JSON* j)
                         return;
                     }
 
-                    if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
+                    vector<byte> buf(SymmCipher::BLOCKSIZE);
+                    if (decryptkey(k, buf.data(), static_cast<int>(buf.size()), &key, 1, h))
                     {
-                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                        newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf.data(), ha));
                         if (mNewKeyRepository.find(NodeHandle().set6byte(h)) == mNewKeyRepository.end())
                         {
                             handleauth(h, auth);
-                            if (!memcmp(auth, ha, sizeof buf))
+                            if (!memcmp(auth, ha, buf.size()))
                             {
-                                mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+                                mNewKeyRepository[NodeHandle().set6byte(h)] = move(buf);
                             }
                         }
                     }
@@ -10307,7 +10290,7 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     string bsalt;
     Base64::atob(*salt, bsalt);
 
-    vector<byte> derivedKey = deriveKey(password, bsalt);
+    vector<byte> derivedKey = deriveKey(password, bsalt, 2 * SymmCipher::KEYLENGTH);
 
     login2(email, derivedKey.data(), pin);
 }
@@ -10464,7 +10447,7 @@ error MegaClient::validatepwd(const char* pswd)
     }
     else if (accountversion == 2)
     {
-        vector<byte> dk = deriveKey(pswd, accountsalt);
+        vector<byte> dk = deriveKey(pswd, accountsalt, 2 * SymmCipher::KEYLENGTH);
         dk = vector<byte>(dk.data() + SymmCipher::KEYLENGTH, dk.data() + 2 * SymmCipher::KEYLENGTH);
         reqs.add(new CommandValidatePassword(this, u->email.c_str(), dk));
 
@@ -11428,7 +11411,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
     std::string shareKey((const char *)n->sharekey->key, SymmCipher::KEYLENGTH);
 
     std::function<void()> completeShare =
-    [this, user, uid, nodehandle, a, newshare, msg, tag, shareKey, writable, completion]()
+    [this, user, nodehandle, a, newshare, msg, tag, writable, completion]()
     {
         Node *n;
         // node vanished: bail
@@ -11440,51 +11423,10 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }
 
         reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [this, uid, user, nodehandle, shareKey, completion](Error e, bool writable)
+        [user, completion](Error e, bool writable)
         {
-            handle userhandle = user ? user->userhandle : UNDEF;
-            if (user && user->isTemporary)
-            {
-                delete user;
-            }
-
-            if (e || ISUNDEF(userhandle))
-            {
-                completion(e, writable);
-                return;
-            }
-
-            std::string encryptedKey = mKeyManager.encryptShareKeyTo(userhandle, shareKey);
-            if (!encryptedKey.size())
-            {
-                LOG_debug << "Unable to encrypt share key (contact not verified?). The outshare is pending.";
-                completion(e, writable);
-                return;
-            }
-
-            reqs.add(new CommandPendingKeys(this, userhandle, nodehandle, (byte *)encryptedKey.data(),
-            [this, uid, nodehandle, completion, writable](Error err)
-            {
-                if (err)
-                {
-                    LOG_err << "Error sending share key: " << err;
-                    completion(API_OK, writable);
-                }
-                else
-                {
-                    LOG_debug << "Share key correctly sent. Removing pendingoutshare from ^!keys (" << toNodeHandle(nodehandle) << " -> " << uid << ")";
-                    mKeyManager.commit(
-                    [this, nodehandle, uid]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.removePendingOutShare(nodehandle, uid);
-                    },
-                    [completion, writable]()
-                    {
-                        completion(API_OK, writable);
-                    });
-                }
-            }));
+            completion(e, writable);
+            if (user && user->isTemporary) delete user;
         }));
     };
 
@@ -12840,7 +12782,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     ptr += 32;
 
     // Derive MAC key with salt+pwd
-    vector<byte> derivedKey = deriveKey(pwd, salt);
+    vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
     byte hmacComputed[32];
     if (algorithm == 1)
@@ -12897,7 +12839,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         // Derive MAC key with salt+pwd
         string salt(32u, '\0');
         rng.genblock((byte*)salt.data(), salt.size());
-        vector<byte> derivedKey = deriveKey(pwd, salt);
+        vector<byte> derivedKey = deriveKey(pwd, salt, 64);
 
         // Prepare encryption key
         string encKey;
@@ -13117,7 +13059,7 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
@@ -13135,9 +13077,9 @@ error MegaClient::changePasswordV2(const char* password, const char* pin)
     return API_OK;
 }
 
-vector<byte> MegaClient::deriveKey(const char* password, const string& salt)
+vector<byte> MegaClient::deriveKey(const char* password, const string& salt, size_t derivedKeySize)
 {
-    vector<byte> derivedKey(2 * SymmCipher::KEYLENGTH);
+    vector<byte> derivedKey(derivedKeySize);
     CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey.data(), derivedKey.size(), 0, (const byte*)password, strlen(password),
         (const byte*)salt.data(), salt.size(), 100000);
@@ -13206,7 +13148,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
-    vector<byte> derivedKey = deriveKey(password, salt);
+    vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
     byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
@@ -17727,25 +17669,68 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
         else
         {
+            // there is no existing transfer uploading this file (or any duplicate of it)
+            // check if there used to be, and can we resume one.
+            // Note that these multi_cachedtransfers always have an empty Files list, those are not attached when loading from db
+            // Only the Transfer's own localpath field tells us the path it was uploading
+
             auto range = multi_cachedtransfers[d].equal_range(f);
             for (auto it = range.first; it != range.second; ++it)
             {
-                if (it->second->files.empty()) continue;
-                File* f2 = it->second->files.front();
+                assert(it->second->files.empty());
+                if (it->second->localfilename.empty()) continue;
 
-                string ext1, ext2;
-                if (fsaccess->getextension(f->getLocalname(), ext1) &&
-                    fsaccess->getextension(f2->getLocalname(), ext2))
+                if (d == PUT)
                 {
-                    if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
-                    if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
-
-                    if (treatAsIfFileDataEqual(*f, ext1,
-                                               *f2, ext2))
+                    // for uploads, check for the same source file
+                    if (it->second->localfilename == f->getLocalname())
                     {
+                        // the exact same file, so use this one (fingerprint is double checked below)
                         t = it->second;
-                        range.first = it;
+                        multi_cachedtransfers[d].erase(it);
                         break;
+                    }
+                }
+                else
+                {
+                    // for downloads, check for the same source node
+                    if (it->second->downloadFileHandle == f->h &&
+                       !it->second->downloadFileHandle.isUndef())
+                    {
+                        // the exact same cloud file, so use this one
+                        t = it->second;
+                        multi_cachedtransfers[d].erase(it);
+                        break;
+                    }
+                }
+            }
+
+            if (!t && d == PUT)
+            {
+                // look to see if there a cached transfer that is similar enough
+                // this case could occur if there were multiple Files before the transfer
+                // got suspended (eg by app exit), and we are considering the File of one of the others
+                // than the actual file path that was being uploaded.
+
+                for (auto it = range.first; it != range.second; ++it)
+                {
+                    assert(it->second->files.empty());
+                    if (it->second->localfilename.empty()) continue;
+
+                    string ext1, ext2;
+                    if (fsaccess->getextension(f->getLocalname(), ext1) &&
+                        fsaccess->getextension(it->second->localfilename, ext2))
+                    {
+                        if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
+                        if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
+
+                        if (treatAsIfFileDataEqual(*f, ext1,
+                                                   *it->first, ext2))
+                        {
+                            t = it->second;
+                            multi_cachedtransfers[d].erase(it);
+                            break;
+                        }
                     }
                 }
             }
@@ -17818,7 +17803,6 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                     }
                 }
-                multi_cachedtransfers[d].erase(range.first);
                 LOG_debug << "Transfer resumed";
             }
 
@@ -21009,7 +20993,8 @@ void KeyManager::cacheShareKeys()
 {
     for (const auto& it : mShareKeys)
     {
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = mega::make_unique<SymmCipher>((byte *)it.second.first.data());
+        const string& k = it.second.first;
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
     }
 }
 
@@ -21590,7 +21575,10 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                int uhsize = Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
+                #ifdef DEBUG
+                    int uhsize =
+                #endif
+                Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
             }

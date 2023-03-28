@@ -49,7 +49,7 @@ typedef int64_t MegaTimeStamp; // unix timestamp
      *
      */
     const MegaHandle INVALID_HANDLE = ~(MegaHandle)0;
-    const MegaHandle MEGA_INVALID_TIMESTAMP = 0;
+    const MegaTimeStamp MEGA_INVALID_TIMESTAMP = 0;
 
 class MegaListener;
 class MegaRequestListener;
@@ -11220,6 +11220,17 @@ class MegaApi
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
          */
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+
+        /**
+         * @brief Set name used for logging by current thread.
+         *
+         * Rotative Performance Logger uses std::thread_id in log entries.
+         * You can use a custom name by calling this function from the desired thread.
+         *
+         * @param threadName Nmae of the therad to be used in log lines
+         */
+        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
+
 #endif
         /**
          * @brief Create a folder in the MEGA account
@@ -17508,7 +17519,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -20525,7 +20536,7 @@ class MegaApi
          * the same size() as param nodes)
          * @param listener MegaRequestListener to track this request
          */
-        void createSetElements(MegaHandle sid, const std::vector<MegaHandle>& nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
+        void createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request creation of a new Element for a Set
@@ -20623,7 +20634,7 @@ class MegaApi
          * @param eids the ids of Elements to be removed
          * @param listener MegaRequestListener to track this request
          */
-        void removeSetElements(MegaHandle sid, const std::vector<MegaHandle>& eids, MegaRequestListener* listener = nullptr);
+        void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to remove an Element

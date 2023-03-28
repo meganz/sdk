@@ -589,6 +589,7 @@ struct CacheableWriter
     void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
+    void serializeNodeHandle(NodeHandle field);
     void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
@@ -626,9 +627,12 @@ struct CacheableReader
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
+    bool unserializeNodeHandle(NodeHandle& s);
     bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
+    bool unserializefingerprint(FileFingerprint& fp);
+    bool unserializedirection(direction_t& field);  // historic; size varies by compiler.  todo: Remove when we next roll the transfer db version
 
     bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
 
@@ -1007,6 +1011,9 @@ struct SyncTransferCounts
     SyncTransferCount mDownloads;
     SyncTransferCount mUploads;
 };
+
+// creates a new id filling `id` with random bytes, up to `length`
+void resetId(char *id, size_t length, PrnGen& rng);
 
 } // namespace mega
 

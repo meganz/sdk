@@ -564,7 +564,7 @@ private:
         std::ostringstream s;
         s << std::this_thread::get_id() << " ";
         return s.str();
-    };
+    }
 
     static char* filltime(char *s, struct tm *gmt, int microsec)
     {
@@ -598,6 +598,8 @@ private:
         *s++ = static_cast<char>(n % 10 + '0');
     }
 };
+
+thread_local std::string RotativePerformanceLogger::sThreadName = {};
 
 RotativePerformanceLogger::RotativePerformanceLogger()
 {
@@ -696,6 +698,10 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     m_gmtime(t, &gmt);
 
     static thread_local std::string threadname = currentThreadName();
+    if (!RotativePerformanceLogger::sThreadName.empty())
+    {
+        threadname = std::string(std::move(RotativePerformanceLogger::sThreadName)) + " ";
+    }
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
     filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
