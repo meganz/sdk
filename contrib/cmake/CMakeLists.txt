@@ -41,7 +41,6 @@ set (USE_FREEIMAGE 1 CACHE STRING "Used to create previews/thumbnails for photos
 set (ENABLE_SYNC 1 CACHE STRING "Turns on sync functionality")
 set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
-set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "Internal logger, not just callbacks")
 set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video files")
 set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
@@ -775,7 +774,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
             ${MegaDir}/include/mega/logging.h
-            ${MegaDir}/include/mega/rotativeperformancelogger.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
             ${MegaDir}/include/mega/syncfilter.h
@@ -846,7 +844,6 @@ add_library(Mega STATIC
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
-            $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
             $<$<PLATFORM_ID:iOS>:${MegaDir}/src/gfx/GfxProcCG.mm>
             )
@@ -899,7 +896,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_SYNC}:ENABLE_SYNC>
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>

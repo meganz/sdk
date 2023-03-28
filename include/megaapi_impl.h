@@ -2772,10 +2772,6 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
-        static void setCurrentThreadNameForRotativePerformanceLogger(const char * threadName);
-#endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
