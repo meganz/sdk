@@ -107,9 +107,6 @@ class MEGA_API LocalPath
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-    friend class RotativePerformanceLoggerLoggingThread;
-#endif
 #ifdef USE_IOS
     friend const string adjustBasePath(const LocalPath& name);
 #else
