@@ -367,13 +367,12 @@ fi
 
 # Log performance
 AC_ARG_ENABLE(log-performance,
-    AS_HELP_STRING([--enable-log-rotative-performance], [enable log performance [default=no]]),
+    AS_HELP_STRING([--enable-log-performance], [enable log performance [default=no]]),
     [enable_log_performance=${enableval}],
     [enable_log_performance=no])
 if test "x$enable_log_performance" = "xyes"; then
     AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if log performance enabled])
 fi
-AM_CONDITIONAL([ENABLE_LOG_PERFORMANCE], [test "x$enable_log_performance" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -2211,7 +2210,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   MEGA API          $enable_megaapi
   MEGA API RPC      $enable_megaapirpc
   example apps:     $enable_examples
-  Rot Perf Logger:  $enable_rotative_performance_logger
+  Perf Logger:      $enable_log_performance
   Drive Notif:      $enable_drive_notifications
   MEGA_USE_C_ARES:  $enable_mega_c_ares
 
