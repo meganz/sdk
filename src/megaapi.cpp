@@ -2684,6 +2684,11 @@ void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
     pImpl->setAvatar(dstFilePath, listener);
 }
 
+char* MegaApi::getPrivateKey(int type)
+{
+    return pImpl->getPrivateKey(type);
+}
+
 bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
 {
     return pImpl->testAllocation(allocCount, allocSize);

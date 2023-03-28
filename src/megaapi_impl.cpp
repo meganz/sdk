@@ -7225,6 +7225,66 @@ void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listen
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
 }
 
+char* MegaApiImpl::getPrivateKey(int type)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    if (type < MegaApi::PRIVATE_KEY_ED25519 || type > MegaApi::PRIVATE_KEY_CU25519)
+    {
+        return nullptr;
+    }
+
+    User *u = client->finduser(client->me);
+    if (!u)
+    {
+        LOG_warn << "User is not defined yet";
+        assert(false);
+        return nullptr;
+    }
+
+    string privateKey;
+    if (client->mKeyManager.generation())   // account has ^!keys already available
+    {
+        switch (type)
+        {
+
+        case MegaApi::PRIVATE_KEY_ED25519:
+            privateKey = client->mKeyManager.privEd25519();
+            break;
+        case MegaApi::PRIVATE_KEY_CU25519:
+            privateKey = client->mKeyManager.privCu25519();
+            break;
+        default:
+            assert(false);
+            return nullptr;
+            break;
+        }
+    }
+    else
+    {
+        const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
+        if (av)
+        {
+            unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+            if (tlvRecords)
+            {
+                tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
+            }
+            else
+            {
+                LOG_warn << "Failed to decrypt keyring while initialization";
+                return nullptr;
+            }
+        }
+        else
+        {
+            return nullptr;
+        }
+    }
+
+    return MegaApi::strdup(privateKey.c_str());
+}
+
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
     const char *email = NULL;

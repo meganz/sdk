@@ -12362,6 +12362,29 @@ class MegaApi
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
+
+        enum {
+            PRIVATE_KEY_ED25519 = 1,
+            PRIVATE_KEY_CU25519,
+        };
+
+        /**
+         * @brief Returns private key from desired type
+         *
+         * This method returns invalid value until fetch nodes has finished
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @param type private key type
+         * It can take this values:
+         *  - PRIVATE_KEY_ED25519     1
+         *  - PRIVATE_KEY_CU25519     2
+         * @return Private key
+         */
+        char* getPrivateKey(int type);
+
+
         /**
          * @brief Confirm available memory to avoid OOM situations
          *

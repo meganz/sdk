@@ -2551,6 +2551,7 @@ class MegaApiImpl : public MegaApp
         static char *getUserAvatarColor(const char *userhandle);
         static char* getUserAvatarSecondaryColor(MegaUser *user);
         static char *getUserAvatarSecondaryColor(const char *userhandle);
+        char* getPrivateKey(int type);
         bool testAllocation(unsigned allocCount, size_t allocSize);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
