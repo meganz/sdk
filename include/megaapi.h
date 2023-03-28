@@ -1275,6 +1275,13 @@ public:
     virtual int64_t ts() const { return 0; }
 
     /**
+     * @brief Returns creation timestamp of current Set.
+     *
+     * @return timestamp value.
+     */
+    virtual int64_t cts() const { return 0; }
+
+    /**
      * @brief Returns name of current Set.
      *
      * The MegaSet object retains the ownership of the returned string, it will be valid until
@@ -5103,17 +5110,18 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
-        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
     {
-        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
-        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
-        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
-        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
+        REASON_ERROR_UNKNOWN                    = -1,   // Unknown reason
+        REASON_ERROR_NO_ERROR                   = 0,    // No error
+        REASON_ERROR_FAILURE_UNSERIALIZE_NODE   = 1,    // Failure when node is unserialized from DB
+        REASON_ERROR_DB_IO_FAILURE              = 2,    // Input/output error at DB layer
+        REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
     };
 
     virtual ~MegaEvent();
@@ -5155,11 +5163,12 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_RELOAD, these values can be taken:
-     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
-     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     * For event EVENT_ERROR, these values can be taken:
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
      *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
+     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
+     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
      *
      * @return Number relative to this event
      */
@@ -8281,7 +8290,7 @@ class MegaListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
-         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         * @obsolete Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
@@ -17436,6 +17445,9 @@ class MegaApi
          * The search is case-insensitive. If the search string is not provided but type has any value
          * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
          * this method will return a list that contains nodes of the same type as provided.
+         *
+         * If param target is SEARCH_TARGET_INSHARE, SEARCH_TARGET_OUTSHARE or SEARCH_TARGET_PUBLICLINK
+         * recursive flag has to be true
          *
          * You take the ownership of the returned value.
          *

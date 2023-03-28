@@ -712,11 +712,12 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
+    int64_t cts() const override { return mCTs; }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
@@ -728,6 +729,7 @@ private:
     MegaHandle mId;
     MegaHandle mUser;
     m_time_t mTs;
+    m_time_t mCTs;
     string mName;
     MegaHandle mCover;
     std::bitset<CHANGE_TYPE_SIZE> mChanges;
@@ -3139,7 +3141,6 @@ protected:
         void fireOnSetsUpdate(MegaSetList* sets);
         void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
-        void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
@@ -3513,8 +3514,8 @@ protected:
         void backupput_result(const Error&, handle backupId) override;
 
 protected:
-        // suggest reload due to possible race condition with other clients
-        void reload(const char*, ReasonsToReload) override;
+        // Notify sdk errors (DB, node serialization, ...) to apps
+        void notifyError(const char*, ErrorReason errorReason) override;
 
         // reload forced automatically by server
         void reloading() override;
@@ -3583,6 +3584,15 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
+        error performRequest_backupPut(MegaRequestPrivate* request);
+        error performRequest_verifyCredentials(MegaRequestPrivate* request);
+        error performRequest_completeBackgroundUpload(MegaRequestPrivate* request);
+        error performRequest_getBackgroundUploadURL(MegaRequestPrivate* request);
+        error performRequest_getAchievements(MegaRequestPrivate* request);
+#ifdef ENABLE_CHAT
+        error performRequest_chatStats(MegaRequestPrivate* request);
+#endif
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);

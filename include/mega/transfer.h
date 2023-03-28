@@ -90,6 +90,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // upload handle for file attribute attachment (only set if file attribute queued)
     UploadHandle uploadhandle;
 
+    // When resuming on startup, we need to be sure we are downloading the same file as before (FileFingerprint match is not a guarantee)
+    NodeHandle downloadFileHandle;
+
     // position in transfers[type]
     transfer_multimap::iterator transfers_it;
 
