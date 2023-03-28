@@ -12462,7 +12462,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
             // security feature: we only distribute node keys for our own outgoing shares.
-            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled";
+            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled: " << toNodeHandle((*shares)[si]->nodehandle);
             (*shares)[si] = NULL;
             sendevent(99445, "Inshare key request rejected", 0);
         }
