@@ -3108,10 +3108,10 @@ public class MegaApiJava {
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Upgrade cryptographic security
-     *
+     * <p>
      * This should be called only after MegaEvent::EVENT_UPGRADE_SECURITY event is received to effectively
      * proceed with the cryptographic upgrade process.
      * This should happen only once per account.
@@ -3124,18 +3124,17 @@ public class MegaApiJava {
 
     /**
      * Allows to change the hardcoded value of the "secure" flag
-     *
+     * <p>
      * With this feature flag set, the client will manage encryption keys for
      * shared folders in a secure way. Legacy clients won't be able to decrypt
      * shared folders created with this flag enabled.
-     *
+     * <p>
      * Manual verification of credentials of users (both sharers AND sharees) is
      * required in order to decrypt shared folders correctly.
      *
-     * @note This flag should be changed before login+fetchnodes. Otherwise, it may
-     * result on unexpected behavior.
-     *
      * @param enable New value of the flag
+     *               Note: This flag should be changed before login+fetchnodes. Otherwise, it may
+     *               result on unexpected behavior.
      */
     public void setSecureFlag(boolean enable) {
         megaApi.setSecureFlag(enable);
@@ -3143,10 +3142,10 @@ public class MegaApiJava {
 
     /**
      * Creates a new share key for the node if there is no share key already created.
-     *
+     * <p>
      * Call it before starting any new share.
      *
-     * @param node The folder to share. It must be a non-root folder
+     * @param node     The folder to share. It must be a non-root folder
      * @param listener MegaRequestListener to track this request
      */
     public void openShareDialog(MegaNode node, MegaRequestListenerInterface listener) {
@@ -6299,19 +6298,18 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the event message
      *
      * @param eventType Event type
-     * @param message Event message
-     *
+     * @param message   Event message
      * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
      * is sent to MEGA servers.
      * </p>
      * Event types are restricted to the following ranges:
-     *  - MEGAcmd:   [98900, 99000)
-     *  - MEGAchat:  [99000, 99150)
-     *  - Android:   [99200, 99300)
-     *  - iOS:       [99300, 99400)
-     *  - MEGA SDK:  [99400, 99500)
-     *  - MEGAsync:  [99500, 99600)
-     *  - Webclient: [99600, 99800]
+     * - MEGAcmd:   [98900, 99000)
+     * - MEGAchat:  [99000, 99150)
+     * - Android:   [99200, 99300)
+     * - iOS:       [99300, 99400)
+     * - MEGA SDK:  [99400, 99500)
+     * - MEGAsync:  [99500, 99600)
+     * - Webclient: [99600, 99800]
      */
     @Deprecated
     public void sendEvent(int eventType, String message) {
@@ -8272,7 +8270,7 @@ public class MegaApiJava {
 
     /**
      * Get a list with all unverified inbound sharings
-     *
+     * <p>
      * You take the ownership of the returned value
      *
      * @param order Sorting order to use
@@ -8377,7 +8375,7 @@ public class MegaApiJava {
 
     /**
      * Get a list with all unverified sharings
-     *
+     * <p>
      * You take the ownership of the returned value
      *
      * @param order Sorting order to use
@@ -9655,22 +9653,22 @@ public class MegaApiJava {
 
     /**
      * Get a list of buckets, each bucket containing a list of recently added/modified nodes
-     *
+     * <p>
      * Each bucket contains files that were added/modified in a set, by a single user.
-     *
+     * <p>
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
      * - MegaRequest::getParamType - Returns the maximun number of nodes
-     *
+     * <p>
      * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
-     *
+     * <p>
      * The recommended values for the following parameters are to consider
      * interactions during the last 30 days and maximum 500 nodes.
      *
-     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param days     Age of actions since added/modified nodes will be considered (in days)
      * @param maxnodes Maximum amount of nodes to be considered
      * @param listener MegaRequestListener to track this request
      */
@@ -9680,22 +9678,22 @@ public class MegaApiJava {
 
     /**
      * Get a list of buckets, each bucket containing a list of recently added/modified nodes
-     *
+     * <p>
      * Each bucket contains files that were added/modified in a set, by a single user.
-     *
+     * <p>
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
      * - MegaRequest::getParamType - Returns the maximun number of nodes
-     *
+     * <p>
      * The recommended values for the following parameters are to consider
      * interactions during the last 30 days and maximum 500 nodes.
-     *
+     * <p>
      * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
      *
-     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param days     Age of actions since added/modified nodes will be considered (in days)
      * @param maxnodes Maximum amount of nodes to be considered
      */
     public void getRecentActionsAsync(long days, long maxnodes) {
@@ -11447,26 +11445,26 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Creates the special folder for backups ("My backups")
-     *
+     * Creates the special folder for backups ("My backups")
+     * <p>
      * It creates a new folder inside the Vault rootnode and later stores the node's
      * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
-     *
+     * <p>
      * Apps should first check if this folder exists already, by calling
      * MegaApi::getUserAttribute for the corresponding attribute.
-     *
+     * <p>
      * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getText - Returns the name provided as parameter
-     *
+     * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNodehandle - Returns the node handle of the folder created
-     *
+     * <p>
      * If the folder for backups already existed, the request will fail with the error API_EACCESS.
      *
      * @param localizedName Localized name for "My backups" folder
-     * @param listener MegaRequestListener to track this request
+     * @param listener      MegaRequestListener to track this request
      */
     public void setMyBackupsFolder(String localizedName, MegaRequestListenerInterface listener) {
         megaApi.setMyBackupsFolder(localizedName, createDelegateRequestListener(listener));
@@ -11649,55 +11647,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Request to fetch a Set and its Elements
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaSet - Returns the Set
-     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-     * <p>
-     * On the onRequestFinish error, the error code associated to the MegaError can be:
-     * - MegaError::API_ENOENT - Set could not be found.
-     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-     * - MegaError::API_EARGS - Malformed (from API).
-     * - MegaError::API_EACCESS - Permissions Error (from API).
-     *
-     * @param sid      the id of the Set to be fetched
-     * @param listener MegaRequestListener to track this request
-     */
-    public void fetchSet(long sid, MegaRequestListenerInterface listener) {
-        megaApi.fetchSet(sid, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Request to fetch a Set and its Elements
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaSet - Returns the Set
-     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-     * <p>
-     * On the onRequestFinish error, the error code associated to the MegaError can be:
-     * - MegaError::API_ENOENT - Set could not be found.
-     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-     * - MegaError::API_EARGS - Malformed (from API).
-     * - MegaError::API_EACCESS - Permissions Error (from API).
-     *
-     * @param sid the id of the Set to be fetched
-     */
-    public void fetchSet(long sid) {
-        megaApi.fetchSet(sid);
-    }
-
-    /**
      * Request creation of multiple Elements for a Set
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
@@ -11754,7 +11703,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void createSetElement(long sid, long node, String name, MegaRequestListenerInterface listener) {
-        megaApi.createSetElement(sid, node,name, createDelegateRequestListener(listener));
+        megaApi.createSetElement(sid, node, name, createDelegateRequestListener(listener));
     }
 
     /**
@@ -12107,5 +12056,185 @@ public class MegaApiJava {
 
     public void removeSync(long backupId) {
         megaApi.removeSync(backupId);
+    }
+
+    /**
+     * Returns true if the Set has been exported (has a public link)
+     * <p>
+     * Public links are created by calling MegaApi::exportSet
+     *
+     * @param sid the id of the Set to check
+     * @return true if param sid is an exported Set
+     */
+    public boolean isExportedSet(long sid) {
+        return megaApi.isExportedSet(sid);
+    }
+
+    /**
+     * Generate a public link of a Set in MEGA
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+     * - MegaRequest::getFlag - Returns a boolean set to true representing the call was
+     * meant to enable/create the export
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSet - MegaSet including the public id
+     * - MegaRequest::getLink - Public link
+     * <p>
+     * MegaError::API_OK results in onSetsUpdate being triggered as well
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param sid      MegaHandle to get the public link
+     * @param listener MegaRequestListener to track this request
+     */
+    public void exportSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.exportSet(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Stop sharing a Set
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+     * - MegaRequest::getFlag - Returns a boolean set to false representing the call was
+     * meant to disable the export
+     * <p>
+     * MegaError::API_OK results in onSetsUpdate being triggered as well
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param sid      Set MegaHandle to stop sharing
+     * @param listener MegaRequestListener to track this request
+     */
+    public void disableExportSet(long sid, MegaRequestListenerInterface listener) {
+        megaApi.disableExportSet(sid, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Request to fetch a public/exported Set and its Elements.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the link used for the public Set fetch request
+     * <p>
+     * In addition to fetching the Set (including Elements), SDK's instance is set
+     * to preview mode for the public Set. This mode allows downloading of foreign
+     * SetElements included in the public Set.
+     * <p>
+     * To disable the preview mode and release resources used by the preview Set,
+     * use MegaApi::stopPublicSetPreview
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaSet - Returns the Set
+     * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - Set could not be found.
+     * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+     * - MegaError::API_EARGS - Malformed (from API).
+     * - MegaError::API_EACCESS - Permissions Error (from API).
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * <p>
+     *
+     * @param publicSetLink Public link to a Set in MEGA
+     * @param listener      MegaRequestListener to track this request
+     */
+    public void fetchPublicSet(String publicSetLink, MegaRequestListenerInterface listener) {
+        megaApi.fetchPublicSet(publicSetLink, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Stops public Set preview mode for current SDK instance
+     * <p>
+     * MegaApi instance is no longer useful until a new login
+     */
+    public void stopPublicSetPreview() {
+        megaApi.stopPublicSetPreview();
+    }
+
+    /**
+     * Returns if this MegaApi instance is in a public/exported Set preview mode
+     *
+     * @return True if public Set preview mode is enabled
+     */
+    public boolean inPublicSetPreview() {
+        return megaApi.inPublicSetPreview();
+    }
+
+
+    /**
+     * Get current public/exported Set in Preview mode
+     * <p>
+     * The response value is stored as a MegaSet.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @return Current public/exported Set in preview mode or nullptr if there is none
+     */
+    public MegaSet getPublicSetInPreview() {
+        return megaApi.getPublicSetInPreview();
+    }
+
+
+    /**
+     * Get current public/exported SetElements in Preview mode
+     * <p>
+     * The response value is stored as a MegaSetElementList.
+     * <p>
+     * You take the ownership of the returned value
+     *
+     * @return Current public/exported SetElements in preview mode or nullptr if there is none
+     */
+    public MegaSetElementList getPublicSetElementsInPreview() {
+        return megaApi.getPublicSetElementsInPreview();
+    }
+
+    /**
+     * Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPublicMegaNode - Returns the MegaNode (ownership transferred)
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - Public Set preview mode is not enabled
+     * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
+     * in previewed Set
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param eid      MegaHandle of target SetElement from Set in preview mode
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPreviewElementNode(long eid, MegaRequestListenerInterface listener) {
+        megaApi.getPreviewElementNode(eid, createDelegateRequestListener(listener));
+    }
+
+
+    /**
+     * Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+     *
+     * @param sid MegaHandle of target Set to get its public link/URL
+     * @return const char* with the public URL if success, nullptr otherwise
+     * In any case, one of the followings error codes with the result can be found in the log:
+     * - API_OK on success
+     * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
+     * - API_EARGS if there was an internal error composing the URL
+     */
+    public String getPublicLinkForExportedSet(long sid) {
+        return megaApi.getPublicLinkForExportedSet(sid);
     }
 }

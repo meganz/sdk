@@ -47,7 +47,7 @@ bool suppressfiles = false;
 #define SCAN_INTERVAL_SEC 3600
 
 // Don't use size filters.
-#define NO_SIZE_FILTER 1
+//#define NO_SIZE_FILTER
 
 bool adjustLastModificationTime(const fs::path& path, int adjustment)
 {
@@ -2904,9 +2904,14 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
 
     auto localpath = n->getLocalPath().toName(*client.fsaccess);
     string n_localname = n->localname.toName(*client.fsaccess);
-    if (n_localname.size() && n->parent)  // the sync root node's localname contains an absolute path, not just the leaf name.  Also the filesystem sync root folder and cloud sync root folder don't have to have the same name.
+    if (n_localname.size() && n->parent)
     {
-        //EXPECT_EQ(n->name, n_localname);
+        EXPECT_EQ(compareUtf(mn->fsName(), true, n->localname, true, false), 0)
+            << "Localnode's localname vs model node fsname mismatch: '"
+            << n->localname.toPath(false)
+            << "', '"
+            << mn->fsName()
+            << "'";
     }
     if (localNodesMustHaveNodes)
     {
@@ -13811,7 +13816,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     //
     // This is expected as size filters have no effect if a file that
     // would be excluded exists locally and in the cloud.
-    cu.triggerPeriodicScanEarly(id);
+    cu->triggerPeriodicScanEarly(id);
     waitOnSyncs(cu);
 
     // Remove the file locally.
@@ -15067,7 +15072,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Make sure cdu is aware of du/fi.
-    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get())));
+    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), chrono::seconds(20)));
 
     // Remove du/fi in the cloud.
     {
@@ -18844,11 +18849,11 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
     ASSERT_TRUE(noSyncStalled(waitResult));
 
-    //Model model;
-    //model.addfile(name1)->fsName(name2);
+    Model model;
+    model.addfile(name1)->fsName(name2);
 
     // Make sure everything was uploaded successfully.
-    //ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
 
 }

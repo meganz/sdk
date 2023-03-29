@@ -1893,7 +1893,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             if (std::dynamic_pointer_cast<SyncDownload_inClient>(sourceSyncNode->transferSP))
             {
-                // Since we were part of an ongoing downlaod, we can infer
+                // Since we were part of an ongoing download, we can infer
                 // that the local move-source must have been considered
                 // synced. If it wasn't, we wouldn't have detected this move
                 // or a stall would've been generated during CSF processing.
@@ -5791,18 +5791,20 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
     // (Plus for those SyncNode folders where regeneration wouldn't match the FSNodes (yet))
     // (SyncNode = LocalNode, we'll rename LocalNode eventually)
 
-    // Effective children are from the last scan, if present.
-    vector<FSNode>* effectiveFsChildren = belowRemovedFsNode ? nullptr : syncNode->lastFolderScan.get();
-
-    if (wasSynced && !belowRemovedFsNode && syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
+    if (wasSynced && !belowRemovedFsNode &&
+        syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
     {
-        effectiveFsChildren = &fsInferredChildren;
+        // success, the already sorted and aligned triplets were inferred
+        // and the results were filled in: childRows, cloudChildren, fsInferredChildren
     }
     else
     {
-        // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
+        // Effective children are from the last scan, if present.
+        vector<FSNode>* effectiveFsChildren = belowRemovedFsNode ? nullptr : syncNode->lastFolderScan.get();
+
         if (!effectiveFsChildren)
         {
+            // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
             fsChildren.reserve(syncNode->children.size() + 50);  // leave some room for others to be added in syncItem()
 
             for (auto &childIt : syncNode->children)
@@ -6096,7 +6098,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
 //    }
 //#endif
 
-    // match up elements that are still present and were alrady synced
+    // match up elements that are still present and were already synced
     vector<SyncRow>::iterator lastFullySynced = b;
     vector<SyncRow>::iterator lastNotFullySynced = b;
     unsigned syncNode_nfs_count = 0;
@@ -6128,7 +6130,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                 }
             }
 
-            // is this row fully synced alrady? if so, put it aside in case there are more syncNodes
+            // is this row fully synced already? if so, put it aside in case there are more syncNodes
             if (i->cloudNode && i->fsNode)
             {
                 std::swap(*a, *i);
@@ -7677,19 +7679,16 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // Have we detected a new ignore file?
         if (row.isIgnoreFile())
         {
-            // Don't process any other rows.
+            // Don't process any other rows (yet).
+            // Skip ahead to make the node, .megaignore files are not ignored
             parentRow.ignoreFileChanging();
-
-            // Create a sync node to represent the ignore file.
-            //
-            // This is necessary even when the ignore file itself is excluded as
-            // we still need to load the filters it defines.
-            return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
         }
-
-        // Don't create a sync node for this file unless we know that it's included.
-        if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
-            return true;
+        else
+        {
+            // Don't create a sync node for this file unless we know that it's included.
+            if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
+                return true;
+        }
 
         // Item exists locally only. Check if it was moved/renamed here, or Create
         // If creating, next run through will upload it
@@ -8066,7 +8065,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 
     if (row.syncNode->hasRare())
     {
-        // We should never reach this function is pendingFrom is live.
+        // We should never reach this function if pendingFrom is live.
         assert(row.syncNode->rareRO().movePendingFrom.expired());
 
         if (row.syncNode->rare().moveToHere &&
@@ -9032,7 +9031,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& 
         if (it->second->type != type) continue;
         if (it->second->fsidSyncedReused)   continue;
 
-        // we can't move a ndoe between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
+        // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
         if (owningUser != UNDEF &&
             it->second->sync->cloudRootOwningUser != owningUser)
         {
@@ -9117,7 +9116,7 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath&
             continue;
         }
 
-        // we can't move a ndoe between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
+        // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
         if (owningUser != UNDEF &&
             it->second->sync->cloudRootOwningUser != owningUser)
         {
