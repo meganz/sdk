@@ -7234,7 +7234,7 @@ char* MegaApiImpl::getPrivateKey(int type)
         return nullptr;
     }
 
-    User *u = client->finduser(client->me);
+    User *u = client->ownuser();
     if (!u)
     {
         LOG_warn << "User is not defined yet";
@@ -7247,7 +7247,6 @@ char* MegaApiImpl::getPrivateKey(int type)
     {
         switch (type)
         {
-
         case MegaApi::PRIVATE_KEY_ED25519:
             privateKey = client->mKeyManager.privEd25519();
             break;
@@ -7257,7 +7256,6 @@ char* MegaApiImpl::getPrivateKey(int type)
         default:
             assert(false);
             return nullptr;
-            break;
         }
     }
     else
@@ -7266,13 +7264,13 @@ char* MegaApiImpl::getPrivateKey(int type)
         if (av)
         {
             unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
-            if (tlvRecords)
+            if (tlvRecords &&  type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519)
             {
                 tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
             }
             else
             {
-                LOG_warn << "Failed to decrypt keyring while initialization";
+                LOG_warn << "Failed to decrypt keyring while initialization or invalid key type";
                 return nullptr;
             }
         }
