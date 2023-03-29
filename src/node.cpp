@@ -607,13 +607,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
     // else from new cache, names has been normalized before to store in DB
 
-    if (!encrypted)
-    {
-        // only if the node is not encrypted, we can generate a valid
-        // fingerprint, based on the node's attribute 'c'
-        n->setfingerprint();
-    }
-
     PublicLink *plink = NULL;
     if (isExported)
     {
@@ -681,6 +674,13 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
 
     n->setKey(nodekey); // it can be decrypted or encrypted
+
+    if (!encrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
 
     if (ptr == end)
     {
