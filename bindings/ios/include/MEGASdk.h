@@ -3492,8 +3492,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - MEGARequest::set  - MEGASet including the public id
- * - MEGARequest::link - Public link
+ * - [MEGARequest set]  - MEGASet including the public id
+ * - [MEGARequest link] - Public link
  *
  * MEGAErrorTypeApiOk results in onSetsUpdate being triggered as well
  *
@@ -3511,8 +3511,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * The associated request type with this request is MEGARequestTypeExportSet
  * Valid data in the MEGARequest object received on callbacks:
  *
- * - MEGARequest::nodeHandle - Returns id of the Set used as parameter
- * - MEGARequest::flag       - Returns a boolean set to false representing the call was meant to disable the export
+ * - [MEGARequest nodeHandle] - Returns id of the Set used as parameter
+ * - [MEGARequest flag]     - Returns a boolean set to false representing the call was meant to disable the export
  *
  * MEGAErrorTypeApiOk results in onSetsUpdate being triggered as well
  *
@@ -3527,7 +3527,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /**
  * @brief Stops public Set preview mode for current SDK instance
  *
- * MegaApi instance is no longer useful until a new login
+ * MEGASDK instance is no longer useful until a new login
  *
  */
 -(void)stopPublicSetPreview;
@@ -3592,7 +3592,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * Valid data in the MegaRequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - MEGARequest::publicNode - Returns the MEGANode
+ * - [MEGARequest publicNode] - Returns the MEGANode
  *
  * On the onRequestFinish error, the error code associated to the MegaError can be:
  * - MEGAErrorTypeApiEAccess - Public Set preview mode is not enabled
@@ -3816,7 +3816,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @param sid MEGAHandle of target Set to get its public link/URL
  *
- * @return const char* with the public URL if success, nullptr otherwise
+ * @return Nsstring with the public URL if success, null otherwise
  * In any case, one of the followings error codes with the result can be found in the log:
  * - MEGAErrorTypeApiOk on success
  * - MEGAErrorTypeApiENoent if sid doesn't match any owned Set or the Set is not exported
