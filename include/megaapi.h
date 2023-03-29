@@ -1263,6 +1263,13 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
 
     /**
+     * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
+     *
+     * @return Public id of Set.
+     */
+    virtual MegaHandle publicId() const { return INVALID_HANDLE; }
+
+    /**
      * @brief Returns id of user that owns current Set.
      *
      * @return user id.
@@ -1325,9 +1332,21 @@ public:
      * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
      * Check if the Set was removed
      *
+     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
+     * Check if the Set was exported or disabled (i.e. exporting ended)
+     *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns true if this Set is exported (can be accessed via public link)
+     *
+     * Public link is retrieved when the Set becomes exported
+     *
+     * @return true if this Set is exported
+     */
+    virtual bool isExported() const { return false; }
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -1338,6 +1357,7 @@ public:
         CHANGE_TYPE_NAME,
         CHANGE_TYPE_COVER,
         CHANGE_TYPE_REMOVED,
+        CHANGE_TYPE_EXPORT,
 
         CHANGE_TYPE_SIZE
     };
@@ -4232,8 +4252,10 @@ class MegaRequest
             TYPE_UPGRADE_SECURITY                                           = 163,
             TYPE_PUT_SET_ELEMENTS                                           = 164,
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
-            TYPE_GET_SYNC_STALL_LIST                                        = 166,
-            TOTAL_OF_REQUEST_TYPES                                          = 167,
+            TYPE_EXPORT_SET                                                 = 166,
+            TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
+            TYPE_GET_SYNC_STALL_LIST                                        = 168,
+            TOTAL_OF_REQUEST_TYPES                                          = 169,
         };
 
         virtual ~MegaRequest();
@@ -4363,6 +4385,7 @@ class MegaRequest
          * - MegaApi::getThumbnailUploadURL - Returns the upload IPv4
          * - MegaApi::getPreviewUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
+         * - MegaApi::exportSet - Returns the public link
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4593,6 +4616,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
+         * - MegaApi::getPreviewElementNode
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -11436,35 +11460,6 @@ class MegaApi
          */
         void setLoggingName(const char* loggingName);
 
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-        /**
-         * @brief Enable rotative performance logger
-         *
-         * Rotative performance logger is a logger that optimizes performance by carrying
-         * most of the logging tasks (write to file, duplicate log detection, log archive
-         * rotation, compression and cleanup) in a separate background thread.
-         * Also provides log rotation: archived log files are suffixed with the timestamp
-         * of the moment when they are created. For more information about log archive
-         * control see RotativePerformanceLogger::setArchiveTimestamps().
-         *
-         * @param logPath Absolute path pointing to the base directory for both active log file and archived logs
-         * @param logFileName Log file name (without path).¡
-         * @param logToStdOut if true, logs are also output to standard output
-         * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
-         */
-        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
-
-        /**
-         * @brief Set name used for logging by current thread.
-         *
-         * Rotative Performance Logger uses std::thread_id in log entries.
-         * You can use a custom name by calling this function from the desired thread.
-         *
-         * @param threadName Nmae of the therad to be used in log lines
-         */
-        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
-
-#endif
         /**
          * @brief Create a folder in the MEGA account
          *
@@ -20702,29 +20697,6 @@ class MegaApi
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to fetch a Set and its Elements
-         *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaSet - Returns the Set
-         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - Set could not be found.
-         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-         * - MegaError::API_EARGS - Malformed (from API).
-         * - MegaError::API_EACCESS - Permissions Error (from API).
-         *
-         * @param sid the id of the Set to be fetched
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-
-        /**
          * @brief Request creation of multiple Elements for a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
@@ -20940,6 +20912,168 @@ class MegaApi
          * @return requested Element, or null if not found
          */
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+
+        /**
+         * @brief Returns true if the Set has been exported (has a public link)
+         *
+         * Public links are created by calling MegaApi::exportSet
+         *
+         * @param sid the id of the Set to check
+         *
+         * @return true if param sid is an exported Set
+         */
+        bool isExportedSet(MegaHandle sid);
+
+        /**
+         * @brief Generate a public link of a Set in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to true representing the call was
+         * meant to enable/create the export
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - MegaSet including the public id
+         * - MegaRequest::getLink - Public link
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param sid Set MegaHandle to get the public link
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Stop sharing a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to false representing the call was
+         * meant to disable the export
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param sid Set MegaHandle to stop sharing
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Request to fetch a public/exported Set and its Elements.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the link used for the public Set fetch request
+         *
+         * In addition to fetching the Set (including Elements), SDK's instance is set
+         * to preview mode for the public Set. This mode allows downloading of foreign
+         * SetElements included in the public Set.
+         *
+         * To disable the preview mode and release resources used by the preview Set,
+         * use MegaApi::stopPublicSetPreview
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns the Set
+         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param publicSetLink Public link to a Set in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Stops public Set preview mode for current SDK instance
+         *
+         * MegaApi instance is no longer useful until a new login
+         *
+         */
+        void stopPublicSetPreview();
+
+        /**
+         * @brief Returns if this MegaApi instance is in a public/exported Set preview mode
+         *
+         * @returns True if public Set preview mode is enabled
+         *
+         */
+        bool inPublicSetPreview();
+
+        /**
+         * @brief Get current public/exported Set in Preview mode
+         *
+         * The response value is stored as a MegaSet.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported Set in preview mode or nullptr if there is none
+         *
+         */
+        MegaSet* getPublicSetInPreview();
+
+        /**
+         * @brief Get current public/exported SetElements in Preview mode
+         *
+         * The response value is stored as a MegaSetElementList.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported SetElements in preview mode or nullptr if there is none
+         *
+         */
+        MegaSetElementList* getPublicSetElementsInPreview();
+
+        /**
+         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPublicMegaNode - Returns the MegaNode (ownership transferred)
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - Public Set preview mode is not enabled
+         * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
+         * in previewed Set
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param eid MegaHandle of target SetElement from Set in preview mode
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         *
+         * @param sid MegaHandle of target Set to get its public link/URL
+         *
+         * @return const char* with the public URL if success, nullptr otherwise
+         * In any case, one of the followings error codes with the result can be found in the log:
+         * - API_OK on success
+         * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
+         * - API_EARGS if there was an internal error composing the URL
+         */
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
 
         /**
          * @brief Enable or disable the request status monitor

@@ -94,10 +94,6 @@ if USE_LIBUV
 src_libmega_la_SOURCES += src/mega_http_parser.cpp
 endif
 
-if USE_ROTATIVEPERFORMANCELOGGER
-src_libmega_la_SOURCES += src/rotativeperformancelogger.cpp
-endif
-
 if USE_DRIVE_NOTIFICATIONS
 src_libmega_la_SOURCES += src/drivenotify.cpp
 if WIN32

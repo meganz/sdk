@@ -1409,11 +1409,11 @@ using namespace mega;
     }
 }
 
-- (void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+- (void)fetchPublicSet:(NSString *)publicSetLink delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->fetchSet(sid, [self createDelegateMEGARequestListener:delegate
-                                                             singleListener:YES
-                                                                  queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->fetchPublicSet(publicSetLink.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                        singleListener:YES
+                                                                                             queueType:ListenerQueueTypeCurrent]);
     }
 }
 

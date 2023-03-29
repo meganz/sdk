@@ -346,8 +346,14 @@ typedef enum {
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
     VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
-    RUBBISHNODE      // RUBBISH - rubbish bin
+    RUBBISHNODE,     // RUBBISH - rubbish bin
 } nodetype_t;
+
+enum class TypeOfLink {
+    FOLDER,
+    FILE,
+    SET,
+};
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
@@ -365,6 +371,7 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
+const int SETNODEKEYLENGTH = SymmCipher::KEYLENGTH;
 
 // Max nodes per putnodes command
 const unsigned MAXNODESUPLOAD = 1000;

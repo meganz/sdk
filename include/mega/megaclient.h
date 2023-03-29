@@ -512,7 +512,8 @@ public:
     bool ephemeralSession = false;
     bool ephemeralSessionPlusPlus = false;
 
-    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static TypeOfLink validTypeForPublicURL(nodetype_t type);
+    static string publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -627,7 +628,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
+    error parsepubliclink(const char *link, handle &ph, byte *key, TypeOfLink type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -1921,6 +1922,7 @@ public:
     static const int CHATLINKHANDLE = 6;
     static const int SETHANDLE = Set::HANDLESIZE;
     static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
+    static const int PUBLICSETHANDLE = Set::PUBLICHANDLESIZE;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2256,7 +2258,7 @@ public:
     void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    void fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion);
 
     // generate "aepb" command
     void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
@@ -2274,7 +2276,7 @@ public:
     bool procaesp();
 
     // load Sets and Elements from json
-    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
 
     // return Set with given sid or nullptr if it was not found
     const Set* getSet(handle sid) const;
@@ -2298,7 +2300,7 @@ public:
     const SetElement* getSetElement(handle sid, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
-    const map<handle, SetElement>* getSetElements(handle sid) const;
+    const elementsmap_t* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
@@ -2306,12 +2308,36 @@ public:
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
-private:
+    // return true if Set with given sid is exported (has a public link)
+    bool isExportedSet(handle sid) const;
 
+    void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
+
+    // returns result of the operation and the link created
+    pair<error, string> getPublicSetLink(handle sid) const;
+
+    // returns error code and public handle for the link provided as a param
+    error fetchPublicSet(const char* publicSetLink, std::function<void(Error, Set*, elementsmap_t*)>);
+
+    void stopSetPreview() { if (mPreviewSet) mPreviewSet.reset(); }
+
+    bool inPublicSetPreview() const { return !!mPreviewSet; }
+
+    const SetElement* getPreviewSetElement(handle eid) const
+    { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
+
+    const Set* getPreviewSet() const { return inPublicSetPreview() ? &mPreviewSet->mSet : nullptr; }
+    const elementsmap_t* getPreviewSetElements() const
+    { return inPublicSetPreview() ? &mPreviewSet->mElements : nullptr; }
+
+private:
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
-    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
+    error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
+    error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
+    error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
@@ -2322,6 +2348,7 @@ private:
     void sc_asr(); // AP after removed Set
     void sc_aep(); // AP after new or updated Set Element
     void sc_aer(); // AP after removed Set Element
+    void sc_ass(); // AP after exported set update
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
@@ -2338,8 +2365,20 @@ private:
     void notifysetelement(SetElement*);
     void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
-    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+    map<handle, elementsmap_t> mSetElements; // indexed by Set id, then Element id
 
+    struct SetLink
+    {
+        handle mPublicId = UNDEF; // same as mSet.mPublicId once fetched
+        string mPublicKey;
+        string mPublicLink;
+        Set mSet;
+        elementsmap_t mElements;
+    };
+    unique_ptr<SetLink> mPreviewSet;
+
+    bool isElementInPreviewSet(handle eid) const
+    { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
 // -------- end of Sets and Elements
 
 };
