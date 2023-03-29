@@ -184,6 +184,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeFetchSet,
     MEGARequestTypePutSetElement,
     MEGARequestTypeRemoveSetElement,
+    MEGARequestTypeExportSet,
+    MEGARequestTypeExportedSetElement,
     TotalOfRequestTypes
 };
 
