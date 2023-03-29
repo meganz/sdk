@@ -1408,6 +1408,7 @@ class MegaRequestPrivate : public MegaRequest
         // Set the function to be executed in sendPendingRequests()
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
+        std::function<error(TransferDbCommitter&)> performTransferRequest;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -3611,6 +3612,7 @@ private:
 #ifdef ENABLE_CHAT
         error performRequest_chatStats(MegaRequestPrivate* request);
 #endif
+        error performRequest_getUserData(MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);

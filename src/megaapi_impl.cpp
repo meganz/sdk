@@ -5988,14 +5988,6 @@ long long MegaApiImpl::getSDKtime()
     return Waiter::ds;
 }
 
-void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SESSION_TRANSFER_URL, listener);
-    request->setText(path);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     if (!base64pwkey || !inBuf)
@@ -6252,13 +6244,6 @@ char* MegaApiImpl::smsVerifiedPhoneNumber()
     return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
 }
 
-void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;
@@ -6360,17 +6345,15 @@ void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KILL_SESSION, listener);
-    request->setNodeHandle(sessionHandle);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getUserData(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getUserData(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6384,6 +6367,11 @@ void MegaApiImpl::getUserData(MegaUser *user, MegaRequestListener *listener)
         request->setEmail(user->getEmail());
     }
 
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getUserData(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6393,18 +6381,12 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
     request->setFlag(true);
     request->setEmail(user);
-    requestQueue.push(request);
-    waiter->notify();
-}
 
-void MegaApiImpl::sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
-    request->setName(command);
-    request->setEmail(email);
-    request->setTotalBytes(quota);
-    request->setAccess(businessStatus);
-    request->setNumDetails(userStatus);
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getUserData(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6606,13 +6588,6 @@ void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRe
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
     request->setLink(link);
     request->setPassword(pwd);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::resendVerificationEmail(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6830,13 +6805,6 @@ void MegaApiImpl::restoreVersion(MegaNode *version, MegaRequestListener *listene
     {
         request->setNodeHandle(version->getHandle());
     }
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::cleanRubbishBin(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CLEAN_RUBBISH_BIN, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7493,148 +7461,6 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
-    request->setNumber(gateway);
-    request->setText(receipt);
-    request->setNodeHandle(lastPublicHandle);
-    request->setParamType(lastPublicHandleType);
-    request->setTransferredBytes(lastAccessTimestamp);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::creditCardStore(const char* address1, const char* address2, const char* city,
-                                  const char* province, const char* country, const char *postalcode,
-                                  const char* firstname, const char* lastname, const char* creditcard,
-                                  const char* expire_month, const char* expire_year, const char* cv2,
-                                  MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_STORE, listener);
-    string email;
-
-    {
-        SdkMutexGuard g(sdkMutex);
-        User *u = client->finduser(client->me);
-        if (u)
-        {
-            email = u->email;
-        }
-    }
-
-    if (email.size())
-    {
-        string saddress1, saddress2, scity, sprovince, scountry, spostalcode;
-        string sfirstname, slastname, screditcard, sexpire_month, sexpire_year, scv2;
-
-        if (address1)
-        {
-           saddress1 = address1;
-        }
-
-        if (address2)
-        {
-            saddress2 = address2;
-        }
-
-        if (city)
-        {
-            scity = city;
-        }
-
-        if (province)
-        {
-            sprovince = province;
-        }
-
-        if (country)
-        {
-            scountry = country;
-        }
-
-        if (postalcode)
-        {
-            spostalcode = postalcode;
-        }
-
-        if (firstname)
-        {
-            sfirstname = firstname;
-        }
-
-        if (lastname)
-        {
-            slastname = lastname;
-        }
-
-        if (creditcard)
-        {
-            screditcard = creditcard;
-            screditcard.erase(std::remove_if(screditcard.begin(), screditcard.end(), char_is_not_digit), screditcard.end());
-        }
-
-        if (expire_month)
-        {
-            sexpire_month = expire_month;
-        }
-
-        if (expire_year)
-        {
-            sexpire_year = expire_year;
-        }
-
-        if (cv2)
-        {
-            scv2 = cv2;
-        }
-
-        int tam = int(256 + sfirstname.size() + slastname.size() + screditcard.size()
-                + sexpire_month.size() + sexpire_year.size() + scv2.size() + saddress1.size()
-                + saddress2.size() + scity.size() + sprovince.size() + spostalcode.size()
-                + scountry.size() + email.size());
-
-        char *ccplain = new char[tam];
-        snprintf(ccplain, tam, "{\"first_name\":\"%s\",\"last_name\":\"%s\","
-                "\"card_number\":\"%s\","
-                "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
-                "\"cv2\":\"%s\",\"address1\":\"%s\","
-                "\"address2\":\"%s\",\"city\":\"%s\","
-                "\"province\":\"%s\",\"postal_code\":\"%s\","
-                "\"country_code\":\"%s\",\"email_address\":\"%s\"}", sfirstname.c_str(), slastname.c_str(),
-                 screditcard.c_str(), sexpire_month.c_str(), sexpire_year.c_str(), scv2.c_str(), saddress1.c_str(),
-                 saddress2.c_str(), scity.c_str(), sprovince.c_str(), spostalcode.c_str(), scountry.c_str(), email.c_str());
-
-        request->setText((const char* )ccplain);
-        delete [] ccplain;
-    }
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
-    request->setText(reason);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getPaymentMethods(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 char *MegaApiImpl::exportMasterKey()
 {
     SdkMutexGuard g(sdkMutex);
@@ -7755,45 +7581,10 @@ int MegaApiImpl::getPasswordStrength(const char *password)
     return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
 }
 
-void MegaApiImpl::submitFeedback(int rating, const char *comment, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
-    request->setText(comment);
-    request->setNumber(rating);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
     request->setText(details);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
-    request->setNumber(eventType);
-    request->setText(message);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUPPORT_TICKET, listener);
-    request->setParamType(type);
-    request->setText(message);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
-    request->setFlag(usehttps);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -18692,6 +18483,13 @@ void MegaApiImpl::sendPendingRequests()
             e = request->performRequest();
             continue;
         }
+        
+        if (request->performTransferRequest)
+        {
+            // the action has same requirement as the above performRequest
+            e = request->performTransferRequest(committer);
+            continue;
+        }
 
         switch (request->getType())
         {
@@ -21749,7 +21547,20 @@ void MegaApiImpl::sendPendingRequests()
             client->purchase_enumeratequotaitems();
             break;
         }
-        case MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT:
+        }
+    }
+}
+
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
+    request->setNumber(gateway);
+    request->setText(receipt);
+    request->setNodeHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
+
+    request->performRequest = [this, request]()
         {
             const char* receipt = request->getText();
             int type = int(request->getNumber());
@@ -21760,22 +21571,19 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
                 || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
             {
-               e = API_EARGS;
-               break;
+                return API_EARGS;
             }
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
                             && type != MegaApi::PAYMENT_METHOD_WINDOWS_STORE && type != MegaApi::PAYMENT_METHOD_HUAWEI_WALLET))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if(type == MegaApi::PAYMENT_METHOD_ITUNES && client->loggedin() != FULLACCOUNT)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             string base64receipt;
@@ -21792,39 +21600,185 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->submitpurchasereceipt(type, base64receipt.c_str(), lph, phtype, ts);
-            break;
-        }
-        case MegaRequest::TYPE_CREDIT_CARD_STORE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardStore(const char* address1, const char* address2, const char* city,
+    const char* province, const char* country, const char* postalcode,
+    const char* firstname, const char* lastname, const char* creditcard,
+    const char* expire_month, const char* expire_year, const char* cv2,
+    MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_STORE, listener);
+    string email;
+
+    {
+        SdkMutexGuard g(sdkMutex);
+        User* u = client->finduser(client->me);
+        if (u)
         {
-            const char *ccplain = request->getText();
-            e = client->creditcardstore(ccplain);
-            break;
+            email = u->email;
         }
-        case MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS:
+    }
+
+    if (email.size())
+    {
+        string saddress1, saddress2, scity, sprovince, scountry, spostalcode;
+        string sfirstname, slastname, screditcard, sexpire_month, sexpire_year, scv2;
+
+        if (address1)
+        {
+            saddress1 = address1;
+        }
+
+        if (address2)
+        {
+            saddress2 = address2;
+        }
+
+        if (city)
+        {
+            scity = city;
+        }
+
+        if (province)
+        {
+            sprovince = province;
+        }
+
+        if (country)
+        {
+            scountry = country;
+        }
+
+        if (postalcode)
+        {
+            spostalcode = postalcode;
+        }
+
+        if (firstname)
+        {
+            sfirstname = firstname;
+        }
+
+        if (lastname)
+        {
+            slastname = lastname;
+        }
+
+        if (creditcard)
+        {
+            screditcard = creditcard;
+            screditcard.erase(std::remove_if(screditcard.begin(), screditcard.end(), char_is_not_digit), screditcard.end());
+        }
+
+        if (expire_month)
+        {
+            sexpire_month = expire_month;
+        }
+
+        if (expire_year)
+        {
+            sexpire_year = expire_year;
+        }
+
+        if (cv2)
+        {
+            scv2 = cv2;
+        }
+
+        int tam = int(256 + sfirstname.size() + slastname.size() + screditcard.size()
+            + sexpire_month.size() + sexpire_year.size() + scv2.size() + saddress1.size()
+            + saddress2.size() + scity.size() + sprovince.size() + spostalcode.size()
+            + scountry.size() + email.size());
+
+        char* ccplain = new char[tam];
+        snprintf(ccplain, tam, "{\"first_name\":\"%s\",\"last_name\":\"%s\","
+            "\"card_number\":\"%s\","
+            "\"expiry_date_month\":\"%s\",\"expiry_date_year\":\"%s\","
+            "\"cv2\":\"%s\",\"address1\":\"%s\","
+            "\"address2\":\"%s\",\"city\":\"%s\","
+            "\"province\":\"%s\",\"postal_code\":\"%s\","
+            "\"country_code\":\"%s\",\"email_address\":\"%s\"}", sfirstname.c_str(), slastname.c_str(),
+            screditcard.c_str(), sexpire_month.c_str(), sexpire_year.c_str(), scv2.c_str(), saddress1.c_str(),
+            saddress2.c_str(), scity.c_str(), sprovince.c_str(), spostalcode.c_str(), scountry.c_str(), email.c_str());
+
+        request->setText((const char*)ccplain);
+        delete[] ccplain;
+    }
+
+    request->performRequest = [this, request]()
+        {
+            const char* ccplain = request->getText();
+            return client->creditcardstore(ccplain);
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardQuerySubscriptions(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS, listener);
+
+    request->performRequest = [this, request]()
         {
             client->creditcardquerysubscriptions();
-            break;
-        }
-        case MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::creditCardCancelSubscriptions(const char* reason, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, listener);
+    request->setText(reason);
+
+    request->performRequest = [this, request]()
         {
             const char* reason = request->getText();
             client->creditcardcancelsubscriptions(reason);
-            break;
-        }
-        case MegaRequest::TYPE_GET_PAYMENT_METHODS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getPaymentMethods(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_METHODS, listener);
+
+    request->performRequest = [this, request]()
         {
             client->getpaymentmethods();
-            break;
-        }
-        case MegaRequest::TYPE_SUBMIT_FEEDBACK:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_FEEDBACK, listener);
+    request->setText(comment);
+    request->setNumber(rating);
+
+    request->performRequest = [this, request]()
         {
             int rating = int(request->getNumber());
             const char *message = request->getText();
 
             if(rating < 1 || rating > 5)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if(!message)
@@ -21845,43 +21799,67 @@ void MegaApiImpl::sendPendingRequests()
             snprintf((char *)feedback.data(), feedback.size(), "{\\\"r\\\":\\\"%d\\\",\\\"m\\\":\\\"%s\\\",\\\"u\\\":\\\"%s\\\"}", rating, base64message, base64uhandle);
             client->userfeedbackstore(feedback.c_str());
             delete [] base64message;
-            break;
-        }
-        case MegaRequest::TYPE_SEND_EVENT:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
+    request->setNumber(eventType);
+    request->setText(message);
+
+    request->performRequest = [this, request]()
         {
             int number = int(request->getNumber());
             const char *text = request->getText();
 
             if(number < 98900 || (number >= 99150 && (number < 99200 || number >= 99600)) || !text)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->sendevent(number, text);
-            break;
-        }
-        case MegaRequest::TYPE_SUPPORT_TICKET:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::createSupportTicket(const char* message, int type, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SUPPORT_TICKET, listener);
+    request->setParamType(type);
+    request->setText(message);
+
+    request->performRequest = [this, request]()
         {
             int type = request->getParamType();
             const char *message = request->getText();
 
             if ((type < 0 || type > 10) || !message)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->supportticket(message, type);
-            break;
-        }
-        case MegaRequest::TYPE_GET_USER_DATA:
-        {
-            const char *email = request->getEmail();
-            if(request->getFlag() && !email)
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_getUserData(MegaRequestPrivate* request)
+{
+            const char* email = request->getEmail();
+            if (request->getFlag() && !email)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if(!request->getFlag())
@@ -21893,19 +21871,28 @@ void MegaApiImpl::sendPendingRequests()
                 client->getpubkey(email);
             }
 
-            break;
-        }
-        case MegaRequest::TYPE_SEND_DEV_COMMAND:
+            return API_OK;
+}
+
+void MegaApiImpl::sendDevCommand(const char* command, const char* email, long long quota, int businessStatus, int userStatus, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
+    request->setName(command);
+    request->setEmail(email);
+    request->setTotalBytes(quota);
+    request->setAccess(businessStatus);
+    request->setNumDetails(userStatus);
+
+    request->performRequest = [this, request]()
         {
             const char *command = request->getName();
             if (!command)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
-#ifdef DEBUG
-            const char *email = request->getEmail();
+    #ifdef DEBUG
+            const char* email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
@@ -21918,41 +21905,48 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd && !isFrSubcmd)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if (isTqSubcmd)
             {
                 if (q < 0)
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
             }
             else if (isBsSubcmd)
             {
                 if (bs < -1 || bs > 2)
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
             }
             else if (isUsSubcmd)
             {
                 if (us == 1 || us < 0 || us > 9)
                 {
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
             }
             client->senddevcommand(command, email, q, bs, us);
-#else
-            e = API_EACCESS;
-#endif
-            break;
-        }
-        case MegaRequest::TYPE_KILL_SESSION:
+            return API_OK;
+    #else
+            return API_EACCESS;
+    #endif
+        };
+
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::killSession(MegaHandle sessionHandle, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_KILL_SESSION, listener);
+    request->setNodeHandle(sessionHandle);
+
+    request->performRequest = [this, request]()
         {
             MegaHandle handle = request->getNodeHandle();
             if (handle == INVALID_HANDLE)
@@ -21963,11 +21957,21 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->killsession(handle);
             }
-            break;
-        }
-        case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getSessionTransferURL(const char* path, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SESSION_TRANSFER_URL, listener);
+    request->setText(path);
+
+    request->performRequest = [this, request]()
         {
-            e = client->copysession();
+            error e = client->copysession();
 
             if (e == API_ENOENT)    // no session to copy because not logged in
             {
@@ -21978,27 +21982,63 @@ void MegaApiImpl::sendPendingRequests()
 
                 e = API_OK;
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
+                return e;
             }
+            return e;
+        };
 
-            break;
-        }
-        case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resendVerificationEmail(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL, listener);
+
+    request->performRequest = [this, request]()
         {
             client->resendverificationemail();
-            break;
-        }
-        case MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
+
+    request->performRequest = [this, request]()
         {
             client->resetSmsVerifiedPhoneNumber();
-            break;
-        }
-        case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::cleanRubbishBin(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CLEAN_RUBBISH_BIN, listener);
+
+    request->performRequest = [this, request]()
         {
             client->cleanrubbishbin();
-            break;
-        }
-        case MegaRequest::TYPE_USE_HTTPS_ONLY:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
+    request->setFlag(usehttps);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
         {
             bool usehttps = request->getFlag();
             if (client->usehttps != usehttps)
@@ -22018,10 +22058,11 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            break;
-        }
-        }
-    }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener* listener)
