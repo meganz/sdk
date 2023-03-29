@@ -1437,7 +1437,7 @@ using namespace mega;
     }
 }
 
-- (MEGASet *)publicSetInPreview {
+- (nullable MEGASet *)publicSetInPreview {
     if (self.megaApi) {
         MegaSet *set = self.megaApi->getPublicSetInPreview();
         return set ? [[MEGASet alloc] initWithMegaSet:set->copy() cMemoryOwn:YES] : nil;
@@ -1536,7 +1536,7 @@ using namespace mega;
     }
 }
 
-- (MEGASet *)setBySid:(MEGAHandle)sid {
+- (nullable MEGASet *)setBySid:(MEGAHandle)sid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSet *set = self.megaApi->getSet(sid);

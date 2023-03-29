@@ -3550,7 +3550,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return Current public/exported Set in preview mode or nullptr if there is none
  *
  */
--(MEGASet *)publicSetInPreview;
+-(nullable MEGASet *)publicSetInPreview;
 
 /**
  * @brief Request to fetch a public/exported Set and its Elements.
@@ -3780,7 +3780,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return the requested MEGASet, or nil if not found
  */
--(MEGASet *)setBySid:(MEGAHandle)sid;
+-(nullable MEGASet *)setBySid:(MEGAHandle)sid;
 
 /**
  * @brief Returns true if the Set has been exported (has a public link)
