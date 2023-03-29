@@ -50,6 +50,7 @@
 #import "MEGAPaymentMethod.h"
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
+#import "MEGAUserAlert.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -3480,27 +3481,37 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 -(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Request to fetch a Set and its Elements
+ * @brief Request to fetch a public/exported Set and its Elements.
  *
  * The associated request type with this request is MEGARequestTypeFetchSet
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest parentHandle] - Returns id of the Set to be fetched
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest link] - Returns the link used for the public Set fetch request
  *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest set]           - Returns the Set
- * - [MEGARequest elementsInSet] - Returns Elements in Set
+ * In addition to fetching the Set (including Elements), SDK's instance is set
+ * to preview mode for the public Set. This mode allows downloading of foreign
+ * SetElements included in the public Set.
  *
- * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
- * - MEGAErrorTypeApiENoent    - Set could not be found
- * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted
- * - MEGAErrorTypeApiEArgs     - Malformed
- * - MEGAErrorTypeApiEAccess   - Permissions Error
+ * To disable the preview mode and release resources used by the preview Set,
+ * use [MEGASdk stopPublicSetPreview]
  *
- * @param sid the id of the Set to be fetched
- * @param delegate MEGARequestDelegate to track this request
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest set] - Returns the Set
+ * - [MEGARequest elementsInSet] - Returns the list of Elements
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - Set could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs - Malformed (from API).
+ * - MEGAErrorTypeApiEAccess - Permissions Error (from API).
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error codeMEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param publicSetLink Public link to a Set in MEGA
+ * @param delegate MegaRequestListener to track this request
  */
--(void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+- (void)fetchPublicSet:(NSString *)publicSetLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Request to update the name of a Set

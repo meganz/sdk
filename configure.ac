@@ -365,16 +365,14 @@ if test "x$enable_megaapirpc" != "xno"; then
     AC_DEFINE(HAVE_MEGAAPI_RPC, 1, [Defined if MEGA API enabled])
 fi
 
-# Rotative Performance Logger
-AC_ARG_ENABLE(rotative-performance-logger,
-    AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
-    [enable_rotative_performance_logger=${enableval}],
-    [enable_rotative_performance_logger=no])
-if test "x$enable_rotative_performance_logger" = "xyes"; then
-    AC_DEFINE(USE_ROTATIVEPERFORMANCELOGGER, 1, [Defined if Rotative Performance Logger enabled])
-    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if Rotative Performance Logger enabled])
+# Log performance
+AC_ARG_ENABLE(log-performance,
+    AS_HELP_STRING([--enable-log-performance], [enable log performance [default=no]]),
+    [enable_log_performance=${enableval}],
+    [enable_log_performance=no])
+if test "x$enable_log_performance" = "xyes"; then
+    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if log performance enabled])
 fi
-AM_CONDITIONAL([USE_ROTATIVEPERFORMANCELOGGER], [test "x$enable_rotative_performance_logger" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -2286,7 +2284,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   MEGA API          $enable_megaapi
   MEGA API RPC      $enable_megaapirpc
   example apps:     $enable_examples
-  Rot Perf Logger:  $enable_rotative_performance_logger
+  Perf Logger:      $enable_log_performance
   Drive Notif:      $enable_drive_notifications
   MEGA_USE_C_ARES:  $enable_mega_c_ares
 
