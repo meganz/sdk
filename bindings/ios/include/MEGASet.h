@@ -24,10 +24,11 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGASetChangeType) {
-    MEGASetChangeTypeNew      = 0x01,
-    MEGASetChangeTypeName     = 0x02,
-    MEGASetChangeTypeCover    = 0x04,
-    MEGASetChangeTypeRemoved  = 0x08
+    MEGASetChangeTypeNew       = 0x01,
+    MEGASetChangeTypeName      = 0x02,
+    MEGASetChangeTypeCover     = 0x04,
+    MEGASetChangeTypeRemoved   = 0x08,
+    MEGASetChangeTypeExported  = 0x10
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -58,6 +59,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic) uint64_t userId;
 
 /**
+ * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
+ *
+ * @return Public id of Set.
+ */
+@property (readonly, nonatomic) uint64_t publicId;
+
+/**
  * @brief Returns id of Element set as 'cover' for current Set.
  *
  * It will return INVALID_HANDLE if no cover was set or if the Element became invalid
@@ -73,6 +81,13 @@ NS_ASSUME_NONNULL_BEGIN
  * @return timestamp value.
  */
 @property (readonly, nonatomic) NSDate *timestamp;
+
+/**
+ * @brief Returns creation timestamp of current Set.
+ *
+ * @return timestamp value.
+ */
+@property (readonly, nonatomic) NSDate *timestampCreated;
 
 /**
  * @brief Returns name of current Set.
@@ -103,9 +118,21 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGASetChangeTypeRemoved              = 0x08
  * Check if the Set was removed
  *
+ * - MEGASetChangeTypeExported             = 0x10
+ * Check if the Set was exported or disabled (i.e. exporting ended)
+ *
  * @return YES if this Set has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetChangeType)changeType;
+
+/**
+ * @brief Returns true if this Set is exported (can be accessed via public link)
+ *
+ * Public link is retrieved when the Set becomes exported
+ *
+ * @return true if this Set is exported
+ */
+- (BOOL)isExported;
 
 @end
 
