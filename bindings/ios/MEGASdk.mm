@@ -1544,7 +1544,7 @@ using namespace mega;
 }
 
 - (BOOL)isExportedSet:(MEGAHandle)sid {
-    if (self.megaApi == nil) return NO;
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return NO;
     
     return self.megaApi->isExportedSet(sid);
 }
