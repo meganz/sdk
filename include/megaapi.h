@@ -11096,6 +11096,8 @@ class MegaApi
          * You take the ownership of the returned value.
          * Use delete [] to free it.
          *
+         * @deprecated
+         *
          * @return RSA private key of the current account
          */
         char *getMyRSAPrivateKey();
