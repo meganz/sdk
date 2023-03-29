@@ -2906,7 +2906,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     string n_localname = n->localname.toName(*client.fsaccess);
     if (n_localname.size() && n->parent)
     {
-        EXPECT_EQ(compareUtf(mn->fsName(), false, n->localname, false, false), 0)
+        EXPECT_EQ(compareUtf(mn->fsName(), true, n->localname, true, false), 0)
             << "Localnode's localname vs model node fsname mismatch: '"
             << n->localname.toPath(false)
             << "', '"
