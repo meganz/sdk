@@ -11454,7 +11454,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false; // What should this be used for ?
     A1dtls.schedId = UNDEF;
     A1dtls.chatid = UNDEF;
     A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
@@ -11484,7 +11483,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false; // What should this be used for ?
     A1dtls.schedId = UNDEF;
     A1dtls.chatid = UNDEF;
     A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
@@ -11513,7 +11511,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false; // What should this be used for ?
     A1dtls.schedId = UNDEF;
     A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
     deleteScheduledMeeting(0, chatid);
