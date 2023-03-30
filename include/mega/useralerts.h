@@ -160,7 +160,7 @@ namespace UserAlert
 
         void initTs(m_time_t dts, m_time_t rts);
 
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static IncomingPendingContact* unserialize(string*, unsigned id);
@@ -172,8 +172,8 @@ namespace UserAlert
 
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
-        virtual bool checkprovisional(handle ou, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        virtual bool checkprovisional(handle ou, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static ContactChange* unserialize(string*, unsigned id);
@@ -185,7 +185,7 @@ namespace UserAlert
 
         UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static UpdatedPendingContactIncoming* unserialize(string*, unsigned id);
@@ -197,7 +197,7 @@ namespace UserAlert
 
         UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static UpdatedPendingContactOutgoing* unserialize(string*, unsigned id);
@@ -209,7 +209,7 @@ namespace UserAlert
 
         NewShare(UserAlertRaw& un, unsigned int id);
         NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static NewShare* unserialize(string*, unsigned id);
@@ -224,8 +224,8 @@ namespace UserAlert
 
         DeletedShare(UserAlertRaw& un, unsigned int id);
         DeletedShare(handle uh, const string& email, handle removerhandle, handle folderhandle, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
-        virtual void updateEmail(MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
+        virtual void updateEmail(MegaClient* mc) override;
 
         bool serialize(string*) override;
         static DeletedShare* unserialize(string*, unsigned id);
@@ -241,7 +241,7 @@ namespace UserAlert
         NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
                        vector<handle>&& fileHandles, vector<handle>&& folderHandles);
 
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static NewSharedNodes* unserialize(string*, unsigned id);
@@ -255,7 +255,7 @@ namespace UserAlert
         RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                           vector<handle>&& handles);
 
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static RemovedSharedNode* unserialize(string*, unsigned id);
@@ -268,7 +268,7 @@ namespace UserAlert
         UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
         UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                           vector<handle>&& handles);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static UpdatedSharedNode* unserialize(string*, unsigned id);
@@ -281,7 +281,7 @@ namespace UserAlert
 
         Payment(UserAlertRaw& un, unsigned int id);
         Payment(bool s, int plan, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
         string getProPlanName();
 
         bool serialize(string*) override;
@@ -293,7 +293,7 @@ namespace UserAlert
         m_time_t expiryTime;
         PaymentReminder(UserAlertRaw& un, unsigned int id);
         PaymentReminder(m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static PaymentReminder* unserialize(string*, unsigned id);
@@ -307,7 +307,7 @@ namespace UserAlert
 
         Takedown(UserAlertRaw& un, unsigned int id);
         Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
-        virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void text(string& header, string& title, MegaClient* mc) override;
 
         bool serialize(string*) override;
         static Takedown* unserialize(string*, unsigned id);

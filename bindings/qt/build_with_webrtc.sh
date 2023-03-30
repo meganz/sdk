@@ -1,4 +1,4 @@
-#/bin/bash -i
+#!/bin/bash -i
 set -e
 
 # Path of the src directory of WebRTC
