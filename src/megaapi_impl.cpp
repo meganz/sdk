@@ -7264,7 +7264,7 @@ char* MegaApiImpl::getPrivateKey(int type)
         if (av)
         {
             unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
-            if (tlvRecords &&  type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519)
+            if (tlvRecords &&  (type == MegaApi::PRIVATE_KEY_ED25519 || type == MegaApi::PRIVATE_KEY_CU25519))
             {
                 tlvRecords->get(type == MegaApi::PRIVATE_KEY_ED25519 ? EdDSA::TLV_KEY : ECDH::TLV_KEY, privateKey);
             }
@@ -7281,7 +7281,7 @@ char* MegaApiImpl::getPrivateKey(int type)
     }
 
 
-    std::string privateKeyBase64 = std::move(Base64::btoa(privateKey));
+    std::string privateKeyBase64 = Base64::btoa(privateKey);
 
     return MegaApi::strdup(privateKeyBase64.c_str());
 }
