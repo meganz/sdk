@@ -16,6 +16,7 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
 
 #ifdef ENABLE_SYNC
     sync = NULL;
+    syncStats = NULL;
     localPath = NULL;
     newState = 0;
 #endif
@@ -33,6 +34,7 @@ QTMegaEvent::~QTMegaEvent()
 
 #ifdef ENABLE_SYNC
     delete sync;
+    delete syncStats;
     delete localPath;
 #endif
 }
@@ -118,6 +120,11 @@ MegaSync *QTMegaEvent::getSync()
     return sync;
 }
 
+MegaSyncStats *QTMegaEvent::getSyncStats()
+{
+    return syncStats;
+}
+
 string *QTMegaEvent::getLocalPath()
 {
     return localPath;
@@ -131,6 +138,11 @@ int QTMegaEvent::getNewState()
 void QTMegaEvent::setSync(MegaSync *sync)
 {
     this->sync = sync;
+}
+
+void QTMegaEvent::setSyncStats(MegaSyncStats *stats)
+{
+    this->syncStats = stats;
 }
 
 void QTMegaEvent::setLocalPath(string *localPath)
