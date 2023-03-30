@@ -3774,7 +3774,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
-SyncConfigVector Syncs::getConfigs(bool onlyActive, bool excludePaused) const
+SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     assert(onSyncThread() || !onSyncThread());
 
@@ -3783,7 +3783,7 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive, bool excludePaused) const
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        if ((s->mSync && (!excludePaused || !s->mConfig.mTemporarilyPaused))
+        if (s->mSync
             || !onlyActive)
         {
             v.push_back(s->mConfig);
@@ -5566,7 +5566,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     mSyncConfigStore.reset();
 
     // Remove all syncs from RAM.
-    for (auto& sc : getConfigs(false, false))
+    for (auto& sc : getConfigs(false))
     {
         SyncConfig removed;
         unloadSyncByBackupID(sc.mBackupId, false, removed);

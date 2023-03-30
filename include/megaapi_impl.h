@@ -2051,8 +2051,6 @@ protected:
     string_vector mList;
 };
 
-using MegaStringListPtr = unique_ptr<MegaStringList>;
-
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
 
 class MegaStringListMapPrivate : public MegaStringListMap
