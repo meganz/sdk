@@ -919,6 +919,10 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
+    rootnodes.files.setUndef();
+    rootnodes.rubbish.setUndef();
+    rootnodes.vault.setUndef();
+
     if (mTable) mTable->removeNodes();
 }
 
