@@ -977,6 +977,10 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
+    rootnodes.files.setUndef();
+    rootnodes.rubbish.setUndef();
+    rootnodes.vault.setUndef();
+
     if (mTable) mTable->removeNodes();
 }
 
@@ -1234,7 +1238,7 @@ void NodeManager::notifyPurge()
             {
                 // make this just a warning to avoid auto test failure
                 // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << toNodeHandle(n->nodehandle) << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
