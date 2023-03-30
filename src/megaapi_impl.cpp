@@ -5639,14 +5639,8 @@ MegaApiImpl::~MegaApiImpl()
 {
     // the fireOnFinish won't be called for this one, so delete it ourselves
     auto shutdownRequest = ::mega::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DELETE);
-    auto request = shutdownRequest.get();
 
-    shutdownRequest->performRequest = [this, request]()
-    {
-        return performRequest_delete(request);
-    };
-
-    requestQueue.push(request);
+    requestQueue.push(shutdownRequest.get());
     waiter->notify();
     thread.join();
     assert(client == nullptr);
@@ -18407,6 +18401,19 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_DELETE:
+        {
+#ifdef HAVE_LIBUV
+            g.unlock();
+            httpServerStop();
+            ftpServerStop();
+            g.lock();
+#endif
+            abortPendingActions();
+            threadExit = 1;
+            break;
+        }
+
         case MegaRequest::TYPE_PUT_SET:
         {
             Set s;
@@ -21528,19 +21535,6 @@ void MegaApiImpl::reportEvent(const char* details, MegaRequestListener* listener
 
     requestQueue.push(request);
     waiter->notify();
-}
-
-error MegaApiImpl::performRequest_delete(MegaRequestPrivate* request)
-{
-#ifdef HAVE_LIBUV
-            g.unlock();
-            httpServerStop();
-            ftpServerStop();
-            g.lock();
-#endif
-            abortPendingActions();
-            threadExit = 1;
-            return API_OK;
 }
 
 error MegaApiImpl::performRequest_enumeratequotaitems(MegaRequestPrivate* request)

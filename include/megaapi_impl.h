@@ -3610,7 +3610,6 @@ private:
 #endif
         error performRequest_getUserData(MegaRequestPrivate* request);
         error performRequest_enumeratequotaitems(MegaRequestPrivate* request);
-        error performRequest_delete(MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
