@@ -5639,8 +5639,14 @@ MegaApiImpl::~MegaApiImpl()
 {
     // the fireOnFinish won't be called for this one, so delete it ourselves
     auto shutdownRequest = ::mega::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DELETE);
+    auto request = shutdownRequest.get();
 
-    requestQueue.push(shutdownRequest.get());
+    shutdownRequest->performRequest = [this, request]()
+    {
+        return performRequest_delete(request);
+    };
+
+    requestQueue.push(request);
     waiter->notify();
     thread.join();
     assert(client == nullptr);
@@ -7420,6 +7426,12 @@ void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 void MegaApiImpl::getPricing(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PRICING, listener);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_enumeratequotaitems(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7431,6 +7443,12 @@ void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, in
     request->setParentHandle(lastPublicHandle);
     request->setParamType(lastPublicHandleType);
     request->setTransferredBytes(lastAccessTimestamp);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_enumeratequotaitems(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7440,6 +7458,12 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_UPGRADE_ACCOUNT, listener);
     request->setNodeHandle(productHandle);
     request->setNumber(paymentMethod);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_enumeratequotaitems(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7562,14 +7586,6 @@ int MegaApiImpl::getPasswordStrength(const char *password)
         return MegaApi::PASSWORD_STRENGTH_WEAK;
     }
     return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
-}
-
-void MegaApiImpl::reportEvent(const char *details, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
-    request->setText(details);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 bool MegaApiImpl::usingHttpsOnly()
@@ -8469,14 +8485,6 @@ void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listen
     waiter->notify();
 }
 
-void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER, listener);
-    request->setNumber(period);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData,
     bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile)
 {
@@ -8855,97 +8863,6 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
-    request->setNodeHandle(megaHandle);
-    request->setFile(localFolder);
-
-    if (name || type == SyncConfig::TYPE_BACKUP)
-    {
-        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-    request->setParamType(type);
-    request->setLink(driveRootIfExternal);
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
-    request->setFile(externalDriveRoot);
-    request->setListener(listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS, listener);
-    request->setFile(externalDriveRoot);
-    request->setListener(listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
-                                      long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
-
-    request->setNodeHandle(megaHandle);
-    if(localFolder)
-    {
-        request->setFile(localFolder);
-    }
-
-    if(name)
-    {
-        request->setName(name);
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-
-    request->setLink(remotePath);
-    request->setFlag(enabled);
-    request->setNumDetails(temporaryDisabled);
-    request->setNumber(localfp);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
-
-    if (blockStatus < 0) blockStatus = 999;
-    if (storageStatus < 0) storageStatus = 999;
-    if (businessStatus < 0) businessStatus = 999;
-    request->setNumber(storageStatus+1000*blockStatus+1000000*businessStatus);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* listener)
-{
-    auto type = MegaRequest::TYPE_IMPORT_SYNC_CONFIGS;
-    auto request = make_unique<MegaRequestPrivate>(type, listener);
-
-    request->setText(configs);
-
-    requestQueue.push(request.release());
-
-    waiter->notify();
-}
-
 const char* MegaApiImpl::exportSyncConfigs()
 {
     string configs;
@@ -8956,15 +8873,6 @@ const char* MegaApiImpl::exportSyncConfigs()
     }
 
     return MegaApi::strdup(configs.c_str());
-}
-
-void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setParentHandle(backupId);
-    request->setFlag(true);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener)
@@ -18491,6 +18399,14 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EEXPIRED;
             break;
         }
+#ifdef ENABLE_SYNC
+        case MegaRequest::TYPE_REMOVE_SYNCS:
+        {
+            e = API_EARGS;
+            assert(false); // this function deprecated, it wasn't used (and, questions about which error to report if multiple occur)
+            break;
+        }
+#endif
         case MegaRequest::TYPE_PUT_SET:
         {
             Set s;
@@ -21206,16 +21122,46 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_TIMER:
+        }
+    }
+}
+
+void MegaApiImpl::startTimer(int64_t period, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER, listener);
+    request->setNumber(period);
+
+    request->performRequest = [this, request]()
         {
             int delta = int(request->getNumber());
             TimerWithBackoff *twb = new TimerWithBackoff(client->rng, request->getTag());
             twb->backoff(delta);
-            e = client->addtimer(twb);
-            break;
-        }
+            return client->addtimer(twb);
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #ifdef ENABLE_SYNC
-        case MegaRequest::TYPE_ADD_SYNC:
+void MegaApiImpl::syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
+    request->setNodeHandle(megaHandle);
+    request->setFile(localFolder);
+
+    if (name || type == SyncConfig::TYPE_BACKUP)
+    {
+        request->setName(name);  // for TYPE_BACKUP, if empty, replacement name will be created when sending request
+    }
+    else if (localFolder)
+    {
+        request->setName(request->getFile());
+    }
+    request->setParamType(type);
+    request->setLink(driveRootIfExternal);
+
+    request->performRequest = [this, request]()
         {
             SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
 
@@ -21223,8 +21169,7 @@ void MegaApiImpl::sendPendingRequests()
             if (localPath.empty())
             {
                 LOG_debug << "Error: empty local path";
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             Node* node = client->nodebyhandle(request->getNodeHandle());
@@ -21232,8 +21177,7 @@ void MegaApiImpl::sendPendingRequests()
                 (!node || (node->type == FILENODE)))
             {
                 LOG_debug << "Node not found for sync add";
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             LocalPath localPathLP(LocalPath::fromAbsolutePath(localPath));
@@ -21269,41 +21213,71 @@ void MegaApiImpl::sendPendingRequests()
                 addSyncByRequest(request, syncConfig, nullptr);
             }
 
-            break;
-        }
-        case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::loadExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+
+    request->performRequest = [this, request]()
         {
             const char* externalDrive = request->getFile();
             if (!externalDrive)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
             else
             {
                 client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
                 });
+                return API_OK;
             }
-            break;
-        }
-        case MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS:
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::closeExternalBackupSyncsFromExternalDrive(const char* externalDriveRoot, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS, listener);
+    request->setFile(externalDriveRoot);
+    request->setListener(listener);
+
+    request->performRequest = [this, request]()
         {
             const char* externalDrive = request->getFile();
             if (!externalDrive)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
             else
             {
                 client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
                 });
+                return API_OK;
             }
-            break;
-        }
-        case MegaRequest::TYPE_IMPORT_SYNC_CONFIGS:
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_IMPORT_SYNC_CONFIGS, listener);
+    request->setText(configs);
+
+    request->performRequest = [this, request]()
         {
             if (const auto* configs = request->getText())
             {
@@ -21315,19 +21289,47 @@ void MegaApiImpl::sendPendingRequests()
                   };
 
                 client->importSyncConfigs(configs, std::move(completion));
-                break;
+                return API_OK;
             }
 
-            e = API_EARGS;
-            break;
-        }
-        case MegaRequest::TYPE_COPY_SYNC_CONFIG:
+            return API_EARGS;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name, MegaHandle megaHandle, const char* remotePath,
+    long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
+
+    request->setNodeHandle(megaHandle);
+    if (localFolder)
+    {
+        request->setFile(localFolder);
+    }
+
+    if (name)
+    {
+        request->setName(name);
+    }
+    else if (localFolder)
+    {
+        request->setName(request->getFile());
+    }
+
+    request->setLink(remotePath);
+    request->setFlag(enabled);
+    request->setNumDetails(temporaryDisabled);
+    request->setNumber(localfp);
+
+    request->performRequest = [this, request]()
         {
             const char *localPath = request->getFile();
             if(!localPath)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             const char *name = request->getName();
@@ -21394,9 +21396,23 @@ void MegaApiImpl::sendPendingRequests()
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             });
-            break;
-        }
-        case MegaRequest::TYPE_COPY_CACHED_STATUS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
+
+    if (blockStatus < 0) blockStatus = 999;
+    if (storageStatus < 0) storageStatus = 999;
+    if (businessStatus < 0) businessStatus = 999;
+    request->setNumber(storageStatus + 1000 * blockStatus + 1000000 * businessStatus);
+
+    request->performRequest = [this, request]()
         {
             auto number = request->getNumber();
             int businessStatusValue = static_cast<int>(number / 1000000);
@@ -21424,6 +21440,7 @@ void MegaApiImpl::sendPendingRequests()
                 return API_OK;
             };
 
+            error e = API_OK;
             auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
             if (!e)
             {
@@ -21444,29 +21461,32 @@ void MegaApiImpl::sendPendingRequests()
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_SYNCS:
-        {
-            e = API_EARGS;
-            assert(false); // this function deprecated, it wasn't used (and, questions about which error to report if multiple occur)
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_SYNC:
+            return e;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
+    request->setParentHandle(backupId);
+    request->setFlag(true);
+
+    request->performRequest = [this, request]()
         {
             auto backupId = request->getParentHandle();
             if (backupId == INVALID_HANDLE)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             SyncConfig c;
             if (!client->syncs.syncConfigByBackupId(backupId, c))
             {
                 LOG_err << "Backup id not found: " << Base64Str<MegaClient::BACKUPHANDLE>(backupId);
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             request->setFile(c.mLocalPath.toPath(false).c_str());
@@ -21476,16 +21496,25 @@ void MegaApiImpl::sendPendingRequests()
             };
 
             client->syncs.deregisterThenRemoveSync(backupId, completion, false);
-            break;
-        }
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif  // ENABLE_SYNC
-        case MegaRequest::TYPE_REPORT_EVENT:
+
+void MegaApiImpl::reportEvent(const char* details, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REPORT_EVENT, listener);
+    request->setText(details);
+
+    request->performRequest = [this, request]()
         {
             const char *details = request->getText();
             if(!details)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             string event = "A"; //Application event
@@ -21494,10 +21523,15 @@ void MegaApiImpl::sendPendingRequests()
             Base64::btoa((byte *)details, size, base64details);
             client->reportevent(event.c_str(), base64details);
             delete [] base64details;
-            break;
-        }
-        case MegaRequest::TYPE_DELETE:
-        {
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_delete(MegaRequestPrivate* request)
+{
 #ifdef HAVE_LIBUV
             g.unlock();
             httpServerStop();
@@ -21506,32 +21540,26 @@ void MegaApiImpl::sendPendingRequests()
 #endif
             abortPendingActions();
             threadExit = 1;
-            break;
-        }
-        case MegaRequest::TYPE_GET_PRICING:
-        case MegaRequest::TYPE_GET_PAYMENT_ID:
-        case MegaRequest::TYPE_UPGRADE_ACCOUNT:
-        {
+            return API_OK;
+}
+
+error MegaApiImpl::performRequest_enumeratequotaitems(MegaRequestPrivate* request)
+{
             if ((request->getType() == MegaRequest::TYPE_GET_PAYMENT_ID)
                 && (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
                     || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT))
             {
-               e = API_EARGS;
-               break;
+                return API_EARGS;
             }
 
             int method = int(request->getNumber());
             if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->purchase_enumeratequotaitems();
-            break;
-        }
-        }
-    }
+            return API_OK;
 }
 
 void MegaApiImpl::submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener* listener)
