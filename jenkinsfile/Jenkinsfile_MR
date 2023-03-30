@@ -8,8 +8,6 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        MEGACHAT_BRANCH = ' '
-        ANDROID_BRANCH = ' '
         APIURL_TO_TEST = ' '
     }
 
@@ -61,7 +59,7 @@ pipeline {
                     steps {
                         script{
                             println "${env.gitlabMergeRequestDescription}"
-                            MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                            env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
                                 echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
@@ -88,7 +86,7 @@ pipeline {
                     steps {
                         script{
                             println "${env.gitlabMergeRequestDescription}"
-                            ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                            env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println ANDROID_BRANCH
                             if (ANDROID_BRANCH == ""){
                                 echo "ANDROID_BRANCH was not found on description so develop will be used by default"
@@ -115,7 +113,7 @@ pipeline {
                     steps {
                         script{
                             println "${env.gitlabMergeRequestDescription}"
-                            IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                            env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println IOS_BRANCH
                             if (IOS_BRANCH == ""){
                                 echo "IOS_BRANCH was not found on description so develop will be used by default"
@@ -186,7 +184,6 @@ pipeline {
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_MACOS', value: true),
@@ -243,7 +240,6 @@ pipeline {
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_LINUX', value: true)
@@ -300,7 +296,6 @@ pipeline {
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_WINDOWS', value: true)
@@ -352,16 +347,16 @@ pipeline {
                     steps {
                         gitlabCommitStatus(name: 'MEGAchat build & test') {
                             script {
-                                echo "Triggering SDK job for Windows."
+                                echo "Triggering SDK job for MEGAchat."
                                 def triggeredBuild = build job: 'MegaSDK-MEGAchat-MR', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_MEGACHAT', value: true)
-                                    ]
+                                    ].plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+
                                 env.TRIGGERED_BUILD_URL_MEGACHAT = triggeredBuild.getAbsoluteUrl()
                                 env.TRIGGERED_PROJECT_NAME_MEGACHAT = triggeredBuild.getProjectName()
                                 env.TRIGGERED_BUILD_DISPLAY_NAME_MEGACHAT = triggeredBuild.getFullDisplayName()
@@ -414,12 +409,11 @@ pipeline {
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                    string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_ANDROID', value: true)
-                                    ]
+                                    ].plus(env.ANDROID_BRACH ? [string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRACH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+
                                 env.TRIGGERED_BUILD_URL_ANDROID = triggeredBuild.getAbsoluteUrl()
                                 env.TRIGGERED_PROJECT_NAME_ANDROID = triggeredBuild.getProjectName()
                                 env.TRIGGERED_BUILD_DISPLAY_NAME_ANDROID = triggeredBuild.getFullDisplayName()
@@ -467,17 +461,17 @@ pipeline {
                     steps {
                         gitlabCommitStatus(name: 'iOS build') {
                             script {
-                                echo "Triggering SDK job for Android Example App."
+                                echo "Triggering SDK job for iOS."
                                 def triggeredBuild = build job: 'MegaSDK-crossiOS-MR', wait: true, propagate: false, parameters: [
                                     string(name: 'SOURCE_BRANCH', value: "${env.gitlabSourceBranch}"),
                                     string(name: 'TARGET_BRANCH', value: "${env.gitlabTargetBranch}"),
                                     string(name: 'BUILD_OPTIONS', value: "${BUILD_OPTIONS}"),
-                                    string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}"),
-                                    string(name: 'IOS_BRANCH', value: "${IOS_BRANCH}"),
                                     string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                     string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                     booleanParam(name: 'BUILD_IOS', value: true)
-                                    ]
+                                    ].plus(env.IOS_BRANCH ? [string(name: 'IOS_BRANCH', value: "${IOS_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+
+
                                 env.TRIGGERED_BUILD_URL_IOS = triggeredBuild.getAbsoluteUrl()
                                 env.TRIGGERED_PROJECT_NAME_IOS = triggeredBuild.getProjectName()
                                 env.TRIGGERED_BUILD_DISPLAY_NAME_IOS = triggeredBuild.getFullDisplayName()
