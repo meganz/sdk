@@ -7280,7 +7280,10 @@ char* MegaApiImpl::getPrivateKey(int type)
         }
     }
 
-    return MegaApi::strdup(privateKey.c_str());
+
+    std::string privateKeyBase64 = std::move(Base64::btoa(privateKey));
+
+    return MegaApi::strdup(privateKeyBase64.c_str());
 }
 
 void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)

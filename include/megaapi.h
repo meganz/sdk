@@ -12371,7 +12371,7 @@ class MegaApi
         };
 
         /**
-         * @brief Returns private key from desired type
+         * @brief Returns private key from desired type in base64-encoded
          *
          * This method returns invalid value until fetch nodes has finished
          *
