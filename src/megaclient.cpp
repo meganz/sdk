@@ -7600,7 +7600,7 @@ void MegaClient::sc_scheduledmeetings()
         textchat_map::iterator it = chats.find(sm->chatid());
         if (it == chats.end())
         {
-            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsmp";
             continue;
         }
         TextChat* chat = it->second;
