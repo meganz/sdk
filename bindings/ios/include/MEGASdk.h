@@ -3481,27 +3481,130 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 -(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Request to fetch a Set and its Elements
+ * @brief Generate a public link of a Set in MEGA
  *
- * The associated request type with this request is MEGARequestTypeFetchSet
+ * The associated request type with this request is MEGARequestTypeExportSet
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest parentHandle] - Returns id of the Set to be fetched
+ *
+ * - MEGARequest::nodeHandle - Returns id of the Set used as parameter
+ * - MEGARequest::flag       - Returns a boolean set to true representing the call was
+ *                          meant to enable/create the export
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest set]           - Returns the Set
- * - [MEGARequest elementsInSet] - Returns Elements in Set
+ * - [MEGARequest set]  - MEGASet including the public id
+ * - [MEGARequest link] - Public link
  *
- * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
- * - MEGAErrorTypeApiENoent    - Set could not be found
- * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted
- * - MEGAErrorTypeApiEArgs     - Malformed
- * - MEGAErrorTypeApiEAccess   - Permissions Error
+ * MEGAErrorTypeApiOk results in onSetsUpdate being triggered as well
  *
- * @param sid the id of the Set to be fetched
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param sid The id of the Set to get the public link
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+-(void)exportSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Stop sharing a Set
+ *
+ * The associated request type with this request is MEGARequestTypeExportSet
+ * Valid data in the MEGARequest object received on callbacks:
+ *
+ * - [MEGARequest nodeHandle] - Returns id of the Set used as parameter
+ * - [MEGARequest flag]     - Returns a boolean set to false representing the call was meant to disable the export
+ *
+ * MEGAErrorTypeApiOk results in onSetsUpdate being triggered as well
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param sid The id of the Set to stop sharing
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)disableExportSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Stops public Set preview mode for current SDK instance
+ *
+ * MEGASDK instance is no longer useful until a new login
+ *
+ */
+-(void)stopPublicSetPreview;
+
+/**
+ * @brief Returns if this MEGASDK instance is in a public/exported Set preview mode
+ *
+ * @returns True if public Set preview mode is enabled
+ *
+ */
+-(BOOL)inPublicSetPreview;
+
+/**
+ * @brief Get current public/exported Set in Preview mode
+ *
+ * The response value is stored as a MEGASet.
+ *
+ * You take the ownership of the returned value
+ *
+ * @return Current public/exported Set in preview mode or nullptr if there is none
+ *
+ */
+-(nullable MEGASet *)publicSetInPreview;
+
+/**
+ * @brief Request to fetch a public/exported Set and its Elements.
+ *
+ * The associated request type with this request is MEGARequestTypeFetchSet
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest link] - Returns the link used for the public Set fetch request
+ *
+ * In addition to fetching the Set (including Elements), SDK's instance is set
+ * to preview mode for the public Set. This mode allows downloading of foreign
+ * SetElements included in the public Set.
+ *
+ * To disable the preview mode and release resources used by the preview Set,
+ * use [MEGASdk stopPublicSetPreview]
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest set] - Returns the Set
+ * - [MEGARequest elementsInSet] - Returns the list of Elements
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - Set could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs - Malformed (from API).
+ * - MEGAErrorTypeApiEAccess - Permissions Error (from API).
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param publicSetLink Public link to a Set in MEGA
+ * @param delegate MegaRequestListener to track this request
+ */
+- (void)fetchPublicSet:(NSString *)publicSetLink delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets a MEGANode for the foreign MEGASetElement that can be used to download the Element
+ *
+ * The associated request type with this request is MEGARequestTypeExportedSetElement
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest publicNode] - Returns the MEGANode
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEAccess - Public Set preview mode is not enabled
+ * - MEGAErrorTypeApiEArgs - MEGAHandle for MEGASetElement provided as param doesn't match any Element in previewed Set
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param eid MEGAHandle of target MEGASetElement from Set in preview mode
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)previewElementNode:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Request to update the name of a Set
@@ -3677,7 +3780,18 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return the requested MEGASet, or nil if not found
  */
--(MEGASet *)setBySid:(MEGAHandle)sid;
+-(nullable MEGASet *)setBySid:(MEGAHandle)sid;
+
+/**
+ * @brief Returns true if the Set has been exported (has a public link)
+ *
+ * Public links are created by calling MEGASDK::exportSet
+ *
+ * @param sid the id of the Set to check
+ *
+ * @return true if param sid is an exported Set
+ */
+-(BOOL)isExportedSet:(MEGAHandle)sid;
 
 /**
  * @brief Get a list of all Sets available for current user.
@@ -3696,6 +3810,19 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return Element id of the cover, or INVALID_HANDLE if not set or invalid id
  */
 -(MEGAHandle)megaSetCoverBySid:(MEGAHandle)sid;
+
+/**
+ * @brief Gets a MEGANode for the foreign MEGASetElement that can be used to download the Element
+ *
+ * @param sid MEGAHandle of target Set to get its public link/URL
+ *
+ * @return Nsstring with the public URL if success, null otherwise
+ * In any case, one of the followings error codes with the result can be found in the log:
+ * - MEGAErrorTypeApiOk on success
+ * - MEGAErrorTypeApiENoent if sid doesn't match any owned Set or the Set is not exported
+ * - MEGAErrorTypeApiEArgs if there was an internal error composing the URL
+ */
+-(nullable NSString *)publicLinkForExportedSetBySid:(MEGAHandle)sid;
 
 /**
  * @brief Get a particular Element in a particular Set, for current user.
@@ -3719,7 +3846,19 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return all Elements in that Set, or nil if not found or none added
  */
-- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
+-(NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
+
+/**
+ * @brief Get current public/exported MEGASetElement in Preview mode
+ *
+ * The response value is stored as a MEGASetElement array.
+ *
+ * You take the ownership of the returned value
+ *
+ * @return Current public/exported MEGASetElements in preview mode or nullptr if there is none
+ *
+ */
+-(NSArray<MEGASetElement *> *)publicSetElementsInPreview;
 
 /**
  * @brief Get Element count of the Set with the given id, for current user.
@@ -3729,7 +3868,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * @return Element count of requested Set, or 0 if not found
  */
-- (NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
+-(NSUInteger)megaSetElementCount:(MEGAHandle)sid includeElementsInRubbishBin:(BOOL)includeElementsInRubbishBin;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.

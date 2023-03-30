@@ -1538,8 +1538,8 @@ public:
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
-    bool procjsonobject(handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr) const;
-    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr) const;
+    bool procjsonobject(handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
 
@@ -1573,14 +1573,12 @@ class SetElement;
 class MEGA_API CommandFetchSet : public CommandSE
 {
 public:
-    CommandFetchSet(MegaClient*, handle id, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    CommandFetchSet(MegaClient*, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
     bool procresult(Result) override;
 
 private:
     std::function<void(Error, Set*, map<handle, SetElement>*)> mCompletion;
 };
-
-class SetElement;
 
 class MEGA_API CommandPutSetElements : public CommandSE
 {
@@ -1627,6 +1625,17 @@ public:
 private:
     handle mSetId = UNDEF;
     handle mElementId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+class MEGA_API CommandExportSet : public CommandSE
+{
+public:
+    CommandExportSet(MegaClient*, Set&& s, bool makePublic, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<Set> mSet;
     std::function<void(Error)> mCompletion;
 };
 

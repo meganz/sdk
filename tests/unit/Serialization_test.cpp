@@ -276,7 +276,7 @@ TEST(Serialization, Node_whenFolderIsEncrypted)
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, ::mega::NodeHandle().set6byte(42));
 
     n.attrstring.reset(new std::string("attrstring"));
-    n.setUndecryptedKey("nodekeydata");
+    n.setKey("nodekeydata");
 
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
@@ -293,7 +293,7 @@ TEST(Serialization, Node_whenFileIsEncrypted)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, ::mega::NodeHandle().set6byte(42));
 
     n.attrstring.reset(new std::string("attrstring"));
-    n.setUndecryptedKey("nodekeydata");
+    n.setKey("nodekeydata");
     n.size = 16;
 
     std::string data;
