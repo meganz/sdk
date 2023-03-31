@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/megaclient.h"
 #include "mega/command.h"
+#include "mega/logging.h"
 
 namespace mega {
 // add share node and return its index
@@ -47,6 +48,12 @@ void ShareNodeKeys::add(Node* n, Node* sn, int specific)
     if (!sn)
     {
         sn = n;
+    }
+
+    if (n->attrstring)  // invalid nodekey or undecryptable attributes
+    {
+        LOG_err << "Skip CR request for node: " << toNodeHandle(n->nodehandle) << " (invalid node key)";
+        return;
     }
 
     add(n->nodekey(), n->nodehandle, sn, specific);

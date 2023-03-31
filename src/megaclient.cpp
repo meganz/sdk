@@ -11172,6 +11172,15 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // Migrate the account to start using the new ^!keys attr.
 void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
 {
+    // Upgrade only fully logged in accounts.
+    // All keys must be available before proceeding.
+    if (loggedin() != FULLACCOUNT)
+    {
+        LOG_warn << "Not fully logged into an account to be upgraded.";
+        completion(API_EARGS);
+        return;
+    }
+
     if (mKeyManager.generation())
     {
         LOG_warn << "Already upgraded";
@@ -12503,7 +12512,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
             // security feature: we only distribute node keys for our own outgoing shares.
-            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled";
+            LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled: " << toNodeHandle((*shares)[si]->nodehandle);
             (*shares)[si] = NULL;
             sendevent(99445, "Inshare key request rejected", 0);
         }
