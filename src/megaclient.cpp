@@ -11172,6 +11172,15 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // Migrate the account to start using the new ^!keys attr.
 void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
 {
+    // Upgrade only fully logged in accounts.
+    // All keys must be available before proceeding.
+    if (loggedin() != FULLACCOUNT)
+    {
+        LOG_warn << "Not fully logged into an account to be upgraded.";
+        completion(API_EARGS);
+        return;
+    }
+
     if (mKeyManager.generation())
     {
         LOG_warn << "Already upgraded";
