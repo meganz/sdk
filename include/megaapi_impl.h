@@ -712,22 +712,30 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+
+    MegaSetPrivate(const Set& s)
+        : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
+          mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
+    MegaHandle publicId() const override { return mPublicId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
+    int64_t cts() const override { return mCTs; }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
     bool hasChanged(int changeType) const override;
+    bool isExported() const override { return mPublicId != UNDEF; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
 private:
     MegaHandle mId;
+    MegaHandle mPublicId;
     MegaHandle mUser;
     m_time_t mTs;
+    m_time_t mCTs;
     string mName;
     MegaHandle mCover;
     std::bitset<CHANGE_TYPE_SIZE> mChanges;
@@ -785,7 +793,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
+    MegaSetElementListPrivate(const elementsmap_t* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
@@ -1400,6 +1408,7 @@ class MegaRequestPrivate : public MegaRequest
         // Set the function to be executed in sendPendingRequests()
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
+        std::function<error(TransferDbCommitter&)> performTransferRequest;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -2493,10 +2502,6 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
-        static void setCurrentThreadNameForRotativePerformanceLogger(const char * threadName);
-#endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
@@ -2660,11 +2665,12 @@ class MegaApiImpl : public MegaApp
         //Sets and Elements
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
@@ -2672,6 +2678,15 @@ class MegaApiImpl : public MegaApp
         unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
+        void fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        MegaSet* getPublicSetInPreview();
+        MegaSetElementList* getPublicSetElementsInPreview();
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void stopPublicSetPreview();
+        bool isExportedSet(MegaHandle sid);
+        bool inPublicSetPreview();
+
     private:
         bool nodeInRubbishCheck(handle) const;
 
@@ -3139,7 +3154,6 @@ protected:
         void fireOnSetsUpdate(MegaSetList* sets);
         void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
-        void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
 
 #ifdef ENABLE_SYNC
@@ -3513,8 +3527,8 @@ protected:
         void backupput_result(const Error&, handle backupId) override;
 
 protected:
-        // suggest reload due to possible race condition with other clients
-        void reload(const char*, ReasonsToReload) override;
+        // Notify sdk errors (DB, node serialization, ...) to apps
+        void notifyError(const char*, ErrorReason errorReason) override;
 
         // reload forced automatically by server
         void reloading() override;
@@ -3575,6 +3589,8 @@ protected:
 
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
+        void exportSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
         friend class MegaFolderUploadController;
@@ -3583,6 +3599,17 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
+        error performRequest_backupPut(MegaRequestPrivate* request);
+        error performRequest_verifyCredentials(MegaRequestPrivate* request);
+        error performRequest_completeBackgroundUpload(MegaRequestPrivate* request);
+        error performRequest_getBackgroundUploadURL(MegaRequestPrivate* request);
+        error performRequest_getAchievements(MegaRequestPrivate* request);
+#ifdef ENABLE_CHAT
+        error performRequest_chatStats(MegaRequestPrivate* request);
+#endif
+        error performRequest_getUserData(MegaRequestPrivate* request);
+        error performRequest_enumeratequotaitems(MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);

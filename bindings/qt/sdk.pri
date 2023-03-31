@@ -116,10 +116,6 @@ CONFIG(ENABLE_WERROR_COMPILATION) {
     }
 }
 
-CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
-  SOURCES += src/rotativeperformancelogger.cpp
-}
-
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
@@ -425,11 +421,6 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl
         }
     }
-}
-
-CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
-    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
-    DEFINES += ENABLE_LOG_PERFORMANCE
 }
 
 win32 {

@@ -2067,18 +2067,6 @@ long long MegaApi::getSDKtime()
     return pImpl->getSDKtime();
 }
 
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-void MegaApi::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
-{
-    MegaApiImpl::setUseRotativePerformanceLogger(logPath, logFileName, logToStdOut, archivedFilesAgeSeconds);
-}
-
-void MegaApi::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
-{
-    MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(threadName);
-}
-#endif
-
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     return pImpl->getStringHash(base64pwkey, inBuf);
@@ -5800,11 +5788,6 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->removeSet(sid, listener);
 }
 
-void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
-{
-    pImpl->fetchSet(sid, listener);
-}
-
 void MegaApi::createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     pImpl->putSetElements(sid, nodes, names, listener);
@@ -5864,6 +5847,57 @@ MegaSetElementList* MegaApi::getSetElements(MegaHandle sid, bool includeElements
 MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     return pImpl->getSetElement(sid, eid);
+}
+
+bool MegaApi::isExportedSet(MegaHandle sid)
+{
+    return pImpl->isExportedSet(sid);
+}
+
+void MegaApi::exportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->exportSet(sid, listener);
+}
+
+void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->disableExportSet(sid, listener);
+}
+
+void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
+{
+    pImpl->fetchPublicSet(publicSetLink, listener);
+}
+
+void MegaApi::stopPublicSetPreview()
+{
+    return pImpl->stopPublicSetPreview();
+}
+
+bool MegaApi::inPublicSetPreview()
+{
+    return pImpl->inPublicSetPreview();
+}
+
+MegaSet* MegaApi::getPublicSetInPreview()
+{
+    return pImpl->getPublicSetInPreview();
+}
+
+
+MegaSetElementList* MegaApi::getPublicSetElementsInPreview()
+{
+    return pImpl->getPublicSetElementsInPreview();
+}
+
+void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
+{
+    return pImpl->getPreviewElementNode(eid, listener);
+}
+
+const char* MegaApi::getPublicLinkForExportedSet(MegaHandle sid)
+{
+    return pImpl->getPublicLinkForExportedSet(sid);
 }
 
 void MegaApi::enableRequestStatusMonitor(bool enable)
