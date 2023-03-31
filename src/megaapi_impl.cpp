@@ -18290,8 +18290,6 @@ void MegaApiImpl::sendPendingScRequest()
 
 void MegaApiImpl::sendPendingRequests()
 {
-    int nextTag = 0;
-
     SdkMutexGuard g(sdkMutex);
 
     // For multiple consecutive requests of the same type (eg. remove transfer) this committer will put all the database activity into a single commit
@@ -18301,6 +18299,7 @@ void MegaApiImpl::sendPendingRequests()
 
     error e = API_OK;
     MegaRequestPrivate *request = nullptr;
+    bool firstIteration = true;
 
     while(1)
     {
@@ -18340,16 +18339,18 @@ void MegaApiImpl::sendPendingRequests()
 
         lastRequestType = request->getType();
 
-        if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
+        // only try this in the 1st iteration
+        if (firstIteration && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
+        firstIteration = false;
 
         if (request->getType() != MegaRequest::TYPE_EXECUTE_ON_THREAD)
         {
             if (!request->getTag())
             {
-                nextTag = client->nextreqtag();
+                int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
                 requestMap[nextTag] = request;
                 fireOnRequestStart(request);
@@ -18357,7 +18358,6 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 // this case happens when we queue requests already started
-                nextTag = request->getTag();
             }
         }
 
@@ -18636,7 +18636,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, nextTag, false);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, request->getTag(), false);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -18798,7 +18798,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
+                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, request->getTag(), false);
                 e = API_OK;
                 break;
             }
@@ -18901,11 +18901,11 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), nextTag, false);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), request->getTag(), false);
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn), nextTag);
+                    client->putnodes(email, move(tc.nn), request->getTag());
                 }
             }
             else
@@ -18986,11 +18986,11 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, request->getTag(), false);
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn), nextTag);
+                    client->putnodes(email, move(tc.nn), request->getTag());
                 }
             }
             break;
@@ -19041,7 +19041,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, nextTag, false);
+            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, request->getTag(), false);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -19136,7 +19136,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (e == API_OK)
             {
-                client->setshare(node, email, a, false, nullptr, nextTag, [this, request](Error e, bool){
+                client->setshare(node, email, a, false, nullptr, request->getTag(), [this, request](Error e, bool){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             }
@@ -19251,7 +19251,7 @@ void MegaApiImpl::sendPendingRequests()
             bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
                 [this, request](Error e, handle h, handle ph)
             {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
@@ -19412,7 +19412,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 client->locallogout(false, true);
-                client->restag = nextTag;
+                client->restag = request->getTag();
                 logout_result(API_OK);
             }
             break;
@@ -19857,7 +19857,7 @@ void MegaApiImpl::sendPendingRequests()
                 string fileattr;
                 appendFileAttribute(fileattr, type, fileattrhandle);
 
-                client->reqs.add(new CommandAttachFA(client, node->nodehandle, fatype(type), fileattr, nextTag));
+                client->reqs.add(new CommandAttachFA(client, node->nodehandle, fatype(type), fileattr, request->getTag()));
             }
             else
             {
@@ -19888,7 +19888,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, nextTag, std::move(attributedata));
+                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata));
             }
             break;
         }
@@ -21091,7 +21091,7 @@ void MegaApiImpl::sendPendingRequests()
                     MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY);
                     requestabort->setNumber(backuptag);
 
-                    nextTag = client->nextreqtag();
+                    int nextTag = client->nextreqtag();
                     requestabort->setTag(nextTag);
                     requestMap[nextTag]=requestabort;
                     fireOnRequestStart(requestabort);
