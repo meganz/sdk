@@ -57,8 +57,6 @@ struct MEGA_API NodeCore
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int OLDUPLOADTOKENLEN = 27;
-
     string nodekey;
 
     newnodesource_t source = NEW_NODE;
@@ -259,11 +257,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     } changed;
 
-    void setkey(const byte* = NULL);
 
+    void setKey(const string& key);
+    void setkey(const byte*);
     void setkeyfromjson(const char*);
-
-    void setUndecryptedKey(const std::string &undecryptedKey);
 
     void setfingerprint();
 

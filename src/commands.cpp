@@ -33,22 +33,17 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size_only, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
-    : mCompletion(std::move(completion)), data(std::move(cdata))
+
+CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
+    : mCompletion(std::move(completion))
 {
-    assert(!!size_only ^ !!data);   // get URL or upload data, not both
-    assert(!!mCompletion ^ !!data);  // completion and upload are incompatible
     cmd("ufa");
-    arg("s", data ? data->size() : size_only);
+    arg("s", size);
 
     if (cth.isNodeHandle())
     {
         arg("h", cth.nodeHandle());
     }
-
-    progressreported = 0;
-    persistent = true;  // object will be recycled either for retry or for
-                        // posting to the file attribute server
 
     if (usehttps)
     {
@@ -60,73 +55,86 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
         arg("v", 3);
     }
 
+    tag = ctag;
+}
+
+HttpReqFA::HttpReqFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata, bool getIP, MegaClient* client)
+    : data(std::move(cdata))
+{
+    tag = ctag;
+    progressreported = 0;
+
     th = cth;
     type = ctype;
 
     binary = true;
 
-    tag = ctag;
+    getURLForFACmd = [this, cth, ctype, usehttps, ctag, getIP, client](){
 
-    if (!mCompletion)
-    {
-        mCompletion = [this](Error e, const std::string & /*url*/, const vector<std::string> & /*ips*/)
-        {
-            if (!data || data->empty())
-            {
-                e = API_EARGS;
-                LOG_err << "Data object is " << (!data ? "nullptr" : "empty");
-            }
+        std::weak_ptr<HttpReqFA> weakSelf(shared_from_this());
 
-            if (e == API_OK)
+        return new CommandPutFA(cth, ctype, usehttps, ctag, data->size(), getIP,
+            [weakSelf, client](Error e, const std::string & url, const vector<std::string> & /*ips*/)
             {
-                LOG_debug << "Sending file attribute data";
-                progressreported = 0;
-                HttpReq::type = REQ_BINARY;
-                post(client, data->data(), static_cast<unsigned>(data->size()));
-            }
-            else
-            {
-                client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
-            }
-        };
-    }
+                auto self = weakSelf.lock();
+                if (!self) return;
+
+                if (!self->data || self->data->empty())
+                {
+                    e = API_EARGS;
+                    LOG_err << "Data object is " << (!self->data ? "nullptr" : "empty");
+                }
+
+                if (e == API_OK)
+                {
+                    LOG_debug << "Sending file attribute data";
+                    self->progressreported = 0;
+                    self->HttpReq::type = REQ_BINARY;
+                    self->posturl = url;
+
+                    // post sets the status for http processing state machine
+                    self->post(client, self->data->data(), static_cast<unsigned>(self->data->size()));
+                }
+                else
+                {
+                    // jumping to REQ_SUCCESS, but with no handle in `in`, means we failed overall (and don't retry)
+                    self->status = REQ_SUCCESS;
+                    client->app->putfa_result(self->th.nodeHandle().as8byte(), self->type, e);
+                }
+            });
+    };
 }
 
-bool HttpReqCommandPutFA::procresult(Result r)
+bool CommandPutFA::procresult(Result r)
 {
     client->looprequested = true;
 
     if (r.wasErrorOrOK())
     {
-        if (r.wasError(API_EAGAIN) || r.wasError(API_ERATELIMIT))
+        assert(!r.wasError(API_EAGAIN)); // these would not occur here, we would retry after backoff
+        assert(!r.wasError(API_ERATELIMIT));
+
+        if (r.wasError(API_EACCESS))
         {
-            status = REQ_FAILURE;
-        }
-        else
-        {
-            if (r.wasError(API_EACCESS))
+            // create a custom attribute indicating thumbnail can't be restored from this account
+            Node *n = client->nodeByHandle(th.nodeHandle());
+
+            char me64[12];
+            Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
+
+            if (n && client->checkaccess(n, FULL) &&
+                    (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
             {
-                // create a custom attribute indicating thumbnail can't be restored from this account
-                Node *n = client->nodeByHandle(th.nodeHandle());
+                LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                char me64[12];
-                Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
-
-                if (n && client->checkaccess(n, FULL) &&
-                        (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
-                {
-                    LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-
-                    // 'canChangeVault' is false here because restoration of file attributes is triggered by
-                    // downloads, so it cannot be triggered by a Backup operation
-                    bool canChangeVault = false;
-                    client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
-                }
+                // 'canChangeVault' is false here because restoration of file attributes is triggered by
+                // downloads, so it cannot be triggered by a Backup operation
+                bool canChangeVault = false;
+                client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
             }
-
-            status = REQ_SUCCESS;
-            mCompletion(r.errorOrOK(), {}, {});
         }
+
+        mCompletion(r.errorOrOK(), {}, {});
         return true;
     }
     else
@@ -149,10 +157,11 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 case EOO:
                     if (!p)
                     {
-                        status = REQ_FAILURE;
+                        mCompletion(API_EINTERNAL, {}, {});
                     }
                     else
                     {
+                        string posturl;
                         JSON::copystring(&posturl, p);
 
                         // cache resolved URLs if received
@@ -165,15 +174,12 @@ bool HttpReqCommandPutFA::procresult(Result r)
                         }
 
                         mCompletion(API_OK, posturl, ipsCopy);
-
-                        return true;
                     }
-                    break;
+                    return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        status = REQ_SUCCESS;
                         mCompletion(API_EINTERNAL, {}, {});
                         return false;
                     }
@@ -182,7 +188,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
     }
 }
 
-m_off_t HttpReqCommandPutFA::transferred(MegaClient *client)
+m_off_t HttpReqFA::transferred(MegaClient *client)
 {
     if (httpiohandle)
     {
@@ -9279,7 +9285,7 @@ bool CommandDismissBanner::procresult(Result r)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
 {
     for (;;)
     {
@@ -9290,24 +9296,16 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
             break;
 
         case MAKENAMEID1('u'):
-            if (u)
             {
-                *u = client->json.gethandle(MegaClient::USERHANDLE);
-            }
-            else if (!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.gethandle(MegaClient::USERHANDLE);
+                if (u) *u = buf;
             }
             break;
 
         case MAKENAMEID1('s'):
-            if (s)
             {
-                *s = client->json.gethandle(MegaClient::SETHANDLE);
-            }
-            else if (!client->json.storeobject())
-            {
-                return false;
+                const auto buf = client->json.gethandle(MegaClient::SETHANDLE);
+                if (s) *s = buf;
             }
             break;
 
@@ -9315,14 +9313,24 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
             ts = client->json.getint();
             break;
 
-        case MAKENAMEID1('o'):
-            if (o)
+        case MAKENAMEID3('c', 't', 's'):
             {
-                *o = client->json.getint();
+                const auto buf = client->json.getint();
+                if (cts) *cts = buf;
             }
-            else if (!client->json.storeobject())
+            break;
+
+        case MAKENAMEID1('o'):
             {
-                return false;
+                const auto buf = client->json.getint();
+                if (o) *o = buf;
+            }
+            break;
+
+        case MAKENAMEID2('p', 'h'):
+            {
+                const auto buf = client->json.gethandle(MegaClient::PUBLICSETHANDLE);
+                if (ph) *ph = buf;
             }
             break;
 
@@ -9339,9 +9347,9 @@ bool CommandSE::procjsonobject(handle& id, m_time_t& ts, handle* u, handle* s, i
     }
 }
 
-bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
 {
-    return r.hasJsonObject() && procjsonobject(id, ts, u, s, o);
+    return r.hasJsonObject() && procjsonobject(id, ts, u, cts, s, o, ph);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9383,9 +9391,10 @@ bool CommandPutSet::procresult(Result r)
     handle sId = 0;
     handle user = 0;
     m_time_t ts = 0;
+    m_time_t cts = 0;
     const Set* s = nullptr;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user, &cts);
 
     if (!parsedOk || (mSet->id() == UNDEF && !user))
     {
@@ -9398,6 +9407,7 @@ bool CommandPutSet::procresult(Result r)
         {
             mSet->setId(sId);
             mSet->setUser(user);
+            mSet->setCTs(cts);
             mSet->setChanged(Set::CH_NEW);
             s = client->addSet(move(*mSet));
         }
@@ -9452,12 +9462,16 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
-    std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+CommandFetchSet::CommandFetchSet(MegaClient* cl,
+    std::function<void(Error, Set*, elementsmap_t*)> completion)
     : mCompletion(completion)
 {
     cmd("aft");
-    arg("id", (byte*)&id, MegaClient::SETHANDLE);
+    if(!cl->inPublicSetPreview())
+    {
+        LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
+        assert(false);
+    }
 }
 
 bool CommandFetchSet::procresult(Result r)
@@ -9473,7 +9487,7 @@ bool CommandFetchSet::procresult(Result r)
     }
 
     map<handle, Set> sets;
-    map<handle, map<handle, SetElement>> elements;
+    map<handle, elementsmap_t> elements;
     e = client->readSetsAndElements(client->json, sets, elements);
     if (e != API_OK)
     {
@@ -9490,9 +9504,9 @@ bool CommandFetchSet::procresult(Result r)
     if (mCompletion)
     {
         Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
-        map<handle, SetElement>* els = elements.empty()
-                ? new map<handle, SetElement>()
-            : new map<handle, SetElement>(move(elements.begin()->second));
+        elementsmap_t* els = elements.empty()
+                             ? new elementsmap_t()
+                             : new elementsmap_t(move(elements.begin()->second));
         mCompletion(API_OK, s, els);
     }
 
@@ -9567,11 +9581,10 @@ bool CommandPutSetElements::procresult(Result r)
         }
         else if (client->json.enterobject())
         {
-            handle setId = 0;
             handle elementId = 0;
             m_time_t ts = 0;
             int64_t order = 0;
-            if (!procjsonobject(elementId, ts, nullptr, &setId, &order))
+            if (!procjsonobject(elementId, ts, nullptr, nullptr, nullptr, &order))
             {
                 LOG_err << "Sets: failed to parse Element object in `aepb` response";
                 allOk = false;
@@ -9651,7 +9664,7 @@ bool CommandPutSetElement::procresult(Result r)
     bool isNew = mElement->id() == UNDEF;
 #endif
     const SetElement* el = nullptr;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, nullptr, &order); // 'aep' does not return 's'
 
     if (!parsedOk)
     {
@@ -9763,6 +9776,48 @@ bool CommandRemoveSetElement::procresult(Result r)
     {
         mCompletion(e);
     }
+
+    return parsedOk;
+}
+
+CommandExportSet::CommandExportSet(MegaClient* cl, Set&& s, bool makePublic, std::function<void(Error)> completion)
+    : mSet(new Set(move(s))), mCompletion(completion)
+{
+    cmd("ass");
+    arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
+    if (!makePublic) arg("d", 1);
+
+    notself(cl);
+}
+
+bool CommandExportSet::procresult(Result r)
+{
+    handle sid = mSet->id();
+    handle publicId = UNDEF;
+    m_time_t ts = m_time(nullptr); // made it up for case that API returns [0] (like for "d":1)
+    Error e = API_OK;
+    const bool parsedOk = procerrorcode(r, e) || procresultid(r, sid, ts, nullptr, nullptr, nullptr, nullptr, &publicId);
+
+    if (sid != mSet->id())
+    {
+        LOG_err << "Sets: command 'ass' in processing result. Received Set id " << toHandle(sid)
+                << " expected Set id " << toHandle(mSet->id());
+        assert(false);
+    }
+
+    if ((parsedOk) && e == API_OK)
+    {
+        mSet->setPublicId(publicId);
+        mSet->setTs(ts);
+        mSet->setChanged(Set::CH_EXPORTED);
+        if (!client->updateSet(move(*mSet)))
+        {
+            LOG_warn << "Sets: comand 'ass' succeeded, but Set was not found";
+            e = API_ENOENT;
+        }
+    }
+
+    if (mCompletion) mCompletion(e);
 
     return parsedOk;
 }
