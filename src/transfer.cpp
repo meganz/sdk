@@ -202,7 +202,18 @@ bool Transfer::serialize(string *d)
     char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
-    d->append("", 1);
+
+    CacheableWriter cw(*d);
+    // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
+    cw.serializeu8(1);
+
+    // 8 expansion flags, in the normal manner.  First flag is for whether downloadFileHandle is present
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1);
+
+    if (!downloadFileHandle.isUndef())
+    {
+        cw.serializeNodeHandle(downloadFileHandle);
+    }
 
 #ifdef DEBUG
     // very quick debug only double check
@@ -211,9 +222,12 @@ bool Transfer::serialize(string *d)
     unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
     assert(t);
     assert(t->localfilename == localfilename);
+    assert(t->tempurls == tempurls);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
     assert(t->fingerprint() == fingerprint());
+    assert(t->badfp == badfp);
+    assert(t->downloadFileHandle == downloadFileHandle);
 #endif
 
 
@@ -222,124 +236,65 @@ bool Transfer::serialize(string *d)
 
 Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap* multi_transfers)
 {
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(direction_t) + sizeof(ll) > end)
-    {
-        LOG_err << "Transfer unserialization failed - serialized string too short (direction)";
-        return NULL;
-    }
+    CacheableReader r(*d);
 
     direction_t type;
-    type = MemAccess::get<direction_t>(ptr);
-    ptr += sizeof(direction_t);
-
-    if (type != GET && type != PUT)
+    string filepath;
+    if (!r.unserializedirection(type) ||
+        (type != GET && type != PUT) ||
+        !r.unserializestring(filepath))
     {
         assert(false);
-        LOG_err << "Transfer unserialization failed - neither get nor put";
-        return NULL;
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll + FILENODEKEYLENGTH + sizeof(int64_t)
-            + sizeof(int64_t) + SymmCipher::KEYLENGTH
-            + sizeof(ll) > end)
-    {
-        LOG_err << "Transfer unserialization failed - serialized string too short (filepath)";
-        return NULL;
-    }
-
-    const char *filepath = ptr;
-    ptr += ll;
 
     unique_ptr<Transfer> t(new Transfer(client, type));
-
-    memcpy(&t->filekey, ptr, sizeof t->filekey);
-    ptr += sizeof(t->filekey);
-
-    t->ctriv = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    t->metamac = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
-    ptr += SymmCipher::KEYLENGTH;
-
-    if (ll > 0)
+    if (!filepath.empty())
     {
-        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(std::string(filepath, ll));
+        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(filepath);
     }
 
-    if (!t->chunkmacs.unserialize(ptr, end))
+    int8_t hasUltoken;  // value 1 was for OLDUPLOADTOKENLEN, but that was from 2016
+
+    if (!r.unserializebinary(t->filekey.bytes.data(), sizeof(t->filekey)) ||
+        !r.unserializei64(t->ctriv) ||
+        !r.unserializei64(t->metamac) ||
+        !r.unserializebinary(t->transferkey.data(), SymmCipher::KEYLENGTH) ||
+        !r.unserializechunkmacs(t->chunkmacs) ||
+        !r.unserializefingerprint(*t) ||
+        !r.unserializefingerprint(t->badfp) ||
+        !r.unserializei64(t->lastaccesstime) ||
+        !r.unserializei8(hasUltoken) ||
+        (hasUltoken && hasUltoken != 2))
     {
-        LOG_err << "Transfer unserialization failed - chunkmacs too long";
-        return NULL;
-    }
-
-    d->erase(0, ptr - d->data());
-
-    FileFingerprint *fp = FileFingerprint::unserialize(d);
-    if (!fp)
-    {
-        LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
-        return NULL;
-    }
-
-    *(FileFingerprint *)t.get() = *(FileFingerprint *)fp;
-    delete fp;
-
-    fp = FileFingerprint::unserialize(d);
-    t->badfp = *fp;
-    delete fp;
-
-    ptr = d->data();
-    end = ptr + d->size();
-
-    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
-    {
-        LOG_err << "Transfer unserialization failed - fingerprint too long";
-        return NULL;
-    }
-
-    t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-
-    char hasUltoken = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : UPLOADTOKENLEN) : 0;
-    if (hasUltoken < 0 || hasUltoken > 2
-            || (ptr + ll + sizeof(unsigned short) > end))
-    {
-        LOG_err << "Transfer unserialization failed - invalid ultoken";
-        return NULL;
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
 
     if (hasUltoken)
     {
         t->ultoken.reset(new UploadToken);
-        memcpy(t->ultoken.get(), ptr, ll);
-        ptr += ll;
     }
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll + 10 > end)
-    {
-        LOG_err << "Transfer unserialization failed - temp URL too long";
-        return NULL;
-    }
-
+    unsigned char expansionflags[8] = { 0 };
     std::string combinedUrls;
-    combinedUrls.assign(ptr, ll);
+    int8_t state;
+    int8_t version;
+    if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
+        !r.unserializestring(combinedUrls) ||
+        !r.unserializei8(state) ||
+        !r.unserializeu64(t->priority) ||
+        !r.unserializei8(version) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, 1)) ||
+        (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)))
+    {
+        LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
+        return nullptr;
+    }
+    assert(!r.hasdataleft());
+
+    size_t ll = combinedUrls.size();
     for (size_t p = 0; p < ll; )
     {
         size_t n = combinedUrls.find('\0');
@@ -350,27 +305,14 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
     {
         LOG_err << "Transfer unserialization failed - temp URL incorrect components";
-        return NULL;
+        return nullptr;
     }
-    ptr += ll;
 
-    char state = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
     if (state == TRANSFERSTATE_PAUSED)
     {
         LOG_debug << "Unserializing paused transfer";
         t->state = TRANSFERSTATE_PAUSED;
     }
-
-    t->priority =  MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-
-    if (*ptr)
-    {
-        LOG_err << "Transfer unserialization failed - invalid version";
-        return NULL;
-    }
-    ptr++;
 
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
@@ -1435,7 +1377,12 @@ bool DirectReadSlot::doio()
             std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
             // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
-            processAnyOutputPieces();
+            if (!processAnyOutputPieces())
+            {
+                // app-requested abort
+                delete dr;
+                return true;
+            }
 
             if (!newBufferSupplied && !pauseForRaid)
             {

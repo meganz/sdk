@@ -444,6 +444,12 @@ TEST(URLCodec, Escape)
 
     URLCodec::escape(&input, &output);
     EXPECT_EQ(output, "abc123%21%40%23%24%25%5e%26%2a%28%29");
+
+    string input2 = "EF字幕组 编织记忆 stitchers S02E10.mp4";
+    string output2;
+
+    URLCodec::escape(&input2, &output2);
+    EXPECT_EQ(output2, "EF%e5%ad%97%e5%b9%95%e7%bb%84%20%e7%bc%96%e7%bb%87%e8%ae%b0%e5%bf%86%20stitchers%20S02E10.mp4");
 }
 
 
@@ -636,7 +642,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
     // Create a new database.
-    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
 
     // Was the database created successfully?
     ASSERT_TRUE(!!dbTable);
@@ -654,7 +660,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
         ASSERT_TRUE(!!dbTable);
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -665,7 +671,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
     EXPECT_TRUE(!!dbTable);
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);

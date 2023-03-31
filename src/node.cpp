@@ -371,31 +371,33 @@ nameid Node::getExtensionNameId(const std::string& ext)
     return json.getnameid(ext.c_str());
 }
 
+// update node key data from JSON
 void Node::setkeyfromjson(const char* k)
 {
-    if (keyApplied()) --client->mAppliedKeyNodeCount;
-    JSON::copystring(&nodekeydata, k);
-    if (keyApplied()) ++client->mAppliedKeyNodeCount;
-    assert(client->mAppliedKeyNodeCount >= 0);
+    string tmp;
+    JSON::copystring(&tmp, k);
+    setKey(tmp);
 }
 
-void Node::setUndecryptedKey(const std::string& undecryptedKey)
-{
-    nodekeydata = undecryptedKey;
-}
-
-// update node key and decrypt attributes
+// update node key (already decrypted) and attempt to decrypt attributes
 void Node::setkey(const byte* newkey)
 {
     if (newkey)
     {
-        if (keyApplied()) --client->mAppliedKeyNodeCount;
-        nodekeydata.assign(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-        if (keyApplied()) ++client->mAppliedKeyNodeCount;
-        assert(client->mAppliedKeyNodeCount >= 0);
+        string tmp(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        setKey(tmp);
     }
 
     setattr();
+}
+
+// set the node key (encrypted or decrypted)
+void Node::setKey(const string& key)
+{
+    if (keyApplied()) --client->mAppliedKeyNodeCount;
+    nodekeydata = key;
+    if (keyApplied()) ++client->mAppliedKeyNodeCount;
+    assert(client->mAppliedKeyNodeCount >= 0);
 }
 
 Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
@@ -404,7 +406,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     nodetype_t t;
     m_off_t s;
     handle u;
-    const byte* k = NULL;
+    string nodekey;
     const char* fa;
     m_time_t ts;
     const byte* skey;
@@ -464,7 +466,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
             return NULL;
         }
 
-        k = (const byte*)ptr;
+        nodekey.assign(ptr, keylen);
         ptr += keylen;
     }
 
@@ -549,11 +551,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 
     unique_ptr<Node> n(new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
-    if (!encrypted && k)
-    {
-        n->setkey(k);
-    }
-
     // read inshare, outshares, or pending shares
     while (numshares)   // inshares: -1, outshare/s: num_shares
     {
@@ -610,13 +607,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
     // else from new cache, names has been normalized before to store in DB
 
-    if (!encrypted)
-    {
-        // only if the node is not encrypted, we can generate a valid
-        // fingerprint, based on the node's attribute 'c'
-        n->setfingerprint();
-    }
-
     PublicLink *plink = NULL;
     if (isExported)
     {
@@ -661,7 +651,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
             return nullptr;
         }
 
-        n->setUndecryptedKey(string(ptr, length));
+        nodekey.assign(ptr, length);
         ptr += length;
 
         // Have we encoded the length of the attribute string?
@@ -681,6 +671,15 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 
         n->attrstring.reset(new string(ptr, length));
         ptr += length;
+    }
+
+    n->setKey(nodekey); // it can be decrypted or encrypted
+
+    if (!encrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
     }
 
     if (ptr == end)
@@ -1046,7 +1045,7 @@ bool Node::areFlagsValid(Node::Flags requiredFlags, Node::Flags excludeFlags, No
 {
     if (excludeRecursiveFlags.any() && anyExcludeRecursiveFlag(excludeRecursiveFlags))
         return false;
-    if (requiredFlags.any() || excludeFlags.any()) 
+    if (requiredFlags.any() || excludeFlags.any())
     {
         Node::Flags flags = getDBFlagsBitset();
         if ((flags & excludeFlags).any())
@@ -1397,7 +1396,7 @@ bool Node::applykey()
                 }
                 else
                 {
-                    sc = it->second.get();
+                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

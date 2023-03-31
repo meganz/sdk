@@ -1,4 +1,4 @@
-/** 
+/**
  * @file tests/sdk_test.cpp
  * @brief Mega SDK test file
  *
@@ -14,8 +14,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
  * @copyright Simplified (2-clause) BSD License.
- *
  * You should have received a copy of the license along with this
+
  * program.
  */
 
@@ -23,8 +23,6 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
-#include "megaapi_impl.h"
-#include "mega/node.h"
 #include <algorithm>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
@@ -169,7 +167,7 @@ std::string megaApiCacheFolder(int index)
 template<typename Predicate>
 bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 {
-    unsigned sleepMs = 100;
+    const unsigned sleepMs = 100;
     unsigned totalMs = 0;
 
     do
@@ -285,12 +283,16 @@ void SdkTest::TearDown()
 
 void SdkTest::Cleanup()
 {
-    out() << "Cleaning up accounts";
+     out() << "Cleaning up accounts";
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
+
+#ifdef ENABLE_CHAT
+    delSchedMeetings();
+#endif
 
 #ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
@@ -328,16 +330,31 @@ void SdkTest::Cleanup()
         }
     }
 
-    if (!megaApi.empty() && megaApi[0])
+    set<string> alreadyRemoved;
+
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
         // Remove auxiliar contact
-        std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
-        for (int i = 0; i < ul->size(); i++)
+        std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
+        for (int i = 0; i < contacts->size(); i++)
         {
-            const char* contactEmail = ul->get(i)->getEmail();
-            if (contactEmail && *contactEmail) // sometimes the email is an empty string (!)
+            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
+            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
+            string email1 = string(megaApi[nApi]->getMyEmail());
+            string email2 = string(contacts->get(i)->getEmail());
+            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
+            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
+            alreadyRemoved.insert(email1+email2);
+
+            auto result = synchronousRemoveContact(nApi, contacts->get(i));
+            if (result == API_EARGS)
             {
-                removeContact(contactEmail);
+                // let's have a look at which other users the jenkins users have been connected to
+                out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
+            }
+            else if (result != API_OK)
+            {
+                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
             }
         }
     }
@@ -346,6 +363,81 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
+
+            // Delete any inshares
+            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
+            for (int i = 0; i < inshares->size(); ++i)
+            {
+                auto os = inshares->get(i);
+
+                if (auto email = os->getUser())
+                {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
+                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                    if (shareUser)
+                    {
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
+                    }
+                    else
+                    {
+                        out() << "InShare " << i << " has user " << email << " but the corresponding user does not exist";
+                    }
+                }
+
+                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
+                if (n)
+                {
+                    RequestTracker rt(megaApi[nApi].get());
+
+                    megaApi[nApi]->remove(n.get(), &rt);
+
+                    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "remove of inshare folder failed or took more than 5 minutes";
+                }
+            }
+
+
+
+            // Delete any outshares
+            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
+            for (int i = 0; i < outshares->size(); ++i)
+            {
+                auto os = outshares->get(i);
+
+                if (auto email = os->getUser())
+                {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
+                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                    if (shareUser)
+                    {
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
+                    }
+                    else
+                    {
+                        out() << "OutShare " << i << " has user " << email << " but the corresponding user does not exist";
+                    }
+                }
+
+                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
+                if (n)
+                {
+                    RequestTracker rt(megaApi[nApi].get());
+
+                    megaApi[nApi]->share(n.get(), os->getUser(), MegaShare::ACCESS_UNKNOWN, &rt);
+
+                    ASSERT_EQ(API_OK, rt.waitForResult(300)) << "unshare of file/folder failed or took more than 5 minutes";
+                }
+            }
+
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
@@ -364,6 +456,65 @@ void SdkTest::Cleanup()
             {
                 MegaContactRequest *cr = crl->get(i);
                 synchronousReplyContactRequest(nApi, cr, MegaContactRequest::REPLY_ACTION_DENY);
+            }
+
+        }
+    }
+
+    // finally, double check we got rid of all inshares and outshares
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
+    {
+        if (megaApi[nApi])
+        {
+            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
+            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed";
+
+            unique_ptr<MegaShareList> pendingOutshares(megaApi[nApi]->getPendingOutShares());
+            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed";
+
+            unique_ptr<MegaShareList> unverifiedOutshares(megaApi[nApi]->getUnverifiedOutShares());
+            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed";
+
+            unique_ptr<MegaShareList> unverifiedInshares(megaApi[nApi]->getUnverifiedInShares());
+            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed";
+
+            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
+            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed";
+        }
+    }
+
+    for (auto nApi = unsigned(megaApi.size()); nApi--; )
+    {
+        if (megaApi[nApi] && megaApi[nApi]->isLoggedIn())
+        {
+            // Some tests finish logged in but without call to fetch nodes root nodes are undefined yet
+            uint64_t nodesInRoot = 0;
+            std::unique_ptr<MegaNode> rootNode(megaApi[nApi]->getRootNode());
+            if (rootNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rootNode.get())) << "Cannot get Folder Info for rootnode";
+                nodesInRoot = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesInRubbishBin = 0;
+            std::unique_ptr<MegaNode> rubbishbinNode(megaApi[nApi]->getRubbishNode());
+            if (rubbishbinNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, rubbishbinNode.get())) << "Cannot get Folder Info for rubbis bin";
+                nodesInRubbishBin = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            uint64_t nodesInVault = 0;
+            std::unique_ptr<MegaNode> vaultNode(megaApi[nApi]->getVaultNode());
+            if (vaultNode)
+            {
+                ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(nApi, vaultNode.get())) << "Cannot get Folder Info for vault";
+                nodesInVault = mApi[nApi].mFolderInfo->getNumFiles() + mApi[nApi].mFolderInfo->getNumFolders() + mApi[nApi].mFolderInfo->getNumVersions();
+            }
+
+            if (nodesInRoot > 0 || nodesInRubbishBin > 0 || nodesInVault > 0)
+            {
+                LOG_warn << "Clean up for instance " << nApi << " hasn't finished properly. Nodes at root node: " << nodesInRoot << "   Nodes at rubbish bin: " << nodesInRubbishBin << "  Nodes at vault: " << nodesInVault;
             }
         }
     }
@@ -403,8 +554,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         return;
     }
 
-    int apiIndex = getApiIndex(api);
-    if (apiIndex < 0) return;
+    int index = getApiIndex(api);
+    if (index < 0) return;
+    size_t apiIndex = static_cast<size_t>(index);
     mApi[apiIndex].lastError = e->getErrorCode();
 
     // there could be a race on these getting set?
@@ -590,6 +742,27 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
             break;
 
+#ifdef ENABLE_CHAT
+    case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
+        if (mApi[apiIndex].lastError == API_OK
+            && request->getMegaScheduledMeetingList()
+            && request->getMegaScheduledMeetingList()->size() == 1)
+        {
+            const auto sched = request->getMegaScheduledMeetingList()->at(0);
+            mApi[apiIndex].chatid = sched->chatid();
+            mApi[apiIndex].schedId = sched->schedId();
+            mApi[apiIndex].schedUpdated = true;
+        }
+        break;
+
+    case MegaRequest::TYPE_DEL_SCHEDULED_MEETING:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].schedUpdated = true;
+            mApi[apiIndex].schedId = request->getParentHandle();
+        }
+        break;
+#endif
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -1079,7 +1252,32 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     }
 }
 
-void SdkTest::inviteContact(unsigned apiIndex, string email, string message, int action)
+void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string& message)
+{
+    //--- Add account as contact ---
+    mApi[inviteIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(invitorIndex, mApi[inviteIndex].email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(waitForResponse(&mApi[inviteIndex].contactRequestUpdated))   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(inviteIndex, false));
+
+    mApi[invitorIndex].contactRequestUpdated = mApi[inviteIndex].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(replyContact(mApi[inviteIndex].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_TRUE(waitForResponse(&mApi[inviteIndex].contactRequestUpdated))   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[invitorIndex].contactRequestUpdated))   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    mApi[inviteIndex].cr.reset();
+
+    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        ASSERT_TRUE(contact) << "Invalid contact";
+        ASSERT_TRUE(contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact visibility";
+    }
+}
+
+void SdkTest::inviteContact(const unsigned apiIndex, const string& email, const string& message, const int action)
 {
     ASSERT_EQ(API_OK, synchronousInviteContact(apiIndex, email.c_str(), message.c_str(), action)) << "Contact invitation failed";
 }
@@ -1090,21 +1288,23 @@ void SdkTest::replyContact(MegaContactRequest *cr, int action)
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(apiIndex, cr, action)) << "Contact reply failed";
 }
 
-void SdkTest::removeContact(string email, int timeout)
+int SdkTest::removeContact(unsigned apiIndex, string email)
 {
-    int apiIndex = 0;
-    MegaUser *u = megaApi[apiIndex]->getContact(email.c_str());
-    bool null_pointer = (u == NULL);
-    ASSERT_FALSE(null_pointer) << "Cannot find the specified contact (" << email << ")";
+    unique_ptr<MegaUser> u(megaApi[apiIndex]->getContact(email.c_str()));
+
+    if (!u)
+    {
+        out() << "Trying to remove user " << email << " from contacts for megaapi " << apiIndex << " but the User does not exist";
+        return API_EINTERNAL;
+    }
 
     if (u->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
     {
-        mApi[apiIndex].userUpdated = true;  // nothing to do
-        delete u;
-        return;
+        out() << "Contact " << email << " was already non-visible, not sending any command to API for megaapi " << apiIndex << ".  visibility: " << u->getVisibility();
+        return API_EINTERNAL;
     }
 
-    auto result = synchronousRemoveContact(apiIndex, u);
+    auto result = synchronousRemoveContact(apiIndex, u.get());
 
     if (result == API_EEXIST)
     {
@@ -1112,9 +1312,8 @@ void SdkTest::removeContact(string email, int timeout)
         result = API_OK;
     }
 
-    ASSERT_EQ(API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
-
-    delete u;
+    EXPECT_EQ(API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
+    return result;
 }
 
 void SdkTest::verifyCredentials(unsigned apiIndex, string email)
@@ -1138,7 +1337,197 @@ bool SdkTest::areCredentialsVerified(unsigned apiIndex, string email)
     return megaApi[apiIndex]->areCredentialsVerified(usr.get());
 }
 
-void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
+#ifdef ENABLE_CHAT
+void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid)
+{
+    struct SchedMeetingData
+    {
+        MegaHandle chatId = INVALID_HANDLE, schedId = INVALID_HANDLE;
+        std::string timeZone, title, description;
+        MegaTimeStamp startDate, endDate, overrides, newStartDate, newEndDate;
+        bool cancelled, newCancelled;
+        std::shared_ptr<MegaScheduledFlags> flags;
+        std::shared_ptr<MegaScheduledRules> rules;
+    } smd;
+
+    std::unique_ptr<MegaUser> contact(mApi[0].megaApi->getContact(mApi[1].email.c_str()));
+    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        inviteTestAccount(0, 1, "Hi contact. This is a test message");
+    }
+
+    MegaHandle secondaryAccountHandle = megaApi[apiIndex + 1]->getMyUser()->getHandle();
+    MegaHandle auxChatid = UNDEF;
+    for (const auto &it: mApi[apiIndex].chats)
+    {
+        if (!it.second->isGroup()
+            || it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR
+            || !it.second->getPeerList())
+        {
+            continue;
+        }
+
+        const auto peerList = it.second->getPeerList();
+        for (int i = 0; i < peerList->size(); ++i)
+        {
+            if (peerList->getPeerHandle(i) == secondaryAccountHandle)
+            {
+                auxChatid = it.first;
+                break;
+            }
+        }
+    }
+
+    if (auxChatid == UNDEF) // create chatroom with moderator privileges
+    {
+        mApi[apiIndex].chatUpdated = false;
+        std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
+        peers->addPeer(megaApi[apiIndex + 1]->getMyUser()->getHandle(), PRIV_STANDARD);
+
+        ASSERT_NO_FATAL_FAILURE(createChat(true, peers.get()));
+        ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])) << "Cannot create a new chat";
+        ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Chat creation failed (error: " << mApi[apiIndex].lastError << ")";
+        ASSERT_TRUE(waitForResponse(&mApi[apiIndex + 1].chatUpdated))   // at the target side (auxiliar account)
+                << "Chat update not received after " << maxTimeout << " seconds";
+
+        auxChatid = mApi[apiIndex].chatid;   // set at onRequestFinish() of chat creation request
+    }
+
+    // create MegaScheduledFlags
+    std::shared_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance());
+    flags->importFlagsValue(1);
+
+    // create MegaScheduledRules
+    std::shared_ptr<::mega::MegaIntegerList> byWeekDay(::mega::MegaIntegerList::createInstance());
+    byWeekDay->add(1); byWeekDay->add(3); byWeekDay->add(5);
+    std::shared_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(MegaScheduledRules::FREQ_WEEKLY,
+                                                                                 MegaScheduledRules::INTERVAL_INVALID,
+                                                                                 MEGA_INVALID_TIMESTAMP,
+                                                                                 byWeekDay.get(), nullptr, nullptr));
+
+    smd.startDate = m_time();
+    smd.endDate = m_time() + 3600;
+    smd.title = "ScheduledMeeting_" + std::to_string(1);
+    smd.description = "Description" + smd.title;
+    smd.timeZone = "Europe/Madrid";
+    smd.flags = flags;
+    smd.rules = rules;
+
+    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/,
+                                                                                  UNDEF /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
+                                                                                  smd.startDate, smd.endDate, smd.title.c_str(), smd.description.c_str(),
+                                                                                  nullptr /*attributes*/, MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                                                  flags.get(), rules.get()));
+    mApi[apiIndex].schedUpdated = false;
+    mApi[apiIndex].schedId = UNDEF;
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get());
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING]))
+            << "Cannot create a new scheduled meeting";
+
+    ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Scheduled meeting creation failed (error: " << mApi[apiIndex].lastError << ")";
+
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].schedUpdated))   // at the target side (auxiliar account)
+            << "Scheduled meeting update not received after " << maxTimeout << " seconds";
+
+    ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting id received is not valid ";
+    chatid = auxChatid;
+}
+
+void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid)
+{
+    const auto isValidChat = [](const MegaTextChat* chat) -> bool
+    {
+        if (!chat) { return false; }
+
+        return chat->isGroup()
+            && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
+            && chat->getScheduledMeetingList()
+            && chat->getScheduledMeetingList()->size();
+    };
+
+    const MegaTextChat* chat = nullptr;
+    auto it = mApi[apiIndex].chats.find(chatid);
+    if (chatid == UNDEF
+        || it == mApi[apiIndex].chats.end()
+        || !isValidChat(it->second.get()))
+    {
+        for (const auto& auxit: mApi[apiIndex].chats)
+        {
+            if (isValidChat(auxit.second.get()))
+            {
+                chatid = auxit.second->getHandle();
+                chat = auxit.second.get();
+                break;
+            }
+        }
+    }
+    else
+    {
+        chat = it->second.get();
+    }
+
+    ASSERT_NE(chat, nullptr) << "Invalid chat";
+    ASSERT_NE(chat->getScheduledMeetingList(), nullptr) << "Chat doesn't have scheduled meetings";
+    ASSERT_NE(chat->getScheduledMeetingList()->at(0), nullptr) << "Invalid scheduled meeting";
+    const MegaScheduledMeeting* aux =  chat->getScheduledMeetingList()->at(0);
+    std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(aux->chatid(), aux->schedId(), aux->parentSchedId(),
+                                                                                  aux->organizerUserid(), aux->cancelled(),
+                                                                                  aux->timezone(), aux->startDateTime(), aux->endDateTime(),
+                                                                                  (std::string(aux->title())+ "_updated").c_str(),
+                                                                                  (std::string(aux->description())+ "_updated").c_str(),
+                                                                                  aux->attributes(), MEGA_INVALID_TIMESTAMP /*overrides*/,
+                                                                                  aux->flags(), aux->rules()));
+
+
+    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), tracker.get());
+    tracker->waitForResult();
+}
+
+void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
+{
+    const auto isValidChat = [](const MegaTextChat* chat) -> bool
+    {
+        if (!chat) { return false; }
+
+        return chat->isGroup()
+            && chat->getOwnPrivilege() == MegaTextChatPeerList::PRIV_MODERATOR
+            && chat->getScheduledMeetingList()
+            && chat->getScheduledMeetingList()->size();
+    };
+
+    const MegaTextChat* chat = nullptr;
+    auto it = mApi[apiIndex].chats.find(chatid);
+    if (chatid == UNDEF
+        || it == mApi[apiIndex].chats.end()
+        || !isValidChat(it->second.get()))
+    {
+        for (auto &auxit: mApi[apiIndex].chats)
+        {
+            if (isValidChat(auxit.second.get()))
+            {
+                chat = auxit.second.get();
+                break;
+            }
+        }
+    }
+    else
+    {
+        chat = it->second.get();
+    }
+
+    ASSERT_NE(chat, nullptr) << "Invalid chat";
+    const auto schedList = chat->getScheduledMeetingList();
+    ASSERT_TRUE(schedList && schedList->size()) << "Chat doesn't have scheduled meetings";
+    const MegaScheduledMeeting* aux = chat->getScheduledMeetingList()->at(0);
+    ASSERT_NE(aux, nullptr) << "Invalid scheduled meetings";
+    std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
+    megaApi[apiIndex]->removeScheduledMeeting(aux->chatid(), aux->schedId(), tracker.get());
+    tracker->waitForResult();
+}
+#endif
+
+void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
 {
     int apiIndex = 0;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
@@ -2637,10 +3026,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Delete an existing contact ---
 
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, mApi[1].email) );
 
     u = megaApi[0]->getContact(mApi[1].email.c_str());
     null_pointer = (u == NULL);
@@ -2680,6 +3066,41 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
     }
     return ok;
 }
+
+#ifdef ENABLE_CHAT
+void SdkTest::delSchedMeetings()
+{
+    std::vector<std::unique_ptr<RequestTracker>> delSchedTrackers;
+    for (size_t i = 0; i < mApi.size(); ++i)
+    {
+        for (const auto& it: mApi[i].chats)
+        {
+            if (!it.second->getScheduledMeetingList()
+                || !it.second->getScheduledMeetingList()->size())
+            {
+                continue;
+            }
+
+            if (it.second->getOwnPrivilege() != MegaTextChatPeerList::PRIV_MODERATOR)
+            {
+                LOG_info << "Could not remove scheduled meetings for chat (due to insufficient permissions)"
+                         << Base64Str<MegaClient::CHATHANDLE>(it.second->getHandle());
+                continue;
+            }
+
+            const auto schedList = it.second->getScheduledMeetingList();
+            for (unsigned long j = 0; j < schedList->size(); ++j)
+            {
+                delSchedTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(megaApi[i].get())));
+                megaApi[i]->removeScheduledMeeting(it.second->getHandle(), schedList->at(j)->schedId(), delSchedTrackers.back().get());
+            }
+        }
+    }
+
+    // wait for requests to complete:
+    for (auto& d : delSchedTrackers) d->waitForResult();
+}
+#endif
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n, MegaHandle mh)
 {
@@ -4327,9 +4748,8 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1); //megaApi[0]->pImpl;
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
     MegaClient* client = impl->getMegaClient();
-
 
     std::unique_ptr<Either> p(new Either);
     p->Add(sequence(text("cd")));
@@ -6446,7 +6866,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 }
 
 // tests for Sensntive files flag on files and folders
-// includes 70+_ tests of MegaApi::searchByType() and MegaApiImpl::searchWithFlags()
+// includes tests of MegaApi::searchByType()
 TEST_F(SdkTest, SdkSensitiveNodes)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
@@ -6455,7 +6875,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
     ASSERT_TRUE(rootnodeA);
-        
+
     // /
     //    folder-A/              // top shared
     //        abFile1.png
@@ -6468,7 +6888,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     ASSERT_NE(nh, UNDEF);
     unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(nh));
     ASSERT_TRUE(!!folderA);
-     
+
     string subFolderAName = "sub-folder-A";
     MegaHandle snh = createFolder(0, subFolderAName.c_str(), folderA.get());
     ASSERT_NE(snh, UNDEF);
@@ -6514,12 +6934,12 @@ TEST_F(SdkTest, SdkSensitiveNodes)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
     std::unique_ptr<MegaNode> sfile(megaApi[0]->getNodeByHandle(fh3));
 
-    // setup sharing from 
+    // setuip sharing from
     ASSERT_EQ(API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkSensitiveNodes contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1; }, 60000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_EQ(API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    
+
     // Verify credentials in both accounts
     if (gManualVerification)
     {
@@ -6528,8 +6948,13 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     }
 
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 0u);
+    unique_ptr<MegaUser> user1(megaApi[1]->getContact(mApi[0].email.c_str()));
+    {
+        unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(user1.get()));
+        ASSERT_EQ(nl2->size(), 0); // should be no shares
+    }
     ASSERT_NO_FATAL_FAILURE(shareFolder(folderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60000));
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
     ASSERT_EQ(unsigned(unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size()), 1u);
 
     // Wait for the inshare node to be decrypted
@@ -6541,31 +6966,30 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     synchronousSetNodeSensitive(0, sfile.get(), true);
     synchronousSetNodeSensitive(0, subFolderA.get(), true);
 
-    WaitMillisec(3000);
-    // wait for shared attrib action packets to propgate
+    function<bool()> anyShares = [&]() {
+        unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(user1.get()));
+        return nl2->size() != 0;
+    };
+    ASSERT_TRUE(WaitFor(anyShares, 30 * 1000)); // 30 sec
 
-    unique_ptr<MegaUser> user0(megaApi[1]->getContact(mApi[0].email.c_str()));
-    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(user0.get()));
+    unique_ptr<MegaNodeList> nl2(megaApi[1]->getInShares(user1.get()));
     ASSERT_EQ(nl2->size(), 1);
+
+    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false);
+    function<bool()> sharedSubFolderSensitive = [&]() {
+        unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
+        if (!sharedSubFolderA.get())
+            return false;
+        return sharedSubFolderA->isMarkedSensitive();
+    };
+    ASSERT_TRUE(WaitFor(sharedSubFolderSensitive, 60 * 1000)); // share has gained attributes
+
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     ASSERT_TRUE(sharedSubFolderA) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " not found";
-    
-    ASSERT_EQ(nl2->get(0)->isMarkedSensitive(), false); 
-    ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true);// share has to attributes
+    ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " found but not sensitive";
 
-  /*
-    time_t start = time(nullptr);
-    while (time(nullptr) < start + 300) {
-        //SdkTest::fetchnodes(0);
-        subFolderA.reset(megaApi[0]->getNodeByPath((string("/") + folderAName + "/" + subFolderAName).c_str(), megaApi[0]->getRootNode()));
-        if (subFolderA.get() != nullptr && subFolderA->isMarkedSensitive())
-            break;
+    // ---------------------------------------------------------------------------------------------------------------------------
 
-        Sleep(5000); // @todo: portable
-    }
-    time_t secs = time(nullptr) - start;
-    secs;
-  */
     subFolderA.reset(megaApi[0]->getNodeByPath((string("/") + folderAName + "/" + subFolderAName).c_str(), unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get()));
     ASSERT_TRUE(!!subFolderA);
     ASSERT_TRUE(subFolderA->isMarkedSensitive());
@@ -6585,44 +7009,6 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     sen = megaApi[0]->isSensitiveInherited(rootnodeA.get());
     ASSERT_EQ(sen, false);
 
-    /*
-    MegaApiImpl::searchWithFlags
-        MegaApiImpl::searchInNodeManager
-            NodeManager::getNodesByMimeType                                 search = ""
-                @SqliteAccountState::getNodesByMimetype
-                @SqliteAccountState::getNodesByMimetypeExclusiveRecursive   excludeRecursiveFlags
-            NodeManager::search
-                @SqliteAccountState::getNodesByName
-
-    node specfied
-        @recursive
-           searchInNodeManager
-        @non recursive                
-    no node
-        SEARCH_TARGET_ROOTNODE
-            @recursive
-            @not recursive            *
-        SEARCH_TARGET_INSHARE
-            @recursive
-            @not recursive            *
-        @SEARCH_TARGET_ALL            default when
-             searchInNodeManager
-        SEARCH_TARGET_OUTSHARE
-            @recursive
-            @not recursive            *
-        @SEARCH_TARGET_PUBLICLINK     *
-
-
-        missues sensitive flag as a include flag and exclusive flag
-
-        */
-
-    typedef ::mega::Node Node;
-    typedef ::mega::Node::Flags Flags;
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaApiImpl* impl1 = *((MegaApiImpl**)(((char*)megaApi[1].get()) + sizeof(*megaApi[1].get())) - 1);
-    // expose MegApiApl::searchWithFlags()
-
     // inherited sensitive flag
     // specifeid searh string
     unique_ptr<MegaNodeList> list(megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true));
@@ -6634,135 +7020,76 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     // no specifeid searh string
     list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(list->get(0)->getName(), filename1);
+    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->get(2)->getName(), sfilename);
     list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
     ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(list->get(0)->getName(), nsfilename);
 
-    // inherited sensitive flag
-    // no node, specifeid searh string: SEARCH_TARGET_ALL
-    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
+    // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
+    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, true));
     ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(list->get(0)->getName(), filename1);
+    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->get(2)->getName(), sfilename);
     list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
-    ASSERT_EQ(list->size(), 1);
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
+    ASSERT_EQ(list->get(0)->getName(), nsfilename);
     list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
     ASSERT_EQ(list->size(), 0);
 
-    // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 3);
-    ASSERT_EQ(list->get(0)->getName(), filename1);
-    ASSERT_EQ(list->get(1)->getName(), nsfilename);
-    ASSERT_EQ(list->get(2)->getName(), sfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
-    ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
-    ASSERT_EQ(list->get(0)->getName(), filename1);
-    ASSERT_EQ(list->get(1)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
-    ASSERT_EQ(list->get(0)->getName(), sfilename);
-
-    // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimetypeExclusiveRecursive()
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1);
-    ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
-    ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non senstive, non recusrive exclude and recusrive exclude 
-    ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 0); // senstive, non recusrive required and recusrive exclude
-
     // no node, specifid search string: SEARCH_TARGET_ROOTNODE: getNodesByName()
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
+    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, true));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(list->get(0)->getName(), filename1);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
     ASSERT_EQ(list->get(2)->getName(), sfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 2); // non senstive, non recusrive exclude
-    ASSERT_EQ(list->get(0)->getName(), filename1);
-    ASSERT_EQ(list->get(1)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 1); // senstive, non recusrive required
-    ASSERT_EQ(list->get(0)->getName(), sfilename);
 
-    // no node, specifid search string: main non recursive
+    // no node, specified search string: SEARCH_TARGET_ALL main non recursive
     // folderA
-    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
+    list.reset(megaApi[0]->searchByType(folderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 2);
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
     ASSERT_EQ(list->get(1)->getName(), sfilename);
-    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 1); // non sensitive files (recursvie exclude)
+    list.reset(megaApi[0]->searchByType(folderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 1); // non senstive
-    ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(folderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 1); // senstive
-    ASSERT_EQ(list->get(0)->getName(), sfilename);
 
-    // no node, specifid search string: main non recursive
+    // no node, specifeid search string: main non recursive
     // subfolderA
-    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags()));
+    list.reset(megaApi[0]->searchByType(subFolderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(list->get(0)->getName(), filename1);
-    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 0); // non sensitive files (recursvie exclude)
-    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 1); // non senstive
-    ASSERT_EQ(list->get(0)->getName(), filename1); // the file itself does not have the senditvei flag it's parent fodler does
-    list.reset(impl->searchWithFlags(subFolderA.get(), "a", CancelToken(), false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 0); // senstive, but the file itself is not marked sensitvei it'sparent folder is
+    list.reset(megaApi[0]->searchByType(subFolderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
+    ASSERT_EQ(list->size(), 0); // non sensitive files (recursive exclude)
 
     // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
-    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags()));
+    list.reset(megaApi[1]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, true));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), filename1);
     ASSERT_EQ(list->get(2)->getName(), nsfilename);
     ASSERT_EQ(list->get(3)->getName(), sfilename);
-    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 2); // non sensitive files (recursvie exclude)
+    list.reset(megaApi[1]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, false));
+    ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
-    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 3); // non senstive, non recusrive exclude
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), filename1);
-    ASSERT_EQ(list->get(2)->getName(), nsfilename);
-    list.reset(impl1->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 2); // senstive, non recusrive required
-    ASSERT_EQ(list->get(0)->getName(), folderAName); // sorts folders first
-    ASSERT_EQ(list->get(1)->getName(), sfilename);
 
     // no node, specifid search string: SEARCH_TARGET_OUTSHARE: getNodesByName()
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags()));
+    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, true));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), filename1);
     ASSERT_EQ(list->get(2)->getName(), nsfilename);
     ASSERT_EQ(list->get(3)->getName(), sfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE)));
-    ASSERT_EQ(list->size(), 2); // non sensitive files (recursvie exclude)
+    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, false));
+    ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags(), Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags()));
-    ASSERT_EQ(list->size(), 3); // non senstive, non recusrive exclude
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), filename1);
-    ASSERT_EQ(list->get(2)->getName(), nsfilename);
-    list.reset(impl->searchWithFlags(nullptr, "a", CancelToken(), true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE), Flags(), Flags()));
-    ASSERT_EQ(list->size(), 2); // senstive, non recusrive required
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), sfilename);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
@@ -9587,17 +9914,32 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_NE(inshareNode.get(), nullptr);
     ASSERT_TRUE(WaitFor([this, nh]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(nh))->isNodeKeyDecrypted(); }, 60*1000))  << "Cannot decrypt inshare in B account.";
 
-    // Reset credentials
-    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
-    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
-    // Established share remains in the same status.
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
-    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
-    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
-    ASSERT_NE(inshareNode.get(), nullptr);
-    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
+    /*
+     * TODO: uncomment this block to test "Reset credentials" when SDK supports APIv3 for up2/upv commands
+     *
+     * This test is prone to a race condition that may result on having no inshare, but unverified inshare.
+     *
+     * It happens when the client receives a "pk" action packet after reset credentials. Why that "pk"? because
+     * currently the SDK cannot differentiate between action packets related to its own user's attribute updates
+     * (^!keys) and other client's updates. In consequence, if the action packet is received before the response
+     * to the "upv", the SDK will fetch the attribute ("uga") and upon receiving the value, it will reapply the
+     * promotion of the outshare, sending a duplicated "pk" for the same share handle.
+     *
+     * This race between the sc and cs channels will be removed when the SDK adds support for the APIv3 / sn-tagging,
+     * since the "upv" will be matched with the corresponding action packet, eliminating the race.
+     * */
+
+//    // Reset credentials
+//    LOG_verbose << "TestSharesContactVerification :  Reset credentials";
+//    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
+//    // Established share remains in the same status.
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getOutShares())->size() == 1; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[0]->getUnverifiedOutShares())->size() == 0; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1; }, 60*1000));
+//    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
+//    inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
+//    ASSERT_NE(inshareNode.get(), nullptr);
+//    ASSERT_TRUE(inshareNode->isNodeKeyDecrypted()) << "Cannot decrypt inshare in B account.";
 
     // Remove share
     LOG_verbose << "TestSharesContactVerification :  Remove shared folder from A to B";
@@ -9608,6 +9950,8 @@ TEST_F(SdkTest, TestSharesContactVerification)
     ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getUnverifiedInShares())->size() == 0; }, 60*1000));
     inshareNode.reset(megaApi[1]->getNodeByHandle(nh));
     ASSERT_EQ(inshareNode.get(), nullptr);
+
+    ASSERT_NO_FATAL_FAILURE(resetAllCredentials());
 
     //
     // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
@@ -9777,10 +10121,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    ASSERT_EQ( API_OK, removeContact(0, mApi[1].email) );
     unique_ptr<MegaUser> user(megaApi[0]->getContact(mApi[1].email.c_str()));
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
@@ -9866,10 +10207,7 @@ TEST_F(SdkTest, TestSharesContactVerification)
 
     // Delete contacts
     LOG_verbose << "TestSharesContactVerification :  Remove Contact";
-    mApi[0].userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( removeContact(mApi[1].email) );
-    ASSERT_TRUE( waitForResponse(&mApi[0].userUpdated) )   // at the target side (main account)
-            << "User attribute update not received while removing a contact. Timeout: " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, mApi[1].email) );
     user.reset(megaApi[0]->getContact(mApi[1].email.c_str()));
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
@@ -10453,13 +10791,12 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     //  2. Update Set name
     //  3. Upload test files
     //  4. Add Element
-    //  5. Fetch Set
-    //  6. Update Element order
-    //  7. Update Element name
-    //  8. Remove Element
-    //  9. Add bulk elements
-    // 10. Logout / login
-    // 11. Remove all Sets
+    //  5. Update Element order
+    //  6. Update Element name
+    //  7. Remove Element
+    //  8. Add/remove bulk elements
+    //  9. Logout / login
+    // 10. Remove all Sets
 
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
@@ -10490,8 +10827,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p->id(), INVALID_HANDLE);
     ASSERT_EQ(s1p->name(), name);
     ASSERT_NE(s1p->ts(), 0);
+    ASSERT_NE(s1p->cts(), 0) << "Create-timestamp of a Set was not set";
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
     MegaHandle sh = s1p->id();
+    int64_t setCrTs = s1p->cts();
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set create AP not received after " << maxTimeout << " seconds";
@@ -10500,6 +10839,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->id(), s1p->id());
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1p->ts());
+    ASSERT_EQ(s2p->cts(), s1p->cts()) << "Create-timestamp of a Set differed in Action Packet";
     ASSERT_EQ(s2p->user(), s1p->user());
 
     // Clear Set name
@@ -10509,11 +10849,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     unique_ptr<MegaSet> s1clearname(megaApi[0]->getSet(sh));
     ASSERT_NE(s1clearname, nullptr);
     ASSERT_STREQ(s1clearname->name(), "");
+    ASSERT_EQ(s1clearname->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change";
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
     ASSERT_STREQ(s2p->name(), "");
+    ASSERT_EQ(s2p->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change AP";
 
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
@@ -10675,32 +11017,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->cover(), INVALID_HANDLE);
 
-    // 5. Fetch Set
-    MegaSet* fetchedSet = nullptr;
-    MegaSetElementList* fetchedEls = nullptr;
-    err = doFetchSet(0, &fetchedSet, &fetchedEls, sh);
-    ASSERT_EQ(err, API_OK);
-    ASSERT_NE(fetchedSet, nullptr);
-    ASSERT_NE(fetchedEls, nullptr);
-    unique_ptr<MegaSet> sf(fetchedSet);
-    unique_ptr<MegaSetElementList> elsf(fetchedEls);
-
-    ASSERT_EQ(sf->id(), sh);
-    ASSERT_EQ(sf->name(), name);
-    ASSERT_EQ(sf->ts(), s1up->ts());
-    ASSERT_EQ(sf->user(), s1up->user());
-
-    ASSERT_EQ(elsf->size(), 1u);
-    const MegaSetElement* elfp = elsf->get(0);
-    ASSERT_NE(elfp, nullptr);
-    ASSERT_EQ(elfp->id(), eh);
-    ASSERT_EQ(elfp->node(), uploadedNode);
-    ASSERT_EQ(elfp->setId(), sh);
-    ASSERT_STREQ(elfp->name(), "");
-    ASSERT_EQ(elfp->ts(), elp2->ts());
-    ASSERT_EQ(elfp->order(), elp2->order());
-
-    // 6. Update Element order
+    // 5. Update Element order
     MegaHandle el1 = INVALID_HANDLE;
     int64_t order = 222;
     differentApiDtls.setElementUpdated = false;
@@ -10724,7 +11041,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_STREQ(elp2->name(), "");
     ASSERT_EQ(elp2->order(), elu1p->order());
 
-    // 7. Update Element name
+    // 6. Update Element name
     MegaHandle el2 = INVALID_HANDLE;
     elattrs += u8" updated";
     differentApiDtls.setElementUpdated = false;
@@ -10741,7 +11058,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    // 8. Remove Element
+    // 7. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
@@ -10760,7 +11077,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 9. Add bulk elements
+    // 8. Add/remove bulk elements
     // Add 2; only the first will succeed
     differentApiDtls.setElementUpdated = false;
     string elattrs2 = elattrs + u8" bulk2";
@@ -10851,7 +11168,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
-    // 10. Logout / login
+    // 9. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
@@ -10876,7 +11193,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), namebulk11);
 
-    // 11. Remove all Sets
+    // 10. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
     unique_ptr<MegaSetList> sets2(differentApi.getSets());
     ASSERT_EQ(sets->size(), sets2->size());
@@ -10903,6 +11220,342 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(sets2->size(), 0u);
 }
 
+/**
+ * @brief TEST_F SdkTestSetsAndElementsPublicLink
+ *
+ * Tests creating, modifying and removing Sets and Elements.
+ */
+TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
+{
+    LOG_info << "___TEST Sets and Elements Public Link___";
+
+    // U1: Create set
+    // U1: Upload test file
+    // U1: Add Element to Set
+    // U1: Check if Set is exported
+    // U1: Enable Set export (creates public link)
+    // U1: Check if Set is exported
+    // U1: Logout / login to retrieve Set
+    // U1: Check if Set is exported
+    // U1: Get public Set URL
+    // U1: Fetch Public Set and start Public Set preview mode
+    // U1: Stop Public Set preview mode
+    // U2: Fetch public Set and start preview mode
+    // U2: Download foreign Set Element in preview set mode
+    // U2: Stop Public Set preview mode
+    // U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)
+    // U1: Disable Set export (invalidates public link)
+    // U1: Get public Set URL (-9 expected)
+    // U1: Sync fetch public Set on non-exported Set (using previously valid link), nullptr expected
+    // U1: Remove all Sets
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Use another connection with the same credentials as U1
+    MegaApi* differentApiPtr = nullptr;
+    PerApi* differentApiDtlsPtr = nullptr;
+    int userIdx = 0;
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(userIdx).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    differentApiPtr = &(*megaApi.back());
+    differentApiPtr->addListener(this);
+    PerApi pa; // make a copy
+    auto& aux = mApi[userIdx];
+    pa.email = aux.email;
+    pa.pwd = aux.pwd;
+    mApi.push_back(move(pa));
+    differentApiDtlsPtr = &(mApi.back());
+    differentApiDtlsPtr->megaApi = differentApiPtr;
+    int difApiIdx = static_cast<int>(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
+    loginTracker = asyncRequestFetchnodes(difApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
+
+
+    LOG_debug << "# U1: Create set";
+    const string name = u8"qq-001";
+    MegaSet* newSet = nullptr;
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> s1p(newSet);
+    const MegaHandle sh = s1p->id();
+
+
+    LOG_debug << "# U1: Upload test file";
+    userIdx = 0;
+    unique_ptr<MegaNode> rootnode{ megaApi[userIdx]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+    MegaHandle uploadedNode = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doStartUpload(userIdx, &uploadedNode, UPFILE.c_str(),
+                                    rootnode.get(),
+                                    nullptr /*fileName*/,
+                                    ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                    nullptr /*appData*/,
+                                    false   /*isSourceTemporary*/,
+                                    false   /*startFirst*/,
+                                    nullptr /*cancelToken*/)
+             ) << "Cannot upload a test file";
+
+
+    LOG_debug << "# U1: Add Element to Set";
+    userIdx = 0;
+    const string elattrs = u8"Element name emoji: 🐧";
+    MegaSetElementList* newEll = nullptr;
+    ASSERT_EQ(API_OK, doCreateSetElement(userIdx, &newEll, sh, uploadedNode, elattrs.c_str()));
+    ASSERT_NE(newEll, nullptr);
+    const unique_ptr<MegaSetElementList> els(newEll);
+    const MegaHandle eh = els->get(0)->id();
+    const unique_ptr<MegaSetElement> elp(megaApi[userIdx]->getSetElement(sh, eh));
+    ASSERT_NE(elp, nullptr);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_FALSE(megaApi[0]->isExportedSet(sh)) << "Set should not be public yet";
+
+
+    LOG_debug << "# U1: Enable Set export (creates public link)";
+    userIdx = 0;
+    ASSERT_FALSE(megaApi[userIdx]->isExportedSet(sh));
+    MegaSet* exportedSet = nullptr;
+    string exportedSetURL;
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
+    bool isExpectedToBeExported = true;
+    ASSERT_FALSE(exportedSetURL.empty());
+    unique_ptr<MegaSet> s1pEnabledExport(exportedSet);
+    LOG_debug << "\tChecking Set from export request";
+    const auto lIsSameSet = [&s1p](const MegaSet* s, bool isExported)
+    {
+        ASSERT_NE(s, nullptr);
+        ASSERT_EQ(s1p->id(), s->id());
+        ASSERT_STREQ(s1p->name(), s->name());
+        ASSERT_EQ(isExported, s->isExported());
+        ASSERT_NE(s->ts(), 0);
+    };
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet";
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Set export updated not received after " << maxTimeout << " seconds";
+    s1pEnabledExport.reset(differentApiPtr->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    // test shortcut
+    LOG_debug << "\tChecking export enable shortcut";
+    exportedSet = nullptr;
+    ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
+    s1pEnabledExport.reset(exportedSet);
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Logout / login to retrieve Set";
+    userIdx = 0;
+    isExpectedToBeExported = true;
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
+
+    unique_ptr<MegaSet> reloadedSessionSet(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported);
+    const auto lIsSameElement = [&elp](const MegaSetElement* el)
+    {
+        ASSERT_EQ(el->id(), elp->id());
+        ASSERT_EQ(el->node(), elp->node());
+        ASSERT_STREQ(el->name(), elp->name());
+        ASSERT_EQ(el->ts(), elp->ts());
+        ASSERT_EQ(el->order(), elp->order());
+    };
+    unique_ptr<MegaSetElement> reloadedSessionElement(megaApi[userIdx]->getSetElement(sh, eh));
+    lIsSameElement(reloadedSessionElement.get());
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should still be public after session resumption";
+
+
+    LOG_debug << "# U1: Get public Set URL";
+    const auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    {
+        bool isSuccessExpected = expectedResult == API_OK;
+        unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
+        if (isSuccessExpected) ASSERT_NE(publicSetLink.get(), nullptr);
+        else                   ASSERT_EQ(publicSetLink.get(), nullptr);
+    };
+
+    lCheckSetLink(API_OK);
+
+
+    LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
+    userIdx = 0;
+    isExpectedToBeExported = true;
+    const auto lIsSameElementList = [&els, &lIsSameElement](const MegaSetElementList* ell)
+    {
+        ASSERT_NE(ell, nullptr);
+        ASSERT_EQ(ell->size(), els->size());
+        lIsSameElement(ell->get(0));
+    };
+    const auto lFetchCurrentSetInPreviewMode =
+    [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
+    {
+        unique_ptr<MegaSet> s(megaApi[apiIdx]->getPublicSetInPreview());
+        unique_ptr<MegaSetElementList> ell(megaApi[apiIdx]->getPublicSetElementsInPreview());
+
+        if (isSuccessExpected)
+        {
+            lIsSameSet(s.get(), true);
+            lIsSameElementList(ell.get());
+        }
+        else
+        {
+            ASSERT_EQ(s, nullptr);
+            ASSERT_EQ(ell, nullptr);
+        }
+    };
+    const auto lFetchPublicSet =
+    [this, &exportedSetURL, &lIsSameSet, &lIsSameElementList, &lFetchCurrentSetInPreviewMode]
+    (int apiIdx, bool isSetExportExpected)
+    {
+        MegaSet* exportedSet = nullptr;
+        MegaSetElementList* exportedEls = nullptr;
+        const auto reqResult = doFetchPublicSet(apiIdx, &exportedSet, &exportedEls, exportedSetURL.c_str());
+        unique_ptr<MegaSet> s(exportedSet);
+        unique_ptr<MegaSetElementList> els(exportedEls);
+
+        if (isSetExportExpected)
+        {
+            ASSERT_EQ(reqResult, API_OK);
+            lIsSameSet(s.get(), isSetExportExpected);
+            lIsSameElementList(els.get());
+        }
+        else
+        {
+            ASSERT_NE(reqResult, API_OK);
+            ASSERT_EQ(s.get(), nullptr);
+            ASSERT_EQ(els.get(), nullptr);
+        }
+
+        ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
+        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+    };
+
+    lFetchPublicSet(0, isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Stop Public Set preview mode";
+    userIdx = 0;
+    megaApi[userIdx]->stopPublicSetPreview();
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
+    lFetchCurrentSetInPreviewMode(userIdx, false);
+
+
+    LOG_debug << "# U2: Fetch public Set and start preview mode";
+    userIdx = 1;
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    // test shortcut
+    LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+
+
+    LOG_debug << "# U2: Download foreign Set Element in preview set mode";
+    unique_ptr<MegaNode> foreignNode;
+    const auto lFetchForeignNode = [this, &foreignNode, &uploadedNode, &elp](int expectedResult)
+    {
+        ASSERT_EQ(elp->node(), uploadedNode);
+        MegaNode* fNode = nullptr;
+
+        ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
+
+        foreignNode.reset(fNode);
+        if (expectedResult == API_OK) { ASSERT_NE(foreignNode, nullptr); }
+        else                          { ASSERT_EQ(foreignNode, nullptr); }
+    };
+    const auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
+    {
+        string downloadPath = (fs::current_path() / UPFILE.c_str()).u8string();
+        if (fs::exists(downloadPath)) fs::remove(downloadPath);
+        ASSERT_EQ(expectedResult,
+                  doStartDownload(1, validForeignNode,
+                                  downloadPath.c_str(), // trims from end to first separator
+                                  nullptr  /*customName*/,
+                                  nullptr  /*appData*/,
+                                  false    /*startFirst*/,
+                                  nullptr  /*cancelToken*/));
+        fs::remove(downloadPath);
+    };
+
+    lFetchForeignNode(API_OK);
+    lDownloadForeignElement(API_OK, foreignNode.get());
+
+
+    LOG_debug << "# U2: Stop Public Set preview mode";
+    userIdx = 1;
+    megaApi[userIdx]->stopPublicSetPreview();
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
+    lFetchCurrentSetInPreviewMode(userIdx, false);
+
+
+    LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
+    lFetchForeignNode(API_EACCESS);
+    lDownloadForeignElement(API_ENOENT, foreignNode.get());
+
+
+    LOG_debug << "# U1: Disable Set export (invalidates public link)";
+    userIdx = 0;
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh));
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
+    isExpectedToBeExported = false;
+    unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    // wait for action packets on both APIs (disable updates through APs)
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
+    s1pDisabledExport.reset(differentApiPtr->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    // test shortcut on disable export
+    LOG_debug << "\tChecking export disable shortcut";
+    exportedSet = nullptr;
+    ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
+    s1pDisabledExport.reset(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_FALSE(megaApi[0]->isExportedSet(sh));
+
+
+    LOG_debug << "# U1: Get public Set URL (expect -9)";
+    lCheckSetLink(API_ENOENT);
+
+
+    LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
+    userIdx = 0;
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
+
+
+    LOG_debug << "# U1: Remove all Sets";
+    userIdx = 0;
+    unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
+    for (unsigned i = 0; i < sets->size(); ++i)
+    {
+        handle setId = sets->get(i)->id();
+        ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
+
+        unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
+        ASSERT_EQ(s, nullptr);
+    }
+    sets.reset(megaApi[userIdx]->getSets());
+    ASSERT_EQ(sets->size(), 0u);
+}
 
 /**
  * @brief TEST_F SdkUserAlerts
@@ -10919,6 +11572,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
  *      UpdatedSharedNode (combined with previous one)
  *      DeletedShare
  *      ContactChange  --  contact deleted
+ *      NewScheduledMeeting
+ *      DeletedScheduledMeeting
+ *      UpdatedScheduledMeeting
  *
  * Not generated:
  *      UpdatedPendingContactIncoming   skipped (requires a 2 week wait)
@@ -11009,7 +11665,6 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getPcrHandle(), B1dtls.cr->getHandle()) << "IncomingPendingContact  --  request created";
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
-
 
     // ContactChange  --  contact request accepted
     //--------------------------------------------
@@ -11102,6 +11757,101 @@ TEST_F(SdkTest, SdkUserAlerts)
         false   /*startFirst*/,
         nullptr /*cancelToken*/)) << "Cannot upload a second test file";
 
+#ifdef ENABLE_CHAT
+    // NewScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    A1dtls.userUpdated = false;
+    B1dtls.userAlertList.reset();
+
+    size_t apiIndex = 0;
+    MegaHandle chatid = UNDEF;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].chatid = UNDEF;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    createChatScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting creation not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
+
+    bool expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_NEW)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+    ASSERT_TRUE(expectedAlert) << "User alert not received for new scheduled meeting";
+
+    // UpdateScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+    A1dtls.userUpdated = false;
+    mApi[apiIndex].chatid = UNDEF;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    updateScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting update not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
+
+    expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_UPDATED)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting update";
+
+    // DeleteScheduledMeeting
+    //--------------------------------------------
+    // reset User Alerts for B1
+    B1dtls.userAlertsUpdated = false;
+    B1dtls.userAlertList.reset();
+    A1dtls.userUpdated = false;
+    mApi[apiIndex].schedId = UNDEF;
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
+    deleteScheduledMeeting(0, chatid);
+    ASSERT_NE(chatid, UNDEF) << "Invalid chat";
+    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
+
+    ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
+        << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
+    ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
+
+    expectedAlert = false;
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_DELETED)
+        {
+            a = B1dtls.userAlertList->get(i);
+            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+            bkpAlerts.emplace_back(a->copy());
+            expectedAlert = true;
+        }
+    }
+    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting removal";
+#endif
 
     // NewShare
     //--------------------------------------------
@@ -11505,10 +12255,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     B1dtls.userAlertList.reset();
 
     // --- Delete an existing contact ---
-    A1dtls.userUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(removeContact(B1dtls.email));
-    ASSERT_TRUE(waitForResponse(&A1dtls.userUpdated))   // at the target side (main account)
-        << "Delete contact update not received by A1 after " << maxTimeout << " seconds";
+    ASSERT_EQ(API_OK, removeContact(0, B1dtls.email));
 
     // ContactChange  --  contact deleted
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
@@ -11627,7 +12374,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_TRUE(rootnode);
 
     // Check if exists nodes with that name in the cloud
-    std::string stringSearch = "test";
+    std::string stringSearch = "check";
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     int nodesWithTest = nodeList->size();
 
@@ -11642,7 +12389,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     resetOnNodeUpdateCompletionCBs();
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string folder1_1 = "Folder1_1Test";
+    std::string folder1_1 = "Folder1_1Check";
     auto folder1_1Handle = createFolder(0, folder1_1.c_str(), folder1.get());
     ASSERT_NE(folderHandle, UNDEF);
     waitForResponse(&check);
@@ -11650,7 +12397,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_TRUE(folder1_1Test);
     resetOnNodeUpdateCompletionCBs();
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file1 = "file1Test";
+    std::string file1 = "file1Check";
     createFile(file1, false);
     MegaHandle file1Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file1Handle, file1.data(), folder1.get(),
@@ -11668,7 +12415,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(file1Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 1 node for scenario (error: " << mApi[0].lastError << ")";
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file2 = "file2Test";
+    std::string file2 = "file2Check";
     createFile(file2, false);
     MegaHandle file2Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file2Handle, file2.data(), folder1.get(),
@@ -11687,7 +12434,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 2 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file3 = "file3Test";
+    std::string file3 = "file3Check";
     createFile(file3, false);
     MegaHandle file3Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file3Handle, file3.data(), folder1.get(),
@@ -11706,7 +12453,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 3 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file4 = "file4Test";
+    std::string file4 = "file4Check";
     createFile(file4, false);
     MegaHandle file4Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file4Handle, file4.data(), folder1.get(),
@@ -11726,7 +12473,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     mApi[0].nodeUpdated = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
-    std::string file5 = "file5Test";
+    std::string file5 = "file5Check";
     createFile(file5, false);
     MegaHandle file5Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file5Handle, file5.data(), folder1.get(),
@@ -11745,7 +12492,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 5 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file6 = "file6Test";
+    std::string file6 = "file6Check";
     createFile(file6, false);
     MegaHandle file6Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file6Handle, file6.data(), rootnode.get(),
@@ -11764,7 +12511,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 6 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file7 = "file7Test";
+    std::string file7 = "file7Check";
     createFile(file7, false);
     MegaHandle file7Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file7Handle, file7.data(), folder1_1Test.get(),
@@ -11783,7 +12530,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 7 node for scenario (error: " << mApi[0].lastError << ")";
 
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-    std::string file8 = "file8Test";
+    std::string file8 = "file8Check";
     createFile(file8, false);
     MegaHandle file8Handle = 0;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &file8Handle, file8.data(), folder1_1Test.get(),
@@ -11805,14 +12552,14 @@ TEST_F(SdkTest, SdkGetNodesByName)
     // Tree structure
     // Root node
     //   - Folder1
-    //       - Folder1_1Test
-    //            - file7Test
-    //            - file8Test
-    //       - file1Test
-    //       - file2Test
-    //       - file3Test
-    //       - file4Test
-    //       - file5Test
+    //       - Folder1_1Check
+    //            - file7Check
+    //            - file8Check
+    //       - file1Check
+    //       - file2Check
+    //       - file3Check
+    //       - file4Check
+    //       - file5Check
     //   - file6Test
 
     stringSearch = file1;
@@ -11820,19 +12567,19 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2TEST", nullptr));
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2CHECK", nullptr));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 
-    stringSearch = "file*Test";
+    stringSearch = "file*Check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 8);
 
-    stringSearch = "file*test";
+    stringSearch = "file*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 8);
 
-    stringSearch = "*test";
+    stringSearch = "*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
     ASSERT_EQ(nodeList->size(), 9 + nodesWithTest);
 
@@ -11855,7 +12602,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
-    stringSearch = std::string("file*test");
+    stringSearch = std::string("file*check");
     nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
     ASSERT_EQ(nodeList->size(), 5);
 
@@ -11907,7 +12654,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
     ASSERT_EQ(nodeList->size(), 1);
 
-    stringSearch = "FILE*test";
+    stringSearch = "FILE*check";
     nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
     ASSERT_EQ(nodeList->size(), 7);
@@ -11921,20 +12668,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 
     // --- Test search out shares ---
     stringSearch = file8;
@@ -11942,7 +12676,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 1);
 
-    stringSearch = "FILE*test";
+    stringSearch = "FILE*check";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 7);
@@ -11956,20 +12690,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     stringSearch = "folder*";
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
-
-    stringSearch = "folder*";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), folderHandle);
-
-    stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
-    ASSERT_EQ(nodeList->size(), 0);
-
+    ASSERT_EQ(nodeList->size(), 2);
 }
 
 /*
