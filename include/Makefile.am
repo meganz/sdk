@@ -16,17 +16,21 @@ nobase_libmegainclude_HEADERS = \
 	mega/filefingerprint.h \
 	mega/file.h \
 	mega/filesystem.h \
+	mega/heartbeats.h \
 	mega/http.h \
 	mega/json.h \
 	mega/megaapp.h \
 	mega/megaclient.h \
 	mega/node.h \
+	mega/nodemanager.h \
 	mega/pubkeyaction.h \
 	mega/request.h \
 	mega/serialize64.h \
+	mega/setandelement.h \
 	mega/share.h \
 	mega/sharenodekeys.h \
 	mega/sync.h \
+	mega/textchat.h \
 	mega/transfer.h \
 	mega/transferslot.h \
 	mega/treeproc.h \
