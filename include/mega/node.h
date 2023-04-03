@@ -183,7 +183,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     static const vector<string> attributesToCopyIntoPreviousVersions;
-    
+
     // 'sen' attribute
     bool isMarkedSensitive() const;
     bool isSensitiveInherited() const;
@@ -344,7 +344,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         FLAGS_SIZE = 3
     };
 
-    typedef std::bitset<FLAGS_SIZE> Flags; 
+    typedef std::bitset<FLAGS_SIZE> Flags;
 
     // check if any of the flags are set in any of the anesestors
     bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
