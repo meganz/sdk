@@ -3828,7 +3828,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     {
         out() << "removeSelectedSyncs failed";
     }
-    assert(client.syncs.getConfigs(false, false).empty());
+    assert(client.syncs.getConfigs(false).empty());
 
     // delete everything from Vault
     std::atomic<int> requestcount{0};

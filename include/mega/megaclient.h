@@ -45,7 +45,6 @@
 
 namespace mega {
 
-class ScanService;
 class Logger;
 
 class MEGA_API FetchNodesStats

@@ -963,7 +963,7 @@ struct SyncFlags
 struct Syncs
 {
     // Retrieve a copy of configured sync settings (thread safe)
-    SyncConfigVector getConfigs(bool onlyActive, bool excludePaused = false) const;
+    SyncConfigVector getConfigs(bool onlyActive) const;
     bool configById(handle backupId, SyncConfig&) const;
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector) const;

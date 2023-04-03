@@ -1092,7 +1092,6 @@ endif()
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
-
 endif(WIN32)
 
 #enable_testing()
