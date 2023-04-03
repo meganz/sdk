@@ -330,21 +330,31 @@ void SdkTest::Cleanup()
         }
     }
 
+    set<string> alreadyRemoved;
+
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> contacts{megaApi[nApi]->getContacts()};
         for (int i = 0; i < contacts->size(); i++)
         {
+            // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
+            // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
+            string email1 = string(megaApi[nApi]->getMyEmail());
+            string email2 = string(contacts->get(i)->getEmail());
+            if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
+            if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
+            alreadyRemoved.insert(email1+email2);
+
             auto result = synchronousRemoveContact(nApi, contacts->get(i));
             if (result == API_EARGS)
             {
                 // let's have a look at which other users the jenkins users have been connected to
                 out() << "Contact " << contacts->get(i)->getEmail() << " of megaapi " << nApi << " already 'invisible'";
             }
-            else
+            else if (result != API_OK)
             {
-                EXPECT_EQ(API_OK, result) << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
+                LOG_err << "Could not remove contact " << i << ": " << contacts->get(i)->getEmail() << " from megaapi " << nApi;
             }
         }
     }
@@ -362,10 +372,16 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
@@ -394,10 +410,16 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
+                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
+                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
+                    alreadyRemoved.insert(email1+email);
+
                     unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
                     if (shareUser)
                     {
-                        EXPECT_EQ(API_OK, synchronousRemoveContact(nApi, shareUser.get())) << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
+                        auto result = synchronousRemoveContact(nApi, shareUser.get());
+                        if (result != API_OK)  LOG_err << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
                     }
                     else
                     {
@@ -1505,7 +1527,7 @@ void SdkTest::deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid)
 }
 #endif
 
-void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeout)
+void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
 {
     int apiIndex = 0;
     auto shareFolderErr = synchronousShare(apiIndex, n, email, action);
@@ -6965,7 +6987,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     unique_ptr <MegaNode> sharedSubFolderA(megaApi[1]->getNodeByPath(subFolderAName.c_str(), nl2->get(0)));
     ASSERT_TRUE(sharedSubFolderA) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " not found";
     ASSERT_EQ(sharedSubFolderA->isMarkedSensitive(), true) << "Share " << nl2->get(0)->getName() << '/' << subFolderAName << " found but not sensitive";
-    
+
     // ---------------------------------------------------------------------------------------------------------------------------
 
     subFolderA.reset(megaApi[0]->getNodeByPath((string("/") + folderAName + "/" + subFolderAName).c_str(), unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get()));
@@ -10769,13 +10791,12 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     //  2. Update Set name
     //  3. Upload test files
     //  4. Add Element
-    //  5. Fetch Set
-    //  6. Update Element order
-    //  7. Update Element name
-    //  8. Remove Element
-    //  9. Add bulk elements
-    // 10. Logout / login
-    // 11. Remove all Sets
+    //  5. Update Element order
+    //  6. Update Element name
+    //  7. Remove Element
+    //  8. Add/remove bulk elements
+    //  9. Logout / login
+    // 10. Remove all Sets
 
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
@@ -10806,8 +10827,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p->id(), INVALID_HANDLE);
     ASSERT_EQ(s1p->name(), name);
     ASSERT_NE(s1p->ts(), 0);
+    ASSERT_NE(s1p->cts(), 0) << "Create-timestamp of a Set was not set";
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
     MegaHandle sh = s1p->id();
+    int64_t setCrTs = s1p->cts();
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set create AP not received after " << maxTimeout << " seconds";
@@ -10816,6 +10839,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->id(), s1p->id());
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1p->ts());
+    ASSERT_EQ(s2p->cts(), s1p->cts()) << "Create-timestamp of a Set differed in Action Packet";
     ASSERT_EQ(s2p->user(), s1p->user());
 
     // Clear Set name
@@ -10825,11 +10849,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     unique_ptr<MegaSet> s1clearname(megaApi[0]->getSet(sh));
     ASSERT_NE(s1clearname, nullptr);
     ASSERT_STREQ(s1clearname->name(), "");
+    ASSERT_EQ(s1clearname->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change";
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
     ASSERT_STREQ(s2p->name(), "");
+    ASSERT_EQ(s2p->cts(), setCrTs) << "Create-timestamp of a Set has changed after name change AP";
 
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
@@ -10991,32 +11017,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->cover(), INVALID_HANDLE);
 
-    // 5. Fetch Set
-    MegaSet* fetchedSet = nullptr;
-    MegaSetElementList* fetchedEls = nullptr;
-    err = doFetchSet(0, &fetchedSet, &fetchedEls, sh);
-    ASSERT_EQ(err, API_OK);
-    ASSERT_NE(fetchedSet, nullptr);
-    ASSERT_NE(fetchedEls, nullptr);
-    unique_ptr<MegaSet> sf(fetchedSet);
-    unique_ptr<MegaSetElementList> elsf(fetchedEls);
-
-    ASSERT_EQ(sf->id(), sh);
-    ASSERT_EQ(sf->name(), name);
-    ASSERT_EQ(sf->ts(), s1up->ts());
-    ASSERT_EQ(sf->user(), s1up->user());
-
-    ASSERT_EQ(elsf->size(), 1u);
-    const MegaSetElement* elfp = elsf->get(0);
-    ASSERT_NE(elfp, nullptr);
-    ASSERT_EQ(elfp->id(), eh);
-    ASSERT_EQ(elfp->node(), uploadedNode);
-    ASSERT_EQ(elfp->setId(), sh);
-    ASSERT_STREQ(elfp->name(), "");
-    ASSERT_EQ(elfp->ts(), elp2->ts());
-    ASSERT_EQ(elfp->order(), elp2->order());
-
-    // 6. Update Element order
+    // 5. Update Element order
     MegaHandle el1 = INVALID_HANDLE;
     int64_t order = 222;
     differentApiDtls.setElementUpdated = false;
@@ -11040,7 +11041,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_STREQ(elp2->name(), "");
     ASSERT_EQ(elp2->order(), elu1p->order());
 
-    // 7. Update Element name
+    // 6. Update Element name
     MegaHandle el2 = INVALID_HANDLE;
     elattrs += u8" updated";
     differentApiDtls.setElementUpdated = false;
@@ -11057,7 +11058,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    // 8. Remove Element
+    // 7. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
@@ -11076,7 +11077,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 9. Add bulk elements
+    // 8. Add/remove bulk elements
     // Add 2; only the first will succeed
     differentApiDtls.setElementUpdated = false;
     string elattrs2 = elattrs + u8" bulk2";
@@ -11167,7 +11168,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
-    // 10. Logout / login
+    // 9. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
@@ -11192,7 +11193,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), namebulk11);
 
-    // 11. Remove all Sets
+    // 10. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
     unique_ptr<MegaSetList> sets2(differentApi.getSets());
     ASSERT_EQ(sets->size(), sets2->size());
@@ -11219,6 +11220,342 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(sets2->size(), 0u);
 }
 
+/**
+ * @brief TEST_F SdkTestSetsAndElementsPublicLink
+ *
+ * Tests creating, modifying and removing Sets and Elements.
+ */
+TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
+{
+    LOG_info << "___TEST Sets and Elements Public Link___";
+
+    // U1: Create set
+    // U1: Upload test file
+    // U1: Add Element to Set
+    // U1: Check if Set is exported
+    // U1: Enable Set export (creates public link)
+    // U1: Check if Set is exported
+    // U1: Logout / login to retrieve Set
+    // U1: Check if Set is exported
+    // U1: Get public Set URL
+    // U1: Fetch Public Set and start Public Set preview mode
+    // U1: Stop Public Set preview mode
+    // U2: Fetch public Set and start preview mode
+    // U2: Download foreign Set Element in preview set mode
+    // U2: Stop Public Set preview mode
+    // U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)
+    // U1: Disable Set export (invalidates public link)
+    // U1: Get public Set URL (-9 expected)
+    // U1: Sync fetch public Set on non-exported Set (using previously valid link), nullptr expected
+    // U1: Remove all Sets
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Use another connection with the same credentials as U1
+    MegaApi* differentApiPtr = nullptr;
+    PerApi* differentApiDtlsPtr = nullptr;
+    int userIdx = 0;
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(userIdx).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    differentApiPtr = &(*megaApi.back());
+    differentApiPtr->addListener(this);
+    PerApi pa; // make a copy
+    auto& aux = mApi[userIdx];
+    pa.email = aux.email;
+    pa.pwd = aux.pwd;
+    mApi.push_back(move(pa));
+    differentApiDtlsPtr = &(mApi.back());
+    differentApiDtlsPtr->megaApi = differentApiPtr;
+    int difApiIdx = static_cast<int>(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
+    loginTracker = asyncRequestFetchnodes(difApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
+
+
+    LOG_debug << "# U1: Create set";
+    const string name = u8"qq-001";
+    MegaSet* newSet = nullptr;
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> s1p(newSet);
+    const MegaHandle sh = s1p->id();
+
+
+    LOG_debug << "# U1: Upload test file";
+    userIdx = 0;
+    unique_ptr<MegaNode> rootnode{ megaApi[userIdx]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+    MegaHandle uploadedNode = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doStartUpload(userIdx, &uploadedNode, UPFILE.c_str(),
+                                    rootnode.get(),
+                                    nullptr /*fileName*/,
+                                    ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                    nullptr /*appData*/,
+                                    false   /*isSourceTemporary*/,
+                                    false   /*startFirst*/,
+                                    nullptr /*cancelToken*/)
+             ) << "Cannot upload a test file";
+
+
+    LOG_debug << "# U1: Add Element to Set";
+    userIdx = 0;
+    const string elattrs = u8"Element name emoji: 🐧";
+    MegaSetElementList* newEll = nullptr;
+    ASSERT_EQ(API_OK, doCreateSetElement(userIdx, &newEll, sh, uploadedNode, elattrs.c_str()));
+    ASSERT_NE(newEll, nullptr);
+    const unique_ptr<MegaSetElementList> els(newEll);
+    const MegaHandle eh = els->get(0)->id();
+    const unique_ptr<MegaSetElement> elp(megaApi[userIdx]->getSetElement(sh, eh));
+    ASSERT_NE(elp, nullptr);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_FALSE(megaApi[0]->isExportedSet(sh)) << "Set should not be public yet";
+
+
+    LOG_debug << "# U1: Enable Set export (creates public link)";
+    userIdx = 0;
+    ASSERT_FALSE(megaApi[userIdx]->isExportedSet(sh));
+    MegaSet* exportedSet = nullptr;
+    string exportedSetURL;
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
+    bool isExpectedToBeExported = true;
+    ASSERT_FALSE(exportedSetURL.empty());
+    unique_ptr<MegaSet> s1pEnabledExport(exportedSet);
+    LOG_debug << "\tChecking Set from export request";
+    const auto lIsSameSet = [&s1p](const MegaSet* s, bool isExported)
+    {
+        ASSERT_NE(s, nullptr);
+        ASSERT_EQ(s1p->id(), s->id());
+        ASSERT_STREQ(s1p->name(), s->name());
+        ASSERT_EQ(isExported, s->isExported());
+        ASSERT_NE(s->ts(), 0);
+    };
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet";
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Set export updated not received after " << maxTimeout << " seconds";
+    s1pEnabledExport.reset(differentApiPtr->getSet(sh));
+    LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    // test shortcut
+    LOG_debug << "\tChecking export enable shortcut";
+    exportedSet = nullptr;
+    ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
+    s1pEnabledExport.reset(exportedSet);
+    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Logout / login to retrieve Set";
+    userIdx = 0;
+    isExpectedToBeExported = true;
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
+
+    unique_ptr<MegaSet> reloadedSessionSet(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported);
+    const auto lIsSameElement = [&elp](const MegaSetElement* el)
+    {
+        ASSERT_EQ(el->id(), elp->id());
+        ASSERT_EQ(el->node(), elp->node());
+        ASSERT_STREQ(el->name(), elp->name());
+        ASSERT_EQ(el->ts(), elp->ts());
+        ASSERT_EQ(el->order(), elp->order());
+    };
+    unique_ptr<MegaSetElement> reloadedSessionElement(megaApi[userIdx]->getSetElement(sh, eh));
+    lIsSameElement(reloadedSessionElement.get());
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should still be public after session resumption";
+
+
+    LOG_debug << "# U1: Get public Set URL";
+    const auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    {
+        bool isSuccessExpected = expectedResult == API_OK;
+        unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
+        if (isSuccessExpected) ASSERT_NE(publicSetLink.get(), nullptr);
+        else                   ASSERT_EQ(publicSetLink.get(), nullptr);
+    };
+
+    lCheckSetLink(API_OK);
+
+
+    LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
+    userIdx = 0;
+    isExpectedToBeExported = true;
+    const auto lIsSameElementList = [&els, &lIsSameElement](const MegaSetElementList* ell)
+    {
+        ASSERT_NE(ell, nullptr);
+        ASSERT_EQ(ell->size(), els->size());
+        lIsSameElement(ell->get(0));
+    };
+    const auto lFetchCurrentSetInPreviewMode =
+    [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
+    {
+        unique_ptr<MegaSet> s(megaApi[apiIdx]->getPublicSetInPreview());
+        unique_ptr<MegaSetElementList> ell(megaApi[apiIdx]->getPublicSetElementsInPreview());
+
+        if (isSuccessExpected)
+        {
+            lIsSameSet(s.get(), true);
+            lIsSameElementList(ell.get());
+        }
+        else
+        {
+            ASSERT_EQ(s, nullptr);
+            ASSERT_EQ(ell, nullptr);
+        }
+    };
+    const auto lFetchPublicSet =
+    [this, &exportedSetURL, &lIsSameSet, &lIsSameElementList, &lFetchCurrentSetInPreviewMode]
+    (int apiIdx, bool isSetExportExpected)
+    {
+        MegaSet* exportedSet = nullptr;
+        MegaSetElementList* exportedEls = nullptr;
+        const auto reqResult = doFetchPublicSet(apiIdx, &exportedSet, &exportedEls, exportedSetURL.c_str());
+        unique_ptr<MegaSet> s(exportedSet);
+        unique_ptr<MegaSetElementList> els(exportedEls);
+
+        if (isSetExportExpected)
+        {
+            ASSERT_EQ(reqResult, API_OK);
+            lIsSameSet(s.get(), isSetExportExpected);
+            lIsSameElementList(els.get());
+        }
+        else
+        {
+            ASSERT_NE(reqResult, API_OK);
+            ASSERT_EQ(s.get(), nullptr);
+            ASSERT_EQ(els.get(), nullptr);
+        }
+
+        ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
+        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+    };
+
+    lFetchPublicSet(0, isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Stop Public Set preview mode";
+    userIdx = 0;
+    megaApi[userIdx]->stopPublicSetPreview();
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
+    lFetchCurrentSetInPreviewMode(userIdx, false);
+
+
+    LOG_debug << "# U2: Fetch public Set and start preview mode";
+    userIdx = 1;
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    // test shortcut
+    LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+
+
+    LOG_debug << "# U2: Download foreign Set Element in preview set mode";
+    unique_ptr<MegaNode> foreignNode;
+    const auto lFetchForeignNode = [this, &foreignNode, &uploadedNode, &elp](int expectedResult)
+    {
+        ASSERT_EQ(elp->node(), uploadedNode);
+        MegaNode* fNode = nullptr;
+
+        ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
+
+        foreignNode.reset(fNode);
+        if (expectedResult == API_OK) { ASSERT_NE(foreignNode, nullptr); }
+        else                          { ASSERT_EQ(foreignNode, nullptr); }
+    };
+    const auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
+    {
+        string downloadPath = (fs::current_path() / UPFILE.c_str()).u8string();
+        if (fs::exists(downloadPath)) fs::remove(downloadPath);
+        ASSERT_EQ(expectedResult,
+                  doStartDownload(1, validForeignNode,
+                                  downloadPath.c_str(), // trims from end to first separator
+                                  nullptr  /*customName*/,
+                                  nullptr  /*appData*/,
+                                  false    /*startFirst*/,
+                                  nullptr  /*cancelToken*/));
+        fs::remove(downloadPath);
+    };
+
+    lFetchForeignNode(API_OK);
+    lDownloadForeignElement(API_OK, foreignNode.get());
+
+
+    LOG_debug << "# U2: Stop Public Set preview mode";
+    userIdx = 1;
+    megaApi[userIdx]->stopPublicSetPreview();
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
+    lFetchCurrentSetInPreviewMode(userIdx, false);
+
+
+    LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
+    lFetchForeignNode(API_EACCESS);
+    lDownloadForeignElement(API_ENOENT, foreignNode.get());
+
+
+    LOG_debug << "# U1: Disable Set export (invalidates public link)";
+    userIdx = 0;
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh));
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
+    isExpectedToBeExported = false;
+    unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    // wait for action packets on both APIs (disable updates through APs)
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
+    s1pDisabledExport.reset(differentApiPtr->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    // test shortcut on disable export
+    LOG_debug << "\tChecking export disable shortcut";
+    exportedSet = nullptr;
+    ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
+    s1pDisabledExport.reset(megaApi[userIdx]->getSet(sh));
+    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+
+
+    LOG_debug << "# U1: Check if Set is exported";
+    ASSERT_FALSE(megaApi[0]->isExportedSet(sh));
+
+
+    LOG_debug << "# U1: Get public Set URL (expect -9)";
+    lCheckSetLink(API_ENOENT);
+
+
+    LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
+    userIdx = 0;
+    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
+
+
+    LOG_debug << "# U1: Remove all Sets";
+    userIdx = 0;
+    unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
+    for (unsigned i = 0; i < sets->size(); ++i)
+    {
+        handle setId = sets->get(i)->id();
+        ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
+
+        unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
+        ASSERT_EQ(s, nullptr);
+    }
+    sets.reset(megaApi[userIdx]->getSets());
+    ASSERT_EQ(sets->size(), 0u);
+}
 
 /**
  * @brief TEST_F SdkUserAlerts

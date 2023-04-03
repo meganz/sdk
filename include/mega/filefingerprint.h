@@ -61,10 +61,12 @@ struct MEGA_API FileFingerprint : public Cacheable
     FileFingerprint& operator=(const FileFingerprint& other);
 
     bool serialize(string* d) override;
-    static FileFingerprint* unserialize(string* d);
+    static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
 
     // convenience function for clear comparisons etc, referring to (this) base class
     const FileFingerprint& fingerprint() const { return *this; }
+
+    string fingerprintDebugString() const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC

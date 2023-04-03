@@ -76,18 +76,15 @@ bool FileFingerprint::serialize(string *d)
     return true;
 }
 
-FileFingerprint *FileFingerprint::unserialize(string *d)
+unique_ptr<FileFingerprint> FileFingerprint::unserialize(const char*& ptr, const char* end)
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
     if (ptr + sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > end)
     {
         LOG_err << "FileFingerprint unserialization failed - serialized string too short";
         return NULL;
     }
 
-    FileFingerprint *fp = new FileFingerprint();
+    unique_ptr<FileFingerprint> fp(new FileFingerprint());
 
     fp->size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
@@ -101,7 +98,6 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
     fp->isvalid = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    d->erase(0, ptr - d->data());
     return fp;
 }
 
@@ -388,6 +384,11 @@ int FileFingerprint::unserializefingerprint(string* d)
     isvalid = true;
 
     return 1;
+}
+
+string FileFingerprint::fingerprintDebugString() const
+{
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

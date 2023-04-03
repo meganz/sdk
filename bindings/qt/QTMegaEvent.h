@@ -27,6 +27,7 @@ public:
         OnEvent,
 #if ENABLE_SYNC
         OnSyncStateChanged,
+        OnSyncStatsUpdated,
         OnFileSyncStateChanged,
         OnSyncAdded,
         OnSyncDeleted,
@@ -57,6 +58,8 @@ public:
 #ifdef ENABLE_SYNC
     MegaSync *getSync();
     void setSync(MegaSync *sync);
+    void setSyncStats(MegaSyncStats *stats);
+    MegaSyncStats *getSyncStats();
     std::string *getLocalPath();
     void setLocalPath(std::string *localPath);
     int getNewState();
@@ -75,6 +78,7 @@ private:
 
 #ifdef ENABLE_SYNC
     MegaSync *sync;
+    MegaSyncStats *syncStats = nullptr;
     std::string* localPath;
     int newState;
 #endif

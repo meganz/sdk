@@ -107,9 +107,6 @@ class MEGA_API LocalPath
     friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-    friend class RotativePerformanceLoggerLoggingThread;
-#endif
 #ifdef USE_IOS
     friend const string adjustBasePath(const LocalPath& name);
 #else
@@ -253,7 +250,7 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
-inline std::ostream& operator<<(std::ostream& os, const LocalPath& p) 
+inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {
     return os << p.toPath(false);
 }

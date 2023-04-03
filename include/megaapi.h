@@ -700,7 +700,7 @@ class MegaNode
         virtual bool isFavourite();
 
         /**
-        * @brief Ascertain if the node is marked as sensitive 
+        * @brief Ascertain if the node is marked as sensitive
         *
         * see MegaApi::isSensitiveInherit to see if the node is marked sensitive
         *   or as descendent of a node that is marked sensitive
@@ -1261,6 +1261,13 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
 
     /**
+     * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
+     *
+     * @return Public id of Set.
+     */
+    virtual MegaHandle publicId() const { return INVALID_HANDLE; }
+
+    /**
      * @brief Returns id of user that owns current Set.
      *
      * @return user id.
@@ -1273,6 +1280,13 @@ public:
      * @return timestamp value.
      */
     virtual int64_t ts() const { return 0; }
+
+    /**
+     * @brief Returns creation timestamp of current Set.
+     *
+     * @return timestamp value.
+     */
+    virtual int64_t cts() const { return 0; }
 
     /**
      * @brief Returns name of current Set.
@@ -1316,9 +1330,21 @@ public:
      * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
      * Check if the Set was removed
      *
+     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
+     * Check if the Set was exported or disabled (i.e. exporting ended)
+     *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns true if this Set is exported (can be accessed via public link)
+     *
+     * Public link is retrieved when the Set becomes exported
+     *
+     * @return true if this Set is exported
+     */
+    virtual bool isExported() const { return false; }
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -1329,6 +1355,7 @@ public:
         CHANGE_TYPE_NAME,
         CHANGE_TYPE_COVER,
         CHANGE_TYPE_REMOVED,
+        CHANGE_TYPE_EXPORT,
 
         CHANGE_TYPE_SIZE
     };
@@ -4223,7 +4250,9 @@ class MegaRequest
             TYPE_UPGRADE_SECURITY                                           = 163,
             TYPE_PUT_SET_ELEMENTS                                           = 164,
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
-            TOTAL_OF_REQUEST_TYPES                                          = 166,
+            TYPE_EXPORT_SET                                                 = 166,
+            TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
+            TOTAL_OF_REQUEST_TYPES                                          = 168,
         };
 
         virtual ~MegaRequest();
@@ -4353,6 +4382,7 @@ class MegaRequest
          * - MegaApi::getThumbnailUploadURL - Returns the upload IPv4
          * - MegaApi::getPreviewUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
+         * - MegaApi::exportSet - Returns the public link
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4583,6 +4613,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::copyNode - Returns the node to copy (if it is a public node)
+         * - MegaApi::getPreviewElementNode
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5103,17 +5134,18 @@ public:
         EVENT_REQSTAT_PROGRESS          = 15, // Provides the per mil progress of a long-running API operation in MegaEvent::getNumber,
                                               // or -1 if there isn't any operation in progress.
         EVENT_RELOADING                 = 16, // (automatic) reload forced by server (-6 on sc channel)
-        EVENT_RELOAD                    = 17, // App should force a reload when receives this event
+        EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
     };
 
     enum
     {
-        REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0, // Failure when node is unserialized from DB
-        REASON_RELOAD_ERROR_WRITE_DB = 1,           // Failure when data is stored at DB
-        REASON_RELOAD_NODE_INCONSISTENCY = 2,       // Node inconsistency detected reading nodes from API
-        REASON_RELOAD_UNKNOWN = 3,                  // Unknown reason
+        REASON_ERROR_UNKNOWN                    = -1,   // Unknown reason
+        REASON_ERROR_NO_ERROR                   = 0,    // No error
+        REASON_ERROR_FAILURE_UNSERIALIZE_NODE   = 1,    // Failure when node is unserialized from DB
+        REASON_ERROR_DB_IO_FAILURE              = 2,    // Input/output error at DB layer
+        REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
     };
 
     virtual ~MegaEvent();
@@ -5155,11 +5187,12 @@ public:
      * For event EVENT_REQSTAT_PROGRESS, this number is the per mil progress of
      * a long-running API operation, or -1 if there isn't any operation in progress.
      *
-     * For event EVENT_RELOAD, these values can be taken:
-     *  - REASON_RELOAD_FAILURE_UNSERIALIZE_NODE = 0 -> Failure when node is unserialized from DB
-     *  - REASON_RELOAD_ERROR_WRITE_DB = 1           -> Failure when data is stored at DB
+     * For event EVENT_ERROR, these values can be taken:
+     *  - REASON_ERROR_FAILURE_UNSERIALIZE_NODE = 0  -> Failure when node is unserialized from DB
+     *  - REASON_ERROR_IO_DB_FAILURE = 1             -> Input/output error at DB
      *  - REASON_RELOAD_NODE_INCONSISTENCY = 2       -> Node inconsistency detected reading nodes from API
-     *  - REASON_RELOAD_UNKNOWN = 3                  -> Unknown reason
+     *  - REASON_ERROR_DB_FULL = 3                   -> Failure at DB due disk is full
+     *  - REASON_RELOAD_UNKNOWN = 4                  -> Unknown reason
      *
      * @return Number relative to this event
      */
@@ -6424,6 +6457,8 @@ public:
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
         INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
         FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
+        MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
+        FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     };
 
     enum Warning
@@ -6435,10 +6470,8 @@ public:
 
     enum SyncType
     {
-        TYPE_UNKNOWN = 0x00,
-        TYPE_UP = 0x01, // sync up from local to remote
-        TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_UNKNOWN = 0,
+        TYPE_TWOWAY = 3, // Two-way sync
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
@@ -6524,40 +6557,8 @@ public:
     /**
      * @brief Get the error of a synchronization
      *
-     * Possible values are:
+     * Possible values are those in MegaSync::Error.  Eg.
      *  - NO_SYNC_ERROR = 0: No error
-     *  - UNKNOWN_ERROR = 1: Undefined error
-     *  - UNSUPPORTED_FILE_SYSTEM = 2: File system type is not supported
-     *  - INVALID_REMOTE_TYPE = 3: Remote type is not a folder that can be synced
-     *  - INVALID_LOCAL_TYPE = 4: Local path does not refer to a folder
-     *  - INITIAL_SCAN_FAILED = 5: The initial scan failed
-     *  - LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6: Local path is temporarily unavailable: this is fatal when adding a sync
-     *  - LOCAL_PATH_UNAVAILABLE = 7: Local path is not available (can't be open)
-     *  - REMOTE_NODE_NOT_FOUND = 8: Remote node does no longer exists
-     *  - STORAGE_OVERQUOTA = 9: Account reached storage overquota
-     *  - ACCOUNT_EXPIRED = 10: Account expired (business or pro flexi)
-     *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
-     *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
-     *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
-     *  - LOCAL_FILESYSTEM_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
-     *  - PUT_NODES_ERROR = 16:  Error processing put nodes result
-     *  - ACTIVE_SYNC_BELOW_PATH = 17: There's a synced node below the path to be synced
-     *  - ACTIVE_SYNC_ABOVE_PATH = 18: There's a synced node above the path to be synced
-     *  - REMOTE_NODE_MOVED_TO_RUBBISH = 19: Moved to rubbish
-     *  - REMOTE_NODE_INSIDE_RUBBISH = 20: Attempted to be added in rubbish
-     *  - VBOXSHAREDFOLDER_UNSUPPORTED = 21: Found unsupported VBoxSharedFolderFS
-     *  - LOCAL_PATH_SYNC_COLLISION = 22: Local path includes a synced path or is included within one
-     *  - ACCOUNT_BLOCKED = 23: Account blocked
-     *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
-     *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
-     *  - LOGGED_OUT = 26: Logged out
-     *  - WHOLE_ACCOUNT_REFETCHED = 27: The whole account was reloaded, missed actionpacket changes could not have been applied
-     *  - MISSING_PARENT_NODE = 28: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
-     *  - BACKUP_MODIFIED = 29: Backup has been externally modified.
-     *  - BACKUP_SOURCE_NOT_BELOW_DRIVE = 30: Backup source path not below drive path.
-     *  - SYNC_CONFIG_WRITE_FAILURE = 31: Unable to write sync config to disk.
-     *  - ACTIVE_SYNC_SAME_PATH = 32: There's a synced node at the path to be synced
-     *
      * @return Error of a synchronization
      */
     virtual int getError() const;
@@ -6641,6 +6642,56 @@ public:
 
 };
 
+/**
+ * @brief Counts of files/folders/uploads/downloads per Sync
+ *
+ * The sync is the one identified by the backupId.
+ * The other fields are self-explanatory
+ *
+ * Objects of this class are immutable.
+ */
+class MegaSyncStats
+{
+public:
+
+  /** @brief Get the backupId that identifies the Sync
+    * @return The sync's BackupID
+    */
+    virtual MegaHandle getBackupId() const = 0;
+
+  /** @brief Indicates whether the sync is scanning currently
+    * Scanning means reading the folder entries on local disks
+    */
+    virtual bool isScanning() const = 0;
+
+  /** @brief Indicates whether the sync is syncing currently
+    * Syncing means comparing the two sides and bringing them in line
+    */
+    virtual bool isSyncing() const = 0;
+
+  /** @brief Indicates how many folders the sync contains
+    */
+    virtual int getFolderCount() const = 0;
+
+  /** @brief Indicates how many files the sync contains
+    */
+    virtual int getFileCount() const = 0;
+
+  /** @brief Indicates how many files are being uploaded
+    */
+    virtual int getUploadCount() const = 0;
+
+  /** @brief Indicates how many files are being downloaded
+    */
+    virtual int getDownloadCount() const = 0;
+
+  /** @brief Make a copy of this object
+    * You take ownership of the result.
+    */
+    virtual MegaSyncStats *copy() const = 0;
+
+    virtual ~MegaSyncStats() = default;
+};
 
 /**
  * @brief List of MegaSync objects
@@ -8281,7 +8332,7 @@ class MegaListener
         /**
          * @brief This function is called when an inconsistency is detected in the local cache
          *
-         * @deprecated Instead this callback, MegaEvent EVENT_RELOAD will be fired
+         * @obsolete Instead this callback, MegaEvent EVENT_RELOAD will be fired
          *
          * You should call MegaApi::fetchNodes when this callback is received
          *
@@ -8357,6 +8408,18 @@ class MegaListener
      * @param sync MegaSync object that has changed its state
      */
     virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
+
+    /**
+     * @brief This function is called when there is an update on
+     * the number of nodes or transfers in the sync
+     *
+     * The SDK retains the ownership of the MegaSyncStats.
+     * Don't use it after this functions returns. But you can copy it
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param syncStats Identifies the sync and provides the counts
+     */
+    virtual void onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats);
 
     /**
      * @brief This function is called with the state of the synchronization engine has changed
@@ -11063,6 +11126,8 @@ class MegaApi
          * You take the ownership of the returned value.
          * Use delete [] to free it.
          *
+         * @deprecated
+         *
          * @return RSA private key of the current account
          */
         char *getMyRSAPrivateKey();
@@ -11203,35 +11268,6 @@ class MegaApi
          */
         void setLoggingName(const char* loggingName);
 
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-        /**
-         * @brief Enable rotative performance logger
-         *
-         * Rotative performance logger is a logger that optimizes performance by carrying
-         * most of the logging tasks (write to file, duplicate log detection, log archive
-         * rotation, compression and cleanup) in a separate background thread.
-         * Also provides log rotation: archived log files are suffixed with the timestamp
-         * of the moment when they are created. For more information about log archive
-         * control see RotativePerformanceLogger::setArchiveTimestamps().
-         *
-         * @param logPath Absolute path pointing to the base directory for both active log file and archived logs
-         * @param logFileName Log file name (without path).¡
-         * @param logToStdOut if true, logs are also output to standard output
-         * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
-         */
-        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
-
-        /**
-         * @brief Set name used for logging by current thread.
-         *
-         * Rotative Performance Logger uses std::thread_id in log entries.
-         * You can use a custom name by calling this function from the desired thread.
-         *
-         * @param threadName Nmae of the therad to be used in log lines
-         */
-        static void setCurrentThreadNameForRotativePerformanceLogger(const char *threadName);
-
-#endif
         /**
          * @brief Create a folder in the MEGA account
          *
@@ -12329,6 +12365,29 @@ class MegaApi
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
+
+        enum {
+            PRIVATE_KEY_ED25519 = 1,
+            PRIVATE_KEY_CU25519,
+        };
+
+        /**
+         * @brief Returns private key from desired type in base64-encoded
+         *
+         * This method returns invalid value until fetch nodes has finished
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @param type private key type
+         * It can take this values:
+         *  - PRIVATE_KEY_ED25519     1
+         *  - PRIVATE_KEY_CU25519     2
+         * @return Private key
+         */
+        char* getPrivateKey(int type);
+
+
         /**
          * @brief Confirm available memory to avoid OOM situations
          *
@@ -12545,7 +12604,7 @@ class MegaApi
 
         /**
          * @brief Mark a node as sensitive
-         * 
+         *
          * @note Descendants will inherit the sensitive property.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
@@ -20491,29 +20550,6 @@ class MegaApi
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to fetch a Set and its Elements
-         *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaSet - Returns the Set
-         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
-         *
-         * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_ENOENT - Set could not be found.
-         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
-         * - MegaError::API_EARGS - Malformed (from API).
-         * - MegaError::API_EACCESS - Permissions Error (from API).
-         *
-         * @param sid the id of the Set to be fetched
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-
-        /**
          * @brief Request creation of multiple Elements for a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENTS
@@ -20729,6 +20765,168 @@ class MegaApi
          * @return requested Element, or null if not found
          */
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+
+        /**
+         * @brief Returns true if the Set has been exported (has a public link)
+         *
+         * Public links are created by calling MegaApi::exportSet
+         *
+         * @param sid the id of the Set to check
+         *
+         * @return true if param sid is an exported Set
+         */
+        bool isExportedSet(MegaHandle sid);
+
+        /**
+         * @brief Generate a public link of a Set in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to true representing the call was
+         * meant to enable/create the export
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - MegaSet including the public id
+         * - MegaRequest::getLink - Public link
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param sid Set MegaHandle to get the public link
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Stop sharing a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns id of the Set used as parameter
+         * - MegaRequest::getFlag - Returns a boolean set to false representing the call was
+         * meant to disable the export
+         *
+         * MegaError::API_OK results in onSetsUpdate being triggered as well
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param sid Set MegaHandle to stop sharing
+         * @param listener MegaRequestListener to track this request
+         */
+        void disableExportSet(MegaHandle sid, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Request to fetch a public/exported Set and its Elements.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the link used for the public Set fetch request
+         *
+         * In addition to fetching the Set (including Elements), SDK's instance is set
+         * to preview mode for the public Set. This mode allows downloading of foreign
+         * SetElements included in the public Set.
+         *
+         * To disable the preview mode and release resources used by the preview Set,
+         * use MegaApi::stopPublicSetPreview
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns the Set
+         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param publicSetLink Public link to a Set in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Stops public Set preview mode for current SDK instance
+         *
+         * MegaApi instance is no longer useful until a new login
+         *
+         */
+        void stopPublicSetPreview();
+
+        /**
+         * @brief Returns if this MegaApi instance is in a public/exported Set preview mode
+         *
+         * @returns True if public Set preview mode is enabled
+         *
+         */
+        bool inPublicSetPreview();
+
+        /**
+         * @brief Get current public/exported Set in Preview mode
+         *
+         * The response value is stored as a MegaSet.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported Set in preview mode or nullptr if there is none
+         *
+         */
+        MegaSet* getPublicSetInPreview();
+
+        /**
+         * @brief Get current public/exported SetElements in Preview mode
+         *
+         * The response value is stored as a MegaSetElementList.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return Current public/exported SetElements in preview mode or nullptr if there is none
+         *
+         */
+        MegaSetElementList* getPublicSetElementsInPreview();
+
+        /**
+         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_EXPORTED_SET_ELEMENT
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPublicMegaNode - Returns the MegaNode (ownership transferred)
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - Public Set preview mode is not enabled
+         * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
+         * in previewed Set
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param eid MegaHandle of target SetElement from Set in preview mode
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         *
+         * @param sid MegaHandle of target Set to get its public link/URL
+         *
+         * @return const char* with the public URL if success, nullptr otherwise
+         * In any case, one of the followings error codes with the result can be found in the log:
+         * - API_OK on success
+         * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
+         * - API_EARGS if there was an internal error composing the URL
+         */
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
 
         /**
          * @brief Enable or disable the request status monitor
