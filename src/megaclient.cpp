@@ -14959,7 +14959,14 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
             it++;
         }
     }
+
     assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
+    if (!keepOwnUser) // Force to remove all elements from user maps
+    {
+        users.clear();
+        uhindex.clear();
+        umindex.clear();
+    }
 
     pcrindex.clear();
 
