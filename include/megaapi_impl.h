@@ -3140,7 +3140,7 @@ class MegaApiImpl : public MegaApp
         static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
         static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
 
-        error processAbortBackupRequest(MegaRequestPrivate *request, error e);
+        error processAbortBackupRequest(MegaRequestPrivate *request);
         void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
         void fireOnBackupStart(MegaScheduledCopyController *backup);
         void fireOnBackupFinish(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e);
@@ -3630,6 +3630,12 @@ private:
 #endif
         error performRequest_getUserData(MegaRequestPrivate* request);
         error performRequest_enumeratequotaitems(MegaRequestPrivate* request);
+        error performRequest_getChangeEmailLink(MegaRequestPrivate* request);
+        error performRequest_getCancelLink(MegaRequestPrivate* request);
+        error performRequest_confirmAccount(MegaRequestPrivate* request);
+
+        error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
+        error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
 
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);

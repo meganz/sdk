@@ -6290,6 +6290,12 @@ void MegaApiImpl::multiFactorAuthChangeEmail(const char *email, const char *pin,
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
     request->setEmail(email);
     request->setText(pin);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getChangeEmailLink(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6298,6 +6304,12 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
     request->setText(pin);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getCancelLink(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6510,6 +6522,12 @@ void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaReq
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
     request->setPassword(password);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_confirmAccount(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6519,42 +6537,12 @@ void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
     request->setPrivateKey(base64pwkey);
-    requestQueue.push(request);
-    waiter->notify();
-}
 
-void MegaApiImpl::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOVERY_LINK, listener);
-    request->setEmail(email);
-    request->setFlag(hasMasterKey);
-    requestQueue.push(request);
-    waiter->notify();
-}
+    request->performRequest = [this, request]()
+    {
+        return performRequest_confirmAccount(request);
+    };
 
-void MegaApiImpl::queryRecoveryLink(const char *link, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_RECOVERY_LINK, listener);
-    request->setLink(link);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_RECOVERY_LINK, listener);
-    request->setLink(link);
-    request->setPassword(newPwd);
-    request->setPrivateKey(masterKey);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_RECOVERY_KEY, listener);
-    request->setLink(link);
-    request->setPrivateKey(recoveryKey);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6562,15 +6550,12 @@ void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, Me
 void MegaApiImpl::cancelAccount(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
 
-void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
-    request->setLink(link);
-    request->setPassword(pwd);
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getCancelLink(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6579,15 +6564,12 @@ void MegaApiImpl::changeEmail(const char *email, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
     request->setEmail(email);
-    requestQueue.push(request);
-    waiter->notify();
-}
 
-void MegaApiImpl::confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK, listener);
-    request->setLink(link);
-    request->setPassword(pwd);
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getChangeEmailLink(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8030,30 +8012,18 @@ void MegaApiImpl::removeContact(MegaUser *user, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener* listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFERS, listener);
-    request->setFlag(pause);
-    request->setNumber(direction);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::pauseTransfer(int transferTag, bool pause, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFER, listener);
-    request->setTransferTag(transferTag);
-    request->setFlag(pause);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::moveTransferUp(int transferTag, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TRANSFER, listener);
     request->setTransferTag(transferTag);
     request->setFlag(true);
     request->setNumber(MegaTransfer::MOVE_TYPE_UP);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_moveTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8064,6 +8034,12 @@ void MegaApiImpl::moveTransferDown(int transferTag, MegaRequestListener *listene
     request->setTransferTag(transferTag);
     request->setFlag(true);
     request->setNumber(MegaTransfer::MOVE_TYPE_DOWN);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_moveTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8074,6 +8050,12 @@ void MegaApiImpl::moveTransferToFirst(int transferTag, MegaRequestListener *list
     request->setTransferTag(transferTag);
     request->setFlag(true);
     request->setNumber(MegaTransfer::MOVE_TYPE_TOP);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_moveTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8084,6 +8066,12 @@ void MegaApiImpl::moveTransferToLast(int transferTag, MegaRequestListener *liste
     request->setTransferTag(transferTag);
     request->setFlag(true);
     request->setNumber(MegaTransfer::MOVE_TYPE_BOTTOM);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_moveTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8094,6 +8082,12 @@ void MegaApiImpl::moveTransferBefore(int transferTag, int prevTransferTag, MegaR
     request->setTransferTag(transferTag);
     request->setFlag(false);
     request->setNumber(prevTransferTag);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_moveTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8122,15 +8116,6 @@ bool MegaApiImpl::areTransfersPaused(int direction)
 void MegaApiImpl::setUploadLimit(int bpslimit)
 {
     client->putmbpscap = bpslimit;
-}
-
-void MegaApiImpl::setMaxConnections(int direction, int connections, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MAX_CONNECTIONS, listener);
-    request->setParamType(direction);
-    request->setNumber(connections);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::setDownloadMethod(int method)
@@ -8505,37 +8490,16 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     return new MegaStringListPrivate(move(listofpaths));
 }
 
-void MegaApiImpl::setScheduledCopy(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_COPY, listener);
-    if(parent) request->setNodeHandle(parent->getHandle());
-    if(localFolder)
-    {
-        request->setFile(localFolder);
-    }
-
-    request->setNumRetry(numBackups);
-    request->setNumber(period);
-    request->setText(periodstring.c_str());
-    request->setFlag(attendPastBackups);
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::removeScheduledCopy(int tag, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SCHEDULED_COPY, listener);
-    request->setNumber(tag);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-
 void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY, listener);
     request->setNumber(tag);
+
+    request->performRequest = [this, request]()
+    {
+        return processAbortBackupRequest(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8707,6 +8671,12 @@ void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
     {
         request->setTransferTag(t->getTag());
     }
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_cancelTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8715,14 +8685,12 @@ void MegaApiImpl::cancelTransferByTag(int transferTag, MegaRequestListener *list
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFER, listener);
     request->setTransferTag(transferTag);
-    requestQueue.push(request);
-    waiter->notify();
-}
 
-void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFERS, listener);
-    request->setParamType(direction);
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
+    {
+        return performTransferRequest_cancelTransfer(request, committer);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -18226,16 +18194,13 @@ void MegaApiImpl::removeRecursively(const char *path)
 #endif
 }
 
-error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
+error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request)
 {
     int tag = int(request->getNumber());
-    bool found = false;
 
     map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(tag) ;
     if (itr != backupsMap.end())
     {
-        found = true;
-
         MegaScheduledCopyController *backup = itr->second;
 
         bool flag = request->getFlag();
@@ -18265,13 +18230,12 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
             backup->abortCurrent(); //TODO: THIS MAY CAUSE NEW REQUESTS, should we consider them before fireOnRequestFinish?!!!
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         }
-
+        return API_OK;
     }
-    if (!found)
+    else
     {
-        e = API_ENOENT;
+        return API_ENOENT;
     }
-    return e;
 }
 
 void MegaApiImpl::yield()
@@ -20541,23 +20505,24 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EARGS;
             break;
         }
-        case MegaRequest::TYPE_CONFIRM_ACCOUNT:
-        {
+        }
+    }
+}
 
+error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
+{
             const char* link = request->getLink();
             const char* password = request->getPassword();
 
             if (!link || !password)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if (request->getPrivateKey())
             {
                 // obsolete. Use registration flow v2
-                e = API_EINTERNAL;
-                break;
+                return API_EINTERNAL;
             }
 
             const char* ptr = link;
@@ -20565,6 +20530,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
 
+            error e = API_OK;
             string code = Base64::atob(string(ptr));
             if (code.find("ConfirmCodeV2") != string::npos)
             {
@@ -20596,23 +20562,39 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
             }
-            break;
-        }
-        case MegaRequest::TYPE_GET_RECOVERY_LINK:
+            return e;
+}
+
+void MegaApiImpl::resetPassword(const char* email, bool hasMasterKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOVERY_LINK, listener);
+    request->setEmail(email);
+    request->setFlag(hasMasterKey);
+
+    request->performRequest = [this, request]()
         {
             const char *email = request->getEmail();
             bool hasMasterKey = request->getFlag();
 
             if (!email || !email[0])
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->getrecoverylink(email, hasMasterKey);
-            break;
-        }
-        case MegaRequest::TYPE_QUERY_RECOVERY_LINK:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryRecoveryLink(const char* link, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_RECOVERY_LINK, listener);
+    request->setLink(link);
+
+    request->performRequest = [this, request]()
         {
             const char *link = request->getLink();
 
@@ -20631,14 +20613,25 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->queryrecoverylink(code);
-            break;
-        }
-        case MegaRequest::TYPE_CONFIRM_RECOVERY_LINK:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::confirmResetPasswordLink(const char* link, const char* newPwd, const char* masterKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_RECOVERY_LINK, listener);
+    request->setLink(link);
+    request->setPassword(newPwd);
+    request->setPrivateKey(masterKey);
+
+    request->performRequest = [this, request]()
         {
             const char *link = request->getLink();
             const char *newPwd = request->getPassword();
@@ -20650,15 +20643,25 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             // concatenate query + confirm requests
             client->queryrecoverylink(code);
-            break;
-        }
-        case MegaRequest::TYPE_CHECK_RECOVERY_KEY:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_RECOVERY_KEY, listener);
+    request->setLink(link);
+    request->setPrivateKey(recoveryKey);
+
+    request->performRequest = [this, request]()
         {
             const char* link = request->getLink();
 
@@ -20669,89 +20672,104 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             // concatenate query + confirm requests
             client->getprivatekey(code);
-            break;
-        }
-        case MegaRequest::TYPE_GET_CANCEL_LINK:
-        {
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_getCancelLink(MegaRequestPrivate* request)
+{
             if (client->loggedin() != FULLACCOUNT)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             User *u = client->finduser(client->me);
             if (!u)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             const char *pin = request->getText();
             client->getcancellink(u->email.c_str(), pin);
-            break;
-        }
-        case MegaRequest::TYPE_CONFIRM_CANCEL_LINK:
+            return API_OK;
+}
+
+void MegaApiImpl::confirmCancelAccount(const char* link, const char* pwd, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
+    request->setLink(link);
+    request->setPassword(pwd);
+
+    request->performRequest = [this, request]()
         {
             const char *link = request->getLink();
             const char *pwd = request->getPassword();
 
             if (client->loggedin() != FULLACCOUNT)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             const char* code;
             if (!pwd || !link || !(code = strstr(link, MegaClient::cancelLinkPrefix())))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if (!checkPassword(pwd))
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             code += strlen(MegaClient::cancelLinkPrefix());
             client->confirmcancellink(code);
-            break;
-        }
-        case MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK:
-        {
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_getChangeEmailLink(MegaRequestPrivate* request)
+{
             if (client->loggedin() != FULLACCOUNT)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             const char *email = request->getEmail();
             const char *pin = request->getText();
             if (!email)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             client->getemaillink(email, pin);
-            break;
-        }
-        case MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK:
+            return API_OK;
+}
+
+void MegaApiImpl::confirmChangeEmail(const char* link, const char* pwd, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK, listener);
+    request->setLink(link);
+    request->setPassword(pwd);
+
+    request->performRequest = [this, request]()
         {
             const char *link = request->getLink();
             const char *pwd = request->getPassword();
 
             if (client->loggedin() != FULLACCOUNT)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             const char* code;
@@ -20761,15 +20779,25 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             // concatenates query + validate pwd + confirm
             client->queryrecoverylink(code);
-            break;
-        }
-        case MegaRequest::TYPE_PAUSE_TRANSFERS:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::pauseTransfers(bool pause, int direction, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFERS, listener);
+    request->setFlag(pause);
+    request->setNumber(direction);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
         {
             bool pause = request->getFlag();
             int direction = int(request->getNumber());
@@ -20777,8 +20805,7 @@ void MegaApiImpl::sendPendingRequests()
                     && direction != MegaTransfer::TYPE_DOWNLOAD
                     && direction != MegaTransfer::TYPE_UPLOAD)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if(direction == -1)
@@ -20796,50 +20823,62 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_PAUSE_TRANSFER:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::pauseTransfer(int transferTag, bool pause, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PAUSE_TRANSFER, listener);
+    request->setTransferTag(transferTag);
+    request->setFlag(pause);
+
+    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
         {
             bool pause = request->getFlag();
             int transferTag = request->getTransferTag();
             MegaTransferPrivate* megaTransfer = getMegaTransferPrivate(transferTag);
             if (!megaTransfer)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
-            e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
+            error e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
             if (!e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
-            break;
-        }
-        case MegaRequest::TYPE_MOVE_TRANSFER:
-        {
+            return e;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)
+{
             bool automove = request->getFlag();
             int transferTag = request->getTransferTag();
             int number = int(request->getNumber());
 
             if (!transferTag || !number)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             MegaTransferPrivate* megaTransfer = getMegaTransferPrivate(transferTag);
             if (!megaTransfer)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             Transfer *transfer = megaTransfer->getTransfer();
             if (!transfer)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             if (automove)
@@ -20859,8 +20898,7 @@ void MegaApiImpl::sendPendingRequests()
                         client->transferlist.movetolast(transfer, committer);
                         break;
                     default:
-                        e = API_EARGS;
-                        break;
+                        return API_EARGS;
                 }
             }
             else
@@ -20868,8 +20906,7 @@ void MegaApiImpl::sendPendingRequests()
                 MegaTransferPrivate* prevMegaTransfer = getMegaTransferPrivate(number);
                 if (!prevMegaTransfer)
                 {
-                    e = API_ENOENT;
-                    break;
+                    return API_ENOENT;
                 }
 
                 Transfer *prevTransfer = prevMegaTransfer->getTransfer();
@@ -20881,7 +20918,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (transfer->type != prevTransfer->type)
                     {
-                        e = API_EARGS;
+                        return API_EARGS;
                     }
                     else
                     {
@@ -20890,14 +20927,17 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
-            break;
-        }
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            return API_OK;
+}
 
-        case MegaRequest::TYPE_SET_MAX_CONNECTIONS:
+void MegaApiImpl::setMaxConnections(int direction, int connections, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MAX_CONNECTIONS, listener);
+    request->setParamType(direction);
+    request->setNumber(connections);
+
+    request->performRequest = [this, request]()
         {
             int direction = request->getParamType();
             int connections = int(request->getNumber());
@@ -20906,14 +20946,12 @@ void MegaApiImpl::sendPendingRequests()
                     && direction != MegaTransfer::TYPE_DOWNLOAD
                     && direction != MegaTransfer::TYPE_UPLOAD))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if ((unsigned int) connections > MegaClient::MAX_NUM_CONNECTIONS)
             {
-                e = API_ETOOMANY;
-                break;
+                return API_ETOOMANY;
             }
 
             if (direction == -1)
@@ -20931,22 +20969,25 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_CANCEL_TRANSFER:
-        {
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)
+{
             int transferTag = request->getTransferTag();
             MegaTransferPrivate* megaTransfer = getMegaTransferPrivate(transferTag);
             if (!megaTransfer)
             {
-                e = API_ENOENT;
-                break;
+                return API_ENOENT;
             }
 
             if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             if (megaTransfer->isFolderTransfer())
@@ -20956,8 +20997,8 @@ void MegaApiImpl::sendPendingRequests()
                 // all sub-transfers must have the same cancel token
                 if (!megaTransfer->getCancelToken())
                 {
-                    e = API_EARGS;
                     LOG_warn << "Cancel requested for folder transfer, but it has lost its cancel token";
+                    return API_EARGS;
                 }
                 else
                 {
@@ -20969,8 +21010,8 @@ void MegaApiImpl::sendPendingRequests()
 
                     // report cancellation signalled
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                    return API_OK;
                 }
-                break;
             }
 
             if (!megaTransfer->isStreamingTransfer())
@@ -20978,8 +21019,7 @@ void MegaApiImpl::sendPendingRequests()
                 Transfer *transfer = megaTransfer->getTransfer();
                 if (!transfer)
                 {
-                    e = API_ENOENT;
-                    break;
+                    return API_ENOENT;
                 }
                 #ifdef _WIN32
                     if (transfer->type == GET)
@@ -21040,16 +21080,21 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
-            break;
-        }
-        case MegaRequest::TYPE_CANCEL_TRANSFERS:
+            return API_OK;
+}
+
+void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFERS, listener);
+    request->setParamType(direction);
+
+    request->performRequest = [this, request]()
         {
             int direction = request->getParamType();
 
             if ((direction != MegaTransfer::TYPE_DOWNLOAD) && (direction != MegaTransfer::TYPE_UPLOAD))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             CancelToken cancelled(true);
@@ -21080,16 +21125,34 @@ void MegaApiImpl::sendPendingRequests()
 
             LOG_verbose << "Marked all non-sync non-streaming transfers as cancelled. direction: " << direction;
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            break;
-        }
-        case MegaRequest::TYPE_ADD_SCHEDULED_COPY:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setScheduledCopy(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_COPY, listener);
+    if (parent) request->setNodeHandle(parent->getHandle());
+    if (localFolder)
+    {
+        request->setFile(localFolder);
+    }
+
+    request->setNumRetry(numBackups);
+    request->setNumber(period);
+    request->setText(periodstring.c_str());
+    request->setFlag(attendPastBackups);
+
+    request->performRequest = [this, request]()
         {
             Node *parent = client->nodebyhandle(request->getNodeHandle());
             const char *localPath = request->getFile();
             if(!parent || (parent->type==FILENODE) || !localPath)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             string utf8name(localPath);
@@ -21117,8 +21180,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (!mbc->isValid())
                 {
                     LOG_err << "Failed to update backup parameters: Invalid parameters";
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
             }
             else
@@ -21141,21 +21203,30 @@ void MegaApiImpl::sendPendingRequests()
                 else
                 {
                     delete mbc;
-                    e = API_EARGS;
-                    break;
+                    return API_EARGS;
                 }
             }
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 
-            break;
-        }
-        case MegaRequest::TYPE_REMOVE_SCHEDULED_COPY:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeScheduledCopy(int tag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SCHEDULED_COPY, listener);
+    request->setNumber(tag);
+
+    request->performRequest = [this, request]()
         {
             int backuptag = int(request->getNumber());
             bool found = false;
             bool flag = request->getFlag();
-
+            error e   = API_OK;
 
             map<int, MegaScheduledCopyController *>::iterator itr = backupsMap.find(backuptag) ;
             if (itr != backupsMap.end())
@@ -21169,13 +21240,17 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY);
                     requestabort->setNumber(backuptag);
+                    requestabort->performRequest = [this, requestabort]()
+                    {
+                        return processAbortBackupRequest(requestabort);
+                    };
 
                     int nextTag = client->nextreqtag();
                     requestabort->setTag(nextTag);
                     requestMap[nextTag]=requestabort;
                     fireOnRequestStart(requestabort);
 
-                    e = processAbortBackupRequest(requestabort, e);
+                    e = processAbortBackupRequest(requestabort);
                     if (e)
                     {
                         LOG_err << "Failed to abort backup upon remove request";
@@ -21200,16 +21275,11 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_ENOENT;
             }
 
-            break;
-        }
-        case MegaRequest::TYPE_ABORT_CURRENT_SCHEDULED_COPY:
-        {
-            e = processAbortBackupRequest(request, e);
+            return e;
+        };
 
-            break;
-        }
-        }
-    }
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::startTimer(int64_t period, MegaRequestListener* listener)
