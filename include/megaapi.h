@@ -20827,11 +20827,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the link used for the public Set fetch request
          *
-         * In addition to fetching the Set (including Elements), SDK's instance is set
-         * to preview mode for the public Set. This mode allows downloading of foreign
-         * SetElements included in the public Set.
+         * In addition to fetching the Set (including Elements) and keeping a local/cached
+         * copy in SDK instance, SDK's instance is set to preview mode for the public Set.
+         * This mode allows downloading of foreign SetElements included in the public Set.
          *
-         * To disable the preview mode and release resources used by the preview Set,
+         * To disable the preview mode and release resources cached by the preview Set,
          * use MegaApi::stopPublicSetPreview
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -20856,7 +20856,7 @@ class MegaApi
         /**
          * @brief Stops public Set preview mode for current SDK instance
          *
-         * MegaApi instance is no longer useful until a new login
+         * MegaApi cached Set and SetElements will be released
          *
          */
         void stopPublicSetPreview();
@@ -20870,7 +20870,7 @@ class MegaApi
         bool inPublicSetPreview();
 
         /**
-         * @brief Get current public/exported Set in Preview mode
+         * @brief Get currently cached public/exported Set in Preview mode
          *
          * The response value is stored as a MegaSet.
          *
@@ -20882,7 +20882,7 @@ class MegaApi
         MegaSet* getPublicSetInPreview();
 
         /**
-         * @brief Get current public/exported SetElements in Preview mode
+         * @brief Get currently cached public/exported SetElements in Preview mode
          *
          * The response value is stored as a MegaSetElementList.
          *
@@ -20916,7 +20916,7 @@ class MegaApi
         void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         * @brief Gets the public link / URL that can be used to fetch a public Set and its SetElements
          *
          * @param sid MegaHandle of target Set to get its public link/URL
          *
