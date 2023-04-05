@@ -1466,18 +1466,18 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        //if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
-        //{
+        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
+        {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
-        //}
-        //else
-        //{
-        //    LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-        //              << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
-        //              << " [...] "
-        //              << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
-        //}
+        }
+        else
+        {
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                      << " [...] "
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+        }
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
@@ -2319,18 +2319,18 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        //if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
-                        //{
+                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
+                        {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
-                        //}
-                        //else
-                        //{
-                        //    LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                        //              << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
-                        //              << " [...] "
-                        //              << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
-                        //}
+                        }
+                        else
+                        {
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": "
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                                      << " [...] "
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                        }
                     }
                 }
 
