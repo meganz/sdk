@@ -3633,6 +3633,13 @@ private:
         error performRequest_getChangeEmailLink(MegaRequestPrivate* request);
         error performRequest_getCancelLink(MegaRequestPrivate* request);
         error performRequest_confirmAccount(MegaRequestPrivate* request);
+        error performRequest_sendSignupLink(MegaRequestPrivate* request);
+        error performRequest_createAccount(MegaRequestPrivate* request);
+        error performRequest_retryPendingConnections(MegaRequestPrivate* request);
+        error performRequest_setAttrNode(MegaRequestPrivate* request);
+        error performRequest_setAttrFile(MegaRequestPrivate* request);
+        error performRequest_setAttrUser(MegaRequestPrivate* request);
+        error performRequest_getAttrUser(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
