@@ -469,7 +469,7 @@ void SdkTest::Cleanup()
         if (megaApi[nApi])
         {
             unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
-            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed from " << nApi << ": " << megaApi[nApi]->getMyEmail();
+            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed from " << nApi << ": " << (megaApi[nApi]->getMyEmail() ? megaApi[nApi]->getMyEmail() : "<null>");
             for (int i = 0; i < outshares->size(); ++i)
             {
                 LOG_err << "outshare that was not removed, node: " << toNodeHandle(outshares->get(i)->getNodeHandle())
@@ -477,7 +477,7 @@ void SdkTest::Cleanup()
             }
 
             unique_ptr<MegaShareList> pendingOutshares(megaApi[nApi]->getPendingOutShares());
-            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed from " << nApi << ": " << megaApi[nApi]->getMyEmail();
+            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed from " << nApi << ": " << (megaApi[nApi]->getMyEmail() ? megaApi[nApi]->getMyEmail() : "<null>");
             for (int i = 0; i < pendingOutshares->size(); ++i)
             {
                 LOG_err << "pending outshare that was not removed, node: " << toNodeHandle(pendingOutshares->get(i)->getNodeHandle())
@@ -485,7 +485,7 @@ void SdkTest::Cleanup()
             }
 
             unique_ptr<MegaShareList> unverifiedOutshares(megaApi[nApi]->getUnverifiedOutShares());
-            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed from " << nApi << ": " << megaApi[nApi]->getMyEmail();
+            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed from " << nApi << ": " << (megaApi[nApi]->getMyEmail() ? megaApi[nApi]->getMyEmail() : "<null>");
             for (int i = 0; i < unverifiedOutshares->size(); ++i)
             {
                 LOG_err << "unverified outshare that was not removed, node: " << toNodeHandle(unverifiedOutshares->get(i)->getNodeHandle())
@@ -493,7 +493,7 @@ void SdkTest::Cleanup()
             }
 
             unique_ptr<MegaShareList> unverifiedInshares(megaApi[nApi]->getUnverifiedInShares());
-            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed from " << nApi << ": " << megaApi[nApi]->getMyEmail();
+            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed from " << nApi << ": " << (megaApi[nApi]->getMyEmail() ? megaApi[nApi]->getMyEmail() : "<null>");
             for (int i = 0; i < unverifiedInshares->size(); ++i)
             {
                 LOG_err << "unverified inshare that was not removed, node: " << toNodeHandle(unverifiedInshares->get(i)->getNodeHandle())
@@ -501,7 +501,7 @@ void SdkTest::Cleanup()
             }
 
             unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
-            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed from " << nApi << ": " << megaApi[nApi]->getMyEmail();
+            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed from " << nApi << ": " << (megaApi[nApi]->getMyEmail() ? megaApi[nApi]->getMyEmail() : "<null>");
             for (int i = 0; i < inshares->size(); ++i)
             {
                 LOG_err << "inshare that was not removed, node: " << toNodeHandle(inshares->get(i)->getNodeHandle())
