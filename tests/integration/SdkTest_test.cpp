@@ -463,6 +463,8 @@ void SdkTest::Cleanup()
         }
     }
 
+    bool exit_time = false;
+
     // finally, double check we got rid of all inshares and outshares
     for (auto nApi = unsigned(megaApi.size()); nApi--; )
     {
@@ -507,6 +509,8 @@ void SdkTest::Cleanup()
                 LOG_err << "inshare that was not removed, node: " << toNodeHandle(inshares->get(i)->getNodeHandle())
                         << " user: " << (inshares->get(i)->getUser() ? inshares->get(i)->getUser() : "<null>");
                 EXPECT_EQ(string("node handle was"), toNodeHandle(inshares->get(i)->getNodeHandle()));
+
+                exit_time = true;
             }
         }
     }
@@ -545,6 +549,11 @@ void SdkTest::Cleanup()
                 LOG_warn << "Clean up for instance " << nApi << " hasn't finished properly. Nodes at root node: " << nodesInRoot << "   Nodes at rubbish bin: " << nodesInRubbishBin << "  Nodes at vault: " << nodesInVault;
             }
         }
+    }
+
+    if (exit_time)
+    {
+        assert(false);
     }
 }
 
