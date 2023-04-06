@@ -3640,6 +3640,12 @@ private:
         error performRequest_setAttrFile(MegaRequestPrivate* request);
         error performRequest_setAttrUser(MegaRequestPrivate* request);
         error performRequest_getAttrUser(MegaRequestPrivate* request);
+        error performRequest_logout(MegaRequestPrivate* request);
+        error performRequest_changePw(MegaRequestPrivate* request);
+        error performRequest_export(MegaRequestPrivate* request);
+        error performRequest_passwordLink(MegaRequestPrivate* request);
+        error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
+        error performRequest_copy(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
