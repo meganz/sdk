@@ -17216,13 +17216,7 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
 
 bool MegaApiImpl::hasVersions(MegaNode *node)
 {
-    if (!node || node->getType() != MegaNode::TYPE_FILE)
-    {
-        return false;
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-    return client->mNodeManager.hasVersion(NodeHandle().set6byte(node->getHandle()));
+    return getNumVersions(node);
 }
 
 MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
