@@ -798,12 +798,12 @@ class MegaApiPHP extends MegaApi
 
     function startUpload($localPath, $parent, $listener = null)
     {
-        $this->megaApi->startUpload($localPath, $parent, null, null, $this->createDelegateTransferListener($listener));
+        $this->megaApi->startUpload($localPath, $parent, null, -1, null, false, false, null, $this->createDelegateTransferListener($listener));
     }
 
     function startDownload($node, $localPath, $listener = null)
     {
-        $this->megaApi->startDownload($node, $localPath, $this->createDelegateTransferListener($listener));
+        $this->megaApi->startDownload($node, $localPath, null, null, false, null, $this->createDelegateTransferListener($listener));
     }
 
     function cancelTransfer($transfer, $listener = null)
