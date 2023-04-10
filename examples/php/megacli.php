@@ -3,7 +3,7 @@
 <?php
 
 ini_set('display_errors', 'On');
-error_reporting(E_ALL);
+error_reporting(E_ERROR);
 
 set_time_limit(0);
 set_include_path(get_include_path() . PATH_SEPARATOR . "../../bindings/php");
@@ -674,6 +674,8 @@ class QuitCommand extends ExitCommand
 }
 
 MegaApi::setLogLevel(MegaApi::LOG_LEVEL_ERROR);
+MegaApi::setLogToConsole(true);
+
 $applistener = new AppListener();
 
 $megaapi = new MegaApiPHP("API_KEY", "PHP megacli", ".");
