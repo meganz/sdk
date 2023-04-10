@@ -326,6 +326,9 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %rename (inviteContactWithLink, fullname=1) mega::MegaApi::inviteContact(const char*, const char*, int, MegaHandle, MegaRequestListener*);
 %rename (getInSharesFromUser, fullname=1) mega::MegaApi::getInShares(MegaUser*, int);
 
+%typemap(typecheck, precedence=SWIG_TYPECHECK_INTEGER) const char * {
+  $1 = (Z_TYPE($input) == IS_NULL || (Z_TYPE($input) == IS_STRING)) ? 1 : 0;
+}
 
 #endif
 
