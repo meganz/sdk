@@ -371,7 +371,7 @@ class MegaGlobalListenerPHP extends MegaGlobalListener
 	}
 }
 
-class MegaApiPHP extends MegaApi
+class MegaApiPHP
 {	
     private $megaApi;
     private $activeMegaListeners = array();
