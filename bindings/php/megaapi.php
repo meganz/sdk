@@ -380,7 +380,7 @@ class MegaApiPHP extends MegaApi
     private $activeMegaGlobalListeners = array();
     private $semaphore;
 
-    public function __construct($appKey, $userAgent, $basePath = null)
+    public function __construct($appKey, $userAgent, $basePath)
     {
         $this->megaApi = new MegaApi($appKey, $basePath, $userAgent);
         $this->semaphore = sem_get("32462", 1, 0666, 1);

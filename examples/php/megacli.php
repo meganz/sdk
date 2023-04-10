@@ -676,7 +676,7 @@ class QuitCommand extends ExitCommand
 MegaApi::setLogLevel(MegaApi::LOG_LEVEL_ERROR);
 $applistener = new AppListener();
 
-$megaapi = new MegaApiPHP("API_KEY", "PHP megacli");
+$megaapi = new MegaApiPHP("API_KEY", "PHP megacli", ".");
 $megaapi->addListener($applistener);
 
 $application  = new Application('MEGA', 'PHP');
