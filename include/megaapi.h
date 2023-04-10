@@ -14135,6 +14135,10 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
+         * If the node, or the account to which the node belongs, has been taken down or suspended, onTransferFinish will be called with
+         * the error code MegaError::API_ETOOMANY. In this case, the application should show a warning message similar to
+         * "The file that you are downloading (or the account it belongs to) has been suspended for violating our Terms of Service."
+         *
          * When user wants to download a batch of items that at least contains one folder, SDK mutex will be partially
          * locked until:
          *  - we have received onTransferStart for every file in the batch
