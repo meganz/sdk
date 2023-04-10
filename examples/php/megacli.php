@@ -702,7 +702,10 @@ $application->add(new WhoamiCommand());
 $application->add(new PasswdCommand());
 $application->add(new MountCommand());
 $application->add(new MvCommand());
-$application->run();
+
+$shell = new Shell($application);
+$shell->run();
+
 ?>
 
 
