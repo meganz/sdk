@@ -5555,11 +5555,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalDownloadBytes = 0;
     totalUploadBytes = 0;
     notificationNumber = 0;
-    activeRequest = NULL;
-    activeTransfer = NULL;
-    activeError = NULL;
-    activeNodes = NULL;
-    activeUsers = NULL;
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
 
@@ -8352,9 +8347,7 @@ void MegaApiImpl::notifyTransfer(int transferTag, MegaTransferListener *listener
     fireOnTransferUpdate(t);
     if (listener)
     {
-        activeTransfer = t;
         listener->onTransferUpdate(api, t);
-        activeTransfer = NULL;
     }
 }
 
@@ -15816,35 +15809,9 @@ void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
     globalListeners.erase(listener);
 }
 
-MegaRequest *MegaApiImpl::getCurrentRequest()
-{
-    return activeRequest;
-}
-
-MegaTransfer *MegaApiImpl::getCurrentTransfer()
-{
-    return activeTransfer;
-}
-
-MegaError *MegaApiImpl::getCurrentError()
-{
-    return activeError;
-}
-
-MegaNodeList *MegaApiImpl::getCurrentNodes()
-{
-    return activeNodes;
-}
-
-MegaUserList *MegaApiImpl::getCurrentUsers()
-{
-    return activeUsers;
-}
-
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
     assert(threadId == std::this_thread::get_id());
-    activeRequest = request;
     LOG_info << client->clientname << "Request (" << request->getRequestString() << ") starting";
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
@@ -15861,7 +15828,6 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
     {
         listener->onRequestStart(api, request);
     }
-    activeRequest = NULL;
 }
 
 
@@ -15871,8 +15837,6 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 #ifdef ENABLE_SYNC
     assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
 #endif
-    activeRequest = request;
-    activeError = e.get();
 
     if(e->getErrorCode())
     {
@@ -15901,15 +15865,12 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 
     requestMap.erase(request->getTag());
 
-    activeRequest = NULL;
-    activeError = NULL;
     delete request;
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 {
     assert(threadId == std::this_thread::get_id());
-    activeRequest = request;
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
@@ -15926,15 +15887,11 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
     {
         listener->onRequestUpdate(api, request);
     }
-
-    activeRequest = NULL;
 }
 
 void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
     assert(threadId == std::this_thread::get_id());
-    activeRequest = request;
-    activeError = e.get();
 
     request->setNumRetry(request->getNumRetry() + 1);
 
@@ -15953,15 +15910,11 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, uniqu
     {
         listener->onRequestTemporaryError(api, request, e.get());
     }
-
-    activeRequest = NULL;
-    activeError = NULL;
 }
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
     assert(threadId == std::this_thread::get_id());
-    activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -15980,15 +15933,11 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     {
         listener->onTransferStart(api, transfer);
     }
-
-    activeTransfer = NULL;
 }
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
     assert(threadId == std::this_thread::get_id());
-    activeTransfer = transfer;
-    activeError = e.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e.get());
@@ -16033,8 +15982,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
     transferMap.erase(transfer->getTag());
 
-    activeTransfer = NULL;
-    activeError = NULL;
     if (transfer->isStreamingTransfer())
     {
         client->removeAppData(transfer);
@@ -16045,8 +15992,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
     assert(threadId == std::this_thread::get_id());
-    activeTransfer = transfer;
-    activeError = e.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -16067,9 +16012,6 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, un
     {
         listener->onTransferTemporaryError(api, transfer, e.get());
     }
-
-    activeTransfer = NULL;
-    activeError = NULL;
 }
 
 MegaClient *MegaApiImpl::getMegaClient()
@@ -16080,7 +16022,6 @@ MegaClient *MegaApiImpl::getMegaClient()
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
     assert(threadId == std::this_thread::get_id());
-    activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -16099,8 +16040,6 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
     {
         listener->onTransferUpdate(api, transfer);
     }
-
-    activeTransfer = NULL;
 }
 
 void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname)
@@ -16127,7 +16066,6 @@ void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int 
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 {
     assert(threadId == std::this_thread::get_id());
-    activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -16137,15 +16075,12 @@ bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
     {
         result = listener->onTransferData(api, transfer, transfer->getLastBytes(), size_t(transfer->getDeltaSize()));
     }
-
-    activeTransfer = NULL;
     return result;
 }
 
 void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 {
     assert(threadId == std::this_thread::get_id());
-    activeUsers = users;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -16155,14 +16090,11 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
     {
         (*it++)->onUsersUpdate(api, users);
     }
-
-    activeUsers = NULL;
 }
 
 void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
 {
     assert(threadId == std::this_thread::get_id());
-    activeUserAlerts = userAlerts;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -16172,14 +16104,11 @@ void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
     {
         (*it++)->onUserAlertsUpdate(api, userAlerts);
     }
-
-    activeUserAlerts = NULL;
 }
 
 void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
 {
     assert(threadId == std::this_thread::get_id());
-    activeContactRequests = requests;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -16189,14 +16118,11 @@ void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
     {
         (*it++)->onContactRequestsUpdate(api, requests);
     }
-
-    activeContactRequests = NULL;
 }
 
 void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 {
     assert(threadId == std::this_thread::get_id());
-    activeNodes = nodes;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
@@ -16206,8 +16132,6 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
     {
         (*it++)->onNodesUpdate(api, nodes);
     }
-
-    activeNodes = NULL;
 }
 
 void MegaApiImpl::fireOnAccountUpdate()
@@ -18662,8 +18586,6 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute->exec();
             //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
-            activeRequest = nullptr;
-            activeError = nullptr;
             delete request;
             request = nullptr;
             break;
