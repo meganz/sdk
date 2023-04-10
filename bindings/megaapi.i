@@ -302,12 +302,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
-#ifndef SWIGPHP7
-//Disable the management of director parameters
-//to workaround several SWIG bugs
-%typemap(directorin) SWIGTYPE* %{ %}
-%typemap(directorout) SWIGTYPE* %{ %}
-#endif
+%typemap(directorin) SWIGTYPE* 
+%{ 
+  ZVAL_UNDEF($input);
+  SWIG_SetPointerZval($input, (void *)$1, $1_descriptor, ($owner)|2);
+%}
 
 //Rename overloaded functions
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
