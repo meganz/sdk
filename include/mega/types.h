@@ -989,9 +989,6 @@ public:
 
 private:
 
-    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
-    bool serialize(std::string& data) const;
-
     Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
