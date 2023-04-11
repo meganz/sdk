@@ -2401,12 +2401,6 @@ class MegaApiImpl : public MegaApp
         void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
-        MegaRequest *getCurrentRequest();
-        MegaTransfer *getCurrentTransfer();
-        MegaError *getCurrentError();
-        MegaNodeList *getCurrentNodes();
-        MegaUserList *getCurrentUsers();
-
         //Utils
         long long getSDKtime();
         char *getStringHash(const char* base64pwkey, const char* inBuf);
@@ -3279,13 +3273,6 @@ protected:
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
         std::atomic<bool> syncPathStateLockTimeout{ false };
         MegaTransferPrivate *currentTransfer;
-        MegaRequestPrivate *activeRequest;
-        MegaTransferPrivate *activeTransfer;
-        MegaError *activeError;
-        MegaNodeList *activeNodes;
-        MegaUserList *activeUsers;
-        MegaUserAlertList *activeUserAlerts;
-        MegaContactRequestList *activeContactRequests;
         string appKey;
 
         MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
