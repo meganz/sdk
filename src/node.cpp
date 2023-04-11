@@ -693,7 +693,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
-bool Node::serialize(string* d)
+bool Node::serialize(string* d) const
 {
     switch (type)
     {
@@ -2283,7 +2283,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNode::serialize(string* d)
+bool LocalNode::serialize(string* d) const
 {
     CacheableWriter w(*d);
     w.serializei64(type ? -type : size);
