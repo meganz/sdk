@@ -432,7 +432,13 @@ int main (int argc, char *argv[])
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
     {
-        if (std::string(*it) == "--CI")
+        if (std::string(*it).substr(0, 3) == "--#")
+        {
+            // commented out
+            argc -= 1;
+            continue;
+        }
+        else if (std::string(*it) == "--CI")
         {
             gRunningInCI = true;
             argc -= 1;

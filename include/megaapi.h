@@ -4252,7 +4252,8 @@ class MegaRequest
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
-            TOTAL_OF_REQUEST_TYPES                                          = 168,
+            TYPE_GET_RECCOMENDED_PRO_PLAN                                   = 168,
+            TOTAL_OF_REQUEST_TYPES                                          = 169,
         };
 
         virtual ~MegaRequest();
@@ -12917,6 +12918,24 @@ class MegaApi
          * @see MegaApi::getPaymentId
          */
         void getPricing(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the recommended PRO level.
+         * Pro level of cheapest plan that is an upgrade and
+         * has enough space.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber: (in int) the recommended PRO level:
+         * Valid values are:
+         * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
+         * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+         * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+         * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+         * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
+         * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
+         */
+        virtual void getRecommendedProLevel(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the payment URL for an upgrade
