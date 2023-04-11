@@ -11605,26 +11605,31 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
 {
     uint64_t usedStorageBytes = details.getStorageUsed();
     int currProLevel = details.getProLevel();
-    if (currProLevel > MegaAccountDetails::ACCOUNT_TYPE_PROIII)
+    if (currProLevel >= MegaAccountDetails::ACCOUNT_TYPE_LITE) // lite is #4, since we always upgrade no plan would be found
         currProLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
     int bestProLevel = MegaAccountDetails::ACCOUNT_TYPE_PROI; // if no plans found
     uint64_t bestStorage = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
     {
+        // only upgrade to pro1, pro2 and pro3
+        int planProLevel = pricing.getProLevel(i);
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_PROIII)
+            continue;
+        // only monthly plans
+        int planMonths = pricing.getMonths(i);
+        if (planMonths != 1)
+            continue;
         // must have enough space for user's data
         uint64_t planStorageBytes = (uint64_t)pricing.getGBStorage(i) * (uint64_t)(1024LL * 1024LL * 1024LL);
         if (usedStorageBytes > planStorageBytes)
             continue;
         // must be an upgrade
-        int iproLevel = pricing.getProLevel(i);
-        if (iproLevel > MegaAccountDetails::ACCOUNT_TYPE_PROIII)
-            continue;
-        if (currProLevel >= iproLevel)
+        if (currProLevel >= planProLevel)
             continue;
         // get smallest storage
         if (planStorageBytes >= bestStorage)
             continue;
-        bestProLevel = iproLevel;
+        bestProLevel = planProLevel;
         bestStorage = planStorageBytes;
     }
     return bestProLevel;
