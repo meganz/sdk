@@ -698,12 +698,12 @@ void AsymmCipher::serializekeyforjs(string& d)
     }
 }
 
-void AsymmCipher::serializekey(string* d, int keytype)
+void AsymmCipher::serializekey(string* d, int keytype) const
 {
     serializeintarray(key, keytype, d);
 }
 
-void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool headers)
+void AsymmCipher::serializeintarray(const Integer* t, int numints, string* d, bool headers)
 {
     unsigned size = 0;
     unsigned char c;
@@ -775,7 +775,7 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
     return i == numints && len - p < 16;
 }
 
-int AsymmCipher::isvalid(int keytype)
+int AsymmCipher::isvalid(int keytype) const
 {
     if (keytype == PUBKEY)
     {
