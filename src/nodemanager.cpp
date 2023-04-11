@@ -1409,7 +1409,7 @@ int NodeManager::getNumVersions(NodeHandle nodeHandle)
         return 0;
     }
 
-    return static_cast<int>(node->getCounter().versions);
+    return static_cast<int>(node->getCounter().versions) + 1;
 }
 
 bool NodeManager::hasVersion(NodeHandle nodeHandle)

@@ -422,8 +422,8 @@ else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
-    src/posix/fs.cpp  \
-    src/posix/waiter.cpp
+           src/posix/fs.cpp  \
+           src/posix/waiter.cpp
 }
 
 HEADERS  += include/mega.h \

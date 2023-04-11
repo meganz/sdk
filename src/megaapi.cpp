@@ -1830,6 +1830,8 @@ void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{ }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
@@ -2670,6 +2672,11 @@ char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+char* MegaApi::getPrivateKey(int type)
+{
+    return pImpl->getPrivateKey(type);
 }
 
 bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
