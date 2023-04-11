@@ -695,21 +695,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 // serialize node - nodes with pending or RSA keys are unsupported
 bool Node::serialize(string* d)
 {
-    // do not serialize encrypted nodes
-    if (attrstring)
-    {
-        LOG_debug << "Trying to serialize an encrypted node";
-
-        //Last attempt to decrypt the node
-        applykey();
-        setattr();
-
-        if (attrstring)
-        {
-            LOG_debug << "Serializing an encrypted node.";
-        }
-    }
-
     switch (type)
     {
         case FILENODE:

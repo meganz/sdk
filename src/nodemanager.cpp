@@ -245,6 +245,11 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
+    if (node && node->attrstring)
+    {
+        decryptBeforeStore(node);
+    }
+
     mTable->put(node);
 
     return true;
@@ -1302,6 +1307,11 @@ void NodeManager::notifyPurge()
             }
             else
             {
+                if (n->attrstring)
+                {
+                    decryptBeforeStore(n);
+                }
+
                 mTable->put(n);
 
                 added += 1;
@@ -1569,6 +1579,10 @@ void NodeManager::dumpNodes()
     {
         if (it.second.mNode)
         {
+            if (it.second.mNode->attrstring)
+            {
+                decryptBeforeStore(it.second.mNode.get());
+            }
             mTable->put(it.second.mNode.get());
         }
     }
@@ -1582,6 +1596,11 @@ void NodeManager::saveNodeInDb(Node *node)
     {
         assert(false);
         return;
+    }
+
+    if (node && node->attrstring)
+    {
+        decryptBeforeStore(node);
     }
 
     mTable->put(node);
@@ -1684,6 +1703,26 @@ node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<No
     }
 
     return nodes;
+}
+
+void NodeManager::decryptBeforeStore(Node* node) const
+{
+    if (!node)
+    {
+        return;
+    }
+
+    if (node->attrstring)
+    {
+        LOG_debug << "Trying to store an encrypted node";
+        node->applykey();
+        node->setattr();
+
+        if (node->attrstring)
+        {
+            LOG_debug << "Storing an encrypted node.";
+        }
+    }
 }
 
 size_t NodeManager::nodeNotifySize() const
