@@ -214,7 +214,8 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
     int err = 0;
     std::string sharedSecret;
     sharedSecret.resize(crypto_scalarmult_BYTES);
-    err = crypto_scalarmult(reinterpret_cast<unsigned char *>(sharedSecret.data()), getPrivKey(), pubkey);
+    auto auxPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
+    err = crypto_scalarmult(const_cast<unsigned char*>(auxPtr), getPrivKey(), pubkey);
     if (err)
     {
         LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;
