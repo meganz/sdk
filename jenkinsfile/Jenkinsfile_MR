@@ -408,7 +408,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_ANDROID', value: true)
-                                ].plus(env.ANDROID_BRACH ? [string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRACH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+                                ].plus(env.ANDROID_BRANCH ? [string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
 
                             env.TRIGGERED_BUILD_URL_ANDROID = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_ANDROID = triggeredBuild.getProjectName()
