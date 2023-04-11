@@ -11603,16 +11603,17 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
 
 int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
 {
-    uint64_t usedBytes = details.getStorageUsed();
+    uint64_t usedStorageBytes = details.getStorageUsed();
     int currProLevel = details.getProLevel();
     if (currProLevel > MegaAccountDetails::ACCOUNT_TYPE_PROIII)
         currProLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
     int bestProLevel = MegaAccountDetails::ACCOUNT_TYPE_PROI; // if no plans found
-    int bestPrice = INT_MAX;
-    for (int i = 0; i <= pricing.getNumProducts(); ++i) {
+    uint64_t bestStorage = UINT64_MAX;
+    for (int i = 0; i <= pricing.getNumProducts(); ++i)
+    {
         // must have enough space for user's data
-        uint64_t planBytes = (uint64_t)pricing.getGBStorage(i) * (uint64_t)(1024LL * 1024LL * 1024LL);
-        if (usedBytes > planBytes)
+        uint64_t planStorageBytes = (uint64_t)pricing.getGBStorage(i) * (uint64_t)(1024LL * 1024LL * 1024LL);
+        if (usedStorageBytes > planStorageBytes)
             continue;
         // must be an upgrade
         int iproLevel = pricing.getProLevel(i);
@@ -11620,16 +11621,14 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
             continue;
         if (currProLevel >= iproLevel)
             continue;
-        // get cheapest per month @todo depends on response to ticket
-        int iprice = pricing.getAmountMonth(i);
-        if (iprice > bestPrice)
+        // get smallest storage
+        if (planStorageBytes >= bestStorage)
             continue;
         bestProLevel = iproLevel;
-        bestPrice = iprice;
+        bestStorage = planStorageBytes;
     }
     return bestProLevel;
 }
-
 
 #if defined(_WIN32) || defined(__APPLE__)
 
