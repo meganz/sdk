@@ -133,7 +133,12 @@ void QTMegaListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
     event->setSync(sync->copy());
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
-
+void QTMegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncStatsUpdated);
+    event->setSyncStats(syncStats->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
 void QTMegaListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string *localPath, int newState)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnFileSyncStateChanged);
@@ -214,6 +219,9 @@ void QTMegaListener::customEvent(QEvent *e)
 #if ENABLE_SYNC
         case QTMegaEvent::OnSyncStateChanged:
             if(listener) listener->onSyncStateChanged(event->getMegaApi(), event->getSync());
+            break;
+        case QTMegaEvent::OnSyncStatsUpdated:
+            if(listener) listener->onSyncStatsUpdated(event->getMegaApi(), event->getSyncStats());
             break;
         case QTMegaEvent::OnFileSyncStateChanged:
             if(listener) listener->onSyncFileStateChanged(event->getMegaApi(), event->getSync(), event->getLocalPath(), event->getNewState());

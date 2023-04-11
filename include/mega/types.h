@@ -686,7 +686,7 @@ typedef enum { TREESTATE_NONE = 0,
                TREESTATE_SYNCED,
                TREESTATE_PENDING,
                TREESTATE_SYNCING,
-			   TREESTATE_IGNORED,
+               TREESTATE_IGNORED,
                } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,

@@ -250,7 +250,7 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
-inline std::ostream& operator<<(std::ostream& os, const LocalPath& p) 
+inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
 {
     return os << p.toPath(false);
 }

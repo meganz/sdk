@@ -1830,6 +1830,8 @@ void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{ }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
@@ -2675,6 +2677,11 @@ char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+char* MegaApi::getPrivateKey(int type)
+{
+    return pImpl->getPrivateKey(type);
 }
 
 bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
@@ -4298,31 +4305,6 @@ void MegaApi::removeTransferListener(MegaTransferListener* listener)
 void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
 {
     pImpl->removeGlobalListener(listener);
-}
-
-MegaRequest *MegaApi::getCurrentRequest()
-{
-    return pImpl->getCurrentRequest();
-}
-
-MegaTransfer *MegaApi::getCurrentTransfer()
-{
-    return pImpl->getCurrentTransfer();
-}
-
-MegaError *MegaApi::getCurrentError()
-{
-    return pImpl->getCurrentError();
-}
-
-MegaNodeList *MegaApi::getCurrentNodes()
-{
-    return pImpl->getCurrentNodes();
-}
-
-MegaUserList *MegaApi::getCurrentUsers()
-{
-    return pImpl->getCurrentUsers();
 }
 
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)

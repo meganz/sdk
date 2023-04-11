@@ -30,6 +30,7 @@ public:
 
 #ifdef ENABLE_SYNC
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override;
+    void onSyncStatsUpdated(MegaApi *api,  MegaSyncStats *stats) override;
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override;
     void onSyncAdded(MegaApi *api,  MegaSync *sync) override;
     void onSyncDeleted(MegaApi *api,  MegaSync *sync) override;
