@@ -3350,7 +3350,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->achievementsDetails = NULL;
     }
 
-    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || (type == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN))
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || type == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)
     {
         megaPricing = new MegaPricingPrivate();
         megaCurrency = new MegaCurrencyPrivate();

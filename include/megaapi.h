@@ -12911,7 +12911,7 @@ class MegaApi
 
         /**
          * @brief Get the recommended PRO level.
-         * Pro level of cheapest plan that is an upgrade and
+         * Pro level of smallest plan that is an upgrade and
          * has enough space.
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
