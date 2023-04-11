@@ -12280,6 +12280,18 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(B1idx));
     unique_ptr<MegaUserAlertList> persistedAlerts(B1.getUserAlerts());
     ASSERT_TRUE(persistedAlerts);
+    if (persistedAlerts->size() != (int)bkpAlerts.size())
+    {
+        // for debugging purpose
+        string alertTypes = "\nPersisted Alerts: { ";
+        for (int i = 0; i < persistedAlerts->size(); ++i)
+            alertTypes += std::to_string(persistedAlerts->get(i)->getType()) + ' ';
+        alertTypes += " }\nBacked up Alerts: { ";
+        for (size_t i = 0u; i < bkpAlerts.size(); ++i)
+            alertTypes += std::to_string(bkpAlerts[i]->getType()) + ' ';
+        alertTypes += " }";
+        LOG_err << "Persisted Alerts differ from Backed up ones:" << alertTypes;
+    }
     ASSERT_EQ(persistedAlerts->size(), (int)bkpAlerts.size()); // B1 will not get sc50 alerts, due to its useragent
 
     // sort persisted alerts in the same order as backed up ones; timestamp is not enough because there can be clashes
