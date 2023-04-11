@@ -421,7 +421,6 @@ public:
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
 
-
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->login(args..., rt.get()); return rt; }

@@ -434,7 +434,7 @@ int main (int argc, char *argv[])
     {
         if (std::string(*it).substr(0, 3) == "--#")
         {
-            // commented out
+            // switch commented out
             argc -= 1;
             continue;
         }
