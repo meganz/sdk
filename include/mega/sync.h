@@ -141,7 +141,7 @@ public:
 
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
-	
+
     // not serialized.  Prevent re-enabling sync after removal
     bool mSyncDeregisterSent = false;
 
