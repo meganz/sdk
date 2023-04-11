@@ -1832,8 +1832,8 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realAccount = realEmail.substr(0, pos); // user
     const string testEmail = getenv(envVarAccount[0].c_str());
     const string newTestAcc = realAccount + '+' +
-        testEmail.substr(0, testEmail.find("@")) + '+' +
-        getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
+                              testEmail.substr(0, testEmail.find("@")) + '+' +
+                              getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Using Mega account " << newTestAcc;
     const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
 
@@ -1844,7 +1844,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), newTestPwd, "MyFirstname", "MyLastname"));
 
     // Logout from ephemeral session and resume session
-    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
@@ -1881,7 +1881,6 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
         << " Failed to confirm cancel account " << newTestAcc.c_str();
 }
-
 
 /**
  * @brief TEST_F SdkTestCreateEphmeralPlusPlusAccount
