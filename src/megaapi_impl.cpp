@@ -11608,7 +11608,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     if (currProLevel >= MegaAccountDetails::ACCOUNT_TYPE_LITE) // lite is #4, since we always upgrade no plan would be found
         currProLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
     int bestProLevel = MegaAccountDetails::ACCOUNT_TYPE_PROI; // if no plans found
-    uint64_t bestStorage = UINT64_MAX;
+    uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
     {
         // only upgrade to pro1, pro2 and pro3
@@ -11633,10 +11633,10 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         if (currProLevel >= planProLevel)
             continue;
         // get smallest storage
-        if (planStorageBytes >= bestStorage)
+        if (planStorageBytes >= bestStorageBytes)
             continue;
         bestProLevel = planProLevel;
-        bestStorage = planStorageBytes;
+        bestStorageBytes = planStorageBytes;
     }
     return bestProLevel;
 }
