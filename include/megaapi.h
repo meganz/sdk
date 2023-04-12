@@ -12915,7 +12915,7 @@ class MegaApi
          * has enough space.
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber: (in int) the recommended PRO level:
+         * - MegaRequest::getNumber: the recommended PRO level:
          * Valid values are:
          * - MegaAccountDetails::ACCOUNT_TYPE_FREE = 0
          * - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
