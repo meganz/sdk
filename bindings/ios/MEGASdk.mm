@@ -1409,11 +1409,54 @@ using namespace mega;
     }
 }
 
-- (void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+- (void)exportSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->fetchSet(sid, [self createDelegateMEGARequestListener:delegate
-                                                             singleListener:YES
-                                                                  queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->exportSet(sid, [self createDelegateMEGARequestListener:delegate
+                                                              singleListener:YES
+                                                                   queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)disableExportSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->disableExportSet(sid, [self createDelegateMEGARequestListener:delegate
+                                                                     singleListener:YES
+                                                                          queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)stopPublicSetPreview {
+    if (self.megaApi) {
+        self.megaApi->stopPublicSetPreview();
+    }
+}
+
+- (BOOL)inPublicSetPreview {
+    if (self.megaApi) {
+        return self.megaApi->inPublicSetPreview();
+    }
+}
+
+- (nullable MEGASet *)publicSetInPreview {
+    if (self.megaApi) {
+        MegaSet *set = self.megaApi->getPublicSetInPreview();
+        return set ? [[MEGASet alloc] initWithMegaSet:set->copy() cMemoryOwn:YES] : nil;
+    }
+}
+
+- (void)fetchPublicSet:(NSString *)publicSetLink delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->fetchPublicSet(publicSetLink.UTF8String, [self createDelegateMEGARequestListener:delegate
+                                                                                        singleListener:YES
+                                                                                             queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)previewElementNode:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getPreviewElementNode(eid, [self createDelegateMEGARequestListener:delegate
+                                                                          singleListener:YES
+                                                                               queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -1493,11 +1536,17 @@ using namespace mega;
     }
 }
 
-- (MEGASet *)setBySid:(MEGAHandle)sid {
+- (nullable MEGASet *)setBySid:(MEGAHandle)sid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSet *set = self.megaApi->getSet(sid);
     return set ? [[MEGASet alloc] initWithMegaSet:set->copy() cMemoryOwn:YES] : nil;
+}
+
+- (BOOL)isExportedSet:(MEGAHandle)sid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return NO;
+    
+    return self.megaApi->isExportedSet(sid);
 }
 
 - (NSArray<MEGASet *> *)megaSets {
@@ -1524,6 +1573,18 @@ using namespace mega;
     return self.megaApi->getSetCover(sid);
 }
 
+- (nullable NSString *)publicLinkForExportedSetBySid:(MEGAHandle)sid {
+    if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return NULL;
+    
+    const char *link = self.megaApi->getPublicLinkForExportedSet(sid);
+    if (!link) return nil;
+    
+    NSString *linkStr = [[NSString alloc] initWithUTF8String:link];
+    
+    delete [] link;
+    return linkStr;
+}
+
 - (nullable MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
     
@@ -1539,6 +1600,24 @@ using namespace mega;
     if (self.megaApi == nil) return nil;
     
     MegaSetElementList *setElementList = self.megaApi->getSetElements(sid, includeElementsInRubbishBin);
+    int size = setElementList->size();
+    
+    NSMutableArray *setElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
+        [setElements addObject:megaSetElement];
+    }
+    
+    delete setElementList;
+    
+    return [setElements copy];
+}
+
+- (NSArray<MEGASetElement *> *)publicSetElementsInPreview {
+    if (self.megaApi == nil) return nil;
+    
+    MegaSetElementList *setElementList = self.megaApi->getPublicSetElementsInPreview();
     int size = setElementList->size();
     
     NSMutableArray *setElements = [[NSMutableArray alloc] initWithCapacity:size];

@@ -171,6 +171,20 @@ private:
 using SyncConfigVector = vector<SyncConfig>;
 struct Syncs;
 
+struct PerSyncStats
+{
+    // Data that we report per running sync for display alongside the sync
+    bool scanning = false;
+    bool syncing = false;
+    int32_t numFiles = 0;
+    int32_t numFolders = 0;
+    int32_t numUploads = 0;
+    int32_t numDownloads = 0;
+
+    bool operator==(const PerSyncStats&);
+    bool operator!=(const PerSyncStats&);
+};
+
 struct UnifiedSync
 {
     // Reference to containing Syncs object
