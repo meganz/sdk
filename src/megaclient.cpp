@@ -7588,7 +7588,10 @@ void MegaClient::sc_delscheduledmeeting()
                         for_each(begin(deletedChildren), end(deletedChildren),
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
 
-                        createDeletedSMAlert(ou, chatid, schedId);
+                        if (statecurrent)
+                        {
+                            createDeletedSMAlert(ou, chatid, schedId);
+                        }
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
                     }
@@ -7627,7 +7630,7 @@ void MegaClient::sc_scheduledmeetings()
         textchat_map::iterator it = chats.find(sm->chatid());
         if (it == chats.end())
         {
-            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsmp";
             continue;
         }
         TextChat* chat = it->second;
@@ -7654,14 +7657,17 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
-            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
-                     [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
-
-            if (res)
+            if (statecurrent)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+                for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
+                         [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
+                if (res)
+                {
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                }
             }
         }
 
