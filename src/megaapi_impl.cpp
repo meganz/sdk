@@ -9345,7 +9345,9 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
 
 void MegaApiImpl::setDefaultFilePermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfilepermissions(permissions);
+    client->fsaccess->setdefaultfilepermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFilePermissions()
@@ -9355,7 +9357,9 @@ int MegaApiImpl::getDefaultFilePermissions()
 
 void MegaApiImpl::setDefaultFolderPermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfolderpermissions(permissions);
+    client->fsaccess->setdefaultfilepermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFolderPermissions()
@@ -28129,6 +28133,8 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, Meg
     , fsaccess(new FSACCESS_CLASS())
 {
     megaApi = api;
+    fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
+    fsaccess->setdefaultfolderpermissions(megaApi->getDefaultFolderPermissions()); // Grant default folder permissions
     transfer = t;
     listener = t->getListener();
     recursive = 0;
