@@ -11620,7 +11620,13 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         if (planMonths != 1)
             continue;
         // must have enough space for user's data
-        uint64_t planStorageBytes = (uint64_t)pricing.getGBStorage(i) * (uint64_t)(1024LL * 1024LL * 1024LL);
+        int planStorageGb = pricing.getGBStorage(i);
+        if (planStorageGb < 0)
+        {
+            // busniess plan, should never happen
+            continue;
+        }
+        uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
         if (usedStorageBytes > planStorageBytes)
             continue;
         // must be an upgrade
