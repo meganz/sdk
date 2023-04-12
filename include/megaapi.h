@@ -12925,7 +12925,7 @@ class MegaApi
          * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
          * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
          */
-        virtual void getRecommendedProLevel(MegaRequestListener* listener = NULL);
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the payment URL for an upgrade
