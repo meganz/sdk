@@ -204,14 +204,14 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         setrootnode(node);
     }
 
-    // mClient.mNodeManager.getRootNodeFiles() is always set for folder links before adding any node (upon login)
-    bool isFolderLink = mClient.mNodeManager.getRootNodeFiles() == node->nodeHandle();
+    // getRootNodeFiles() is always set for folder links before adding any node (upon login)
+    bool isFolderLink = getRootNodeFiles() == node->nodeHandle();
 
     bool keepNodeInMemory = rootNode
             || isFolderLink
             || !isFetching
             || notify
-            || node->parentHandle() == mClient.mNodeManager.getRootNodeFiles(); // first level of children for CloudDrive
+            || node->parentHandle() == getRootNodeFiles(); // first level of children for CloudDrive
     // Note: incoming shares are not kept in ram during fetchnodes from API. Instead, they are loaded
     // upon mergenewshares(), when fetchnodes is completed
 
@@ -424,7 +424,7 @@ uint64_t NodeManager::getNodeCount()
     {
         // Root nodes aren't taken into consideration as part of node counters
         count += 3;
-        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeVault().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
+        assert(!getRootNodeFiles().isUndef() && !getRootNodeVault().isUndef() && !getRootNodeRubbish().isUndef());
     }
 
 #ifdef DEBUG
@@ -681,17 +681,17 @@ node_vector NodeManager::getRootNodes()
 
     if (mNodes.size()) // nodes already loaded from DB
     {
-        Node* rootNode = getNodeByHandle(mClient.mNodeManager.getRootNodeFiles());
+        Node* rootNode = getNodeByHandle(getRootNodeFiles());
         assert(rootNode);
         nodes.push_back(rootNode);
 
         if (!mClient.loggedIntoFolder())
         {
-            Node* inBox = getNodeByHandle(mClient.mNodeManager.getRootNodeVault());
+            Node* inBox = getNodeByHandle(getRootNodeVault());
             assert(inBox);
             nodes.push_back(inBox);
 
-            Node* rubbish = getNodeByHandle(mClient.mNodeManager.getRootNodeRubbish());
+            Node* rubbish = getNodeByHandle(getRootNodeRubbish());
             assert(rubbish);
             nodes.push_back(rubbish);
         }
@@ -701,7 +701,7 @@ node_vector NodeManager::getRootNodes()
         if (mClient.loggedIntoFolder())
         {
             NodeSerialized nodeSerialized;
-            mTable->getNode(mClient.mNodeManager.getRootNodeFiles(), nodeSerialized);
+            mTable->getNode(getRootNodeFiles(), nodeSerialized);
             Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
@@ -1396,9 +1396,9 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 
 bool NodeManager::isRootNode(NodeHandle h) const
 {
-    return h == mClient.mNodeManager.getRootNodeFiles()
-            || h == mClient.mNodeManager.getRootNodeVault()
-            || h == mClient.mNodeManager.getRootNodeRubbish();
+    return h == getRootNodeFiles()
+            || h == getRootNodeVault()
+            || h == getRootNodeRubbish();
 }
 
 int NodeManager::getNumVersions(NodeHandle nodeHandle)
@@ -1480,9 +1480,9 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     // if not logged in yet, node counters are not available
     if (mNodes.empty())
     {
-        assert((mClient.mNodeManager.getRootNodeFiles().isUndef()
-                && mClient.mNodeManager.getRootNodeVault().isUndef()
-                && mClient.mNodeManager.getRootNodeRubbish().isUndef())
+        assert((getRootNodeFiles().isUndef()
+                && getRootNodeVault().isUndef()
+                && getRootNodeRubbish().isUndef())
                || (mClient.loggedIntoFolder()));
 
         return c;

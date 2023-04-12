@@ -190,13 +190,13 @@ public:
     // Returns true if a node has versions
     bool hasVersion(NodeHandle nodeHandle);
 
-    NodeHandle getRootNodeFiles() {
+    NodeHandle getRootNodeFiles() const {
         return rootnodes.files;
     }
-    NodeHandle getRootNodeVault() {
+    NodeHandle getRootNodeVault() const {
         return rootnodes.vault;
     }
-    NodeHandle getRootNodeRubbish() {
+    NodeHandle getRootNodeRubbish() const {
         return rootnodes.rubbish;
     }
     void setRootNodeFiles(NodeHandle h) {
