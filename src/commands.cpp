@@ -3985,6 +3985,8 @@ bool CommandPubKeyRequest::procresult(Result r)
     int len_pubk = 0;
     handle uh = UNDEF;
 
+    unique_ptr<User> cleanup(u && u->isTemporary ? u : nullptr);
+
     if (r.wasErrorOrOK())
     {
         if (!r.wasError(API_ENOENT)) //API_ENOENT = unregistered users or accounts without a public key yet
@@ -4064,12 +4066,6 @@ bool CommandPubKeyRequest::procresult(Result r)
     if (len_pubk && !u->isTemporary)
     {
         client->notifyuser(u);
-    }
-
-    if (u->isTemporary)
-    {
-        delete u;
-        u = NULL;
     }
 
     return true;
