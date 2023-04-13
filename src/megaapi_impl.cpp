@@ -11601,19 +11601,37 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
     }
 }
 
+// map to an ACCOUNT_* value to an int that can be compared:
+// free -> lite -> proi -> proii -> proiii
+// the ACCOUNT_* values are out of order
+// int proLevel is a MegaAccountDetails::ACCOUNT_*
+static inline int orderProLevel(int proLevel)
+{
+    switch (proLevel)
+    {
+    case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
+        return -1;
+    case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
+        return 0;
+    default:
+        return proLevel; // 1..3
+    }
+}
+
 int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
 {
     uint64_t usedStorageBytes = details.getStorageUsed();
     int currProLevel = details.getProLevel();
-    if (currProLevel >= MegaAccountDetails::ACCOUNT_TYPE_LITE) // lite is #4, since we always upgrade no plan would be found
-        currProLevel = MegaAccountDetails::ACCOUNT_TYPE_FREE;
-    int bestProLevel = MegaAccountDetails::ACCOUNT_TYPE_PROI; // if no plans found
+    int orderedCurrProLevel = 0;
+    if (orderedCurrProLevel <= MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        orderedCurrProLevel = orderProLevel(currProLevel); // not business plan
+    int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
     {
-        // only upgrade to pro1, pro2 and pro3
+        // only upgrade to lite, pro1, pro2 and pro3
         int planProLevel = pricing.getProLevel(i);
-        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_PROIII)
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_LITE)
             continue;
         // only monthly plans
         int planMonths = pricing.getMonths(i);
@@ -11629,8 +11647,9 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
         if (usedStorageBytes > planStorageBytes)
             continue;
-        // must be an upgrade
-        if (currProLevel >= planProLevel)
+        // must be an upgrade free->lite->proi->proii->proiii
+        int orderedPlanProLevel = orderProLevel(planProLevel);
+        if (orderedCurrProLevel >= orderedPlanProLevel)
             continue;
         // get smallest storage
         if (planStorageBytes >= bestStorageBytes)
@@ -11638,7 +11657,14 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         bestProLevel = planProLevel;
         bestStorageBytes = planStorageBytes;
     }
-    return bestProLevel;
+    if (bestStorageBytes != UINT64_MAX)
+    {
+        assert(bestProLevel != -1);
+        return bestProLevel;
+    }
+    if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+        return MegaAccountDetails::ACCOUNT_TYPE_LITE;
+    return MegaAccountDetails::ACCOUNT_TYPE_PROI;
 }
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -13809,6 +13835,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         }
         unique_ptr<MegaAccountDetails> details(request->getMegaAccountDetails());
         unique_ptr<MegaPricing> pricing(request->getPricing());
+        test_calcRecommendedProLevel(*pricing.get(), *details.get());
         int recommended = calcRecommendedProLevel(*pricing.get(), *details.get());
         request->setNumber(recommended);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
