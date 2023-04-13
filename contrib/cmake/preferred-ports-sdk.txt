@@ -84,6 +84,23 @@ bzip2/c303dd024e2dc03a0665ddffbb12a1077933e649
 #for megachat, not needed by sdk itself
 #libwebsockets/2.4.2
 
+# qt5 and its dependencies - posibly for mega chat
+# libpq/6185aa76504a5025f36754324abf307cc776f3da
+# pcre2/6185aa76504a5025f36754324abf307cc776f3da
+# egl-registry/6185aa76504a5025f36754324abf307cc776f3da
+# double-conversion/6185aa76504a5025f36754324abf307cc776f3da
+# qt5-base/6185aa76504a5025f36754324abf307cc776f3da all:qt5-base.patch
+# qt5-declarative/6185aa76504a5025f36754324abf307cc776f3da
+# qt5-svg/6185aa76504a5025f36754324abf307cc776f3da
+# qt5-imageformats/6185aa76504a5025f36754324abf307cc776f3da
+# qt5-activeqt/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
+# qt5-tools/6185aa76504a5025f36754324abf307cc776f3da
+# atlmfc/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
+# qt5-multimedia/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
+# qt5-winextras/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
+# qt5-x11extras/6185aa76504a5025f36754324abf307cc776f3da all:off linux:on
+# qt5-macextras/6185aa76504a5025f36754324abf307cc776f3da all:off osx:on
+
 # tests and tools
 asio/c303dd024e2dc03a0665ddffbb12a1077933e649
 gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-warnings-are-not-errors.patch
