@@ -4252,7 +4252,7 @@ class MegaRequest
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
-            TYPE_GET_RECCOMENDED_PRO_PLAN                                   = 168,
+            TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TOTAL_OF_REQUEST_TYPES                                          = 169,
         };
 
@@ -12913,7 +12913,7 @@ class MegaApi
          * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
          * and has enough space.
          * 
-         * The associated request type with this request is MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:

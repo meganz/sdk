@@ -3332,7 +3332,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->number = 0;
     this->timeZoneDetails = NULL;
 
-    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS || type == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         this->accountDetails = std::make_shared<AccountDetails>();
     }
@@ -3350,7 +3350,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->achievementsDetails = NULL;
     }
 
-    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || type == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         megaPricing = new MegaPricingPrivate();
         megaCurrency = new MegaCurrencyPrivate();
@@ -4242,8 +4242,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
-        case TYPE_REMOVE_SET_ELEMENTS: return "TYPE_REMOVE_SET_ELEMENTS";
-        case TYPE_GET_RECCOMENDED_PRO_PLAN: return "TYPE_GET_RECCOMENDED_PRO_PLAN";
+        case TYPE_REMOVE_SET_ELEMENTS: return "REMOVE_SET_ELEMENTS";
+        case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
     }
     return "UNKNOWN";
 }
@@ -7585,7 +7585,7 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
 
 void MegaApiImpl::getRecommendedProLevel(MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN, listener);
     
     request->performRequest = [this, request]() {
         if (client->loggedin() != FULLACCOUNT)
@@ -13791,7 +13791,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
                     (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
-                    (request->getType() != MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)))
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13806,7 +13806,7 @@ void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyDa
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
                     (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
-                    (request->getType() != MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)))
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13821,12 +13821,12 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
                     (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
-                    (request->getType() != MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)))
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
 
-    if (request->getType() == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         if (e != API_OK)
         {
@@ -14657,9 +14657,9 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
 
-    if (request->getType() == MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         // only ever one message
         client->purchase_enumeratequotaitems();
@@ -14683,7 +14683,7 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECCOMENDED_PRO_PLAN)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
