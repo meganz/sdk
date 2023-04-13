@@ -13835,7 +13835,6 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         }
         unique_ptr<MegaAccountDetails> details(request->getMegaAccountDetails());
         unique_ptr<MegaPricing> pricing(request->getPricing());
-        test_calcRecommendedProLevel(*pricing.get(), *details.get());
         int recommended = calcRecommendedProLevel(*pricing.get(), *details.get());
         request->setNumber(recommended);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

@@ -12752,5 +12752,5 @@ TEST_F(SdkTest, GetRecommendedProLevel) {
     int level = -1;
     int err = synchronousGetRecommendedProLevel(0, level);
     ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
-    ASSERT_EQ(level, 1);
+    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
 }
