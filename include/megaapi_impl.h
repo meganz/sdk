@@ -3192,7 +3192,7 @@ protected:
 
         bool isValidTypeNode(Node *node, int type);
         
-        // returns MegaAccountDetails::ACCOUNT_TYPE_*
+        // returns the Pro level based on the current storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
         static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
 
         MegaApi *api;
