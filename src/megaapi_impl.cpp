@@ -11623,7 +11623,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     uint64_t usedStorageBytes = details.getStorageUsed();
     int currProLevel = details.getProLevel();
     int orderedCurrProLevel = 0;
-    if (orderedCurrProLevel <= MegaAccountDetails::ACCOUNT_TYPE_LITE)
+    if (currProLevel <= MegaAccountDetails::ACCOUNT_TYPE_LITE)
         orderedCurrProLevel = orderProLevel(currProLevel); // not business plan
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
