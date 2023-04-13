@@ -11641,7 +11641,8 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         int planStorageGb = pricing.getGBStorage(i);
         if (planStorageGb < 0)
         {
-            // busniess plan, should never happen
+            // business plan, should never happen
+            assert(false);
             continue;
         }
         uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
