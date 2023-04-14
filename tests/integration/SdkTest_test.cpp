@@ -12745,7 +12745,9 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 2);
 }
 
-TEST_F(SdkTest, GetRecommendedProLevel) {
+TEST_F(SdkTest, GetRecommendedProLevel)
+{
+    // see also unit test MegaApi.MegaApiImpl_calcRecommendedProLevel in ..>unit>MegaApi_test.cpp
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
