@@ -48,9 +48,11 @@ public:
         FLAGS_SIZE             = 1, // size in bits of flags bitmask
     } scheduled_flags_t;            // 3 Bytes (maximum)
 
+    static constexpr unsigned int schedEmptyFlags = 0;
+
     ScheduledFlags() = default;
     ScheduledFlags (const unsigned long numericValue) : mFlags(numericValue) {};
-    ScheduledFlags (const ScheduledFlags* flags)      : mFlags(flags ? flags->getNumericValue() : 0) {};
+    ScheduledFlags (const ScheduledFlags* flags)      : mFlags(flags ? flags->getNumericValue() : schedEmptyFlags) {};
     virtual ~ScheduledFlags() = default;
     ScheduledFlags(const ScheduledFlags&) = delete;
     ScheduledFlags(const ScheduledFlags&&) = delete;
@@ -75,7 +77,7 @@ public:
     static ScheduledFlags* unserialize(const string& in);
 
 protected:
-    std::bitset<FLAGS_SIZE> mFlags = 0;
+    std::bitset<FLAGS_SIZE> mFlags = schedEmptyFlags;
 };
 
 class ScheduledRules
