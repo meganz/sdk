@@ -2699,6 +2699,9 @@ class MegaApiImpl : public MegaApp
         bool isExportedSet(MegaHandle sid);
         bool inPublicSetPreview();
 
+        // returns the Pro level based on the current plan and storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
+        static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
+
     private:
         bool nodeInRubbishCheck(handle) const;
 
@@ -3192,9 +3195,6 @@ protected:
 
         bool isValidTypeNode(Node *node, int type);
         
-        // returns the Pro level based on the current storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
-        static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
-
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
