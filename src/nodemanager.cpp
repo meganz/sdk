@@ -245,12 +245,7 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    if (node && node->attrstring)
-    {
-        decryptBeforeStore(node);
-    }
-
-    mTable->put(node);
+    putNodeInDb(node);
 
     return true;
 }
@@ -1307,12 +1302,7 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                if (n->attrstring)
-                {
-                    decryptBeforeStore(n);
-                }
-
-                mTable->put(n);
+                putNodeInDb(n);
 
                 added += 1;
             }
@@ -1579,11 +1569,7 @@ void NodeManager::dumpNodes()
     {
         if (it.second.mNode)
         {
-            if (it.second.mNode->attrstring)
-            {
-                decryptBeforeStore(it.second.mNode.get());
-            }
-            mTable->put(it.second.mNode.get());
+            putNodeInDb(it.second.mNode.get());
         }
     }
 
@@ -1598,12 +1584,7 @@ void NodeManager::saveNodeInDb(Node *node)
         return;
     }
 
-    if (node && node->attrstring)
-    {
-        decryptBeforeStore(node);
-    }
-
-    mTable->put(node);
+    putNodeInDb(node);
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
@@ -1705,7 +1686,7 @@ node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<No
     return nodes;
 }
 
-void NodeManager::decryptBeforeStore(Node* node) const
+void NodeManager::putNodeInDb(Node* node) const
 {
     if (!node)
     {
@@ -1714,6 +1695,7 @@ void NodeManager::decryptBeforeStore(Node* node) const
 
     if (node->attrstring)
     {
+        // Last attempt to decrypt the node before storing it.
         LOG_debug << "Trying to store an encrypted node";
         node->applykey();
         node->setattr();
@@ -1723,6 +1705,8 @@ void NodeManager::decryptBeforeStore(Node* node) const
             LOG_debug << "Storing an encrypted node.";
         }
     }
+
+    mTable->put(node);
 }
 
 size_t NodeManager::nodeNotifySize() const
