@@ -4048,7 +4048,7 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     return true;
 }
 
-bool StandardClient::login_fetchnodes(const string& session)
+bool StandardClient::login_fetchnodesFromSession(const string& session)
 {
     future<bool> p2;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); }, __FILE__, __LINE__);
@@ -6095,7 +6095,7 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
 
     // resume session, see if nodes and localnodes get in sync
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+    ASSERT_TRUE(pclientA1->login_fetchnodesFromSession(session));
 
     // wait for normal sync resumes to complete
     pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
@@ -6239,7 +6239,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
 
     out() << "*********************  resume A1 session (with sync), see if A2 nodes and localnodes get in sync again";
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+    ASSERT_TRUE(pclientA1->login_fetchnodesFromSession(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
@@ -6299,7 +6299,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
 
     // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+    ASSERT_TRUE(pclientA1->login_fetchnodesFromSession(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
@@ -6378,7 +6378,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
 
     // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+    ASSERT_TRUE(pclientA1->login_fetchnodesFromSession(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     vector<SyncWaitResult> waitResult = waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -9244,7 +9244,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         };
 
         // Resume session.
-        ASSERT_TRUE(c->login_fetchnodes(session));
+        ASSERT_TRUE(c->login_fetchnodesFromSession(session));
 
         // Wait for the sync to be resumed.
         ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
@@ -9791,7 +9791,7 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     };
 
     // Resume client.
-    ASSERT_TRUE(c.login_fetchnodes(session));
+    ASSERT_TRUE(c.login_fetchnodesFromSession(session));
 
     // Wait for sync to resume.
     ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
@@ -11111,7 +11111,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
     clientA1Resume.received_syncs_restored = false;
-    ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
+    ASSERT_TRUE(clientA1Resume.login_fetchnodesFromSession(session));
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
@@ -11237,7 +11237,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     };
 
     // Log in client resuming prior session.
-    ASSERT_TRUE(c.login_fetchnodes(session));
+    ASSERT_TRUE(c.login_fetchnodesFromSession(session));
 
     // Wait for the sync to be resumed.
     ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
@@ -11386,7 +11386,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     cb.logcb = true;
 
     // Log in client.
-    ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+    ASSERT_TRUE(cb.login_fetchnodesFromSession(sessionID));
 
     // Make a change in the cloud.
     {
@@ -11642,7 +11642,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     };
 
     // Log in client, resuming prior session.
-    ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+    ASSERT_TRUE(cb.login_fetchnodesFromSession(sessionID));
 
     // Wait for the sync to be restored.
     ASSERT_NE(notifier.get_future().wait_for(std::chrono::seconds(8)),
@@ -11803,7 +11803,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     };
 
     // Log in the client.
-    ASSERT_TRUE(cb.login_fetchnodes(sessionID));
+    ASSERT_TRUE(cb.login_fetchnodesFromSession(sessionID));
 
     // Wait for the sync to be resumed.
     ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
@@ -12192,7 +12192,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     };
 
     // Log the client back in.
-    ASSERT_TRUE(client1.login_fetchnodes(session));
+    ASSERT_TRUE(client1.login_fetchnodesFromSession(session));
 
     // Wait for the sync to resume.
     ASSERT_NE(notify.get_future().wait_for(DEFAULTWAIT), future_status::timeout);
@@ -18109,7 +18109,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     };
 
     // Log the client back in.
-    ASSERT_TRUE(client1.login_fetchnodes(session));
+    ASSERT_TRUE(client1.login_fetchnodesFromSession(session));
 
     // Wait for the sync to resume.
     ASSERT_NE(notify.get_future().wait_for(DEFAULTWAIT), future_status::timeout);
