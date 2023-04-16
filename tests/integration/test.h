@@ -728,7 +728,7 @@ struct StandardClient : public MegaApp
     handle copySyncConfig(const SyncConfig& config);
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
-    bool login_fetchnodes(const string& session);
+    bool login_fetchnodesFromSession(const string& session);
     bool delSync_mainthread(handle backupId);
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
