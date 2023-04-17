@@ -24,8 +24,9 @@
 #include "mega/logging.h"
 
 namespace mega {
-DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
+DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
     : rng(rng), mCheckAlwaysTransacted(checkAlwaysTransacted)
+    , mDBErrorCallBack(std::move(dBErrorCallBack))
 {
     nextid = 0;
 }
@@ -53,7 +54,14 @@ bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 
     if (!record->dbid)
     {
+        uint32_t previousNextid = nextid;
         record->dbid = (nextid += IDSPACING) | type;
+        if (nextid < previousNextid)
+        {
+            assert(false);
+            LOG_err << "Overflow at nextid " << type;
+            mDBErrorCallBack(DBError::DB_ERROR_INDEX_OVERFLOW);
+        }
     }
 
     return put(record->dbid, &data);

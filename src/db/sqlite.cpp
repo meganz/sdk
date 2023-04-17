@@ -307,11 +307,10 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
-  : DbTable(rng, checkAlwaysTransacted)
+  : DbTable(rng, checkAlwaysTransacted, dBErrorCallBack)
   , db(db)
   , dbfile(path)
   , fsaccess(&fsAccess)
-  , mDBErrorCallBack(std::move(dBErrorCallBack))
 {
 }
 
