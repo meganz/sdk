@@ -1329,7 +1329,7 @@ public:
             MegaClient& mClient;
 
         public:
-            constexpr static ssize_t HEX_STRING_SIZE = 16;
+            static constexpr size_t HEX_STRING_SIZE = 16;
             JourneyID(MegaClient& client) : mClient(client) {};
             // Set the jidValue with a new 8-byte uint64_t
             bool setValue(uint64_t jidValue, bool updateCachedTrackingFlag = true);
