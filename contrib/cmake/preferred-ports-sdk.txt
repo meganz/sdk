@@ -84,7 +84,8 @@ bzip2/c303dd024e2dc03a0665ddffbb12a1077933e649
 #for megachat, not needed by sdk itself
 #libwebsockets/2.4.2
 
-# qt5 and its dependencies - posibly for mega chat
+## qt5 and its dependencies windows only - posibly for mega chat
+## linux depends on fontconfig and thus freetype and conflicts with pdfium-freetype
 # libpq/6185aa76504a5025f36754324abf307cc776f3da
 # pcre2/6185aa76504a5025f36754324abf307cc776f3da
 # egl-registry/6185aa76504a5025f36754324abf307cc776f3da
@@ -98,8 +99,6 @@ bzip2/c303dd024e2dc03a0665ddffbb12a1077933e649
 # atlmfc/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
 # qt5-multimedia/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
 # qt5-winextras/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
-# qt5-x11extras/6185aa76504a5025f36754324abf307cc776f3da all:off linux:on
-# qt5-macextras/6185aa76504a5025f36754324abf307cc776f3da all:off osx:on
 
 # tests and tools
 asio/c303dd024e2dc03a0665ddffbb12a1077933e649

@@ -239,7 +239,7 @@ elseif (USE_QT)
 
     set(qt_cmake_dir "${QT_DIR}/lib/cmake/Qt5")
     set(qt_qmake_dir "${QT_DIR}/bin")
-endif(USE_QT)
+endif()
 
 if (USE_QT OR USE_QT_FROM_VCPKG)
     message(STATUS "USE_QT: ${USE_QT} USE_QT_FROM_VCPKG: ${USE_QT_FROM_VCPKG}")
