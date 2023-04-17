@@ -10039,7 +10039,6 @@ void MegaClient::readopc(JSON *j)
 
 error MegaClient::readmiscflags(JSON *json)
 {
-    LOG_debug << "readmiscflags BEGIN";
     bool journeyIdFound = false;
     while (1)
     {
@@ -10072,34 +10071,38 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID3('j', 'i', 'd'):   // JourneyID value (16-char hex value)
             {
-                LOG_debug << "Trying to parse JourneyID (jid)";
                 string jid;
                 if (!json->storeobject(&jid))
                 {
                     LOG_err << "Invalid JourneyID (jid)";
                     assert(false);
                 }
-                if (!jid.empty() && jid.size() != JourneyID::HEX_STRING_SIZE)
+                if (jid.size() != JourneyID::HEX_STRING_SIZE)
                 {
-                    LOG_err << "Invalid JourneyID size (" << jid.size()  << ") expected: " << JourneyID::HEX_STRING_SIZE;
-                    jid.clear();
-                    assert(false);
+                    if (!jid.empty()) // If empty, it will be equivalent to no journeyId found (journeyIdFound = false)
+                    {
+                        LOG_err << "Invalid JourneyID size (" << jid.size()  << ") expected: " << JourneyID::HEX_STRING_SIZE;
+                        jid.clear();
+                        assert(false);
+                    }
                 }
-                else // jid empty (will be considered as no value - set tracking OFF) or has a valid size (JourneyID::HEX_STRING_SIZE)
+                else
                 {
                     journeyIdFound = true;
-                    LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
-                    setJourneyId(jid);
+                    if (!trackJourneyId()) // If there is already a value and tracking flag is true, do nothing
+                    {
+                        LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
+                        setJourneyId(jid);
+                    }
                 }
             }
             break;
         case EOO:
-            if (!journeyIdFound)
+            if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
                 LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
                 setJourneyId(0);
             }
-            LOG_debug << "readmiscflags END (API_OK)";
             return API_OK;
         default:
             if (!json->storeobject())
@@ -10108,7 +10111,6 @@ error MegaClient::readmiscflags(JSON *json)
             }
         }
     }
-    LOG_debug << "readmiscflags END";
 }
 
 void MegaClient::procph(JSON *j)
