@@ -257,9 +257,7 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
     }
 };
 
-
 class MegaClient;
-
 
 class MEGA_API KeyManager
 {
@@ -450,6 +448,13 @@ private:
 class MEGA_API MegaClient
 {
 public:
+    struct ViewID
+    {
+        using IdValue = uint64_t;
+        static IdValue generateViewId();
+        static string viewIdToString(IdValue viewId);
+    };
+
     // own identity
     handle me;
     string uid;
@@ -1029,8 +1034,8 @@ public:
     void userfeedbackstore(const char *);
 
     // send event
-    void sendevent(int, const char *);
-    void sendevent(int, const char *, int tag);
+    void sendevent(int, const char *, bool addJourneyId = false, const char *viewId = nullptr);
+    void sendevent(int, const char *, int tag, bool addJourneyId = false, const char *viewId = nullptr);
 
     // create support ticket
     void supportticket(const char *message, int type);
@@ -1314,9 +1319,36 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+public:
+    // JourneyID for cs API requests and log events. Populated from "ug" and "gmf" commands response.
+    struct JourneyID
+    {
+        private:
+            uint64_t mJidValue;
+            bool mTrackValue;
+            MegaClient& mClient;
+
+        public:
+            constexpr static ssize_t HEX_STRING_SIZE = 16;
+            JourneyID(MegaClient& client) : mClient(client) {};
+            // Set the jidValue with a new 8-byte uint64_t
+            bool setValue(uint64_t jidValue, bool updateCachedTrackingFlag = true);
+            // Set the jidValue as a 8-byte uint64_t from a 16-char hexadecimal value (journeyID="78b1bbbda5f32526" -> 8656088129828704806)
+            bool setFromHexString(const string& journeyID);
+            // Determines if there is a valid (non-zero) jidValue already set
+            bool hasValue() const;
+            // Get the jidValue as a 16-char lowercase hexadecimal value (jid=8656088129828704806 -> "78b1bbbda5f32526")
+            string getValue() const;
+            // Check if the journeyID must be tracked (used on API reqs)
+            bool isTrackingOn() const;
+    };
+
 private:
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
+
+    // JourneyID for cs API requests and log events
+    JourneyID mJourneyId;
 
 public:
     // notify URL for new server-client commands
@@ -2098,6 +2130,24 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // Sets the JourneyID value from a 16-character hexadecimal string (obtained from API commands "ug" and "gmf")
+    bool setJourneyId(const string& jid);
+
+    // Sets the JourneyID from another 8-byte numeric value (to be used for cached values)
+    bool setJourneyId(uint64_t jidValue, bool updateCachedTrackingFlag = true);
+
+    // Checks if a valid JourneyID is already set and tracking flag is ON
+    bool trackJourneyId() const;
+
+    // Checks if there is a valid JourneyID
+    bool journeyIdHasValue() const;
+
+    // Retrieves the JourneyID value as the original 16-character hexadecimal string (for submission to the API)
+    string getJourneyId() const;
+
+    // Generates a random ViewID as an 8-byte uint64_t
+    ViewID::IdValue generateViewId();
 
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);

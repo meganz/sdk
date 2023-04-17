@@ -969,6 +969,8 @@ public:
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
         STATUS_PRO_LEVEL = 4,
+        STATUS_JOURNEY_ID = 5,
+        STATUS_JOURNEY_TRACKING = 6
     };
 
     CacheableStatus(Type type, int64_t value);

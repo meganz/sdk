@@ -930,7 +930,7 @@ class MEGA_API CommandSendEvent : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSendEvent(MegaClient*, int, const char *);
+    CommandSendEvent(MegaClient*, int, const char *, bool = false, const char * = nullptr);
 };
 
 class MEGA_API CommandSupportTicket : public Command

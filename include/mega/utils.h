@@ -424,6 +424,21 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+    /**
+     * @brief Converts a hexadecimal string to a uint64_t value. The input string may or may not have the hex prefix "0x".
+     *
+     * @param input The hexadecimal string to be converted (ex: "78b1bbbda5f32526", "0x10FF, "0x0001")
+     * @return The uint64_t value corresponding to the input hexadecimal string.
+    */
+    static uint64_t hexStringToUint64(const std::string &input);
+    /**
+     * @brief Converts a 8-byte numeric value to a 16-character lowercase hexadecimal string, with zero-padding if necessary.
+     *
+     * @param input The uint64_t value to be converted to a hexadecimal string.
+     * @return A 16-character lowercase hexadecimal string representation of the input value (ex: "78b1bbbda5f32526").
+     *
+    */
+    static std::string intTo16CharsHexString(uint64_t input);
 
     static int32_t toLower(const int32_t c)
     {

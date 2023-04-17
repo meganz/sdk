@@ -3208,9 +3208,9 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
     pImpl->submitFeedback(rating, comment, listener);
 }
 
-void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
+void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener, bool addJourneyId, MegaViewID *viewId)
 {
-    pImpl->sendEvent(eventType, message, listener);
+    pImpl->sendEvent(eventType, message, listener, addJourneyId, viewId);
 }
 
 void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
@@ -4054,6 +4054,11 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 bool MegaApi::setLanguage(const char *languageCode)
 {
     return pImpl->setLanguage(languageCode);
+}
+
+MegaViewID MegaApi::generateViewId()
+{
+    return pImpl->generateViewId();
 }
 
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)

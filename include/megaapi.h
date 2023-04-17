@@ -34,6 +34,7 @@ namespace mega
 {
 typedef uint64_t MegaHandle;
 typedef int64_t MegaTimeStamp; // unix timestamp
+typedef uint64_t MegaViewID;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -13883,7 +13884,7 @@ class MegaApi
          *  - MEGAsync:  [99500, 99600)
          *  - Webclient: [99600, 99800]
          */
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL, bool addJourneyId = false, MegaViewID *viewId = nullptr);
 
         /**
          * @brief Create a new ticket for support with attached description
@@ -17845,6 +17846,13 @@ class MegaApi
          * @return True if the language code is known for the SDK, otherwise false
          */
         bool setLanguage(const char* languageCode);
+
+        /**
+         * @brief Generate a ViewID
+         *
+         * A ViewID consists of a 8-bytes number
+         */
+        MegaViewID generateViewId();
 
         /**
          * @brief Set the preferred language of the user

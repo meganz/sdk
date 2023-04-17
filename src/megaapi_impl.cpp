@@ -11337,6 +11337,11 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     return client->setlang(&code);
 }
 
+MegaViewID MegaApiImpl::generateViewId()
+{
+    return client->generateViewId();
+}
+
 void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_LANGUAGE, languageCode, listener);
@@ -22200,13 +22205,13 @@ void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener)
+void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener, bool addJourneyId, MegaViewID *viewId)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);
     request->setText(message);
 
-    request->performRequest = [this, request]()
+    request->performRequest = [this, request, addJourneyId, viewId]()
         {
             int number = int(request->getNumber());
             const char *text = request->getText();
@@ -22216,7 +22221,8 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListe
                 return API_EARGS;
             }
 
-            client->sendevent(number, text);
+            const char* viewIdcstr = viewId ? MegaClient::ViewID::viewIdToString(*viewId).c_str() : nullptr;
+            client->sendevent(number, text, addJourneyId, viewIdcstr);
             return API_OK;
         };
 

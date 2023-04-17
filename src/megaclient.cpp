@@ -26,6 +26,8 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <iomanip>
+#include <random>
 #include <cryptopp/hkdf.h> // required for derive key of master key
 #include "mega/heartbeats.h"
 #include "mega/testhooks.h"
@@ -99,6 +101,113 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
+
+// Set value for JourneyID from a numeric value
+bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackingFlag)
+{
+    if (jidValue)
+    {
+        if (!mJidValue)
+        {
+            LOG_debug << "[MegaClient::JourneyID::setValue] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
+            mJidValue = jidValue;
+            mClient.mCachedStatus.addOrUpdate(CacheableStatus::STATUS_JOURNEY_ID, static_cast<int64_t>(mJidValue));
+        }
+        else // Reuse previous value if there is one already
+        {
+            LOG_debug << "[MegaClient::JourneyID::setValue] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
+        }
+        if (!updateCachedTrackingFlag || mTrackValue)
+        {
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", updateCachedTrackingFlag = " << updateCachedTrackingFlag << ", mTrackValue = " << mTrackValue << "]";
+            return false;
+        }
+        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to true";
+        mTrackValue = true;
+    }
+    else
+    {
+        if (!updateCachedTrackingFlag || !mTrackValue)
+        {
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", updateCachedTrackingFlag = " << updateCachedTrackingFlag << ", mTrackValue = " << mTrackValue << "]";
+            return false;
+        }
+        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
+        mTrackValue = false;
+    }
+    LOG_debug << "[MegaClient::JourneyID::setValue] Update cached tracking flag for journeyId";
+    mClient.mCachedStatus.addOrUpdate(CacheableStatus::STATUS_JOURNEY_TRACKING, static_cast<int64_t>(mTrackValue));
+    return true;
+}
+
+// Set value for JourneyID from a 16-char hexadecimal string
+bool MegaClient::JourneyID::setFromHexString(const string& journeyID)
+{
+    if (journeyID.empty()) // If empty, let's consider it as a zero (set tracking OFF)
+    {
+        return setValue(0);
+    }
+    if (journeyID.size() != HEX_STRING_SIZE)
+    {
+        LOG_err << "[MegaClient::JourneyID::setFromHexString] Arg JourneyID has an invalid size (" << journeyID.size() << "), expected size: " << HEX_STRING_SIZE;
+        assert(false && "Invalid size for JourneyID string param");
+        return false;
+    }
+    if (mJidValue) // If there is already a valid jidValue, we'll just update tracking flag (set tracking ON)
+    {
+        return setValue(1);
+    }
+    return setValue(Utils::hexStringToUint64(journeyID));
+}
+
+// Check if it has a valid jid value
+bool MegaClient::JourneyID::hasValue() const
+{
+    return mJidValue != 0;
+}
+
+// Check if the journeyID must be tracked (used on API reqs)
+bool MegaClient::JourneyID::isTrackingOn() const
+{
+    if (mTrackValue && !mJidValue)
+    {
+        LOG_err << "[MegaClient::JourneyID::isTrackingOn] TrackValue is ON without a valid jidValue (0)";
+    }
+    assert(!mTrackValue || mJidValue);
+    return mTrackValue;
+}
+
+// Parse value to a 16-char hex string
+string MegaClient::JourneyID::getValue() const
+{
+    return Utils::intTo16CharsHexString(mJidValue);
+}
+
+// -- ViewID methods --
+MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId()
+{
+    uint64_t tsEpoch = std::chrono::system_clock::now().time_since_epoch().count();
+    std::mt19937_64 randomGen(tsEpoch);
+    IdValue viewId = randomGen(); // 8-byte (64-bit) integer for the viewID
+
+    // Incorporate current timestamp in ms into the generated value for uniqueness
+    uint64_t tsInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    viewId ^= tsInMs;
+
+    return viewId;
+}
+
+string MegaClient::ViewID::viewIdToString(MegaClient::ViewID::IdValue viewId)
+{
+    return Utils::intTo16CharsHexString(viewId);
+}
+
+// Generate a random ViewId (8 byte uint)
+MegaClient::ViewID::IdValue MegaClient::generateViewId()
+{
+    return ViewID::generateViewId();
+}
+// -- ViewID methods end --
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -633,6 +742,44 @@ bool MegaClient::setlang(string *code)
     LOG_err << "Invalid language code: " << (code ? *code : "(null)");
     return false;
 }
+
+// -- JourneyID methods --
+string MegaClient::getJourneyId() const
+{
+    assert(mJourneyId.hasValue());
+    return mJourneyId.getValue();
+}
+
+bool MegaClient::trackJourneyId() const
+{
+    return mJourneyId.hasValue() && mJourneyId.isTrackingOn();
+}
+
+bool MegaClient::journeyIdHasValue() const
+{
+    return mJourneyId.hasValue();
+}
+
+bool MegaClient::setJourneyId(const string& jid)
+{
+    if (mJourneyId.setFromHexString(jid))
+    {
+        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "', (reconverted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
+        return true;
+    }
+    return false;
+}
+
+bool MegaClient::setJourneyId(uint64_t jidValue, bool updateCachedTrackingFlag)
+{
+    if (mJourneyId.setValue(jidValue, updateCachedTrackingFlag))
+    {
+        LOG_debug << "[MegaClient::setJourneyID] Updated journeyID or tracking flag from jidValue. Param jidValue = '" << jidValue << "', (converted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
+        return true;
+    }
+    return false;
+}
+// -- JourneyID methods end --
 
 error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
 {
@@ -1354,6 +1501,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
    , btworkinglock(rng)
    , btreqstat(rng)
    , btsc(rng)
+   , mJourneyId(*this)
    , btpfa(rng)
    , fsaccess(new FSACCESS_CLASS())
    , mNodeManager(*this)
@@ -2249,7 +2397,6 @@ void MegaClient::exec()
                     *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
-
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI(suppressSID));
@@ -2261,6 +2408,11 @@ void MegaClient::exec()
                     {
                         pendingcs->posturl.append("&");
                         pendingcs->posturl.append(lang);
+                    }
+                    if (trackJourneyId())
+                    {
+                        pendingcs->posturl.append("&j=");
+                        pendingcs->posturl.append(mJourneyId.getValue());
                     }
                     pendingcs->type = REQ_JSON;
 
@@ -6035,6 +6187,29 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
             mClient->mBizStatus = static_cast<BizStatus>(value);
+            break;
+        }
+        case CacheableStatus::Type::STATUS_JOURNEY_ID:
+        {
+            assert(value);
+            LOG_debug << "Setting JourneyID from CacheableStatus to value: " << value;
+            mClient->setJourneyId(static_cast<uint64_t>(value), false);
+            break;
+        }
+        case CacheableStatus::Type::STATUS_JOURNEY_TRACKING:
+        {
+            assert(!value || value == 1);
+            LOG_debug << "Setting JourneyID tracking flag from CacheableStatus to value: " << value;
+            if (mClient->journeyIdHasValue())
+            {
+                // This will set tracking flag to 0 or 1 (STATUS_JOURNEY_ID had to be set before this)
+                mClient->setJourneyId(value);
+            }
+            else
+            {
+                LOG_err << "Setting JourneyID tracking flag before journeyID has even been set!!!!";
+                assert(false && "JourneyID must be set before updating tracking flag from cache");
+            }
             break;
         }
         default:
@@ -9864,6 +10039,8 @@ void MegaClient::readopc(JSON *j)
 
 error MegaClient::readmiscflags(JSON *json)
 {
+    LOG_debug << "readmiscflags BEGIN";
+    bool journeyIdFound = false;
     while (1)
     {
         switch (json->getnameid())
@@ -9893,7 +10070,36 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID2('p', 'f'): // pro flexi plan
             mProFlexi = bool(json->getint());
             break;
+        case MAKENAMEID3('j', 'i', 'd'):   // JourneyID value (16-char hex value)
+            {
+                LOG_debug << "Trying to parse JourneyID (jid)";
+                string jid;
+                if (!json->storeobject(&jid))
+                {
+                    LOG_err << "Invalid JourneyID (jid)";
+                    assert(false);
+                }
+                if (!jid.empty() && jid.size() != JourneyID::HEX_STRING_SIZE)
+                {
+                    LOG_err << "Invalid JourneyID size (" << jid.size()  << ") expected: " << JourneyID::HEX_STRING_SIZE;
+                    jid.clear();
+                    assert(false);
+                }
+                else // jid empty (will be considered as no value - set tracking OFF) or has a valid size (JourneyID::HEX_STRING_SIZE)
+                {
+                    journeyIdFound = true;
+                    LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
+                    setJourneyId(jid);
+                }
+            }
+            break;
         case EOO:
+            if (!journeyIdFound)
+            {
+                LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
+                setJourneyId(0);
+            }
+            LOG_debug << "readmiscflags END (API_OK)";
             return API_OK;
         default:
             if (!json->storeobject())
@@ -9902,6 +10108,7 @@ error MegaClient::readmiscflags(JSON *json)
             }
         }
     }
+    LOG_debug << "readmiscflags END";
 }
 
 void MegaClient::procph(JSON *j)
@@ -18460,17 +18667,17 @@ void MegaClient::userfeedbackstore(const char *message)
     reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
-void MegaClient::sendevent(int event, const char *desc)
+void MegaClient::sendevent(int event, const char *desc, bool addJourneyId, const char *viewId)
 {
     LOG_warn << clientname << "Event " << event << ": " << desc;
-    reqs.add(new CommandSendEvent(this, event, desc));
+    reqs.add(new CommandSendEvent(this, event, desc, addJourneyId, viewId));
 }
 
-void MegaClient::sendevent(int event, const char *message, int tag)
+void MegaClient::sendevent(int event, const char *message, int tag, bool addJourneyId, const char *viewId)
 {
     int creqtag = reqtag;
     reqtag = tag;
-    sendevent(event, message);
+    sendevent(event, message, addJourneyId, viewId);
     reqtag = creqtag;
 }
 
