@@ -10845,10 +10845,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     //  4. Add Element
     //  5. Update Element order
     //  6. Update Element name
-    //  7. Remove Element
-    //  8. Add/remove bulk elements
-    //  9. Logout / login
-    // 10. Remove all Sets
+    //  7. Add an element with an already added node (-12 expected)
+    //  8. Remove Element
+    //  9. Add/remove bulk elements
+    // 10. Logout / login
+    // 11. Remove all Sets
 
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
@@ -11110,7 +11111,21 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    // 7. Remove Element
+    // 7. Add an element with an already added node (-12 expected)
+    string elattrs1b = u8"Another element name emoji: 📞🎉❤️"; // "📞🎉❤️"
+    newElls = nullptr;
+    err = doCreateSetElement(0, &newElls, sh, uploadedNode, elattrs1b.c_str());
+    ASSERT_EQ(err, API_EEXIST) << "Adding another SetElement with the same node as already existing SetElement";
+
+    els.reset(newElls);
+    ASSERT_EQ(els, nullptr);
+    elp.reset(megaApi[0]->getSetElement(sh, eh));
+    ASSERT_NE(elp, nullptr);
+    ASSERT_EQ(elp->id(), eh);
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
+
+    // 8. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
@@ -11129,7 +11144,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 8. Add/remove bulk elements
+    // 9. Add/remove bulk elements
     // Add 2; only the first will succeed
     differentApiDtls.setElementUpdated = false;
     string elattrs2 = elattrs + u8" bulk2";
@@ -11154,7 +11169,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(newElErrs, nullptr);
     ASSERT_EQ(newElErrs->size(), 2);
     ASSERT_EQ(newElErrs->get(0), API_OK);
-    ASSERT_EQ(newElErrs->get(1), API_ENOENT);
+    ASSERT_EQ(newElErrs->get(1), API_EARGS); // API_EARGS because sending an empty key error takes precedence over sending INVALID_HANDLE for eid error (API_ENOENT)
     unique_ptr<MegaSetElement> newEl(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(newEl, nullptr);
     ASSERT_EQ(newEl->id(), eh);
@@ -11220,7 +11235,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
-    // 9. Logout / login
+    // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
@@ -11245,7 +11260,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), namebulk11);
 
-    // 10. Remove all Sets
+    // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
     unique_ptr<MegaSetList> sets2(differentApi.getSets());
     ASSERT_EQ(sets->size(), sets2->size());
