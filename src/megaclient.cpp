@@ -5581,6 +5581,7 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        LOG_debug << "SCSN write at DB " << tscsn << " -  " << scsn.text();
 
         if (complete)
         {
@@ -13399,6 +13400,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
         hasNext = sctable->next(&id, &data, &key);
     }
+
+    LOG_debug << "Max dbId after resume session: " << id;
 
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
