@@ -19904,7 +19904,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
                 e = decryptElementData(itE->second, itS->second.key());
                 if (e != API_OK)
                 {
-                    LOG_err << "Failed to decrypt element attributes. Handle = " << itE->second << ", Key = " << itS->second.key() << ", e = " << e;
+                    LOG_err << "Failed to decrypt element attributes. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key() << ", e = " << e;
                     assert(false && "failed to decrypt Element attributes"); // failed to decrypt Element attributes
 
                     itE = itEls->second.erase(itE);

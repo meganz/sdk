@@ -22221,7 +22221,8 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListe
                 return API_EARGS;
             }
 
-            const char* viewIdcstr = viewId ? MegaClient::ViewID::viewIdToString(*viewId).c_str() : nullptr;
+            std::string viewIdstr = viewId ? MegaClient::ViewID::viewIdToString(*viewId) : "";
+            const char* viewIdcstr = viewIdstr.empty() ? nullptr : viewIdstr.c_str();
             client->sendevent(number, text, addJourneyId, viewIdcstr);
             return API_OK;
         };
