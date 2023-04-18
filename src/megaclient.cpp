@@ -7653,8 +7653,6 @@ Node* MegaClient::nodebyhandle(handle h)
 
 Node* MegaClient::nodeByHandle(NodeHandle h)
 {
-    if (h.isUndef()) return nullptr;
-
     return mNodeManager.getNodeByHandle(h);
 }
 

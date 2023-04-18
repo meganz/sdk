@@ -11581,14 +11581,14 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.nodeByHandle(rh.first))
+            if (Node* rn = mClient.mNodeManager.getNodeByHandle(rh.first))
             {
                 activeSyncRoots.emplace_back(rn, rh.second);
             }
         }
     }
 
-    if (const Node* n = mClient.nodeByHandle(h))
+    if (const Node* n = mClient.mNodeManager.getNodeByHandle(h))
     {
         switch (whichVersion)
         {
@@ -11672,7 +11672,7 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     assert(onSyncThread());
 
     lock_guard<mutex> g(mClient.nodeTreeMutex);
-    if (Node* n = mClient.nodeByHandle(h))
+    if (Node* n = mClient.mNodeManager.getNodeByHandle(h))
     {
         assert(n->type > FILENODE);
         assert(!n->parent || n->parent->type > FILENODE);
@@ -11794,7 +11794,7 @@ bool Syncs::hasIgnoreFile(const SyncConfig& config)
         lock_guard<mutex> guard(mClient.nodeTreeMutex);
 
         // Get our hands on the sync root.
-        auto* root = mClient.nodeByHandle(config.mRemoteNode);
+        auto* root = mClient.mNodeManager.getNodeByHandle(config.mRemoteNode);
 
         // The root can't contain anything if it doesn't exist.
         if (!root)
