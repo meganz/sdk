@@ -11620,11 +11620,12 @@ static inline int orderProLevel(int proLevel)
 
 int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
 {
-    uint64_t usedStorageBytes = details.getStorageUsed();
     int currProLevel = details.getProLevel();
-    int orderedCurrProLevel = 0;
-    if (currProLevel <= MegaAccountDetails::ACCOUNT_TYPE_LITE)
-        orderedCurrProLevel = orderProLevel(currProLevel); // not business plan
+    if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
+        return currProLevel; 
+        // business can not upgrade, flexi can only change to free so we do not recommend that
+    int orderedCurrProLevel = orderedCurrProLevel = orderProLevel(currProLevel); 
+    uint64_t usedStorageBytes = details.getStorageUsed();
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
@@ -11664,7 +11665,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     }
     if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_FREE)
         return MegaAccountDetails::ACCOUNT_TYPE_LITE;
-    return MegaAccountDetails::ACCOUNT_TYPE_PROI;
+    return MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI;
 }
 
 #if defined(_WIN32) || defined(__APPLE__)
