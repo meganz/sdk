@@ -9387,7 +9387,6 @@ bool CommandSE::procExtendedError(int64_t& errCode, handle& eid) const
             return isErr;
         }
     }
-    return isErr;
 }
 
 CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
