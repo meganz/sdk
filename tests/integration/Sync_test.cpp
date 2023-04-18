@@ -762,7 +762,7 @@ private:
       : public LocalNodeCore
     {
         // Dummy implementation.
-        bool serialize(string* destination) override
+        bool serialize(string* destination) const override
         {
             return write(*destination, parentID);
         }

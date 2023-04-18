@@ -229,7 +229,7 @@ class ScDbStateRecord : public Cacheable
 public:
     string seqTag;
 
-    bool serialize(string* data) override;
+    bool serialize(string* data) const override;
 
     static ScDbStateRecord unserialize(const std::string& data);
 };

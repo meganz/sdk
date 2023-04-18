@@ -61,7 +61,7 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !(lhs == rhs);
 }
 
-bool FileFingerprint::serialize(string *d)
+bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));

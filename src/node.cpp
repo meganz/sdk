@@ -647,23 +647,8 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
-bool Node::serialize(string* d)
+bool Node::serialize(string* d) const
 {
-    // do not serialize encrypted nodes
-    if (attrstring)
-    {
-        LOG_debug << "Trying to serialize an encrypted node";
-
-        //Last attempt to decrypt the node
-        applykey();
-        setattr();
-
-        if (attrstring)
-        {
-            LOG_debug << "Serializing an encrypted node.";
-        }
-    }
-
     switch (type)
     {
         case FILENODE:
@@ -2926,7 +2911,7 @@ bool LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNodeCore::write(string& destination, uint32_t parentID)
+bool LocalNodeCore::write(string& destination, uint32_t parentID) const
 {
     // We need size even if we're not synced.
     auto size = syncedFingerprint.isvalid ? syncedFingerprint.size : 0;
@@ -2968,7 +2953,7 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID)
     return true;
 }
 
-bool LocalNode::serialize(string* d)
+bool LocalNode::serialize(string* d) const
 {
     assert(type != TYPE_UNKNOWN);
 

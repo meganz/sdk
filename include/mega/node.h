@@ -358,7 +358,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
@@ -474,7 +474,7 @@ struct MEGA_API LocalNodeCore
     bool read(const string& source, uint32_t& parentID);
 
     // serialize attributes to binary for storage.
-    bool write(string& destination, uint32_t parentID);
+    bool write(string& destination, uint32_t parentID) const;
 
     // local filesystem node ID (inode...) for rename/move detection
     handle fsid_lastSynced = ::mega::UNDEF;
@@ -814,7 +814,7 @@ struct MEGA_API LocalNode
     LocalNode(Sync*);
     void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
-    bool serialize(string* d) override;
+    bool serialize(string*) const override;
     static unique_ptr<LocalNode> unserialize(Sync& sync, const string& source, uint32_t& parentID);
 
     void deleteChildren();
