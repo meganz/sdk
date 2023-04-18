@@ -4234,6 +4234,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_SET_ELEMENTS: return "PUT_SET_ELEMENTS";
         case TYPE_PUT_SET_ELEMENT: return "PUT_SET_ELEMENT";
         case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
+        case TYPE_REMOVE_SET_ELEMENTS: return "REMOVE_SET_ELEMENTS";
         case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
         case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
