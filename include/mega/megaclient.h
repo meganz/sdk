@@ -2040,9 +2040,6 @@ public:
     // Pending contact keys during initialization
     std::map<attr_t, set<handle>> mPendingContactKeys;
 
-    // number of authrings being fetched
-    unsigned short mFetchingAuthrings = 0;
-
     // actual state of keys
     bool fetchingkeys;
 

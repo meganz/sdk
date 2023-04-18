@@ -3481,21 +3481,6 @@ bool CommandGetUA::procresult(Result r)
                 assert(r.wasError(API_ENOENT));
                 client->initializekeys(); // we have now all the required data
             }
-
-            if (r.wasError(API_ENOENT) && User::isAuthring(at))
-            {
-                if (!client->mKeyManager.generation())
-                {
-                    // authring not created yet, will do it upon retrieval of public keys
-                    client->mAuthRings.erase(at);
-                    client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-                }
-
-                if (--client->mFetchingAuthrings == 0)
-                {
-                    client->fetchContactsKeys();
-                }
-            }
         }
 
         if (u && !u->isTemporary && u->userhandle != client->me && r.wasError(API_ENOENT))
@@ -3649,19 +3634,6 @@ bool CommandGetUA::procresult(Result r)
                             u->setattr(at, &value, &version);
                             mCompletionTLV(tlvRecords.get(), at);
 
-                            if (User::isAuthring(at))
-                            {
-                                if (!client->mKeyManager.generation())
-                                {
-                                    client->mAuthRings.erase(at);
-                                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
-                                }
-
-                                if (--client->mFetchingAuthrings == 0)
-                                {
-                                    client->fetchContactsKeys();
-                                }
-                            }
                             break;
                         }
                         case '+':   // public

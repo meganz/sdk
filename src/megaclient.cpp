@@ -1435,7 +1435,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     mOverquotaDeadlineTs = 0;
     looprequested = false;
 
-    mFetchingAuthrings = 0;
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
@@ -4701,7 +4700,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mPendingContactKeys.clear();
-    mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
@@ -14269,24 +14267,18 @@ void MegaClient::loadAuthrings()
                     }
                     else
                     {
-                        LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
-                        getua(ownUser, at, 0);
-                        ++mFetchingAuthrings;
+                        LOG_err << User::attr2string(at) << " not available: found in cache, but out of date.";
                     }
                 }
                 else
                 {
-                    LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
-                    getua(ownUser, at, 0);
-                    ++mFetchingAuthrings;
+                    // It does not exist yet in the account. Will be created upon retrieval of contact keys.
+                    LOG_warn << User::attr2string(at) << " not found in cache. Setting an empty one.";
+                    mAuthRings.emplace(at, AuthRing(at, TLVstore()));
                 }
             }
 
-            // if all authrings were loaded from cache...
-            if (mFetchingAuthrings == 0)
-            {
-                fetchContactsKeys();
-            }
+            fetchContactsKeys();
 
         }   // --> end if(!mKeyManager.generation())
     }
