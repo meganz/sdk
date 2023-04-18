@@ -2261,6 +2261,60 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
  }
  #endif
 
+
+bool Sync::checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult)
+{
+    // if this cloud move was a sync decision, don't look to make it locally too
+    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().createFolderHere)
+    {
+        auto& folderCreate = row.syncNode->rare().createFolderHere;
+
+        if (folderCreate->failed)
+        {
+            SYNC_verbose << syncname << "Cloud folder create here failed, reset for reevaluation" << logTriplet(row, fullPath);
+            folderCreate.reset();
+            row.syncNode->updateMoveInvolvement();
+        }
+        else if (folderCreate->succeededHandle.isUndef())
+        {
+            SYNC_verbose << syncname << "Cloud folder move already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            rowResult = false;
+            return true;  // row processed (no further action) but not synced
+        }
+        else if (row.cloudNode &&
+                 row.cloudNode->handle == folderCreate->succeededHandle)
+        {
+
+            SYNC_verbose << syncname << "Cloud folder create completed in expected location, setting synced handle/fsid" << logTriplet(row, fullPath);
+
+            // we consider this row synced now, as it was intended as a full row
+            // the local node may have moved though, and there may even be a new and different item with this name in this row
+            // but, setting up the row as if it had been synced means we can then calculate the next
+            // action to continue syncing - such as moving this new node to the location/name of the moved/renamed FSNode
+
+            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle); //  we could set row.cloudNode->handle, but then we would not download after move if the file was both moved and updated;
+            row.syncNode->setSyncedFsid(folderCreate->originalFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);  // setting the synced fsid enables chained moves
+            row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
+
+            folderCreate.reset();
+            row.syncNode->trimRareFields();
+            statecacheadd(row.syncNode);
+
+            rowResult = false;
+            return true;
+        }
+        else
+        {
+            SYNC_verbose << syncname << "Folder Create completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
+            folderCreate.reset();
+            row.syncNode->updateMoveInvolvement();
+        }
+    }
+
+    rowResult = false;
+    return false;
+}
+
 bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult)
 {
     // if this cloud move was a sync decision, don't look to make it locally too
@@ -7039,6 +7093,12 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     }
 
     bool rowResult;
+    if (checkForCompletedFolderCreateHere(row, parentRow, fullPath, rowResult))
+    {
+        row.itemProcessed = true;
+        return rowResult;
+    }
+
     if (checkForCompletedCloudMoveToHere(row, parentRow, fullPath, rowResult))
     {
         row.itemProcessed = true;
@@ -8485,7 +8545,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
     }
     else if (row.fsNode->type == FOLDERNODE)
     {
-        if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere.expired())
+        if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere)
         {
             SYNC_verbose << syncname << "Create cloud folder already in progress" << logTriplet(row, fullPath);
         }
@@ -8517,15 +8577,22 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
 
                 bool canChangeVault = threadSafeState->mCanChangeVault;
                 NodeHandle targethandle = parentRow.cloudNode->handle;
-                auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
+                auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>(row.fsNode->fsid);
                 row.syncNode->rare().createFolderHere = createFolderPtr;
                 syncs.queueClient([foldername, targethandle, createFolderPtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
                         mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0, canChangeVault,
-                            [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
-                                //createFolderPtr.reset();  // lives until this point
+                            [createFolderPtr](const Error& e, targettype_t, vector<NewNode>& v, bool targetOverride, int tag){
+                                if (!e && !v.empty())
+                                {
+                                    createFolderPtr->succeededHandle.set6byte(v[0].mAddedHandle);
+                                }
+                                if (createFolderPtr->succeededHandle.isUndef())
+                                {
+                                    createFolderPtr->failed = true;
+                                }
                             });
 
                     });
