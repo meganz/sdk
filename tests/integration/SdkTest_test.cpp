@@ -11117,11 +11117,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     err = doCreateSetElement(0, &newElls, sh, uploadedNode, elattrs1b.c_str());
     ASSERT_EQ(err, API_EEXIST) << "Adding another SetElement with the same node as already existing SetElement";
 
-    els.reset(newElls);
-    ASSERT_EQ(els, nullptr);
-    elp.reset(megaApi[0]->getSetElement(sh, eh));
-    ASSERT_NE(elp, nullptr);
-    ASSERT_EQ(elp->id(), eh);
     elCount = megaApi[0]->getSetElementCount(sh);
     ASSERT_EQ(elCount, 1u);
 

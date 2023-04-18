@@ -9361,8 +9361,9 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
 
 bool CommandSE::procExtendedError(int64_t& errCode, handle& eid) const
 {
+    int maxJsonAttrToCheck = 2; // shortcut to avoid processing the whole json object
     bool isErr = false;
-    for (;;)
+    while (maxJsonAttrToCheck--)
     {
         switch (client->json.getnameid())
         {
@@ -9380,13 +9381,10 @@ bool CommandSE::procExtendedError(int64_t& errCode, handle& eid) const
         }
 
         default:
-            if (!client->json.storeobject()) return false;
-            break;
-
-        case EOO:
-            return isErr;
+            return false;
         }
     }
+    return isErr;
 }
 
 CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
@@ -9598,7 +9596,6 @@ bool CommandPutSetElements::procresult(Result r)
     bool allOk = true;
     vector<const SetElement*> addedEls;
     vector<int64_t> errs(mElements->size(), API_OK);
-    handle errEid = UNDEF;
     for (size_t elCount = 0u; elCount < mElements->size(); ++elCount)
     {
         if (client->json.isnumeric())
@@ -9609,10 +9606,10 @@ bool CommandPutSetElements::procresult(Result r)
         else if (client->json.enterobject())
         {
             const auto posAux = client->json.pos;
+            handle errEid = UNDEF;
             if (procExtendedError(errs[elCount], errEid))
             {
                 if (errEid == UNDEF) LOG_warn << "Sets: Extended error missing Element id";
-                errEid = UNDEF;
             }
             else
             {
@@ -9746,7 +9743,6 @@ CommandRemoveSetElements::CommandRemoveSetElements(MegaClient* cl, handle sid, v
 
 bool CommandRemoveSetElements::procresult(Result r)
 {
-    bool allOk = true;
     Error e = API_OK;
     if (procerrorcode(r, e))
     {
@@ -9766,6 +9762,7 @@ bool CommandRemoveSetElements::procresult(Result r)
         return false;
     }
 
+    bool jsonOk = true;
     vector<int64_t> errs(mElemIds.size());
     for (size_t elCount = 0u; elCount < mElemIds.size(); ++elCount)
     {
@@ -9780,21 +9777,24 @@ bool CommandRemoveSetElements::procresult(Result r)
             {
                 if (errEid == UNDEF) LOG_warn << "Sets: Extended error missing Element id in `aerb`";
             }
-            else allOk = false;
+            else
+            {
+                jsonOk = false;
+            }
 
             if (!client->json.leaveobject())
             {
                 LOG_err << "Sets: failed to parse Element object in `aerb` response";
-                allOk = false;
+                jsonOk = false;
             }
         }
         else
         {
             LOG_err << "Sets: failed to parse Element removal response in `aerb` command response";
-            allOk = false;
+            jsonOk = false;
         }
 
-        if (!allOk) break;
+        if (!jsonOk) break;
 
         if (errs[elCount] == API_OK && !client->deleteSetElement(mSetId, mElemIds[elCount]))
         {
@@ -9808,7 +9808,7 @@ bool CommandRemoveSetElements::procresult(Result r)
         mCompletion(e, &errs);
     }
 
-    return allOk;
+    return jsonOk;
 }
 
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
