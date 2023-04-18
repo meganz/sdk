@@ -9359,6 +9359,34 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
     return false;
 }
 
+bool CommandSE::procExtendedError(int64_t& errCode, handle& eid) const
+{
+    int maxJsonAttrToCheck = 2; // shortcut to avoid processing the whole json object
+    bool isErr = false;
+    while (maxJsonAttrToCheck--)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID3('e', 'r', 'r'):
+        {
+            isErr = true;
+            errCode = client->json.getint();
+            break;
+        }
+
+        case MAKENAMEID3('e', 'i', 'd'):
+        {
+            eid = client->json.gethandle(MegaClient::SETELEMENTHANDLE);
+            break;
+        }
+
+        default:
+            return false;
+        }
+    }
+    return isErr;
+}
+
 CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
                              std::function<void(Error, const Set*)> completion)
     : mSet(new Set(move(s))), mCompletion(completion)
@@ -9577,21 +9605,31 @@ bool CommandPutSetElements::procresult(Result r)
         }
         else if (client->json.enterobject())
         {
-            handle elementId = 0;
-            m_time_t ts = 0;
-            int64_t order = 0;
-            if (!procjsonobject(elementId, ts, nullptr, nullptr, nullptr, &order))
+            const auto posAux = client->json.pos;
+            handle errEid = UNDEF;
+            if (procExtendedError(errs[elCount], errEid))
             {
-                LOG_err << "Sets: failed to parse Element object in `aepb` response";
-                allOk = false;
-                break;
+                if (errEid == UNDEF) LOG_warn << "Sets: Extended error missing Element id";
             }
+            else
+            {
+                client->json.pos = posAux;
+                handle elementId = 0;
+                m_time_t ts = 0;
+                int64_t order = 0;
+                if (!procjsonobject(elementId, ts, nullptr, nullptr, nullptr, &order))
+                {
+                    LOG_err << "Sets: failed to parse Element object in `aepb` response";
+                    allOk = false;
+                    break;
+                }
 
-            SetElement& el = mElements->at(elCount);
-            el.setId(elementId);
-            el.setTs(ts);
-            el.setOrder(order);
-            addedEls.push_back(client->addOrUpdateSetElement(move(el)));
+                SetElement& el = mElements->at(elCount);
+                el.setId(elementId);
+                el.setTs(ts);
+                el.setOrder(order);
+                addedEls.push_back(client->addOrUpdateSetElement(move(el)));
+            }
 
             if (!client->json.leaveobject())
             {
@@ -9724,10 +9762,40 @@ bool CommandRemoveSetElements::procresult(Result r)
         return false;
     }
 
+    bool jsonOk = true;
     vector<int64_t> errs(mElemIds.size());
     for (size_t elCount = 0u; elCount < mElemIds.size(); ++elCount)
     {
-        errs[elCount] = client->json.getint();
+        if (client->json.isnumeric())
+        {
+            errs[elCount] = client->json.getint();
+        }
+        else if (client->json.enterobject())
+        {
+            handle errEid = UNDEF;
+            if (procExtendedError(errs[elCount], errEid))
+            {
+                if (errEid == UNDEF) LOG_warn << "Sets: Extended error missing Element id in `aerb`";
+            }
+            else
+            {
+                jsonOk = false;
+            }
+
+            if (!client->json.leaveobject())
+            {
+                LOG_err << "Sets: failed to parse Element object in `aerb` response";
+                jsonOk = false;
+            }
+        }
+        else
+        {
+            LOG_err << "Sets: failed to parse Element removal response in `aerb` command response";
+            jsonOk = false;
+        }
+
+        if (!jsonOk) break;
+
         if (errs[elCount] == API_OK && !client->deleteSetElement(mSetId, mElemIds[elCount]))
         {
             LOG_err << "Sets: Failed to remove Element in `aerb` command response";
@@ -9740,7 +9808,7 @@ bool CommandRemoveSetElements::procresult(Result r)
         mCompletion(e, &errs);
     }
 
-    return true;
+    return jsonOk;
 }
 
 CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
