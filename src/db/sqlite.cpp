@@ -1827,11 +1827,19 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
 void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv)
 {
-    const unsigned char* pattern = (const unsigned char*)sqlite3_value_text(argv[0]);
-    const unsigned char* dataBaseName = (const unsigned char*)sqlite3_value_text(argv[1]);
-    if( dataBaseName!=0 && pattern != 0)
+    if (argc != 2)
     {
-        sqlite3_result_int(context, SqliteAccountState::icuLikeCompare(static_cast<const uint8_t*>(pattern), static_cast<const uint8_t*>(dataBaseName), 0));
+        LOG_err << "Invalid parameters for user Regexp";
+        assert(false);
+        return;
+    }
+
+    const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (dataBaseName && pattern)
+    {
+        int result = SqliteAccountState::icuLikeCompare(pattern, dataBaseName, 0);
+        sqlite3_result_int(context, result);
     }
 }
 
