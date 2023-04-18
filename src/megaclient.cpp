@@ -7991,7 +7991,6 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
         return API_EACCESS;
     }
 
-    n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
     // we only update the values stored in the node once the command completes successfully
     reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
 

@@ -538,6 +538,7 @@ public:
     bool checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
     bool checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     void checkForFilenameAnomaly(const SyncPath& path, const string& name);
 
     void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);

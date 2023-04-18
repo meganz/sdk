@@ -2553,7 +2553,7 @@ public:
 
     unsigned int pathCount(bool cloudSide) const override
     {
-        if(cloudSide)
+        if (cloudSide)
         {
             return static_cast<unsigned int>(mConflict.clashingCloudNames.size());
         }

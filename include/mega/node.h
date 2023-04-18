@@ -686,6 +686,12 @@ struct MEGA_API LocalNode
 
         struct CreateFolderInProgress
         {
+            NodeHandle succeededHandle;
+            handle originalFsid = UNDEF;
+            bool failed = false;
+
+
+            CreateFolderInProgress(handle fsid) : originalFsid(fsid) {}
         };
 
         struct DeleteToDebrisInProgress
@@ -710,7 +716,7 @@ struct MEGA_API LocalNode
 
         shared_ptr<MoveInProgress> moveFromHere;
         shared_ptr<MoveInProgress> moveToHere;
-        weak_ptr<CreateFolderInProgress> createFolderHere;
+        shared_ptr<CreateFolderInProgress> createFolderHere;
         weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
         weak_ptr<UnlinkInProgress> unlinkHere;
 

@@ -127,9 +127,15 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
         if (*cmd->client->json.pos == ',') ++cmd->client->json.pos;
     }
 
+    // In normal operation, we get called once to figure out the `st` to watch out for in sc json (else case below)
+    // then the sc processing will process actionpackets up to and including the one(s) with that `st`
+    // and only after that, call us a second time (with mCurrentSeqtagSeen true), and we will execute the if block.
+    // And one additional case to consider, before we start the sc channel, it's ok to send non-actionpacket (ie, non-st) requests (hence scsn check)
+
     if (cmd->client->mCurrentSeqtag == st ||
         !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
     {
+        assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;
         parsedOk = withJSON ? processCmdJSON(cmd, false)
@@ -385,7 +391,8 @@ bool RequestDispatcher::readyToSend() const
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
+    // stays true even through network errors, -3, retries, etc until we get that response
+    return !inflightreq.empty();
 }
 
 Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
@@ -476,6 +483,10 @@ void RequestDispatcher::continueProcessing(MegaClient* client)
     processing = true;
     inflightreq.process(client);
     processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
 }
 
 void RequestDispatcher::clear()
