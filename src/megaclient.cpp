@@ -102,6 +102,7 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
+// -- JourneyID methods --
 // Set value for JourneyID from a numeric value
 bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackingFlag)
 {
@@ -182,6 +183,17 @@ string MegaClient::JourneyID::getValue() const
 {
     return Utils::intTo16CharsHexString(mJidValue);
 }
+
+#ifdef DEBUG
+// Reset journeyID for tests
+void MegaClient::JourneyID::reset()
+{
+    LOG_verbose << "[MegaClient::JourneyID::reset] Reset JourneyID [mJidValue = 0, mTrackValue = false]";
+    mJidValue = 0;
+    mTrackValue = false;
+}
+#endif
+// -- JourneyID methods end --
 
 // -- ViewID methods --
 MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId()
@@ -743,7 +755,7 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
-// -- JourneyID methods --
+// -- MegaClient JourneyID methods --
 string MegaClient::getJourneyId() const
 {
     assert(mJourneyId.hasValue());
@@ -779,7 +791,14 @@ bool MegaClient::setJourneyId(uint64_t jidValue, bool updateCachedTrackingFlag)
     }
     return false;
 }
-// -- JourneyID methods end --
+
+#ifdef DEBUG
+void MegaClient::resetJourneyId()
+{
+    mJourneyId.reset();
+}
+#endif
+// -- MegaClient JourneyID methods end --
 
 error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
 {
@@ -18669,17 +18688,17 @@ void MegaClient::userfeedbackstore(const char *message)
     reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
-void MegaClient::sendevent(int event, const char *desc, bool addJourneyId, const char *viewId)
+void MegaClient::sendevent(int event, const char *desc, const char* viewId, bool addJourneyId)
 {
     LOG_warn << clientname << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc, addJourneyId, viewId));
 }
 
-void MegaClient::sendevent(int event, const char *message, int tag, bool addJourneyId, const char *viewId)
+void MegaClient::sendevent(int event, const char *message, int tag, const char *viewId, bool addJourneyId)
 {
     int creqtag = reqtag;
     reqtag = tag;
-    sendevent(event, message, addJourneyId, viewId);
+    sendevent(event, message, viewId, addJourneyId);
     reqtag = creqtag;
 }
 

@@ -1034,8 +1034,8 @@ public:
     void userfeedbackstore(const char *);
 
     // send event
-    void sendevent(int, const char *, bool addJourneyId = false, const char *viewId = nullptr);
-    void sendevent(int, const char *, int tag, bool addJourneyId = false, const char *viewId = nullptr);
+    void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
+    void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
 
     // create support ticket
     void supportticket(const char *message, int type);
@@ -1341,6 +1341,10 @@ public:
             string getValue() const;
             // Check if the journeyID must be tracked (used on API reqs)
             bool isTrackingOn() const;
+#ifdef DEBUG
+            // Reset journeyID for tests
+            void reset();
+#endif
     };
 
 private:
@@ -2145,6 +2149,11 @@ public:
 
     // Retrieves the JourneyID value as the original 16-character hexadecimal string (for submission to the API)
     string getJourneyId() const;
+
+#ifdef DEBUG
+    // Reset JourneyID for testing
+    void resetJourneyId();
+#endif
 
     // Generates a random ViewID as an 8-byte uint64_t
     ViewID::IdValue generateViewId();
