@@ -11624,7 +11624,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
         return currProLevel; 
         // business can not upgrade, flexi can only change to free so we do not recommend that
-    int orderedCurrProLevel = orderedCurrProLevel = orderProLevel(currProLevel); 
+    int orderedCurrProLevel = orderProLevel(currProLevel); 
     uint64_t usedStorageBytes = details.getStorageUsed();
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
