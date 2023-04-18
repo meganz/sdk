@@ -245,7 +245,7 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    mTable->put(node);
+    putNodeInDb(node);
 
     return true;
 }
@@ -1302,7 +1302,7 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                mTable->put(n);
+                putNodeInDb(n);
 
                 added += 1;
             }
@@ -1569,7 +1569,7 @@ void NodeManager::dumpNodes()
     {
         if (it.second.mNode)
         {
-            mTable->put(it.second.mNode.get());
+            putNodeInDb(it.second.mNode.get());
         }
     }
 
@@ -1584,7 +1584,7 @@ void NodeManager::saveNodeInDb(Node *node)
         return;
     }
 
-    mTable->put(node);
+    putNodeInDb(node);
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
@@ -1684,6 +1684,29 @@ node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<No
     }
 
     return nodes;
+}
+
+void NodeManager::putNodeInDb(Node* node) const
+{
+    if (!node)
+    {
+        return;
+    }
+
+    if (node->attrstring)
+    {
+        // Last attempt to decrypt the node before storing it.
+        LOG_debug << "Trying to store an encrypted node";
+        node->applykey();
+        node->setattr();
+
+        if (node->attrstring)
+        {
+            LOG_debug << "Storing an encrypted node.";
+        }
+    }
+
+    mTable->put(node);
 }
 
 size_t NodeManager::nodeNotifySize() const

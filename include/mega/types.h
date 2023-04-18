@@ -400,7 +400,7 @@ class Cacheable
 public:
     virtual ~Cacheable() = default;
 
-    virtual bool serialize(string*) = 0;
+    virtual bool serialize(string*) const = 0;
 
     uint32_t dbid = 0;
     bool notified = false;
@@ -974,7 +974,7 @@ public:
     CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
-    bool serialize(string* data) override;
+    bool serialize(string* data) const override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
@@ -988,9 +988,6 @@ public:
     static string typeToStr(Type type);
 
 private:
-
-    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
-    bool serialize(std::string& data) const;
 
     Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;

@@ -139,7 +139,7 @@ namespace UserAlert
             bool seen = false;
         } pst;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static unique_ptr<Persistent> readBase(CacheableReader& r);
         static unique_ptr<Persistent> unserialize(string*);
         friend Base* unserializeNewUpdSched(string*, unsigned id);
@@ -162,7 +162,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static IncomingPendingContact* unserialize(string*, unsigned id);
     };
 
@@ -175,7 +175,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         virtual bool checkprovisional(handle ou, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static ContactChange* unserialize(string*, unsigned id);
     };
 
@@ -187,7 +187,7 @@ namespace UserAlert
         UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedPendingContactIncoming* unserialize(string*, unsigned id);
     };
 
@@ -199,7 +199,7 @@ namespace UserAlert
         UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedPendingContactOutgoing* unserialize(string*, unsigned id);
     };
 
@@ -211,7 +211,7 @@ namespace UserAlert
         NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static NewShare* unserialize(string*, unsigned id);
     };
 
@@ -227,7 +227,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         virtual void updateEmail(MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static DeletedShare* unserialize(string*, unsigned id);
     };
 
@@ -243,7 +243,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static NewSharedNodes* unserialize(string*, unsigned id);
     };
 
@@ -257,7 +257,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static RemovedSharedNode* unserialize(string*, unsigned id);
     };
 
@@ -270,7 +270,7 @@ namespace UserAlert
                           vector<handle>&& handles);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedSharedNode* unserialize(string*, unsigned id);
     };
 
@@ -284,7 +284,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         string getProPlanName();
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static Payment* unserialize(string*, unsigned id);
     };
 
@@ -295,7 +295,7 @@ namespace UserAlert
         PaymentReminder(m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static PaymentReminder* unserialize(string*, unsigned id);
     };
 
@@ -309,7 +309,7 @@ namespace UserAlert
         Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static Takedown* unserialize(string*, unsigned id);
     };
 
@@ -331,7 +331,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string* d) override;
+        bool serialize(string* d) const override;
         static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
@@ -450,7 +450,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
@@ -466,7 +466,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string* d) override;
+        bool serialize(string* d) const override;
         static DeletedScheduledMeeting* unserialize(string*, unsigned id);
     };
 #endif

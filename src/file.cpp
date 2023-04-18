@@ -66,7 +66,7 @@ void File::setLocalname(const LocalPath& ln)
     localname_multithreaded = ln;
 }
 
-bool File::serialize(string *d)
+bool File::serialize(string *d) const
 {
     char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
