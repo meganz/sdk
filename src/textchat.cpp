@@ -1019,7 +1019,6 @@ bool TextChat::removeSchedMeeting(handle schedId)
     assert(schedId != UNDEF);
     if (mScheduledMeetings.find(schedId) == mScheduledMeetings.end())
     {
-        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(schedId) << " no longer exists";
         return false;
     }
 
