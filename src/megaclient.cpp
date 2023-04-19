@@ -176,8 +176,8 @@ bool MegaClient::JourneyID::isTrackingOn() const
     if (mTrackValue && !mJidValue)
     {
         LOG_err << "[MegaClient::JourneyID::isTrackingOn] TrackValue is ON without a valid jidValue (0)";
+        assert(false && "TrackValue is ON without a valid jidValue");
     }
-    assert(!mTrackValue || mJidValue);
     return mTrackValue;
 }
 
@@ -6229,8 +6229,7 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type
             }
             else
             {
-                LOG_err << "Setting JourneyID tracking flag before journeyID has even been set!!!!";
-                assert(false && "JourneyID must be set before updating tracking flag from cache");
+                LOG_warn << "Setting JourneyID tracking flag before journeyID has even been set...";
             }
             break;
         }
