@@ -6229,7 +6229,8 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type
             }
             else
             {
-                LOG_warn << "Setting JourneyID tracking flag before journeyID has even been set...";
+                LOG_err << "Setting JourneyID tracking flag before journeyID has even been set!! (There is no JourneyID cached value?)";
+                assert(false && "JourneyID must be set before updating tracking flag from cache");
             }
             break;
         }
