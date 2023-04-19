@@ -103,6 +103,9 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // -- JourneyID methods --
+// Declaration of constexpr
+constexpr size_t MegaClient::JourneyID::HEX_STRING_SIZE;
+
 // Set value for JourneyID from a numeric value
 bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackingFlag)
 {
