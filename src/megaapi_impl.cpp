@@ -11663,8 +11663,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         assert(bestProLevel != -1);
         return bestProLevel;
     }
-    if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_FREE)
-        return MegaAccountDetails::ACCOUNT_TYPE_LITE;
+    // too much storage required
     return MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI;
 }
 

@@ -276,7 +276,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI, 10000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
 
     // too large - nothing found
-    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 20000), MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_FREE, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_LITE, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROI, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
     ASSERT_EQ(test(MegaAccountDetails::ACCOUNT_TYPE_PROII, 20000), MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI);
