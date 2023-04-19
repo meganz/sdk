@@ -34565,10 +34565,10 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
-void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)     { mScheduledFlags->setEmailsDisabled(enabled); }
+void MegaScheduledFlagsPrivate::setSendEmails(bool enabled)         { mScheduledFlags->setSendEmails(enabled); }
 void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val) { mScheduledFlags->importFlagsValue(val); }
 
-bool MegaScheduledFlagsPrivate::emailsDisabled() const              { return mScheduledFlags->emailsDisabled(); }
+bool MegaScheduledFlagsPrivate::sendEmails() const                  { return mScheduledFlags->sendEmails(); }
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const    { return mScheduledFlags->getNumericValue();}
 
 bool MegaScheduledFlagsPrivate::isEmpty() const                     { return mScheduledFlags->isEmpty(); }
