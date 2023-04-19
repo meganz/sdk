@@ -260,7 +260,7 @@ public:
     TextChat();
     ~TextChat();
 
-    bool serialize(string *d);
+    bool serialize(string *d) const override;
     static TextChat* unserialize(class MegaClient *client, string *d);
 
     void setTag(int tag);

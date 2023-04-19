@@ -11112,6 +11112,7 @@ void MegaClient::queuepubkeyreq(User* u, std::unique_ptr<PubKeyAction> pka)
     {
         restag = pka->tag;
         pka->proc(this, u);
+        unique_ptr<User> cleanup(u && u->isTemporary ? u : nullptr);
     }
     else
     {
@@ -11421,7 +11422,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     }
 
     User *u = getUserForSharing(user);
-    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion));
+    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion)); // will release u, if temporary
 }
 
 void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)

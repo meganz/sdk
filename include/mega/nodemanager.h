@@ -299,6 +299,10 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
+
+    // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
+    void putNodeInDb(Node* node) const;
+
 };
 
 } // namespace
