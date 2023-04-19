@@ -3129,7 +3129,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
             userattr_map::iterator it = this->attrs.find(type);
             if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
             {
-                LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << key;
+                LOG_err << "Error in CommandPutMultipleUAVer. Undefined attribute or version: " << key;
                 for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
                 break;
             }
@@ -3187,13 +3187,6 @@ bool CommandPutMultipleUAVer::procresult(Result r)
     }
     else if (r.wasErrorOrOK())
     {
-        if (client->fetchingkeys)
-        {
-            client->sendevent(99419, "Error attaching keys", 0);
-            client->clearKeys();
-            client->resetKeyring();
-        }
-
         mCompletion(r.errorOrOK());
         return true;
     }
@@ -3474,15 +3467,6 @@ bool CommandGetUA::procresult(Result r)
             return true;
         }
 
-        if (u && u->userhandle == client->me && !r.wasError(API_EBLOCKED))
-        {
-            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
-            {
-                assert(r.wasError(API_ENOENT));
-                client->initializekeys(); // we have now all the required data
-            }
-        }
-
         if (u && !u->isTemporary && u->userhandle != client->me && r.wasError(API_ENOENT))
         {
             if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
@@ -3556,11 +3540,6 @@ bool CommandGetUA::procresult(Result r)
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         mCompletionErr(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                            assert(false);
-                        }
                         return false;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -3571,11 +3550,6 @@ bool CommandGetUA::procresult(Result r)
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         mCompletionErr(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                            assert(false);
-                        }
                         return false;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3640,11 +3614,6 @@ bool CommandGetUA::procresult(Result r)
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-
-                            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                            {
-                                client->initializekeys(); // we have now all the required data
-                            }
 
                             if (!u->isTemporary && u->userhandle != client->me)
                             {
@@ -3737,10 +3706,6 @@ bool CommandGetUA::procresult(Result r)
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                        }
                         return false;
                     }
                 }
@@ -3994,12 +3959,6 @@ bool CommandPubKeyRequest::procresult(Result r)
                         {
                             u->uid = Base64Str<MegaClient::USERHANDLE>(uh);
                         }
-                    }
-
-                    if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
-                    {
-                        client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
-                        return true;
                     }
 
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
