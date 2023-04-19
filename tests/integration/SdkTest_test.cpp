@@ -985,9 +985,9 @@ char* SdkTest::dumpSession()
     return megaApi[0]->dumpSession();
 }
 
-void SdkTest::locallogout(int timeout)
+void SdkTest::locallogout(unsigned apiIndex)
 {
-    auto logoutErr = doRequestLocalLogout(0);
+    auto logoutErr = doRequestLocalLogout(apiIndex);
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
@@ -1823,6 +1823,10 @@ std::string getCurrentTimestamp(bool includeDate);
  *  - Logout and resume the create-account process
  *  - Extract confirmation link from the mailbox
  *  - Use the link to confirm the account
+ * 
+ *  - Request a reset password link
+ *  - Confirm the reset password
+ * 
  *  - Login to the new account
  *  - Request cancel account link
  *  - Extract cancel account link from the mailbox
@@ -1839,76 +1843,124 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_TRUE(bufRealEmail && bufRealPswd && bufScript) <<
         "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
 
-    // Test that Python was installed
+    // test that Python 3 was installed
     string pyExe = "python";
-    const string pyOpt = " -V";
-    const string pyExpected = "Python 3.";
-    string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python -V
-    if (output.substr(0, pyExpected.length()) != pyExpected)
     {
-        pyExe += "3";
-        output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python3 -V
-        ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
+        const string pyOpt = " -V";
+        const string pyExpected = "Python 3.";
+        string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python -V
+        if (output.substr(0, pyExpected.length()) != pyExpected)
+        {
+            pyExe += "3";
+            output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python3 -V
+            ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
+        }
+        LOG_debug << "Using " << output;
     }
-    LOG_debug << "Using " << output;
 
     megaApi.resize(1);
     mApi.resize(1);
     ASSERT_NO_FATAL_FAILURE(configureTestInstance(0, bufRealEmail, bufRealPswd));
 
+    // create the account
+    // ------------------
+
     const string realEmail(bufRealEmail); // user@host.domain
-    auto pos = realEmail.find('@');
+    string::size_type pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
     const string testEmail = getenv(envVarAccount[0].c_str());
     const string newTestAcc = realAccount + '+' +
                               testEmail.substr(0, testEmail.find("@")) + '+' +
                               getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
-    LOG_info << "Using Mega account " << newTestAcc;
-    const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
+    LOG_info << "Creating Mega account " << newTestAcc;
+    const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
-    auto timeOfEmail = std::chrono::system_clock::now();
+    chrono::time_point<chrono::system_clock>  timeOfConfirmEmail = std::chrono::system_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
-    ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), newTestPwd, "MyFirstname", "MyLastname"));
+    ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
 
     // Logout from ephemeral session and resume session
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_EQ(API_OK, synchronousResumeCreateAccount(0, mApi[0].getSid().c_str()));
 
     // Get confirmation link from the email
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfEmail);
-    ASSERT_FALSE(output.empty()) << "Confirmation link was not found.";
+    {
+        string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
+        ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
-    // Use confirmation link
-    ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, output.c_str(), newTestPwd));
+        // Use confirmation link
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, conformLink.c_str(), origTestPwd));
+    }
 
     // Login to the new account
-    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
-    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
+    }
 
     // fetchnodes // needed internally to fill in user details, including email
-    auto fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->fetchNodes(fetchnodesTracker.get());
-    ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    {
+        unique_ptr<RequestTracker>  fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
+    }
 
-    // Request cancel account link
-    timeOfEmail = std::chrono::system_clock::now();
-    auto cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->cancelAccount(cancelLinkTracker.get());
-    ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+    // test resetting the password
+    // ---------------------------
+    
+    ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
+    chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
 
     // Get cancel account link from the mailbox
-    output = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, "delete", timeOfEmail);
-    ASSERT_FALSE(output.empty()) << "Cancel account link was not found.";
+    const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
+    {
+        string recoverink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
+        ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
-    // Use cancel account link
-    auto useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-    megaApi[0]->confirmCancelAccount(output.c_str(), newTestPwd, useCancelLinkTracker.get());
-    // Allow API_ESID beside API_OK, due to the race between sc and cs channels
-    ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
-        << " Failed to confirm cancel account " << newTestAcc.c_str();
+        char* masterKey = megaApi[0]->exportMasterKey();
+        ASSERT_EQ(synchronousConfirmResetPassword(0, recoverink.c_str(), newTestPwd, masterKey), MegaError::API_OK) << "confirmResetPassword failed";
+    }
+
+    // Login using new password
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
+    }
+
+    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
+    {
+        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
+    }
+
+    // delete the account
+    // ------------------
+    
+    // Request cancel account link
+    chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
+    {
+        unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->cancelAccount(cancelLinkTracker.get());
+        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+    }
+
+    // Get cancel account link from the mailbox
+    {
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
+
+        // Use cancel account link
+        unique_ptr<RequestTracker> useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
+        // Allow API_ESID beside API_OK, due to the race between sc and cs channels
+        ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
+            << " Failed to confirm cancel account " << newTestAcc.c_str();
+    }
 }
 
 /**
@@ -11027,10 +11079,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     //  4. Add Element
     //  5. Update Element order
     //  6. Update Element name
-    //  7. Remove Element
-    //  8. Add/remove bulk elements
-    //  9. Logout / login
-    // 10. Remove all Sets
+    //  7. Add an element with an already added node (-12 expected)
+    //  8. Remove Element
+    //  9. Add/remove bulk elements
+    // 10. Logout / login
+    // 11. Remove all Sets
 
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
@@ -11292,7 +11345,16 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    // 7. Remove Element
+    // 7. Add an element with an already added node (-12 expected)
+    string elattrs1b = u8"Another element name emoji: 📞🎉❤️"; // "📞🎉❤️"
+    newElls = nullptr;
+    err = doCreateSetElement(0, &newElls, sh, uploadedNode, elattrs1b.c_str());
+    ASSERT_EQ(err, API_EEXIST) << "Adding another SetElement with the same node as already existing SetElement";
+
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
+
+    // 8. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
@@ -11311,8 +11373,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 8. Add/remove bulk elements
-    // Add 2; only the first will succeed
+    // 9. Add/remove bulk elements
+    // Add 3; only the first will succeed
     differentApiDtls.setElementUpdated = false;
     string elattrs2 = elattrs + u8" bulk2";
     elattrs += u8" bulk1";
@@ -11321,9 +11383,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     unique_ptr<MegaHandleList> newElFileHandles(MegaHandleList::createInstance());
     newElFileHandles->addMegaHandle(uploadedNode);
     newElFileHandles->addMegaHandle(INVALID_HANDLE);
+    newElFileHandles->addMegaHandle(uploadedNode);
     unique_ptr<MegaStringList> newElNames(MegaStringList::createInstance());
     newElNames->add(elattrs.c_str());
     newElNames->add(elattrs2.c_str());
+    newElNames->add(elattrs.c_str());
     err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElFileHandles.get(), newElNames.get());
     els.reset(newElls);
     unique_ptr<MegaIntegerList> elErrs(newElErrs);
@@ -11334,9 +11398,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     eh = newElls->get(0)->id();
     ASSERT_NE(eh, INVALID_HANDLE);
     ASSERT_NE(newElErrs, nullptr);
-    ASSERT_EQ(newElErrs->size(), 2);
+    ASSERT_EQ(newElErrs->size(), 3);
     ASSERT_EQ(newElErrs->get(0), API_OK);
-    ASSERT_EQ(newElErrs->get(1), API_ENOENT);
+    ASSERT_EQ(newElErrs->get(1), API_EARGS); // API_EARGS because sending an empty key error takes precedence over sending INVALID_HANDLE for eid error (API_ENOENT)
+    ASSERT_EQ(newElErrs->get(2), API_EEXIST);
     unique_ptr<MegaSetElement> newEl(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(newEl, nullptr);
     ASSERT_EQ(newEl->id(), eh);
@@ -11402,7 +11467,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
-    // 9. Logout / login
+    // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
@@ -11427,7 +11492,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), namebulk11);
 
-    // 10. Remove all Sets
+    // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
     unique_ptr<MegaSetList> sets2(differentApi.getSets());
     ASSERT_EQ(sets->size(), sets2->size());
@@ -12005,95 +12070,84 @@ TEST_F(SdkTest, SdkUserAlerts)
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
-    A1dtls.userUpdated = false;
     B1dtls.userAlertList.reset();
-
-    size_t apiIndex = 0;
+    A1dtls.schedId = UNDEF;
+    A1dtls.chatid = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     MegaHandle chatid = UNDEF;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].chatid = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     createChatScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting creation not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
 
-    bool expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_NEW)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for new scheduled meeting";
+    ASSERT_EQ(count, 1) << "NewScheduledMeeting";
+    ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be created, unexpected chatid";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be created, invalid scheduled meeting id";
+    bkpAlerts.emplace_back(a->copy());
 
     // UpdateScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false;
-    mApi[apiIndex].chatid = UNDEF;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
+    A1dtls.schedId = UNDEF;
+    A1dtls.chatid = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING] = false;
     updateScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting update not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting created";
 
-    expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_UPDATED)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_EQ(mApi[apiIndex].chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting update";
+    ASSERT_EQ(count, 1) << "UpdateScheduledMeeting";
+    ASSERT_EQ(A1dtls.chatid, chatid) << "Scheduled meeting could not be updated, unexpected chatid";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
+    bkpAlerts.emplace_back(a->copy());
 
     // DeleteScheduledMeeting
     //--------------------------------------------
     // reset User Alerts for B1
     B1dtls.userAlertsUpdated = false;
     B1dtls.userAlertList.reset();
-    A1dtls.userUpdated = false;
-    mApi[apiIndex].schedId = UNDEF;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
+    A1dtls.schedId = UNDEF;
+    A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING] = false;
     deleteScheduledMeeting(0, chatid);
     ASSERT_NE(chatid, UNDEF) << "Invalid chat";
-    waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
+    waitForResponse(&A1dtls.requestFlags[MegaRequest::TYPE_DEL_SCHEDULED_MEETING], maxTimeout);
 
     ASSERT_TRUE(waitForResponse(&B1dtls.userAlertsUpdated))
         << "Alert about scheduled meeting removal not received by B1 after " << maxTimeout << " seconds";
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "Scheduled meeting removed";
 
-    expectedAlert = false;
+    count = 0;
     for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
     {
-        if (B1dtls.userAlertList->get(i)->getType() == MegaUserAlert::TYPE_SCHEDULEDMEETING_DELETED)
-        {
-            a = B1dtls.userAlertList->get(i);
-            ASSERT_NE(mApi[apiIndex].schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";
-            bkpAlerts.emplace_back(a->copy());
-            expectedAlert = true;
-        }
+        a = B1dtls.userAlertList->get(i);
+        if (a->isRemoved()) continue;
+        count++;
     }
-    ASSERT_TRUE(expectedAlert) << "User alert not received for scheduled meeting removal";
+    ASSERT_EQ(count, 1) << "DeleteScheduledMeeting";
+    ASSERT_NE(A1dtls.schedId, UNDEF) << "Scheduled meeting could not be updated, invalid scheduled meeting id";  // Should this mention "deleted" rather than "updated"?
+    bkpAlerts.emplace_back(a->copy());
 #endif
 
     // NewShare
@@ -12116,7 +12170,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
     // Wait for node to be decrypted in B account
-    ASSERT_TRUE(WaitFor([this, &B1, hSharedFolder]()
+    ASSERT_TRUE(WaitFor([&B1, hSharedFolder]()
     {
         std::unique_ptr<MegaNode> inshareNode(B1.getNodeByHandle(hSharedFolder));
         return inshareNode && inshareNode->isNodeKeyDecrypted();
@@ -12534,6 +12588,18 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(B1idx));
     unique_ptr<MegaUserAlertList> persistedAlerts(B1.getUserAlerts());
     ASSERT_TRUE(persistedAlerts);
+    if (persistedAlerts->size() != (int)bkpAlerts.size())
+    {
+        // for debugging purpose
+        string alertTypes = "\nPersisted Alerts: { ";
+        for (int i = 0; i < persistedAlerts->size(); ++i)
+            alertTypes += std::to_string(persistedAlerts->get(i)->getType()) + ' ';
+        alertTypes += " }\nBacked up Alerts: { ";
+        for (size_t i = 0u; i < bkpAlerts.size(); ++i)
+            alertTypes += std::to_string(bkpAlerts[i]->getType()) + ' ';
+        alertTypes += " }";
+        LOG_err << "Persisted Alerts differ from Backed up ones:" << alertTypes;
+    }
     ASSERT_EQ(persistedAlerts->size(), (int)bkpAlerts.size()); // B1 will not get sc50 alerts, due to its useragent
 
     // sort persisted alerts in the same order as backed up ones; timestamp is not enough because there can be clashes
@@ -12935,42 +13001,3 @@ TEST_F(SdkTest, SdkGetNodesByName)
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 2);
 }
-
-/*
-TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    const char* email = megaApi[0]->getMyEmail();
-    cout << "email: " << email << endl;
-    const char* masterKey = megaApi[0]->getMyRSAPrivateKey();
-
-    mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK] = false;
-    megaApi[0]->resetPassword(email, true);
-    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK]))
-        << "get recovery link/reset password failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
-
-    cout << "input link: ";
-    string link;
-    getline(cin, link);
-
-    cout << "input recovery key: ";
-    string recoverykey;
-    getline(cin, recoverykey);
-
-    mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY] = false;
-    megaApi[0]->checkRecoveryKey(link.c_str(), recoverykey.c_str());
-    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY]))
-        << "check recovery key failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK); // API_EKEY
-
-    // set to the same password
-    const char* password = getenv("MEGA_PWD");
-    ASSERT_TRUE(password);
-    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false;
-    megaApi[0]->confirmResetPassword(link.c_str(), password, masterKey);
-    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK]))
-        << "confirm recovery link failed after " << maxTimeout << " seconds";
-    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
-}
-*/

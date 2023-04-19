@@ -506,7 +506,7 @@ TextChat::~TextChat()
     delete userpriv;
 }
 
-bool TextChat::serialize(string *d)
+bool TextChat::serialize(string *d) const
 {
     unsigned short ll;
 
@@ -567,7 +567,7 @@ bool TextChat::serialize(string *d)
         ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
         d->append((char*)&ll, sizeof ll);
 
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
+        for (attachments_map::const_iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
         {
             d->append((char*)&it->first, sizeof it->first); // nodehandle
 
@@ -1019,7 +1019,6 @@ bool TextChat::removeSchedMeeting(handle schedId)
     assert(schedId != UNDEF);
     if (mScheduledMeetings.find(schedId) == mScheduledMeetings.end())
     {
-        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(schedId) << " no longer exists";
         return false;
     }
 

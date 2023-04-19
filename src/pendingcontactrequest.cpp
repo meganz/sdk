@@ -70,7 +70,7 @@ bool PendingContactRequest::removed()
     return changed.accepted || changed.denied || changed.ignored || changed.deleted;
 }
 
-bool PendingContactRequest::serialize(string *d)
+bool PendingContactRequest::serialize(string *d) const
 {
     unsigned char l;
 

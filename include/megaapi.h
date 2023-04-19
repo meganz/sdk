@@ -9440,71 +9440,6 @@ class MegaApi
         void removeGlobalListener(MegaGlobalListener* listener);
 
         /**
-         * @brief Get the current request
-         *
-         * The return value is only valid when this function is synchronously
-         * called inside a callback related to a request. The return value is
-         * the same as the received in the parameter of the callback.
-         * This function is provided to support the creation of bindings for
-         * some programming languaguages like PHP.
-         *
-         * @return Current request
-         */
-        MegaRequest *getCurrentRequest();
-
-        /**
-         * @brief Get the current transfer
-         *
-         * The return value is only valid when this function is synchronously
-         * called inside a callback related to a transfer. The return value is
-         * the same as the received in the parameter of the callback.
-         * This function is provided to support the creation of bindings for
-         * some programming languaguages like PHP.
-         *
-         * @return Current transfer
-         */
-        MegaTransfer *getCurrentTransfer();
-
-        /**
-         * @brief Get the current error
-         *
-         * The return value is only valid when this function is synchronously
-         * called inside a callback. The return value is
-         * the same as the received in the parameter of the callback.
-         * This function is provided to support the creation of bindings for
-         * some programming languaguages like PHP.
-         *
-         * @return Current error
-         */
-        MegaError *getCurrentError();
-
-        /**
-         * @brief Get the current nodes
-         *
-         * The return value is only valid when this function is synchronously
-         * called inside a onNodesUpdate callback. The return value is
-         * the same as the received in the parameter of the callback.
-         * This function is provided to support the creation of bindings for
-         * some programming languaguages like PHP.
-         *
-         * @return Current nodes
-         */
-        MegaNodeList *getCurrentNodes();
-
-        /**
-         * @brief Get the current users
-         *
-         * The return value is only valid when this function is synchronously
-         * called inside a onUsersUpdate callback. The return value is
-         * the same as the received in the parameter of the callback.
-         * This function is provided to support the creation of bindings for
-         * some programming languaguages like PHP.
-         *
-         * @return Current users
-         */
-        MegaUserList *getCurrentUsers();
-
-        /**
          * @brief Generates a hash based in the provided private key and email
          *
          * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
@@ -11320,6 +11255,8 @@ class MegaApi
          * You take the ownership of the returned value.
          * Use delete [] to free it.
          *
+         * @deprecated
+         *
          * @return RSA private key of the current account
          */
         char *getMyRSAPrivateKey();
@@ -12556,6 +12493,29 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+
+        enum {
+            PRIVATE_KEY_ED25519 = 1,
+            PRIVATE_KEY_CU25519,
+        };
+
+        /**
+         * @brief Returns private key from desired type in base64-encoded
+         *
+         * This method returns invalid value until fetch nodes has finished
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @param type private key type
+         * It can take this values:
+         *  - PRIVATE_KEY_ED25519     1
+         *  - PRIVATE_KEY_CU25519     2
+         * @return Private key
+         */
+        char* getPrivateKey(int type);
+
 
         /**
          * @brief Confirm available memory to avoid OOM situations
@@ -14303,6 +14263,10 @@ class MegaApi
          * If the status of the business account is expired, onTransferFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
+         *
+         * If the node, or the account to which the node belongs, has been taken down or suspended, onTransferFinish will be called with
+         * the error code MegaError::API_ETOOMANY. In this case, the application should show a warning message similar to
+         * "The file that you are downloading (or the account it belongs to) has been suspended for violating our Terms of Service."
          *
          * When user wants to download a batch of items that at least contains one folder, SDK mutex will be partially
          * locked until:
@@ -20974,11 +20938,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the link used for the public Set fetch request
          *
-         * In addition to fetching the Set (including Elements), SDK's instance is set
-         * to preview mode for the public Set. This mode allows downloading of foreign
-         * SetElements included in the public Set.
+         * In addition to fetching the Set (including Elements) and keeping a local/cached
+         * copy in SDK instance, SDK's instance is set to preview mode for the public Set.
+         * This mode allows downloading of foreign SetElements included in the public Set.
          *
-         * To disable the preview mode and release resources used by the preview Set,
+         * To disable the preview mode and release resources cached by the preview Set,
          * use MegaApi::stopPublicSetPreview
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -21003,7 +20967,7 @@ class MegaApi
         /**
          * @brief Stops public Set preview mode for current SDK instance
          *
-         * MegaApi instance is no longer useful until a new login
+         * MegaApi cached Set and SetElements will be released
          *
          */
         void stopPublicSetPreview();
@@ -21017,7 +20981,7 @@ class MegaApi
         bool inPublicSetPreview();
 
         /**
-         * @brief Get current public/exported Set in Preview mode
+         * @brief Get currently cached public/exported Set in Preview mode
          *
          * The response value is stored as a MegaSet.
          *
@@ -21029,7 +20993,7 @@ class MegaApi
         MegaSet* getPublicSetInPreview();
 
         /**
-         * @brief Get current public/exported SetElements in Preview mode
+         * @brief Get currently cached public/exported SetElements in Preview mode
          *
          * The response value is stored as a MegaSetElementList.
          *
@@ -21063,7 +21027,7 @@ class MegaApi
         void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Gets a MegaNode for the foreign MegaSetElement that can be used to download the Element
+         * @brief Gets the public link / URL that can be used to fetch a public Set and its SetElements
          *
          * @param sid MegaHandle of target Set to get its public link/URL
          *

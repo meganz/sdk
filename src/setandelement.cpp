@@ -173,7 +173,7 @@ namespace mega {
         }
     }
 
-    bool Set::serialize(string* d)
+    bool Set::serialize(string* d) const
     {
         CacheableWriter r(*d);
 
@@ -295,7 +295,7 @@ namespace mega {
         }
     }
 
-    bool SetElement::serialize(string* d)
+    bool SetElement::serialize(string* d) const
     {
         CacheableWriter r(*d);
 

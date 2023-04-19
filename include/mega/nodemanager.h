@@ -187,9 +187,9 @@ public:
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
 
-    NodeHandle getRootNodeFiles();
-    NodeHandle getRootNodeVault();
-    NodeHandle getRootNodeRubbish();
+    NodeHandle getRootNodeFiles() const;
+    NodeHandle getRootNodeVault() const;
+    NodeHandle getRootNodeRubbish() const;
     void setRootNodeFiles(NodeHandle h);
     void setRootNodeVault(NodeHandle h);
     void setRootNodeRubbish(NodeHandle h);
@@ -307,6 +307,8 @@ private:
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
+    // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
+    void putNodeInDb(Node* node) const;
 
     // These are all the "internal" versions of the public interfaces.
     // This is to avoid confusion where public functions used to call other public functions

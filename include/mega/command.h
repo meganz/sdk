@@ -1562,6 +1562,7 @@ protected:
     bool procjsonobject(handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
     bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
+    bool procExtendedError(int64_t& errCode, handle& eid) const;
 };
 
 class Set;
