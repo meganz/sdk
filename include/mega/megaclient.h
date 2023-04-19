@@ -1330,7 +1330,7 @@ public:
 
         public:
             static constexpr size_t HEX_STRING_SIZE = 16;
-            JourneyID(MegaClient& client) : mClient(client) {};
+            JourneyID(MegaClient& client) : mJidValue(0), mTrackValue(false), mClient(client) {};
             // Set the jidValue with a new 8-byte uint64_t
             bool setValue(uint64_t jidValue, bool updateCachedTrackingFlag = true);
             // Set the jidValue as a 8-byte uint64_t from a 16-char hexadecimal value (journeyID="78b1bbbda5f32526" -> 8656088129828704806)
