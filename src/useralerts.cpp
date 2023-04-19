@@ -218,7 +218,7 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
     header = email();
 }
 
-bool UserAlert::Base::serialize(string* d)
+bool UserAlert::Base::serialize(string* d) const
 {
     CacheableWriter w(*d);
     w.serializecompressedu64(type); // this will be unserialized in UserAlerts::unserializeAlert()
@@ -305,7 +305,7 @@ void UserAlert::IncomingPendingContact::text(string& header, string& title, Mega
     header = email();
 }
 
-bool UserAlert::IncomingPendingContact::serialize(string* d)
+bool UserAlert::IncomingPendingContact::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -391,7 +391,7 @@ void UserAlert::ContactChange::text(string& header, string& title, MegaClient* m
     header = email();
 }
 
-bool UserAlert::ContactChange::serialize(string* d)
+bool UserAlert::ContactChange::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -456,7 +456,7 @@ void UserAlert::UpdatedPendingContactIncoming::text(string& header, string& titl
     header = email();
 }
 
-bool UserAlert::UpdatedPendingContactIncoming::serialize(string* d)
+bool UserAlert::UpdatedPendingContactIncoming::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -517,7 +517,7 @@ void UserAlert::UpdatedPendingContactOutgoing::text(string& header, string& titl
     header = email();
 }
 
-bool UserAlert::UpdatedPendingContactOutgoing::serialize(string* d)
+bool UserAlert::UpdatedPendingContactOutgoing::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -577,7 +577,7 @@ void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
     header = email();
 }
 
-bool UserAlert::NewShare::serialize(string* d)
+bool UserAlert::NewShare::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -667,7 +667,7 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
     header = email();
 }
 
-bool UserAlert::DeletedShare::serialize(string* d)
+bool UserAlert::DeletedShare::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -792,7 +792,7 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     header = email();
 }
 
-bool UserAlert::NewSharedNodes::serialize(string* d)
+bool UserAlert::NewSharedNodes::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -909,7 +909,7 @@ void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClien
     header = email();
 }
 
-bool UserAlert::RemovedSharedNode::serialize(string* d)
+bool UserAlert::RemovedSharedNode::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -991,7 +991,7 @@ void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClien
     title = "Updated " + to_string(itemsNumber) + " item" + itemText + " in shared folder";
 }
 
-bool UserAlert::UpdatedSharedNode::serialize(string* d)
+bool UserAlert::UpdatedSharedNode::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1092,7 +1092,7 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     header = "Payment info"; // 1230
 }
 
-bool UserAlert::Payment::serialize(string* d)
+bool UserAlert::Payment::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1160,7 +1160,7 @@ void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient*
     header = "PRO membership plan expiring soon"; // 8598
 }
 
-bool UserAlert::PaymentReminder::serialize(string* d)
+bool UserAlert::PaymentReminder::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1256,7 +1256,7 @@ void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
     title = s.str();
 }
 
-bool UserAlert::Takedown::serialize(string* d)
+bool UserAlert::Takedown::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1340,7 +1340,7 @@ void UserAlert::NewScheduledMeeting::text(string& header, string& title, MegaCli
     LOG_debug << title;
 }
 
-bool UserAlert::NewScheduledMeeting::serialize(string* d)
+bool UserAlert::NewScheduledMeeting::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1459,7 +1459,7 @@ void UserAlert::DeletedScheduledMeeting::text(string& header, string& title, Meg
     LOG_debug << title;
 }
 
-bool UserAlert::DeletedScheduledMeeting::serialize(string* d)
+bool UserAlert::DeletedScheduledMeeting::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
@@ -1589,7 +1589,7 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
     LOG_debug << title;
 }
 
-bool UserAlert::UpdatedScheduledMeeting::serialize(string* d)
+bool UserAlert::UpdatedScheduledMeeting::serialize(string* d) const
 {
     Base::serialize(d);
     CacheableWriter w(*d);
