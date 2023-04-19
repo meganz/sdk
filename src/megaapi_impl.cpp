@@ -25056,7 +25056,7 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
-                    auto ekeyStr = string((char*)ekey.data());
+                    auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
                                                                        nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
