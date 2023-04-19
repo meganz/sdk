@@ -18695,7 +18695,6 @@ void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* l
 void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET, listener);
-    requestQueue.push(request);
 
     request->performRequest = [this, request]()
         {
@@ -18703,6 +18702,7 @@ void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener* listener)
             return API_OK;
         };
 
+    requestQueue.push(request);
     waiter->notify();
 }
 
