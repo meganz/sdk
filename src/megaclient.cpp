@@ -8066,13 +8066,16 @@ void MegaClient::persistAlert(UserAlert::Base* a)
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     if (a->removed())
     {
-        if (sctable->del(a->dbid))
+        if (a->dbid)
         {
-            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
-        }
-        else
-        {
-            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            if (sctable->del(a->dbid))
+            {
+                LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+            }
+            else
+            {
+                LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            }
         }
     }
     else // insert or replace
