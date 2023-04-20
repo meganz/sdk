@@ -29224,7 +29224,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             LocalPath localPath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
             httpctx->server->fsAccess->unlinklocal(localPath);
-            if (!httpctx->tmpFileAccess->fopen(localPath, false, true))
+            if (!httpctx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
                 return 0;
@@ -30282,7 +30282,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 auto tmpFileNamePath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
                 httpctx->server->fsAccess->unlinklocal(tmpFileNamePath);
-                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true))
+                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true, FSLogging::logOnError))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
@@ -32990,7 +32990,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LocalPath localPath = LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName);
             fds->fsAccess->unlinklocal(localPath);
 
-            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true))
+            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
