@@ -185,8 +185,8 @@ public:
     bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
-    bool sysstat(m_time_t*, m_off_t*) override;
-    bool sysopen(bool async = false) override;
+    bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
+    bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
