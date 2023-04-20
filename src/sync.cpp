@@ -8545,7 +8545,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
     }
     else if (row.fsNode->type == FOLDERNODE)
     {
-        if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere)
+        if (row.syncNode->hasRare() && row.syncNode->rare().createFolderHere)
         {
             SYNC_verbose << syncname << "Create cloud folder already in progress" << logTriplet(row, fullPath);
         }
