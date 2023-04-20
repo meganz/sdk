@@ -12428,6 +12428,7 @@ TEST_F(SdkTest, SdkVersionManagement)
     waitForResponse(&check);
     unique_ptr<MegaNode> folder1Node(api->getNodeByHandle(folder1Handle));
     ASSERT_TRUE(folder1Node);
+    check = false;
     std::string folder2 = "Folder2";
     auto folder2Handle = createFolder(0, folder2.c_str(), rootNode.get());
     ASSERT_NE(folder2Handle, UNDEF);
@@ -12439,12 +12440,7 @@ TEST_F(SdkTest, SdkVersionManagement)
     auto upldSingleVersion = [this](const string& name, int version, MegaNode* folderNode, MegaHandle* fh)
     {
         string localName = name + '_' + std::to_string(version);
-        std::ofstream file(fs::u8path(localName));
-        if (file)
-        {
-            file << version;
-            file.close();
-        }
+        createFile(localName, false, std::to_string(version));
 
         int result = doStartUpload(0, fh, localName.c_str(), folderNode,
                              name.c_str() /*fileName*/,
