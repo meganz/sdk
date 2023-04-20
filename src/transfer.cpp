@@ -636,7 +636,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
@@ -733,7 +733,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname) || fa->type == FOLDERNODE)
+                    if (fa->fopen(localname, FSLogging::logOnError) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -783,7 +783,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                             {
                                 num++;
                                 localnewname = localname.insertFilenameCounter(num);
-                            } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
+                            } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
 
 
                             (*it)->setLocalname(localnewname);
@@ -1005,7 +1005,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(localpath);
+            bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)

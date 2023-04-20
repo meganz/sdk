@@ -574,7 +574,7 @@ void SyncFileGet::prepare(FileSystemAccess&)
                 LocalPath lockname = LocalPath::fromRelativeName("lock", *sync->client->fsaccess, sync->mFilesystemType);
                 transfer->localfilename.appendWithSeparator(lockname, true);
 
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
+                if (sync->tmpfa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
                 {
                     break;
                 }
