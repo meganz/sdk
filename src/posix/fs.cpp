@@ -354,7 +354,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
                              context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
     if (context->failed)
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
