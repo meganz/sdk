@@ -184,7 +184,9 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
                 data = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
             }
         }
-        dispatch_semaphore_signal(semaphore);
+        if (this->semaphore) {
+            dispatch_semaphore_signal(this->semaphore);
+        }
     }];
     
     dispatch_time_t waitTime = dispatch_time(DISPATCH_TIME_NOW, WAIT_60_SECONDS * NSEC_PER_SEC);

@@ -65,6 +65,24 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
+{
+    bool error = false;
+    TypeOfLink lType = TypeOfLink::FOLDER;
+    switch(type)
+    {
+    case FOLDERNODE: break;
+    case FILENODE:
+        lType = TypeOfLink::FILE;
+        break;
+    default:
+        error = true;
+        break;
+    }
+
+    return std::make_pair(error, lType);
+}
+
 std::ostream& operator<<(std::ostream& s, NodeHandle h)
 {
     return s << toNodeHandle(h);
@@ -2370,13 +2388,6 @@ CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value
 { }
 
 
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool CacheableStatus::serialize(std::string* data)
-{
-    return const_cast<const CacheableStatus*>(this)->serialize(*data);
-}
-
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
     int64_t typeBuf;
@@ -2397,9 +2408,9 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
     return client->mCachedStatus.getPtr(type);
 }
 
-bool CacheableStatus::serialize(std::string& data) const
+bool CacheableStatus::serialize(std::string* data) const
 {
-    CacheableWriter writer{data};
+    CacheableWriter writer{*data};
     writer.serializei64(mType);
     writer.serializei64(mValue);
     return true;

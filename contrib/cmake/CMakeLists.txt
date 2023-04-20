@@ -41,7 +41,6 @@ set (USE_FREEIMAGE 1 CACHE STRING "Used to create previews/thumbnails for photos
 set (ENABLE_SYNC 1 CACHE STRING "Turns on sync functionality")
 set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
-set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "Internal logger, not just callbacks")
 set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video files")
 set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
@@ -72,7 +71,17 @@ option(USE_THIRDPARTY_FROM_VCPKG
 "Whether to look for third party dependencies in a vcpkg install. If yes, Mega3rdPartyDir must be a path to a directory containing the vcpkg directory"
 ${WIN32})
 
+option(USE_QT_FROM_VCPKG
+"Whether to look for QT dependencies in a vcpkg install. To set yes, USE_THIRDPARTY_FROM_VCPKG must be yes"
+0)
+
+if (NOT USE_THIRDPARTY_FROM_VCPKG AND USE_QT_FROM_VCPKG)
+    message( WARNING "USE_THIRDPARTY_FROM_VCPKG is not set, turn off USE_QT_FROM_VCPKG" )
+    set (USE_QT_FROM_VCPKG 0)
+endif()
+
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
+message(STATUS " Using QT from vcpkg = ${USE_QT_FROM_VCPKG}")
 message(STATUS " CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 
 if(WIN32 OR IOS)
@@ -162,48 +171,6 @@ ELSE(WIN32)
     endif()
 ENDIF(WIN32)
 
-# Since we offer some Qt support in the SDK, set up those dependencies here
-if (USE_QT)
-
-    #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-    if (NOT DEFINED QT_DIR)
-        if (CMAKE_HOST_WIN32 )
-            if (build_64_bit)
-                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            else()
-                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            ENDIF()
-        ELSE()
-            set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
-        ENDIF()
-    ENDIF()
-
-    if (NOT DEFINED CMAKE_PREFIX_PATH)
-        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5")
-    endif()
-
-    message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
-    message(STATUS "QT_DIR: ${QT_DIR}")
-
-    foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS)
-        message(STATUS "Finding Qt package ${PKG}")
-        find_package(Qt5 COMPONENTS ${PKG} REQUIRED)
-    endforeach(PKG)
-
-    # get qt version
-    if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
-        if(WIN32)
-            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
-        else()
-            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake")
-        endif()
-    endif()
-
-    execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
-    message(STATUS "Using QT ${QT_VERSION} from ${Qt5_DIR} ${QT_DIR}")
-
-endif(USE_QT)
-
 # currently supported scenarios for getting 3rd party libraries:
 #  - vcpkg built dependencies (there are some scripts in this folder to build those)
 #  - libraries from the system, installed via eg. apt-get on linux
@@ -249,6 +216,59 @@ message(STATUS, " Mega3rdPartyDir = ${Mega3rdPartyDir}")
 message(STATUS, " USE_THIRDPARTY_FROM_VCPKG = ${USE_THIRDPARTY_FROM_VCPKG}")
 message(STATUS, " vcpkg_dir = ${vcpkg_dir}")
 
+# Since we offer some Qt support in the SDK, set up those dependencies here
+# setup QT_DIR, qt_cmake_dir, qt_qmake_dir
+# USE_QT_FROM_VCPKG override USE_QT
+if (USE_QT_FROM_VCPKG)
+    set(QT_DIR "${vcpkg_dir}/tools/qt5" CACHE STRING "Specify your QT install folder if it is nonstandard")
+    set(qt_cmake_dir "${vcpkg_dir}/share/cmake/Qt5")
+    set(qt_qmake_dir "${vcpkg_dir}/tools/qt5/bin")
+elseif (USE_QT)
+    #For convenience, added some default qt paths if none is specified
+    if (NOT DEFINED QT_DIR)
+        if (CMAKE_HOST_WIN32 )
+            if (build_64_bit)
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            else()
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            ENDIF()
+        ELSE()
+            set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+        ENDIF()
+    ENDIF()
+
+    set(qt_cmake_dir "${QT_DIR}/lib/cmake/Qt5")
+    set(qt_qmake_dir "${QT_DIR}/bin")
+endif()
+
+if (USE_QT OR USE_QT_FROM_VCPKG)
+    message(STATUS "USE_QT: ${USE_QT} USE_QT_FROM_VCPKG: ${USE_QT_FROM_VCPKG}")
+    message(STATUS "QT_DIR: ${QT_DIR}")
+
+    # find qt package
+    if (NOT DEFINED CMAKE_PREFIX_PATH)
+        set(CMAKE_PREFIX_PATH "${qt_cmake_dir}")
+    endif()
+
+    message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+
+    foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS)
+        message(STATUS "Finding Qt package ${PKG}")
+        find_package(Qt5 COMPONENTS ${PKG} REQUIRED)
+    endforeach(PKG)
+
+    # get qt version
+    if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
+        if(WIN32)
+            set(QT_QMAKE_EXECUTABLE "${qt_qmake_dir}/qmake.exe")
+        else()
+            set(QT_QMAKE_EXECUTABLE "${qt_qmake_dir}/qmake")
+        endif()
+    endif()
+
+    execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message(STATUS "Using QT ${QT_VERSION} from ${QT_QMAKE_EXECUTABLE}")
+endif()
 
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
@@ -775,7 +795,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
             ${MegaDir}/include/mega/logging.h
-            ${MegaDir}/include/mega/rotativeperformancelogger.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
             ${MegaDir}/include/mega/heartbeats.h
@@ -844,7 +863,6 @@ add_library(Mega STATIC
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp>
-            $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/drivenotify.cpp>
             $<$<PLATFORM_ID:iOS>:${MegaDir}/src/gfx/GfxProcCG.mm>
             )
@@ -895,7 +913,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_SYNC}:ENABLE_SYNC>
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>

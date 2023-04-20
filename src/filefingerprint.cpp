@@ -66,7 +66,7 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !(lhs == rhs);
 }
 
-bool FileFingerprint::serialize(string *d)
+bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
@@ -384,6 +384,11 @@ int FileFingerprint::unserializefingerprint(string* d)
     isvalid = true;
 
     return 1;
+}
+
+string FileFingerprint::fingerprintDebugString() const
+{
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

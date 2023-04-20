@@ -302,12 +302,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef SWIGPHP
 
-#ifndef SWIGPHP7
-//Disable the management of director parameters
-//to workaround several SWIG bugs
-%typemap(directorin) SWIGTYPE* %{ %}
-%typemap(directorout) SWIGTYPE* %{ %}
-#endif
+%typemap(directorin) SWIGTYPE* 
+%{ 
+  ZVAL_UNDEF($input);
+  SWIG_SetPointerZval($input, (void *)$1, $1_descriptor, ($owner)|2);
+%}
 
 //Rename overloaded functions
 %rename (getInSharesAll, fullname=1) mega::MegaApi::getInShares();
@@ -322,17 +321,14 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*, MegaRequestListener*);
 %rename (getMyAvatar, fullname=1) mega::MegaApi::getUserAvatar(const char*);
 %rename (copyNodeWithName, fullname=1) mega::MegaApi::copyNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+%rename (loginToFolderWithKey, fullname = 1) mega::MegaApi::loginToFolder(const char*, const char *, MegaRequestListener*);
+%rename (moveNodeWithName, fullname=1) mega::MegaApi::moveNode(MegaNode*, MegaNode*, const char*, MegaRequestListener*);
+%rename (inviteContactWithLink, fullname=1) mega::MegaApi::inviteContact(const char*, const char*, int, MegaHandle, MegaRequestListener*);
+%rename (getInSharesFromUser, fullname=1) mega::MegaApi::getInShares(MegaUser*, int);
 
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, const char*, int64_t);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool, MegaTransferListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::startUpload(const char*, MegaNode*, int64_t, bool);
-%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*, MegaRequestListener*);
-%rename ("$ignore", fullname=1) mega::MegaApi::createAccount(const char*, const char*, const char*);
+%typemap(typecheck, precedence=SWIG_TYPECHECK_INTEGER) const char * {
+  $1 = (Z_TYPE($input) == IS_NULL || (Z_TYPE($input) == IS_STRING)) ? 1 : 0;
+}
 
 #endif
 

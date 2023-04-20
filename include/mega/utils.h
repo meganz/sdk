@@ -57,6 +57,7 @@ namespace mega {
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
+std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;

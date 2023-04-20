@@ -141,7 +141,7 @@ Transfer::~Transfer()
     }
 }
 
-bool Transfer::serialize(string *d)
+bool Transfer::serialize(string *d) const
 {
     assert(localfilename.empty() || localfilename.isAbsolute());
 

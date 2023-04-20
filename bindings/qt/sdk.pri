@@ -116,10 +116,6 @@ CONFIG(ENABLE_WERROR_COMPILATION) {
     }
 }
 
-CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
-  SOURCES += src/rotativeperformancelogger.cpp
-}
-
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
@@ -427,11 +423,6 @@ CONFIG(USE_WEBRTC) {
     }
 }
 
-CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
-    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
-    DEFINES += ENABLE_LOG_PERFORMANCE
-}
-
 win32 {
     # comment this line to use WinHTTP on Windows
     CONFIG += USE_CURL
@@ -459,8 +450,8 @@ else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
-    src/posix/fs.cpp  \
-    src/posix/waiter.cpp
+           src/posix/fs.cpp  \
+           src/posix/waiter.cpp
 }
 
 HEADERS  += include/mega.h \

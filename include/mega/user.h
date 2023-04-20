@@ -112,7 +112,7 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
 
     void removepkrs(MegaClient*);
