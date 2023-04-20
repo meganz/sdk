@@ -213,7 +213,7 @@ PosixFileAccess::~PosixFileAccess()
     }
 }
 
-bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
+bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(nonblocking_localname);
@@ -257,7 +257,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return false;
 }
 
-bool PosixFileAccess::sysopen(bool)
+bool PosixFileAccess::sysopen(bool, FSLogging fsl)
 {
     assert(fd < 0 && "There should be no opened file descriptor at this point");
     errorcode = 0;
@@ -274,7 +274,10 @@ bool PosixFileAccess::sysopen(bool)
     if (fd < 0)
     {
         errorcode = errno;
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        }
     }
 
     return fd >= 0;
@@ -520,7 +523,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     struct stat statbuf;
 
@@ -658,7 +661,10 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        }
     }
     if (fd >= 0 || statok)
     {
