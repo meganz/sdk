@@ -1344,7 +1344,7 @@ public:
      * Note that the position of each bit matches the type of each according to the values
      * for MegaSet::CHANGE_TYPE_*
      *
-     * @return value ranging from 0 to maximum MegaSet::CHANGE_TYPE_SIZE
+     * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
     virtual long long getChanges() const { return MegaSet::CHANGE_TYPE_SIZE; }
 
@@ -1499,9 +1499,9 @@ public:
      * current MegaSetElement
      *
      * Note that the position of each bit matches the type of each according to the values
-     * for MegaSetElement::CHANGE_TYPE_*
+     * for MegaSetElement::CHANGE_TYPE_ELEM_*
      *
-     * @return value ranging from 0 to maximum MegaSetElement::CHANGE_TYPE_ELEM_SIZE
+     * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
      */
     virtual long long getChanges() const { return MegaSetElement::CHANGE_TYPE_ELEM_SIZE; }
 
