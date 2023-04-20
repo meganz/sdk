@@ -666,7 +666,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
@@ -968,7 +968,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             LOG_debug << "Verifying upload";
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(localpath);
+            bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)

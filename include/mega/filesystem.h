@@ -466,6 +466,27 @@ typedef map<int, vector<LocalPath> > pendingfiles_map;
 
 struct MEGA_API DirAccess;
 
+struct FSLogging
+{
+    enum Setting
+    {
+        eNoLogging,
+        eLogOnError,
+        eLogExceptFileNotFound
+    };
+
+    Setting setting;
+
+    FSLogging(Setting s) : setting(s) {}
+
+    bool doLog(int os_errorcode, FileAccess& fsaccess);
+
+    static FSLogging noLogging;
+    static FSLogging logOnError;
+    static FSLogging logExceptFileNotFound;
+};
+
+
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
@@ -503,7 +524,7 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(const LocalPath&, bool read, bool write,
+    virtual bool fopen(const LocalPath&, bool read, bool write, FSLogging,
                 DirAccess* iteratingDir = nullptr,
                 bool ignoreAttributes = false,
                 bool skipcasecheck = false,
@@ -511,7 +532,7 @@ struct MEGA_API FileAccess
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
-    bool fopen(const LocalPath&);
+    bool fopen(const LocalPath&, FSLogging);
 
     // check if a local path is a folder
     bool isfolder(const LocalPath& path);
@@ -523,15 +544,15 @@ struct MEGA_API FileAccess
     virtual void updatelocalname(const LocalPath&, bool force) = 0;
 
     // absolute position read, with NUL padding
-    bool fread(string*, unsigned, unsigned, m_off_t);
+    bool fread(string*, unsigned, unsigned, m_off_t, FSLogging);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t, bool caller_opened = false);
+    bool frawread(byte *, unsigned, m_off_t, bool caller_opened, FSLogging);
 
     // After a successful nonblocking fopen(), call openf() to really open the file (by localname)
     // (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).
     // If the size or mtime changed, it will fail.
-    bool openf();
+    bool openf(FSLogging);
 
     // After calling openf(), make sure to close the file again quickly with closef().
     void closef();
@@ -547,14 +568,14 @@ struct MEGA_API FileAccess
 
     virtual bool asyncavailable() { return false; }
 
-    AsyncIOContext *asyncfopen(const LocalPath&);
+    AsyncIOContext *asyncfopen(const LocalPath&, FSLogging);
 
     // non-locking ops: open/close temporary hFile
-    bool asyncopenf();
+    bool asyncopenf(FSLogging fsl);
     void asyncclosef();
 
     AsyncIOContext *asyncfopen(const LocalPath&, bool, bool, m_off_t = 0);
-    AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
+    AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
     // return a description of OS error,
@@ -572,8 +593,8 @@ protected:
 
     // system-specific raw read/open/close to be provided by platform implementation.   fopen / openf / fread etc are implemented by calling these.
     virtual bool sysread(byte *, unsigned, m_off_t) = 0;
-    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
-    virtual bool sysopen(bool async = false) = 0;
+    virtual bool sysstat(m_time_t*, m_off_t*, FSLogging) = 0;
+    virtual bool sysopen(bool async, FSLogging) = 0;
     virtual void sysclose() = 0;
     virtual void asyncsysopen(AsyncIOContext*);
     virtual void asyncsysread(AsyncIOContext*);
@@ -817,7 +838,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
-    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck);
+    handle fsidOf(const LocalPath& path, bool follow, bool skipcasecheck, FSLogging);
 
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
@@ -948,7 +969,7 @@ struct MEGA_API FSNode
     static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
 
     // Same as the above but useful in situations where we don't have an FA handy.
-    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck);
+    static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck, FSLogging);
 
     // Use this in asserts() to check if race conditions may be occurring
     static bool debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff);

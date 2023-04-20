@@ -718,7 +718,7 @@ TEST_F(SqliteDBTest, ProbeCurrent)
                                 DbAccess::DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -736,7 +736,7 @@ TEST_F(SqliteDBTest, ProbeLegacy)
                                 DbAccess::LEGACY_DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -979,7 +979,7 @@ public:
 
         auto fileAccess = mFsAccess.newfileaccess(false);
 
-        return fileAccess->fopen(path, false, true)
+        return fileAccess->fopen(path, false, true, FSLogging::logOnError)
                && fileAccess->fwrite(&data, 1, 0);
     }
 

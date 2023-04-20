@@ -3425,7 +3425,7 @@ void MegaClient::dispatchTransfers()
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext.reset( (nexttransfer->type == PUT)
-                            ? ts->fa->asyncfopen(nexttransfer->localfilename)
+                            ? ts->fa->asyncfopen(nexttransfer->localfilename, FSLogging::logOnError)
                             : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size));
                         asyncfopens++;
                     }
@@ -3460,8 +3460,8 @@ void MegaClient::dispatchTransfers()
                               << nexttransfer->localfilename;
 
                     openok = (nexttransfer->type == PUT)
-                        ? ts->fa->fopen(nexttransfer->localfilename)
-                        : ts->fa->fopen(nexttransfer->localfilename, false, true);
+                        ? ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError)
+                        : ts->fa->fopen(nexttransfer->localfilename, false, true, FSLogging::logOnError);
                     openfinished = true;
                 }
 
@@ -7629,13 +7629,16 @@ void MegaClient::persistAlert(UserAlert::Base* a)
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     if (a->removed())
     {
-        if (sctable->del(a->dbid))
+        if (a->dbid)
         {
-            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
-        }
-        else
-        {
-            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            if (sctable->del(a->dbid))
+            {
+                LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+            }
+            else
+            {
+                LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            }
         }
     }
     else // insert or replace
@@ -14877,7 +14880,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
 
     openedLocalFolder = fsaccess->newfileaccess();
-    if (openedLocalFolder->fopen(rootpath, true, false, nullptr, true))
+    if (openedLocalFolder->fopen(rootpath, true, false, FSLogging::logOnError, nullptr, true))
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
@@ -15547,7 +15550,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(f->getLocalname(), d == PUT, d == GET))
+                if (fa->fopen(f->getLocalname(), d == PUT, d == GET, FSLogging::logOnError))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -15736,7 +15739,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
                 auto fa = fsaccess->newfileaccess();
 
-                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename, FSLogging::logExceptFileNotFound))
                 {
                     if (d == PUT)
                     {
@@ -15967,7 +15970,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     auto localPath = localNode->getLocalPath();
 
-    if (!ifAccess->fopen(localPath, true, false))
+    if (!ifAccess->fopen(localPath, true, false, FSLogging::logOnError))
         return nullptr;
 
     std::string remoteKey = (*remoteNode)->nodekey();
@@ -16076,7 +16079,7 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const Loca
 
     FileFingerprint fp;
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(file2, true, false))
+    if (fa->fopen(file2, true, false, FSLogging::logOnError))
     {
 
         if (!fp.genfingerprint(fa.get())) return false;

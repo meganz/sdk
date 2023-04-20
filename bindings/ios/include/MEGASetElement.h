@@ -24,10 +24,10 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGASetElementChangeType) {
-    MEGASetElementChangeTypeNew   = 0x01,
-    MEGASetElementChangeTypeName  = 0x02,
-    MEGASetElementChangeTypeOrder = 0x04,
-    MEGASetElementChangeTypeSize  = 0x08
+    MEGASetElementChangeTypeNew   = 0,
+    MEGASetElementChangeTypeName  = 1,
+    MEGASetElementChangeTypeOrder = 2,
+    MEGASetElementChangeTypeSize  = 3
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -97,16 +97,16 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param changeType The type of change to check. It can be one of the following values:
  *
- * - MEGASetElementChangeTypeNew          = 0x01
+ * - MEGASetElementChangeTypeNew          = 0
  * Check if the Set was new
  *
- * - MEGASetElementChangeTypeName         = 0x02
+ * - MEGASetElementChangeTypeName        = 1
  * Check if Set name has changed
  *
- * - MEGASetElementChangeTypeOrder        = 0x04
+ * - MEGASetElementChangeTypeOrder        = 2
  * Check if Set cover has changed
  *
- * - MEGASetElementChangeTypeSize         = 0x08
+ * - MEGASetElementChangeTypeSize          = 3
  * Check if the Set was removed
  *
  * @return YES if this SetElement has a specific change

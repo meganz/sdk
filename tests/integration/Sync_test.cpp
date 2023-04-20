@@ -4371,7 +4371,7 @@ FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
     FileFingerprint fingerprint;
 
     // Try and open file for reading.
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, FSLogging::logOnError))
     {
         // Generate fingerprint.
         fingerprint.genfingerprint(fileAccess.get());

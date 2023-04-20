@@ -1046,7 +1046,7 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         {
             // delete the database file directly since we don't have an object for it
             auto fas = syncs.fsaccess->newfileaccess(false);
-            if (fas->fopen(mConfig.mLocalPath, true, false))
+            if (fas->fopen(mConfig.mLocalPath, true, false, FSLogging::logOnError))
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
