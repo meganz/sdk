@@ -1131,7 +1131,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     auto localfilename = LocalPath::fromAbsolutePath(inputFilepath);
 
-    if (fain->fopen(localfilename, true, false) || fain->type != FILENODE)
+    if (fain->fopen(localfilename, true, false, FSLogging::logOnError) || fain->type != FILENODE)
     {
         if (*length == -1)
         {
@@ -1162,7 +1162,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
                 auto localencryptedfilename = LocalPath::fromAbsolutePath(outputFilepath);
 
                 std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
-                if (faout->fopen(localencryptedfilename, false, true))
+                if (faout->fopen(localencryptedfilename, false, true, FSLogging::logOnError))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
@@ -1210,7 +1210,7 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
     buffer.resize(bufsize + SymmCipher::BLOCKSIZE);
     memset((void*)(buffer.data() + bufsize), 0, SymmCipher::BLOCKSIZE);
-    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos))
+    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos, false, FSLogging::logOnError))
     {
         return NULL;
     }
@@ -6718,7 +6718,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
 Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
 {
     auto da = fsaccess.newfileaccess();
-    if (!da->fopen(localPath, true, false))
+    if (!da->fopen(localPath, true, false, FSLogging::logOnError))
     {
         if (!fsaccess.mkdirlocal(localPath, false, false))
         {
@@ -8572,7 +8572,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
         auto fa = fingerprintingFsAccess.newfileaccess();
 
         if (!localPath ||
-            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false))
+            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false, FSLogging::logOnError))
         {
             transfer->fingerprint_error = API_EREAD;
         }
@@ -8857,7 +8857,7 @@ int MegaApiImpl::syncPathState(string* pathParam)
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(localpath, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
+                    if (fa->fopen(localpath, false, false, FSLogging::logOnError) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
                     }
@@ -11830,7 +11830,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -12008,7 +12008,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -13089,7 +13089,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
             mSyncable_fa = fsAccess->newfileaccess();
         }
         if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
+                && mSyncable_fa->fopen(localpath, FSLogging::logOnError) && !is_syncable(mSyncable_fa->size)))
         {
             return false;
         }
@@ -13632,7 +13632,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         auto localPath = LocalPath::fromAbsolutePath(filePath);
         fsAccess->unlinklocal(localPath);
 
-        bool success = f->fopen(localPath, false, true)
+        bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                     && f->fwrite((const byte*)data, len, 0);
 
         f.reset();
@@ -14005,7 +14005,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             auto localPath = LocalPath::fromAbsolutePath(filePath);
 
             fsAccess->unlinklocal(localPath);
-            if (!f->fopen(localPath, false, true))
+            if (!f->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 e = API_EWRITE;
             }
@@ -14743,7 +14743,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 fsAccess->unlinklocal(localPath);
 
-                bool success = f->fopen(localPath, false, true)
+                bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                             && f->fwrite((const byte*)data, len, 0);
 
                 f.reset();
@@ -18447,7 +18447,7 @@ void MegaApiImpl::sendPendingRequests()
             e = request->performRequest();
             continue;
         }
-        
+
         if (request->performTransferRequest)
         {
             // the action has same requirement as the above performRequest
@@ -19801,7 +19801,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
                     req->setNumber(request->getTag());
                 }
             }
-        
+
             return e;
         };
 
@@ -19913,12 +19913,12 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     auto localpath = LocalPath::fromAbsolutePath(file);
 
                     auto f = fsAccess->newfileaccess();
-                    if (!f->fopen(localpath, 1, 0))
+                    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
 
-                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0))
+                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
@@ -20176,14 +20176,14 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 std::unique_ptr<string> attributedata(new string);
                 std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-                if (!f->fopen(localpath, 1, 0))
+                if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
 
                 // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
                 attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
+                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
@@ -20282,7 +20282,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                         value = request->getNumDetails();
                         if (value < LBL_UNKNOWN || value > LBL_GREY)
                         {
-                            return API_EARGS;                    
+                            return API_EARGS;
                         }
 
                         nid = AttrMap::string2nameid("lbl");
@@ -20713,7 +20713,7 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
                     client->createephemeral();
                 }
             }
-    
+
             return API_OK;
 }
 
@@ -26867,7 +26867,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(localPath, true, false))
+            if (fa->fopen(localPath, true, false, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
@@ -27712,7 +27712,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(localPath, true, false))
+                if(fa->fopen(localPath, true, false, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)

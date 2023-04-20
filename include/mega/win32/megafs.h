@@ -171,8 +171,10 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
-    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
+    bool fopen(const LocalPath&, bool read, bool write, FSLogging,
+               DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
+    bool fopen_impl(const LocalPath&, bool read, bool write, FSLogging,
+                    bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
@@ -180,8 +182,8 @@ public:
     bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
-    bool sysstat(m_time_t*, m_off_t*) override;
-    bool sysopen(bool async = false) override;
+    bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
+    bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
     // async interface
