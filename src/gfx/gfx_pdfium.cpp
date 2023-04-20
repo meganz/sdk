@@ -75,7 +75,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
     if (pdf_doc == nullptr && FPDF_GetLastError() == FPDF_ERR_FILE)
     {
         std::unique_ptr<FileAccess> pdfFile = fa->newfileaccess();
-        if (pdfFile->fopen(path))
+        if (pdfFile->fopen(path, FSLogging::logOnError))
         {
             if (pdfFile->size > MAX_PDF_MEM_SIZE)
             {
@@ -91,10 +91,10 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                     }
                 }
             }
-            else if (pdfFile->openf())
+            else if (pdfFile->openf(FSLogging::logOnError))
             {
                 buffer.reset(new byte[pdfFile->size]);
-                pdfFile->frawread(buffer.get(), static_cast<unsigned>(pdfFile->size), static_cast<m_off_t>(0), true);
+                pdfFile->frawread(buffer.get(), static_cast<unsigned>(pdfFile->size), static_cast<m_off_t>(0), true, FSLogging::logOnError);
                 pdfFile->closef();
                 pdf_doc = FPDF_LoadMemDocument(buffer.get(), static_cast<int>(pdfFile->size), nullptr);
             }
