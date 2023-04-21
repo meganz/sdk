@@ -1631,6 +1631,7 @@ class MegaUser
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
+            CHANGE_APPS_PREFS                       = 0x40000000,
         };
 
         /**
@@ -1733,6 +1734,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
          *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1827,6 +1831,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
+         *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
          *
          * Check if backup names have changed         */
         virtual int getChanges();
@@ -8971,6 +8978,7 @@ class MegaApi
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
+            USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
         };
 
         enum {
@@ -12405,6 +12413,8 @@ class MegaApi
          * Set the list of users's aliases (private)
          * MegaApi::ATTR_DEVICE_NAMES = 30
          * Set the list of device names (private)
+         * MegaApi::ATTR_APPS_PREFS = 38
+         * Set the apps prefs (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
