@@ -24,11 +24,11 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGASetChangeType) {
-    MEGASetChangeTypeNew       = 0x01,
-    MEGASetChangeTypeName      = 0x02,
-    MEGASetChangeTypeCover     = 0x04,
-    MEGASetChangeTypeRemoved   = 0x08,
-    MEGASetChangeTypeExported  = 0x10
+    MEGASetChangeTypeNew       = 0,
+    MEGASetChangeTypeName      = 1,
+    MEGASetChangeTypeCover     = 2,
+    MEGASetChangeTypeRemoved   = 3,
+    MEGASetChangeTypeExported  = 4
 };
 
 typedef NS_OPTIONS (NSUInteger, MEGASetChanges) {
