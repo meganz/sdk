@@ -131,7 +131,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
-    if (!fa->openf())
+    if (!fa->openf(FSLogging::logOnError))
     {
         size = -1;
         return true;
@@ -140,7 +140,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -158,7 +158,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -190,7 +190,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                 if (!fa->frawread(block, sizeof block,
                                   (size - sizeof block)
                                   * (i * blocks + j)
-                                  / (crc.size() * blocks - 1), true))
+                                  / (crc.size() * blocks - 1), true, FSLogging::logOnError))
                 {
                     size = -1;
                     fa->closef();

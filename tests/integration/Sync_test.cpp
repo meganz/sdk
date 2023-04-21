@@ -4371,7 +4371,7 @@ FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
     FileFingerprint fingerprint;
 
     // Try and open file for reading.
-    if (fileAccess->fopen(path, true, false))
+    if (fileAccess->fopen(path, true, false, FSLogging::logOnError))
     {
         // Generate fingerprint.
         fingerprint.genfingerprint(fileAccess.get());
@@ -16819,7 +16819,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
         auto fsAccess = actor->client.fsaccess->newfileaccess(false);
 
         auto localPath = LocalPath::fromAbsolutePath(path.string());
-        fsAccess->fopen(localPath, true, false);
+        fsAccess->fopen(localPath, true, false, FSLogging::logExceptFileNotFound);
 
         return fsAccess->fsid;
     };

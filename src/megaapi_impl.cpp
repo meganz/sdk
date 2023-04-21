@@ -1131,7 +1131,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     auto localfilename = LocalPath::fromAbsolutePath(inputFilepath);
 
-    if (fain->fopen(localfilename, true, false) || fain->type != FILENODE)
+    if (fain->fopen(localfilename, true, false, FSLogging::logOnError) || fain->type != FILENODE)
     {
         if (*length == -1)
         {
@@ -1162,7 +1162,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
                 auto localencryptedfilename = LocalPath::fromAbsolutePath(outputFilepath);
 
                 std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
-                if (faout->fopen(localencryptedfilename, false, true))
+                if (faout->fopen(localencryptedfilename, false, true, FSLogging::logOnError))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
@@ -1210,7 +1210,7 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
     buffer.resize(bufsize + SymmCipher::BLOCKSIZE);
     memset((void*)(buffer.data() + bufsize), 0, SymmCipher::BLOCKSIZE);
-    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos))
+    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos, false, FSLogging::logOnError))
     {
         return NULL;
     }
@@ -6386,37 +6386,14 @@ bool MegaApiImpl::multiFactorAuthAvailable()
     return client->gmfa_enabled;
 }
 
-void MegaApiImpl::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
-    request->setEmail(email);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET, listener);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::multiFactorAuthEnable(const char *pin, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
-    request->setFlag(true);
-    request->setPassword(pin);
-    requestQueue.push(request);
-    waiter->notify();
+    return multiFactorAuthEnableOrDisable(pin, true, listener);
 }
 
 void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
-    request->setFlag(false);
-    request->setPassword(pin);
-    requestQueue.push(request);
-    waiter->notify();
+    return multiFactorAuthEnableOrDisable(pin, false, listener);
 }
 
 void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
@@ -6425,6 +6402,12 @@ void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, 
     request->setEmail(email);
     request->setPassword(password);
     request->setText(pin);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_login(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6474,20 +6457,18 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
-    request->setFlag(forceApiFetch);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setEmail(email);
     request->setPassword(stringHash);
     request->setPrivateKey(base64pwkey);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_login(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6496,6 +6477,12 @@ void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setSessionKey(session);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_login(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6551,6 +6538,12 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setEmail(login);
     request->setPassword(password);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_login(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6856,15 +6849,6 @@ void MegaApiImpl::loop()
     client = nullptr;
 }
 
-void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
-    if(parent) request->setParentHandle(parent->getHandle());
-    request->setName(name);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 bool MegaApiImpl::createLocalFolder(const char *path)
 {
     if (!path)
@@ -6883,7 +6867,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
 Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
 {
     auto da = fsaccess.newfileaccess();
-    if (!da->fopen(localPath, true, false))
+    if (!da->fopen(localPath, true, false, FSLogging::logOnError))
     {
         if (!fsaccess.mkdirlocal(localPath, false, false))
         {
@@ -6902,16 +6886,6 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystem
         return API_EEXIST;
     }
     return API_OK;
-}
-
-void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE, listener);
-    if(node) request->setNodeHandle(node->getHandle());
-    if(newParent) request->setParentHandle(newParent->getHandle());
-    request->setName(newName);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
@@ -7138,6 +7112,12 @@ void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey,
     request->setLink(megaFolderLink);
     request->setPassword(authKey);
     request->setEmail("FOLDER");
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_login(request);
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8741,7 +8721,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
         auto fa = fingerprintingFsAccess.newfileaccess();
 
         if (!localPath ||
-            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false))
+            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false, FSLogging::logOnError))
         {
             transfer->fingerprint_error = API_EREAD;
         }
@@ -11848,7 +11828,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -12026,7 +12006,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -13605,7 +13585,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         auto localPath = LocalPath::fromAbsolutePath(filePath);
         fsAccess->unlinklocal(localPath);
 
-        bool success = f->fopen(localPath, false, true)
+        bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                     && f->fwrite((const byte*)data, len, 0);
 
         f.reset();
@@ -13969,7 +13949,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             auto localPath = LocalPath::fromAbsolutePath(filePath);
 
             fsAccess->unlinklocal(localPath);
-            if (!f->fopen(localPath, false, true))
+            if (!f->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 e = API_EWRITE;
             }
@@ -14711,7 +14691,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 fsAccess->unlinklocal(localPath);
 
-                bool success = f->fopen(localPath, false, true)
+                bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                             && f->fwrite((const byte*)data, len, 0);
 
                 f.reset();
@@ -18451,8 +18431,27 @@ void MegaApiImpl::sendPendingRequests()
             threadExit = 1;
             break;
         }
+        case MegaRequest::TYPE_EXECUTE_ON_THREAD:
+        {
+            request->functionToExecute->exec();
+            //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
+            delete request;
+            request = nullptr;
+            break;
+        }
+        }
+    }
+}
 
-        case MegaRequest::TYPE_PUT_SET:
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
+    request->setParentHandle(sid);
+    request->setParamType(optionFlags);
+    request->setText(name);
+    request->setNodeHandle(cover);
+
+    request->performRequest = [this, request]()
         {
             Set s;
             s.setId(request->getParentHandle());
@@ -18473,18 +18472,43 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
-        }
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_REMOVE_SET:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET, listener);
+    request->setParentHandle(sid);
+
+    request->performRequest = [this, request]()
+        {
             client->removeSet(request->getParentHandle(),
                 [this, request](Error e)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_PUT_SET_ELEMENT:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
+    request->setNodeHandle(node);
+    request->setParamType(optionFlags);
+    request->setNumber(order);
+    request->setText(name);
+
+    request->performRequest = [this, request]()
         {
             SetElement el;
             el.setSet(request->getTotalBytes());
@@ -18512,26 +18536,35 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
-        }
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_REMOVE_SET_ELEMENT:
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
+
+    request->performRequest = [this, request]()
+        {
             client->removeSetElement(request->getTotalBytes(), request->getParentHandle(),
                 [this, request](Error e)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
+            return API_OK;
+        };
 
-        case MegaRequest::TYPE_EXECUTE_ON_THREAD:
-            request->functionToExecute->exec();
-            //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
-            delete request;
-            request = nullptr;
-            break;
+    requestQueue.push(request);
+    waiter->notify();
+}
 
-        case MegaRequest::TYPE_LOGIN:
-        {
+error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
+{
             const char *login = request->getEmail();
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
@@ -18540,8 +18573,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             string slogin;
@@ -18558,6 +18590,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
+            error e = API_OK;
             client->locallogout(false, true);
             if (sessionKey)
             {
@@ -18576,32 +18609,56 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            break;
-        }
-        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK:
+            return e;
+}
+
+void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
+    request->setEmail(email);
+
+    request->performRequest = [this, request]()
         {
             const char *email = request->getEmail();
             if (!email)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
             client->multifactorauthcheck(email);
-            break;
-        }
-        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET, listener);
+
+    request->performRequest = [this, request]()
         {
             client->multifactorauthsetup();
-            break;
-        }
-        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthEnableOrDisable(const char* pin, bool enable, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
+    request->setFlag(enable);
+    request->setPassword(pin);
+
+    request->performRequest = [this, request]()
         {
             bool flag = request->getFlag();
             const char *pin = request->getPassword();
             if (!pin)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if (flag)
@@ -18612,9 +18669,19 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->multifactorauthdisable(pin);
             }
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_TIMEZONE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
+    request->setFlag(forceApiFetch);
+
+    request->performRequest = [this, request]()
         {
             if (!mTimezones || request->getFlag() /*forceApiFetch*/)
             {
@@ -18625,22 +18692,32 @@ void MegaApiImpl::sendPendingRequests()
                 request->setTimeZoneDetails(mTimezones);
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
-            break;
-        }
-        case MegaRequest::TYPE_CREATE_FOLDER:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
+    if (parent) request->setParentHandle(parent->getHandle());
+    request->setName(name);
+
+    request->performRequest = [this, request]()
         {
             Node *parent = client->nodebyhandle(request->getParentHandle());
             const char *name = request->getName();
-            if(!name || !(*name) || !parent) { e = API_EARGS; break; }
+            if (!name || !(*name) || !parent) { return API_EARGS;}
 
             // prevent to create a duplicate folder with same name in same path
             Node *folder = client->childnodebyname(parent, name, false);
             if (folder && folder->type == FOLDERNODE)
             {
-                e = API_OK;
                 request->setNodeHandle(folder->nodehandle);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                return API_OK;
             }
 
             vector<NewNode> newnodes(1);
@@ -18673,23 +18750,34 @@ void MegaApiImpl::sendPendingRequests()
 
             // add the newly generated folder node
             client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, request->getTag(), false);
-            break;
-        }
-        case MegaRequest::TYPE_MOVE:
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newName, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE, listener);
+    if (node) request->setNodeHandle(node->getHandle());
+    if (newParent) request->setParentHandle(newParent->getHandle());
+    request->setName(newName);
+
+    request->performRequest = [this, request]()
         {
             Node *node = client->nodebyhandle(request->getNodeHandle());
             Node *newParent = client->nodebyhandle(request->getParentHandle());
             const char *name = request->getName();
             if (!node || !newParent)
             {
-                e = API_EARGS;
-                break;
+                return API_EARGS;
             }
 
             if (node->parent == newParent)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
+                return API_OK;
             }
 
             if (node->type == ROOTNODE
@@ -18697,24 +18785,22 @@ void MegaApiImpl::sendPendingRequests()
                     || node->type == RUBBISHNODE
                     || !node->parent) // rootnodes cannot be moved
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             // old versions cannot be moved
             if (node->parent->type == FILENODE)
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
             // target must be a folder with enough permissions
             if (newParent->type == FILENODE || !client->checkaccess(newParent, RDWR))
             {
-                e = API_EACCESS;
-                break;
+                return API_EACCESS;
             }
 
+            error e = API_OK;
             if ((e = client->checkmove(node, newParent)))
             {
                 // If it's not possible to move the node, try copy-delete,
@@ -18724,7 +18810,7 @@ void MegaApiImpl::sendPendingRequests()
                 // and also to remove the source node
                 if (e != API_EACCESS)
                 {
-                    break;
+                    return e;
                 }
 
                 Node *nodeRoot = node;
@@ -18743,7 +18829,7 @@ void MegaApiImpl::sendPendingRequests()
                         || !client->checkaccess(node, FULL)
                         || !client->checkaccess(newParent, RDWR))
                 {
-                    break;
+                    return e;
                 }
 
                 unsigned nc;
@@ -18775,7 +18861,7 @@ void MegaApiImpl::sendPendingRequests()
                             {
                                 request->setNodeHandle(UNDEF);
                                 e = client->unlink(node, false, request->getTag(), false);
-                                break;  // request finishes now if error, otherwise on unlink_result
+                                return e;  // request finishes now if error, otherwise on unlink_result
                             }
 
                             ovhandle = ovn->nodeHandle();
@@ -18793,7 +18879,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (!nc)
                 {
                     e = API_EARGS;
-                    break;
+                    return e;
                 }
 
                 tc.nn[0].parenthandle = UNDEF;
@@ -18836,7 +18922,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, request->getTag(), false);
                 e = API_OK;
-                break;
+                return e;
             }
 
             e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name, false,
@@ -18845,10 +18931,11 @@ void MegaApiImpl::sendPendingRequests()
                     request->setNodeHandle(h.as8byte());
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
-        }
-        }
-    }
+            return e;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
@@ -19752,12 +19839,12 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     auto localpath = LocalPath::fromAbsolutePath(file);
 
                     auto f = fsAccess->newfileaccess();
-                    if (!f->fopen(localpath, 1, 0))
+                    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
 
-                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0))
+                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
@@ -20015,14 +20102,14 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 std::unique_ptr<string> attributedata(new string);
                 std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-                if (!f->fopen(localpath, 1, 0))
+                if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
 
                 // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
                 attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
+                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
@@ -24543,25 +24630,6 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 // Sets and Elements
 //
 
-void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
-    request->setParentHandle(sid);
-    request->setParamType(optionFlags);
-    request->setText(name);
-    request->setNodeHandle(cover);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET, listener);
-    request->setParentHandle(sid);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     assert(nodes && nodes->size() && (!names || names->size() == static_cast<int>(nodes->size())));
@@ -24609,19 +24677,6 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, co
     waiter->notify();
 }
 
-void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
-    request->setTotalBytes(sid);
-    request->setParentHandle(eid);
-    request->setNodeHandle(node);
-    request->setParamType(optionFlags);
-    request->setNumber(order);
-    request->setText(name);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENTS, listener);
@@ -24655,15 +24710,6 @@ void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, 
         return API_OK;
     };
 
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
-    request->setTotalBytes(sid);
-    request->setParentHandle(eid);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -24983,7 +25029,7 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
-                    auto ekeyStr = string((char*)ekey.data());
+                    auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
                                                                        nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
@@ -26748,7 +26794,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(localPath, true, false))
+            if (fa->fopen(localPath, true, false, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
@@ -27593,7 +27639,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(localPath, true, false))
+                if(fa->fopen(localPath, true, false, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -29888,7 +29934,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             LocalPath localPath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
             httpctx->server->fsAccess->unlinklocal(localPath);
-            if (!httpctx->tmpFileAccess->fopen(localPath, false, true))
+            if (!httpctx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
                 return 0;
@@ -30946,7 +30992,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 auto tmpFileNamePath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
                 httpctx->server->fsAccess->unlinklocal(tmpFileNamePath);
-                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true))
+                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true, FSLogging::logOnError))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
@@ -33654,7 +33700,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LocalPath localPath = LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName);
             fds->fsAccess->unlinklocal(localPath);
 
-            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true))
+            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
