@@ -1994,7 +1994,7 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
         {
             num++;
             changedName = target.insertFilenameCounter(num);
-        } while (fa->fopen(changedName) || fa->type == FOLDERNODE);
+        } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
 
         LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
 
@@ -2070,7 +2070,7 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
         {
             num++;
             changedName = target.insertFilenameCounter(num);
-        } while (fa->fopen(changedName) || fa->type == FOLDERNODE);
+        } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
 
         LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
 

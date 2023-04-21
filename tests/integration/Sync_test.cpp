@@ -16819,7 +16819,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
         auto fsAccess = actor->client.fsaccess->newfileaccess(false);
 
         auto localPath = LocalPath::fromAbsolutePath(path.string());
-        fsAccess->fopen(localPath, true, false);
+        fsAccess->fopen(localPath, true, false, FSLogging::logExceptFileNotFound);
 
         return fsAccess->fsid;
     };

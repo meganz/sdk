@@ -2972,7 +2972,7 @@ bool LocalNode::serialize(string* d) const
     {
         LocalPath localpath = getLocalPath();
         auto fa = sync->syncs.fsaccess->newfileaccess(false);
-        if (fa->fopen(localpath))  // exists, is file
+        if (fa->fopen(localpath, FSLogging::logExceptFileNotFound))  // exists, is file
         {
             auto sn = sync->syncs.fsaccess->fsShortname(localpath);
             if (!(!localname.empty() &&

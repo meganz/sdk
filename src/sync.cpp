@@ -672,7 +672,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
 
-    if (!fas->fopen(mLocalPath, true, false, nullptr, reparsePointOkAtRoot, true, nullptr)
+    if (!fas->fopen(mLocalPath, true, false, FSLogging::logOnError, nullptr, reparsePointOkAtRoot, true, nullptr)
         || fas->fsid == UNDEF)
     {
         LOG_err << "Could not open sync root folder, could not get its fsid: " << mLocalPath;
@@ -1182,9 +1182,9 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
             auto fa1 = syncs.fsaccess->newfileaccess();
             auto fa2 = syncs.fsaccess->newfileaccess();
 
-            bool opened1 = fa1->fopen(lpuc, true, false, nullptr, false, true);
+            bool opened1 = fa1->fopen(lpuc, true, false, FSLogging::logExceptFileNotFound, nullptr, false, true);
             fa1->closef();
-            bool opened2 = fa2->fopen(lplc, true, false, nullptr, false, true);
+            bool opened2 = fa2->fopen(lplc, true, false, FSLogging::logExceptFileNotFound, nullptr, false, true);
             fa2->closef();
 
             opened1 = opened1 && fa1->fsidvalid;
@@ -1248,7 +1248,7 @@ void Sync::createDebrisTmpLockOnce()
             LocalPath lockname = LocalPath::fromRelativePath("lock");
             localfilename.appendWithSeparator(lockname, true);
 
-            if (tmpfa->fopen(localfilename, false, true))
+            if (tmpfa->fopen(localfilename, false, true, FSLogging::logOnError))
             {
                 LOG_verbose << syncname << "Locked local sync debris tmp lock file";
                 break;
@@ -1689,8 +1689,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 auto sourcePath = sourceSyncNode->getLocalPath();
                 auto targetPath = fullPath.localPath;
 
-                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false, false);  // skipcasecheck == false here so we only get the fsid for an exact name match
-                auto targetFSID = syncs.fsaccess->fsidOf(targetPath, false, false);  // recheck this node again to be 100% confident there are two FSNodes with the same fsid
+                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false, false, FSLogging::logExceptFileNotFound);  // skipcasecheck == false here so we only get the fsid for an exact name match
+                auto targetFSID = syncs.fsaccess->fsidOf(targetPath, false, false, FSLogging::logExceptFileNotFound);  // recheck this node again to be 100% confident there are two FSNodes with the same fsid
 
                 if (sourcePath == targetPath)
                 {
@@ -2249,7 +2249,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
  {
     auto fa = fsa.newfileaccess();
     LocalPath lp = p;
-    if (fa->fopen(lp, true, false, nullptr, false))
+    if (fa->fopen(lp, true, false, FSLogging::logOnError, nullptr, false))
     {
         return fa->fsid == expectedFsid;
     }
@@ -4338,7 +4338,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                 {
                     // backward compatibilty for when we didn't store the fsid in serialized config
                     auto fas = fsaccess->newfileaccess(false);
-                    if (fas->fopen(c.mLocalPath, true, false))
+                    if (fas->fopen(c.mLocalPath, true, false, FSLogging::logOnError))
                     {
                         root_fsid = fas->fsid;
                     }
@@ -7273,7 +7273,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             // Let the engine know the file exists, even if it hasn't detected it yet.
             //
             // This is necessary as filesystem events may be delayed.
-            if (auto fsNode = FSNode::fromPath(fsAccess, targetPath, true))  // skip case check. We will check for exact match ourselves
+            if (auto fsNode = FSNode::fromPath(fsAccess, targetPath, true, FSLogging::logOnError))  // skip case check. We will check for exact match ourselves
             {
                 if (fsNode->localname != targetPath.leafName())
                 {
@@ -8786,7 +8786,7 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                 // This allows the next level of folders to be created too
 
                 auto fa = syncs.fsaccess->newfileaccess(false);
-                if (fa->fopen(fullPath.localPath, true, false))
+                if (fa->fopen(fullPath.localPath, true, false, FSLogging::logOnError))
                 {
                     auto fsnode = FSNode::fromFOpened(*fa, fullPath.localPath, *syncs.fsaccess);
 
@@ -9293,7 +9293,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
             LocalPath lp = it->second->getLocalPath();
 
             if (it->second->fsid_lastSynced != UNDEF &&
-                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false))
+                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false, FSLogging::logExceptFileNotFound))
             {
                 sourceSyncNodeCurrent = it->second;
             }
@@ -9355,7 +9355,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
         if (currentsecs - state.updatedfileinitialts <= Sync::FILE_UPDATE_MAX_DELAY_SECS)
         {
             auto prevfa = syncs.fsaccess->newfileaccess(false);
-            if (prevfa->fopen(fullPath))
+            if (prevfa->fopen(fullPath, FSLogging::logOnError))
             {
                 LOG_debug << syncname << "File detected in the origin of a move";
 
@@ -10251,7 +10251,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Determine file's modification time.
-        if (!fileAccess->fopen(filePath))
+        if (!fileAccess->fopen(filePath, FSLogging::logOnError))
         {
             // Couldn't stat file.
             continue;
@@ -10299,7 +10299,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
     {
         // Couldn't open the file for reading.
         LOG_err << "Unable to open config DB for reading: "
@@ -10311,7 +10311,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and read the data from the file.
     string d;
 
-    if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
+    if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0, FSLogging::logOnError))
     {
         // Couldn't read the file.
         LOG_err << "Unable to read config DB: "
@@ -10420,7 +10420,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, false, true))
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
     {
         // Couldn't open the file for writing.
         LOG_err << "Unable to open config DB for writing: "
@@ -10880,7 +10880,7 @@ void Syncs::syncLoop()
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                if (fa->fopen(sync->localroot->localname, true, false, nullptr, true))
+                if (fa->fopen(sync->localroot->localname, true, false, FSLogging::logOnError, nullptr, true))
                 {
                     if (fa->type != FOLDERNODE)
                     {
@@ -10948,7 +10948,7 @@ void Syncs::syncLoop()
 
                 fsfp_t filesystemId = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
                 auto fa = fsaccess->newfileaccess();
-                if (fa->fopen(us->mConfig.mLocalPath, true, false, nullptr, true))
+                if (fa->fopen(us->mConfig.mLocalPath, true, false, FSLogging::logExceptFileNotFound, nullptr, true))
                 {
                     if (fa->type != FOLDERNODE)
                     {
