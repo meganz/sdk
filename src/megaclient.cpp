@@ -10037,6 +10037,41 @@ void MegaClient::sendkeyrewrites()
 // user/contact list
 bool MegaClient::readusers(JSON* j, bool actionpackets)
 {
+    auto getValueVersion = [&j](string& value, string& version)
+    {
+        value.clear();
+        version.clear();
+        if (j->enterobject())
+        {
+            nameid name;
+            while ((name = j->getnameid()) != EOO)
+            {
+                switch(name)
+                {
+                    case MAKENAMEID2('a','v'):
+                        j->storebinary(&value);
+                        break;
+                    case 'v':
+                        j->storeobject(&version);
+                        break;
+                    default:
+                        if (!j->storeobject())
+                        {
+                            LOG_warn << "Failed while parsing user attribute.";
+                            return;
+                        }
+                        break;
+                }
+            }
+            j->leaveobject();
+        }
+
+        if (!value.size() && !version.size())
+        {
+            LOG_err << "Failed to parse user attribute value and version.";
+        }
+    };
+
     if (!j->enterarray())
     {
         return 0;
@@ -10049,8 +10084,15 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         m_time_t ts = 0;
         const char* m = NULL;
         nameid name;
+        string fieldName;
         BizMode bizMode = BIZ_MODE_UNKNOWN;
+        string pubk;
+        string puEd255, versionPuEd255;
+        string puCu255, versionPuCu255;
+        string sigPubk, versionSigPubk;
+        string sigCu255, versionSigCu255;
 
+        fieldName = j->getnameWithoutAdvance();
         while ((name = j->getnameid()) != EOO)
         {
             switch (name)
@@ -10096,12 +10138,40 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     break;
                 }
 
+                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                    j->storebinary(&pubk);
+                    break;
+
+                case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
+                    getValueVersion(puEd255, versionPuEd255);
+                    break;
+
+                case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
+                    getValueVersion(puCu255, versionPuCu255);
+                    break;
+
+                case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
+                    getValueVersion(sigPubk, versionSigPubk);
+                    break;
+
                 default:
-                    if (!j->storeobject())
+                    switch (User::string2attr(fieldName.c_str()))
                     {
-                        return false;
+                        case ATTR_SIG_CU255_PUBK:
+                            getValueVersion(sigCu255, versionSigCu255);
+                            break;
+
+                        default:
+                            if (!j->storeobject())
+                            {
+                                return false;
+                            }
+                            break;
                     }
+                    break;
             }
+
+            fieldName = j->getnameWithoutAdvance();
         }
 
         if (ISUNDEF(uh))
@@ -10131,6 +10201,31 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
                 u->mBizMode = bizMode;
 
+                if (pubk.size())
+                {
+                    u->pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubk.data(), (int)pubk.size());
+                }
+
+                if (puEd255.size())
+                {
+                    u->setattr(ATTR_ED25519_PUBK, &puEd255, &versionPuEd255);
+                }
+
+                if (puCu255.size())
+                {
+                    u->setattr(ATTR_CU25519_PUBK, &puCu255, &versionPuCu255);
+                }
+
+                if (sigPubk.size())
+                {
+                    u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, &versionSigPubk);
+                }
+
+                if (sigCu255.size())
+                {
+                    u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
+
                 if (v != VISIBILITY_UNKNOWN)
                 {
                     if (u->show != v || u->ctime != ts)
@@ -10148,7 +10243,8 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                  && uh != me
                                  && statecurrent)  // otherwise, fetched when statecurrent is set
                         {
-                            // new user --> fetch keys
+                            // new user --> fetch contact keys if they are not yet available.
+                            // If keys are available for the user, fetchContactKeys will call trackKey directly.
                             fetchContactKeys(u);
                         }
 
