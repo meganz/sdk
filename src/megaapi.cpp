@@ -3208,9 +3208,14 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
     pImpl->submitFeedback(rating, comment, listener);
 }
 
-void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener, bool addJourneyId, MegaViewID *viewId)
+void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
-    pImpl->sendEvent(eventType, message, listener, addJourneyId, viewId);
+    pImpl->sendEvent(eventType, message, false, nullptr, listener);
+}
+
+void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, MegaViewID *viewId, MegaRequestListener *listener)
+{
+    pImpl->sendEvent(eventType, message, addJourneyId, viewId, listener);
 }
 
 void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)

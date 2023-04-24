@@ -22293,7 +22293,7 @@ void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener, bool addJourneyId, MegaViewID *viewId)
+void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyId, MegaViewID *viewId, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);

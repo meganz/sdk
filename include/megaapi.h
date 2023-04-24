@@ -13872,6 +13872,36 @@ class MegaApi
          * @param message Event message
          * @param listener MegaRequestListener to track this request
          *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
+         *  - MEGAchat:  [99000, 99199)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         *             is sent to MEGA servers.
+         * This version of the function is deprecated. Please use the non-deprecated one below.
+        */
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param addJourneyId If the JourneyID value must be tracked or not. If true, the value will be sent with the event, along with the current ms.
+         * @param viewId ViewID value (type MegaViewID - 8-byte uint) to be sent with the event. This value should have been generated with MegaApi::generateViewId() method.
+         * @param listener MegaRequestListener to track this request
+         *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
          *
@@ -13884,7 +13914,7 @@ class MegaApi
          *  - MEGAsync:  [99500, 99600)
          *  - Webclient: [99600, 99800]
          */
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL, bool addJourneyId = false, MegaViewID *viewId = nullptr);
+        void sendEvent(int eventType, const char* message, bool addJourneyId = false, MegaViewID *viewId = nullptr, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new ticket for support with attached description
