@@ -1346,7 +1346,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
-    virtual long long getChanges() const { return MegaSet::CHANGE_TYPE_SIZE; }
+    virtual long long getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1478,16 +1478,16 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSetElement::CHANGE_TYPE_NEW     = 0
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
      * Check if the SetElement was new
      *
-     * - MegaSetElement::CHANGE_TYPE_NAME    = 1
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
      * Check if SetElement name has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ORDER   = 2
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
      * Check if SetElement order has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_REMOVED = 3
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
      * Check if the SetElement was removed
      *
      * @return true if this Set has a specific change
@@ -1503,7 +1503,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
      */
-    virtual long long getChanges() const { return MegaSetElement::CHANGE_TYPE_ELEM_SIZE; }
+    virtual long long getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
