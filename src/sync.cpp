@@ -92,7 +92,7 @@ set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
                                     LocalPath& localdebris)
 {
     auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(localpath, true, false))
+    if (!fa->fopen(localpath, true, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to open path: " << localpath;
         return {};
@@ -167,7 +167,7 @@ bool combinedFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess, 
     {
         auto fa = fsaccess.newfileaccess(false);
         auto pathArg = path; // todo: sort out const
-        if (!fa->fopen(pathArg, true, false))
+        if (!fa->fopen(pathArg, true, false, FSLogging::logOnError))
         {
             LOG_err << "Unable to open path: " << path;
             success = false;
@@ -277,7 +277,7 @@ void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintF
     };
 
     auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(localpath, true, false))
+    if (!fa->fopen(localpath, true, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to open path: " << localpath;
         success = false;
@@ -446,7 +446,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(rootpath, true, false))
+    if (!fa->fopen(rootpath, true, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to open rootpath";
         return false;
@@ -876,7 +876,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     auto fas = syncs.fsaccess->newfileaccess(false);
 
-    if (fas->fopen(mLocalPath, true, false))
+    if (fas->fopen(mLocalPath, true, false, FSLogging::logOnError))
     {
         // get the fsid of the synced folder
         localroot->fsid = fas->fsid;
@@ -1036,7 +1036,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
 #ifdef DEBUG
         auto fa = syncs.fsaccess->newfileaccess(false);
-        if (fa->fopen(localpath))  // exists, is file
+        if (fa->fopen(localpath, FSLogging::logOnError))  // exists, is file
         {
             auto sn = syncs.fsaccess->fsShortname(localpath);
             assert(!l->getLocalname().empty() &&
@@ -1272,7 +1272,7 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         {
             // delete the database file directly since we don't have an object for it
             auto fas = syncs.fsaccess->newfileaccess(false);
-            if (fas->fopen(mConfig.mLocalPath, true, false))
+            if (fas->fopen(mConfig.mLocalPath, true, false, FSLogging::logOnError))
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
@@ -1573,7 +1573,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fa->fopen(*localpathNew, false, false, iteratingDir))
+        if (fa->fopen(*localpathNew, false, false, FSLogging::logOnError, iteratingDir))
         {
             if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
             {
@@ -1625,7 +1625,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         fa = syncs.fsaccess->newfileaccess(false);
     }
 
-    if (fa->fopen(*localpathNew, true, false))
+    if (fa->fopen(*localpathNew, true, false, FSLogging::logOnError))
     {
         if (!isroot)
         {
@@ -1824,7 +1824,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 auto local = it->second->getLocalPath();
                                 auto prevfa = syncs.fsaccess->newfileaccess(false);
 
-                                bool exists = prevfa->fopen(local);
+                                bool exists = prevfa->fopen(local, FSLogging::logOnError);
                                 if (exists)
                                 {
                                     LOG_debug << "File detected in the origin of a move";
@@ -2160,7 +2160,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         attr_map::iterator ait;
         auto fa = syncs.fsaccess->newfileaccess(false);
-        bool success = fa->fopen(tmppath, false, false);
+        bool success = fa->fopen(tmppath, false, false, FSLogging::logOnError);
         LocalNode *ll = localnodebypath(notification.localnode, notification.path);
         auto deleted = !ll && !success && !fa->retry;
 
@@ -3114,7 +3114,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
             for (auto& c: configs)
             {
                 auto fas = fsaccess->newfileaccess(false);
-                if (fas->fopen(c.mLocalPath, true, false))
+                if (fas->fopen(c.mLocalPath, true, false, FSLogging::logOnError))
                 {
                     string dbname = c.getSyncDbStateCacheName(fas->fsid, c.mRemoteNode, mClient.me);
 
@@ -4883,7 +4883,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Determine file's modification time.
-        if (!fileAccess->fopen(filePath))
+        if (!fileAccess->fopen(filePath, FSLogging::logOnError))
         {
             // Couldn't stat file.
             continue;
@@ -4931,7 +4931,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
     {
         // Couldn't open the file for reading.
         LOG_err << "Unable to open config DB for reading: "
@@ -4943,7 +4943,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and read the data from the file.
     string d;
 
-    if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
+    if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0, FSLogging::logOnError))
     {
         // Couldn't read the file.
         LOG_err << "Unable to read config DB: "
@@ -5052,7 +5052,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, false, true))
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
     {
         // Couldn't open the file for writing.
         LOG_err << "Unable to open config DB for writing: "

@@ -136,7 +136,7 @@ public:
                              std::vector<FSNode>& results,
                              bool followSymLinks,
                              unsigned& nFingerprinted) override;
-							 
+
 #ifdef ENABLE_SYNC
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
@@ -175,7 +175,8 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false, LocalPath* actualLeafNameIfDifferent = nullptr) override;
+    bool fopen(const LocalPath&, bool read, bool write, FSLogging,
+               DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false, LocalPath* actualLeafNameIfDifferent = nullptr) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
@@ -184,8 +185,8 @@ public:
     bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
-    bool sysstat(m_time_t*, m_off_t*) override;
-    bool sysopen(bool async = false) override;
+    bool sysstat(m_time_t*, m_off_t*, FSLogging) override;
+    bool sysopen(bool async, FSLogging) override;
     void sysclose() override;
 
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
