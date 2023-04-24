@@ -272,7 +272,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     auto to = dbPath + suffix;
 
     // -journal could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -journal file";
