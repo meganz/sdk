@@ -13885,6 +13885,7 @@ class MegaApi
          *             is sent to MEGA servers.
          * This version of the function is deprecated. Please use the non-deprecated one below.
         */
+        MEGA_DEPRECATED
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
 
