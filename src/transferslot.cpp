@@ -193,7 +193,7 @@ TransferSlot::~TransferSlot()
 
             // Open the file in synchonous mode
             fa.reset(transfer->client->fsaccess->newfileaccess());
-            if (!fa->fopen(transfer->localfilename, false, true))
+            if (!fa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
             {
                 fa.reset();
             }
@@ -1164,13 +1164,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 asyncIO[i] = NULL;
                             }
 
-                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos, FSLogging::logOnError);
                             reqs[i]->status = REQ_ASYNCIO;
                             prepare = false;
                         }
                         else
                         {
-                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos))
+                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos, FSLogging::logOnError))
                             {
                                 LOG_warn << "Error preparing transfer: " << fa->retry;
                                 if (!fa->retry)

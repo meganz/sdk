@@ -2088,7 +2088,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         auto fa = fsa->newfileaccess();
-        ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str())));
+        ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str()), FSLogging::logOnError));
         ASSERT_TRUE(ffp.genfingerprint(fa.get()));
     }
 
@@ -4558,7 +4558,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
-        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
+        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false, FSLogging::logOnError));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa->newdiraccess());
@@ -4576,16 +4576,16 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false));
+                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
 
-                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, da.get()));
+                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
             }
         }
 
         std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
-        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false));
+        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false, FSLogging::logOnError));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
@@ -4603,10 +4603,10 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false));
+                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, da_follow.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
@@ -5553,7 +5553,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
             m_time_t mtime = 0;
             {
                 auto nfa = fsa->newfileaccess();
-                nfa->fopen(localname);
+                nfa->fopen(localname, FSLogging::logOnError);
                 mtime = nfa->mtime;
             }
 
@@ -10845,10 +10845,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     //  4. Add Element
     //  5. Update Element order
     //  6. Update Element name
-    //  7. Remove Element
-    //  8. Add/remove bulk elements
-    //  9. Logout / login
-    // 10. Remove all Sets
+    //  7. Add an element with an already added node (-12 expected)
+    //  8. Remove Element
+    //  9. Add/remove bulk elements
+    // 10. Logout / login
+    // 11. Remove all Sets
 
     // Use another connection with the same credentials
     megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
@@ -11110,7 +11111,16 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    // 7. Remove Element
+    // 7. Add an element with an already added node (-12 expected)
+    string elattrs1b = u8"Another element name emoji: 📞🎉❤️"; // "📞🎉❤️"
+    newElls = nullptr;
+    err = doCreateSetElement(0, &newElls, sh, uploadedNode, elattrs1b.c_str());
+    ASSERT_EQ(err, API_EEXIST) << "Adding another SetElement with the same node as already existing SetElement";
+
+    elCount = megaApi[0]->getSetElementCount(sh);
+    ASSERT_EQ(elCount, 1u);
+
+    // 8. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
@@ -11129,8 +11139,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_EQ(elp2, nullptr);
 
-    // 8. Add/remove bulk elements
-    // Add 2; only the first will succeed
+    // 9. Add/remove bulk elements
+    // Add 3; only the first will succeed
     differentApiDtls.setElementUpdated = false;
     string elattrs2 = elattrs + u8" bulk2";
     elattrs += u8" bulk1";
@@ -11139,9 +11149,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     unique_ptr<MegaHandleList> newElFileHandles(MegaHandleList::createInstance());
     newElFileHandles->addMegaHandle(uploadedNode);
     newElFileHandles->addMegaHandle(INVALID_HANDLE);
+    newElFileHandles->addMegaHandle(uploadedNode);
     unique_ptr<MegaStringList> newElNames(MegaStringList::createInstance());
     newElNames->add(elattrs.c_str());
     newElNames->add(elattrs2.c_str());
+    newElNames->add(elattrs.c_str());
     err = doCreateBulkSetElements(0, &newElls, &newElErrs, sh, newElFileHandles.get(), newElNames.get());
     els.reset(newElls);
     unique_ptr<MegaIntegerList> elErrs(newElErrs);
@@ -11152,9 +11164,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     eh = newElls->get(0)->id();
     ASSERT_NE(eh, INVALID_HANDLE);
     ASSERT_NE(newElErrs, nullptr);
-    ASSERT_EQ(newElErrs->size(), 2);
+    ASSERT_EQ(newElErrs->size(), 3);
     ASSERT_EQ(newElErrs->get(0), API_OK);
-    ASSERT_EQ(newElErrs->get(1), API_ENOENT);
+    ASSERT_EQ(newElErrs->get(1), API_EARGS); // API_EARGS because sending an empty key error takes precedence over sending INVALID_HANDLE for eid error (API_ENOENT)
+    ASSERT_EQ(newElErrs->get(2), API_EEXIST);
     unique_ptr<MegaSetElement> newEl(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(newEl, nullptr);
     ASSERT_EQ(newEl->id(), eh);
@@ -11220,7 +11233,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(hDummyFolder, INVALID_HANDLE);
     ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
-    // 9. Logout / login
+    // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     s1p.reset(megaApi[0]->getSet(sh));
@@ -11245,7 +11258,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
     ASSERT_EQ(ellp->name(), namebulk11);
 
-    // 10. Remove all Sets
+    // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
     unique_ptr<MegaSetList> sets2(differentApi.getSets());
     ASSERT_EQ(sets->size(), sets2->size());
@@ -12396,134 +12409,206 @@ TEST_F(SdkTest, SdkUserAlerts)
 }
 
 /**
- * @brief TEST_F SdkResumableTrasfers
- *
- * Tests resumption for file upload and download.
+ * ___SdkVersionManagement___
+ * Steps:
+ * - Create 2 folders
+ * - Upload several versions of the same file to first folder
+ * - Move file with versions to second folder
+ * - Move second folder to first folder
+ * - Remove current version
+ * - Remove oldest version
+ * - Remove version in the middle
+ * - Remove node in the middle (and all previous versions)
+ * - Remove all versions across entire account; will keep only last version
+ * - Delete a version by the API when limit was reached (chain must have 100 versions)
  */
-TEST_F(SdkTest, SdkResumableTrasfers)
+TEST_F(SdkTest, SdkVersionManagement)
 {
-    LOG_info << "___TEST Resumable Trasfers___";
+    LOG_info << "___TEST SdkVersionManagement";
+
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    //  1. Create ~16 MB file
-    //  2. Upload file, with speed limit
-    //  3. Logout / Login
-    //  4. Check upload resumption
-    //  5. Finish upload
-    //  6. Download file, with speed limit
-    //  7. Logout / Login
-    //  8. Check download resumption
+    doSetFileVersionsOption(0, false); // enable versioning
+    auto& api = megaApi[0];
+    unique_ptr<MegaNode> rootNode(api->getRootNode());
 
-    //  1. Create ~16 MB file
-    std::ofstream file(fs::u8path(UPFILE), ios::out);
-    ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
-    for (int i = 0; i < 1000000; i++)
+    //  Create 2 folders
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    std::string folder1 = "Folder1";
+    auto folder1Handle = createFolder(0, folder1.c_str(), rootNode.get());
+    ASSERT_NE(folder1Handle, UNDEF);
+    waitForResponse(&check);
+    unique_ptr<MegaNode> folder1Node(api->getNodeByHandle(folder1Handle));
+    ASSERT_TRUE(folder1Node);
+    check = false;
+    std::string folder2 = "Folder2";
+    auto folder2Handle = createFolder(0, folder2.c_str(), rootNode.get());
+    ASSERT_NE(folder2Handle, UNDEF);
+    waitForResponse(&check);
+    unique_ptr<MegaNode> folder2Node(api->getNodeByHandle(folder2Handle));
+    ASSERT_TRUE(folder2Node);
+    resetOnNodeUpdateCompletionCBs();
+
+    auto upldSingleVersion = [this](const string& name, int version, MegaNode* folderNode, MegaHandle* fh)
     {
-        file << "16 MB test file "; // 16 characters
-    }
-    ASSERT_EQ(file.tellp(), 16000000) << "Wrong size for test file";
-    file.close();
+        string localName = name + '_' + std::to_string(version);
+        createFile(localName, false, std::to_string(version));
 
-    //  2. Upload file, with speed limit
-    RequestTracker ct(megaApi[0].get());
-    megaApi[0]->setMaxConnections(1, &ct);
-    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or took more than 1 minute";
+        int result = doStartUpload(0, fh, localName.c_str(), folderNode,
+                             name.c_str() /*fileName*/,
+                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                             nullptr /*appData*/,
+                             false   /*isSourceTemporary*/,
+                             false   /*startFirst*/,
+                             nullptr /*cancelToken*/);
+        deleteFile(localName);
+        return result;
+    };
 
-    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-
-    megaApi[0]->setMaxUploadSpeed(2000000);
-    onTransferUpdate_progress = 0;
-    TransferTracker ut(megaApi[0].get());
-    megaApi[0]->startUpload(UPFILE.c_str(),
-        rootnode.get(),
-        nullptr /*fileName*/,
-        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-        nullptr /*appData*/,
-        false   /*isSourceTemporary*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/,
-        &ut     /*listener*/);
-
-
-    second_timer timer;
-    m_off_t pauseThreshold = 9000000;
-    while (!ut.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    auto upldVersions = [upldSingleVersion](const string& name, int versions, MegaNode* folderNode, MegaHandle* fh)
     {
-        WaitMillisec(200);
-    }
+#define UPLOAD_SINGLE_THREAD 1
+#if UPLOAD_SINGLE_THREAD
+        for (int i = 0; i < versions - 1; ++i)
+        {
+            ASSERT_EQ(upldSingleVersion(name, i + 1, folderNode, nullptr), API_OK);
+        }
+        ASSERT_EQ(upldSingleVersion(name, versions, folderNode, fh), API_OK);
+#else
+        // This would be very nice to have. Unfortunately crashes occur while running multiple threads.
+        assert(versions);
 
-    //  3. Logout / Login
-    unique_ptr<char[]> session(dumpSession());
-    locallogout();
-    int result = ut.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
-    resumeSession(session.get());
-    fetchnodes(0);
+        std::vector<std::thread> tpool(std::min(6u, std::thread::hardware_concurrency()));
+        std::vector<int> results(tpool.size(), 0);
+        for (size_t i = 0; i < versions - 1; ++i)
+        {
+            if (i >= tpool.size())
+            {
+                tpool[i%tpool.size()].join();
+                if (results[i] != API_OK)
+                {
+                    // retry another version?
+                    //++versions;
+                }
+            }
 
-    //  4. Check upload resumption
-    timer.reset();
-    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
-    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+            tpool[i % tpool.size()] = std::thread([&name, i, folderNode, &r = results[i], upldSingleVersion]()
+            {
+                r = upldSingleVersion(name, i + 1, folderNode, nullptr);
+            });
+        }
+
+        for (size_t i = 0; i < (versions - 1) % tpool.size(); ++i)
+        {
+            tpool[i].join();
+            EXPECT_EQ(results[i], API_OK) << "Version upload failed";
+        }
+
+        int r = upldSingleVersion(name, versions, folderNode, fh);
+        EXPECT_EQ(r, API_OK) << "Version upload failed";
+#endif
+    };
+
+    //  Upload several versions of the same file to first folder
+    const int verCount = 10;
+    MegaHandle fileHandle = 0;
+    ASSERT_NO_FATAL_FAILURE(upldVersions(UPFILE, verCount, folder1Node.get(), &fileHandle));
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode(api->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(fileNode);
+    unique_ptr<MegaNodeList> allVersions(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verCount);
+    ASSERT_EQ(fileNode->getHandle(), allVersions->get(0)->getHandle());
+
+    //  Move file with versions to second folder
+    ASSERT_EQ(API_OK, doMoveNode(0, &fileHandle, fileNode.get(), folder2Node.get())) << "Cannot move file";
+    string destinationPath = '/' + folder2 + '/' + UPFILE;
+    for (int i = 0; i < allVersions->size(); ++i)
     {
-        WaitMillisec(100);
-        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+        unique_ptr<char> filePath(api->getNodePath(allVersions->get(i)));
+        ASSERT_STREQ(destinationPath.c_str(), filePath.get()) << "Wrong file path (1) for version " << (i + 1);
+        destinationPath += '/' + UPFILE;
     }
-    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
-    MegaTransfer* upl = transfers->get(0);
-    long long uplBytes = upl->getTransferredBytes();
-    ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
 
-    //  5. Finish upload
-    megaApi[0]->setMaxUploadSpeed(-1);
-    timer.reset();
-    unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
-    while (!cloudNode && timer.elapsed() < 20)
+    //  Move second folder to first folder
+    ASSERT_EQ(API_OK, doMoveNode(0, &folder2Handle, folder2Node.get(), folder1Node.get())) << "Cannot move folder";
+    destinationPath = '/' + folder1 + '/' + folder2 + '/' + UPFILE;
+    for (int i = 0; i < allVersions->size(); ++i)
     {
-        WaitMillisec(500);
-        cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+        unique_ptr<char> filePath(api->getNodePath(allVersions->get(i)));
+        ASSERT_STREQ(destinationPath.c_str(), filePath.get()) << "Wrong file path (2) for version " << (i + 1);
+        destinationPath += '/' + UPFILE;
     }
+    folder2Node.reset(api->getNodeByHandle(folder2Handle));
+    ASSERT_TRUE(folder2Node);
 
-    //  6. Download file, with speed limit
-    string downloadedFile = DOTSLASH + DOWNFILE;
-    megaApi[0]->setMaxDownloadSpeed(2000000);
-    onTransferUpdate_progress = 0;
-    timer.reset();
-    TransferTracker dt(megaApi[0].get());
-    megaApi[0]->startDownload(cloudNode.get(),
-        downloadedFile.c_str(),
-        nullptr /*fileName*/,
-        nullptr /*appData*/,
-        false   /*startFirst*/,
-        nullptr /*cancelToken*/,
-        &dt     /*listener*/);
-
-    while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    //  Remove current version
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(0)));
+    int verRemoved = 1;
+    unique_ptr<MegaNodeList> versionsAfterRemoval(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
     {
-        WaitMillisec(200);
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
     }
 
-    //  7. Logout / Login
-    session.reset(dumpSession());
-    locallogout();
-    result = dt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
-    resumeSession(session.get());
-    fetchnodes(0);
-
-    //  8. Check download resumption
-    timer.reset();
-    transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
-    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    //  Remove oldest version
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(verCount - 1)));
+    ++verRemoved;
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
     {
-        WaitMillisec(100);
-        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
-    MegaTransfer* dnl = transfers->get(0);
-    long long dnlBytes = dnl->getTransferredBytes();
-    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
 
-    megaApi[0]->setMaxDownloadSpeed(-1);
+    //  Remove version in the middle
+    ASSERT_GT(versionsAfterRemoval->size(), 2) << "Not enough versions to test further";
+    int middle = (verCount + 1) / 2;
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(middle)));
+    ++verRemoved;
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        int j = i < middle - 1 ? 1 : 2;
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + j)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove node in the middle (and all previous versions)
+    ASSERT_GT(versionsAfterRemoval->size(), 2) << "Not enough versions to test further";
+    middle = (versionsAfterRemoval->size() + 1) / 2;
+    ASSERT_EQ(API_OK, doDeleteNode(0, versionsAfterRemoval->get(middle)));
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), middle);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove all versions across entire account; will keep only last version
+    ASSERT_GT(versionsAfterRemoval->size(), 1) << "Not enough versions to test further";
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(versionsAfterRemoval->get(1)->getHandle(), MegaNode::CHANGE_TYPE_REMOVED, check);
+    ASSERT_EQ(API_OK, doRemoveVersions(0));
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), 1);
+    ASSERT_EQ(versionsAfterRemoval->get(0)->getHandle(), allVersions->get(1)->getHandle());
+
+
+    //  Delete a version by the API when limit was reached (chain must have 100 versions)
+    doSetFileVersionsOption(0, false); // enable versioning
+    int verLimit = 100;
+    ASSERT_NO_FATAL_FAILURE(upldVersions(UPFILE, verLimit, folder1Node.get(), &fileHandle));
+    fileNode.reset(api->getNodeByHandle(fileHandle));
+    allVersions.reset(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verLimit);
+    // upload one more version
+    ASSERT_EQ(upldSingleVersion(UPFILE, verLimit + 1, folder1Node.get(), nullptr), API_OK);
+    allVersions.reset(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verLimit);
 }
 
 /**
@@ -12875,4 +12960,135 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 2);
+}
+
+/**
+ * @brief TEST_F SdkResumableTrasfers
+ *
+ * Tests resumption for file upload and download.
+ */
+TEST_F(SdkTest, SdkResumableTrasfers)
+{
+    LOG_info << "___TEST Resumable Trasfers___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    //  1. Create ~16 MB file
+    //  2. Upload file, with speed limit
+    //  3. Logout / Login
+    //  4. Check upload resumption
+    //  5. Finish upload
+    //  6. Download file, with speed limit
+    //  7. Logout / Login
+    //  8. Check download resumption
+
+    //  1. Create ~16 MB file
+    std::ofstream file(fs::u8path(UPFILE), ios::out);
+    ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
+    for (int i = 0; i < 1000000; i++)
+    {
+        file << "16 MB test file "; // 16 characters
+    }
+    ASSERT_EQ(file.tellp(), 16000000) << "Wrong size for test file";
+    file.close();
+
+    //  2. Upload file, with speed limit
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or took more than 1 minute";
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    megaApi[0]->setMaxUploadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    TransferTracker ut(megaApi[0].get());
+    megaApi[0]->startUpload(UPFILE.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &ut     /*listener*/);
+
+
+    second_timer timer;
+    m_off_t pauseThreshold = 9000000;
+    while (!ut.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  3. Logout / Login
+    unique_ptr<char[]> session(dumpSession());
+    locallogout();
+    int result = ut.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    //  4. Check upload resumption
+    timer.reset();
+    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    MegaTransfer* upl = transfers->get(0);
+    long long uplBytes = upl->getTransferredBytes();
+    ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
+
+    //  5. Finish upload
+    megaApi[0]->setMaxUploadSpeed(-1);
+    timer.reset();
+    unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    while (!cloudNode && timer.elapsed() < 20)
+    {
+        WaitMillisec(500);
+        cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    }
+
+    //  6. Download file, with speed limit
+    string downloadedFile = DOTSLASH + DOWNFILE;
+    megaApi[0]->setMaxDownloadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    timer.reset();
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudNode.get(),
+        downloadedFile.c_str(),
+        nullptr /*fileName*/,
+        nullptr /*appData*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &dt     /*listener*/);
+
+    while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  7. Logout / Login
+    session.reset(dumpSession());
+    locallogout();
+    result = dt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    //  8. Check download resumption
+    timer.reset();
+    transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    MegaTransfer* dnl = transfers->get(0);
+    long long dnlBytes = dnl->getTransferredBytes();
+    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+
+    megaApi[0]->setMaxDownloadSpeed(-1);
 }

@@ -22,6 +22,7 @@ pipeline {
                 stage('Get current build description'){
                     steps{
                         script{
+                            println "${env.gitlabMergeRequestDescription}"
                             env.currentBuildDescription = currentBuild.description
                         }
                     }
@@ -50,6 +51,32 @@ pipeline {
                     }
                 }
 
+                stage('Get subjob Jenkinsfile branch to be used'){
+                    when {
+                        expression { 
+                            env.gitlabMergeRequestDescription.contains('JENKINSFILE_SUBJOB_BRANCH')
+                        }
+                    }
+                    steps {
+                        script{
+                            env.JENKINSFILE_SUBJOB_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep JENKINSFILE_SUBJOB_BRANCH | awk -F "JENKINSFILE_SUBJOB_BRANCH="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                            println JENKINSFILE_SUBJOB_BRANCH
+                            if (JENKINSFILE_SUBJOB_BRANCH == ""){
+                                echo "JENKINSFILE_SUBJOB_BRANCH was not found on description so master will be used by default"
+                            }
+                        }
+                    }
+                    post{
+                        always {
+                            script{                        
+                                if (currentBuild.currentResult == 'FAILURE'){
+                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the JENKINSFILE_SUBJOB_BRANCH branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 stage('Get MEGAchat branch'){
                     when {
                         expression { 
@@ -58,7 +85,6 @@ pipeline {
                     }
                     steps {
                         script{
-                            println "${env.gitlabMergeRequestDescription}"
                             env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
@@ -85,7 +111,6 @@ pipeline {
                     }
                     steps {
                         script{
-                            println "${env.gitlabMergeRequestDescription}"
                             env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println ANDROID_BRANCH
                             if (ANDROID_BRANCH == ""){
@@ -112,7 +137,6 @@ pipeline {
                     }
                     steps {
                         script{
-                            println "${env.gitlabMergeRequestDescription}"
                             env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println IOS_BRANCH
                             if (IOS_BRANCH == ""){
@@ -139,7 +163,6 @@ pipeline {
                     }
                     steps {
                         script{
-                            println "${env.gitlabMergeRequestDescription}"
                             APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
                             println APIURL_TO_TEST
                             if (APIURL_TO_TEST == ""){
@@ -187,7 +210,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_MACOS', value: true),
-                                ]
+                                ].plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
                             env.TRIGGERED_BUILD_URL_MACOS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_MACOS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_MACOS = triggeredBuild.getFullDisplayName()
@@ -242,7 +265,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_LINUX', value: true)
-                                ]
+                                ].plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
                             env.TRIGGERED_BUILD_URL_LINUX = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_LINUX = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_LINUX = triggeredBuild.getFullDisplayName()
@@ -297,7 +320,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_WINDOWS', value: true)
-                                ]
+                                ].plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
                             env.TRIGGERED_BUILD_URL_WINDOWS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_WINDOWS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_WINDOWS = triggeredBuild.getFullDisplayName()
@@ -352,7 +375,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_MEGACHAT', value: true)
-                                ].plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+                                ].plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : []).plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
 
                             env.TRIGGERED_BUILD_URL_MEGACHAT = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_MEGACHAT = triggeredBuild.getProjectName()
@@ -408,7 +431,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_ANDROID', value: true)
-                                ].plus(env.ANDROID_BRANCH ? [string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+                                ].plus(env.ANDROID_BRANCH ? [string(name: 'ANDROID_BRANCH', value: "${ANDROID_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : []).plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
 
                             env.TRIGGERED_BUILD_URL_ANDROID = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_ANDROID = triggeredBuild.getProjectName()
@@ -464,7 +487,7 @@ pipeline {
                                 string(name: 'APIURL_TO_TEST', value: "${APIURL_TO_TEST}"),
                                 string(name: 'BUILD_DESCRIPTION', value: "${env.currentBuildDescription}"),
                                 booleanParam(name: 'BUILD_IOS', value: true)
-                                ].plus(env.IOS_BRANCH ? [string(name: 'IOS_BRANCH', value: "${IOS_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : [])
+                                ].plus(env.IOS_BRANCH ? [string(name: 'IOS_BRANCH', value: "${IOS_BRANCH}")] : []).plus(env.MEGACHAT_BRANCH ? [string(name: 'MEGACHAT_BRANCH', value: "${MEGACHAT_BRANCH}")] : []).plus(env.JENKINSFILE_SUBJOB_BRANCH ? [string(name: 'JENKINSFILE_SUBJOB_BRANCH', value: "${JENKINSFILE_SUBJOB_BRANCH}")] : [])
 
                             env.TRIGGERED_BUILD_URL_IOS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_IOS = triggeredBuild.getProjectName()

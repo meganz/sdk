@@ -3633,10 +3633,12 @@ private:
         error performRequest_passwordLink(MegaRequestPrivate* request);
         error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
         error performRequest_copy(MegaRequestPrivate* request);
+        error performRequest_login(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
 
+        void multiFactorAuthEnableOrDisable(const char* pin, bool enable, MegaRequestListener* listener);
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
@@ -4234,10 +4236,10 @@ public:
     MegaScheduledFlagsPrivate& operator=(const MegaScheduledFlagsPrivate&&) = delete;
 
     void reset() override;
-    void setEmailsDisabled(bool enabled);
+    void setSendEmails(bool enabled);
     void importFlagsValue(unsigned long val) override;
 
-    bool emailsDisabled() const;
+    bool sendEmails() const;
     unsigned long getNumericValue() const override;
 
     MegaScheduledFlagsPrivate* copy() const override { return new MegaScheduledFlagsPrivate(this); }
