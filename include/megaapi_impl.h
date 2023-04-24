@@ -1425,6 +1425,10 @@ class MegaRequestPrivate : public MegaRequest
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
         std::function<error(TransferDbCommitter&)> performTransferRequest;
+        
+        // perform fireOnRequestFinish in sendPendingReqeusts()
+        // See fireOnRequestFinish
+        std::function<void()> performFireOnRequestFinish;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
