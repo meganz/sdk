@@ -577,6 +577,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
             }
+            else if (request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
+            {
+                mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
+            }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : "");
@@ -3087,6 +3091,84 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact is still visible";
 
     delete u;
+}
+
+TEST_F(SdkTest, SdkTestAppsPrefs)
+{
+    const auto comparePrefs = [](const MegaStringMap* currentMap, const MegaStringMap* testMap) -> bool
+    {
+        if (!currentMap || !testMap) return false;
+
+        std::unique_ptr<MegaStringList> currentKeys (currentMap->getKeys());
+        std::unique_ptr<MegaStringList> testKeys (testMap->getKeys());
+        if (!currentKeys || !testKeys)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < testMap->size(); ++i)
+        {
+            // search the same key in both maps to check that pair<key, value> matches with current user attr pair
+            const char* testKey = currentKeys->get(i);
+            const char* aVal = currentMap->get(testKey);
+            const char* bVal = testMap->get(testKey);
+            if (!aVal || !bVal || strcmp(aVal, bVal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    const auto isAppsPrefsUpdated = [this, &comparePrefs](const MegaStringMap* uprefs) -> bool
+    {
+        std::unique_ptr<MegaUser> u(megaApi[0]->getMyUser());
+        EXPECT_TRUE(u) << "some_function() failed";
+        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), MegaApi::USER_ATTR_APPS_PREFS, maxTimeout, 0));
+        EXPECT_TRUE(comparePrefs(mApi[0].mStringMap.get(), uprefs)) << "ERR";
+        return true;
+    };
+
+    const auto fetchAppsPrefs = [this](const unsigned int index) -> int
+    {
+        std::unique_ptr<MegaUser> u(megaApi[index]->getMyUser());
+        if (!u) { return API_ENOENT; }
+        mApi[index].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+        return synchronousGetUserAttribute(index, u.get(), MegaApi::USER_ATTR_APPS_PREFS);
+    };
+
+    LOG_info << "___TEST AppsPrefs___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // fetch for current attr value
+    static constexpr char keyname[] = "key1";
+    const unsigned int index = 0;
+    const int res = fetchAppsPrefs(index);
+    ASSERT_TRUE(res == API_ENOENT || res == API_OK);
+
+    // set value for attr (overwrite any posible value that could exists for keyname)
+    std::unique_ptr <MegaStringMap> newAppPrefs(MegaStringMap::createInstance());
+    std::string val = std::to_string(m_time());
+    unique_ptr<char[]> valB64(MegaApi::binaryToBase64(val.data(), val.size()));
+    newAppPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+
+    // logout and login
+    releaseMegaApi(index);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // check attr value is expected after logout/login
+    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+
+    // set value for attr again (overwrite latest value for keyname)
+    val = std::to_string(m_time());
+    valB64.reset(MegaApi::binaryToBase64(val.data(), val.size()));
+    newAppPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+
+    // check attr value is expected
+    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
 }
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
