@@ -29,6 +29,7 @@ DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted, DBErrorCallback dBErro
     , mDBErrorCallBack(std::move(dBErrorCallBack))
 {
     nextid = 0;
+    assert(mDBErrorCallBack);
 }
 
 // add or update record from string
@@ -58,9 +59,9 @@ bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
         record->dbid = (nextid += IDSPACING) | type;
         if (nextid < previousNextid)
         {
-            assert(false);
             LOG_err << "Overflow at nextid " << type;
             mDBErrorCallBack(DBError::DB_ERROR_INDEX_OVERFLOW);
+            assert(nextid >= previousNextid);
         }
     }
 

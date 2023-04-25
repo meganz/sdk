@@ -13738,8 +13738,8 @@ void MegaClient::fatalError(ErrorReason errorReason)
                 reason = "Data base is full";
                 break;
             case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
-                reason = "Index overFlow";
-                sendevent(99471, "DB index over flow", 0);
+                reason = "DB index overflow";
+                sendevent(99471, "DB index overflow", 0);
                 break;
             default:
                 reason = "Unknown reason";
