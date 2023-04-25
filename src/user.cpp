@@ -59,9 +59,10 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         if (newValue != currentValue)
         {
             if ((type == ATTR_ALIAS
-                 || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
+                 || type == ATTR_DEVICE_NAMES
+                 || type == ATTR_APPS_PREFS) && newValue[0] == '\0')
             {
-                // alias/deviceName/driveName being removed
+                // alias/deviceName/driveName/appPrefs being removed
                 tlv.reset(key);
             }
             else
