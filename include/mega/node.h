@@ -308,7 +308,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
@@ -509,7 +509,7 @@ struct MEGA_API LocalNode : public File
     LocalNode(Sync*);
     void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();

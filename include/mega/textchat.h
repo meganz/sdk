@@ -44,7 +44,7 @@ class ScheduledFlags
 public:
     typedef enum
     {
-        FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
+        FLAGS_SEND_EMAILS      = 0, // API will send out calendar emails for this meeting if it's enabled
         FLAGS_SIZE             = 1, // size in bits of flags bitmask
     } scheduled_flags_t;            // 3 Bytes (maximum)
 
@@ -58,10 +58,10 @@ public:
     ScheduledFlags& operator=(const ScheduledFlags&&) = delete;
 
     void reset()                                   { mFlags.reset(); }
-    void setEmailsDisabled(const bool enabled)     { mFlags[FLAGS_DONT_SEND_EMAILS] = enabled; }
+    void setSendEmails(const bool enabled)         { mFlags[FLAGS_SEND_EMAILS] = enabled; }
     void importFlagsValue(const unsigned long val) { mFlags = val; }
 
-    bool emailsDisabled() const                    { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+    bool sendEmails() const                        { return mFlags[FLAGS_SEND_EMAILS]; }
     unsigned long getNumericValue() const          { return mFlags.to_ulong(); }
     bool isEmpty() const                           { return mFlags.none(); }
     bool equalTo(const ScheduledFlags* sf) const
@@ -260,7 +260,7 @@ public:
     TextChat();
     ~TextChat();
 
-    bool serialize(string *d);
+    bool serialize(string *d) const override;
     static TextChat* unserialize(class MegaClient *client, string *d);
 
     void setTag(int tag);
