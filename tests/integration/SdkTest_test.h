@@ -540,6 +540,7 @@ public:
     bool createFile(string filename, bool largeFile = true, string content = "test ");
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
+    void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);

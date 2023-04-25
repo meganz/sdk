@@ -119,10 +119,10 @@ public:
 
     static void emptydirlocal(const LocalPath&, dev_t = 0);
 
-    int getdefaultfilepermissions();
-    void setdefaultfilepermissions(int);
-    int getdefaultfolderpermissions();
-    void setdefaultfolderpermissions(int);
+    int getdefaultfilepermissions() override;
+    void setdefaultfilepermissions(int) override;
+    int getdefaultfolderpermissions() override;
+    void setdefaultfolderpermissions(int) override;
 
     PosixFileSystemAccess();
     ~PosixFileSystemAccess();

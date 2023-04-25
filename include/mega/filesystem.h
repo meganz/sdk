@@ -715,12 +715,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) = 0;
 
     // default permissions for new files
-    int getdefaultfilepermissions() { return 0600; }
-    void setdefaultfilepermissions(int) { }
+    virtual int getdefaultfilepermissions() { return 0600; }
+    virtual void setdefaultfilepermissions(int) { }
 
     // default permissions for new folder
-    int getdefaultfolderpermissions() { return 0700; }
-    void setdefaultfolderpermissions(int) { }
+    virtual int getdefaultfolderpermissions() { return 0700; }
+    virtual void setdefaultfolderpermissions(int) { }
 
     // convenience function for getting filesystem shortnames
     std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);

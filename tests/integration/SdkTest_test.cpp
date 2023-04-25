@@ -1129,6 +1129,13 @@ void SdkTest::deleteFile(string filename)
     fs::remove(p, ignoredEc);
 }
 
+void SdkTest::deleteFolder(string foldername)
+{
+    fs::path p = fs::u8path(foldername);
+    std::error_code ignoredEc;
+    fs::remove_all(p, ignoredEc);
+}
+
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);
@@ -12757,4 +12764,233 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 2);
+}
+
+/**
+ * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
+ *
+ * - Test 1: Control test. Default file permissions (0600).
+ *         Expected: successful download and successul file opening for reading and writing.
+ * - Test 2: Change file permissions: 0400. Only for reading.
+ *         Expected successful download, unsuccessful file opening for reading and writing (only for reading)
+ * - Test 3: Change file permissions: 0700. Read, write and execute.
+ *         Expected: successful download and successul file opening for reading and writing.
+ */
+TEST_F(SdkTest, SdkTestFilePermissions)
+{
+    LOG_info << "___TEST SdkTestFilePermissions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!Y2pkjAyK!XnArt4pD_yyr2exT1Esc664d-JxkGwOB03kfPIGavaM", rootnode.get());
+    MegaHandle imported_file_handle = importHandle;
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
+
+
+    string filename = DOTSLASH "file_permissions_test.sdktest";
+    deleteFile(filename.c_str());
+
+    auto downloadFile = [&]()
+    {
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        megaApi[0]->startDownload(nimported.get(),
+                                filename.c_str(),
+                                nullptr  /*customName*/,
+                                nullptr  /*appData*/,
+                                false    /*startFirst*/,
+                                nullptr  /*cancelToken*/);
+
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
+            << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
+        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+    };
+
+    auto openFileAndDelete = [&](bool readF, bool writeF, bool expectedF = true, bool deleteF = true)
+    {
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        fs::path filePath = fs::current_path() / filename.c_str();
+        LocalPath localfilePath = fspathToLocal(filePath);
+
+        std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
+        if (expectedF)
+        {
+            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << "File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
+        }
+        else
+        {
+            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << "File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+        }
+        if (deleteF)
+        {
+            deleteFile(filename.c_str());
+            incrementFilename(filename);
+            deleteFile(filename.c_str());
+        }
+    };
+
+    // TEST 1: Control test. Default file permissions (0600).
+    // Expected: successful download and successul file opening for reading and writing.
+    downloadFile();
+    openFileAndDelete(true, true);
+
+
+    // TEST 2: Change file permissions: 0400. Only for reading.
+    // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
+    int filePermissions = 0400;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    downloadFile();
+    openFileAndDelete(true, false, true, false); // Read & NOT write, expected true (can be opened for read
+    openFileAndDelete(true, true, false, false); // Read & Write, expected false (cannot be opened for read & write)
+    openFileAndDelete(true, false, true);
+
+
+    // TEST 3: Change file permissions: 0700. Read, write and execute.
+    // Expected: successful download and successul file opening for reading and writing.
+    filePermissions = 0700;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    downloadFile();
+    openFileAndDelete(true, true);
+}
+
+/**
+ * @brief Test folder permissions for a download when using megaApi->setDefaultFolderPermissions.
+ *
+ *  Note: folder downloads use MegaFolderDownloadController, which has its own FileAccess object.
+ *
+ * - Test 1. Control test. Default folder permissions. Default file permissions.
+ *           Expected a successful download and no issues when accessing the folder.
+ * - Test 2. TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
+ *           Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
+ *           Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing (because of the folder permissions).
+ * - Test 3: Restore folder permissions. Change file permissions: only read.
+ *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+ *           File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
+ * - Test 4: Default folder permissions. Restore file permissions.
+ *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+ *           File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
+ */
+TEST_F(SdkTest, SdkTestFolderPermissions)
+{
+    LOG_info << "___TEST SdkTestFolderPermissions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Folder public link
+    string folderURL = MegaClient::MEGAURL+"/folder/sjxB1aSZ#AOXHGRHC71bTM3WayvtBXw";
+
+    // Logging to folder
+    auto rt = asyncRequestLoginToFolder(megaApi[0].get(), folderURL.c_str());
+    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to fetchnodes for account";
+
+    // Fetch nodes
+    rt = asyncRequestFetchnodes(megaApi[0].get());
+    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to fetchnodes for account";
+
+    // Get root node after logging to folder
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getRootNode());
+
+    string foldername = "file_permissions_test.sdktest.folder";
+    deleteFolder(foldername);
+    auto downloadFolder = [&](bool expectedT = true)
+    {
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+
+        megaApi[0]->startDownload(nimported.get(),
+                                foldername.c_str(),
+                                nullptr  /*customName*/,
+                                nullptr  /*appData*/,
+                                false    /*startFirst*/,
+                                nullptr  /*cancelToken*/);
+
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
+            << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
+        if (expectedT)
+        {
+            ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+        }
+        else
+        {
+            ASSERT_EQ(API_EWRITE, mApi[0].lastError) << "Download should have failed with API_EWRITE (-20) but it didn't. (error: " << mApi[0].lastError << ")";
+        }
+    };
+
+    auto openFolderAndDelete = [&](bool expectedFolder = true, bool deleteF = true, bool readF = true, bool writeF = true, bool expectedFile = true)
+    {
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        fs::path dirPath = fs::current_path() / foldername.c_str();
+        auto localDirPath = fspathToLocal(dirPath);
+
+        std::unique_ptr<DirAccess> diropen_da(fsa->newdiraccess());
+        if (expectedFolder)
+        {
+            ASSERT_TRUE(diropen_da->dopen(&localDirPath, nullptr, false)) << "Diropen Folder couldn't be opened, but it should be able to open it!";
+            {
+                std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(nimported.get()));
+                for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
+                {
+                    if (childrenList->get(childIndex)->isFile())
+                    {
+                        auto filesa = ::mega::make_unique<FSACCESS_CLASS>();
+                        fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
+                        auto localfilePath = fspathToLocal(filePath);
+                        std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
+                        if (expectedFile)
+                        {
+                            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << " File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
+                        
+                        }
+                        else
+                        {
+                            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << " File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            ASSERT_FALSE(diropen_da->dopen(&localDirPath, nullptr, false)) << "Diropen Folder was successfuly opened, but it shouldn't be able to open it!";
+        }
+        if (deleteF)
+        {
+            deleteFolder(foldername.c_str());
+            incrementFilename(foldername);
+            deleteFolder(foldername.c_str());
+        }
+    };
+
+    // TEST 1. Control test. Default folder permissions. Default file permissions.
+    // Expected a successful download and no issues when accessing the folder.
+    downloadFolder();
+    openFolderAndDelete();
+
+    // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
+    // Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
+    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing (because of the folder permissions).
+    int folderPermissions = 0400;
+    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+    downloadFolder(false);
+    openFolderAndDelete(true, true, true, true, false);
+
+    // TEST 3. Restore folder permissions. Change file permissions: only read.
+    // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+    // File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
+    folderPermissions = 0700;
+    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+    int filePermissions = 0400;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    downloadFolder();
+    openFolderAndDelete(true, true, true, true, false);
+
+    // TEST 4. Default folder permissions. Restore file permissions.
+    // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+    // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
+    filePermissions = 0600;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    downloadFolder();
+    openFolderAndDelete();
+
+    // Logout from folder
+    rt = asyncRequestLocalLogout(megaApi[0].get());
+    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to local logout for folder";
 }

@@ -9340,7 +9340,7 @@ void MegaApiImpl::setDefaultFolderPermissions(int permissions)
 {
     SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfolderpermissions(permissions);
-    client->fsaccess->setdefaultfilepermissions(permissions);
+    client->fsaccess->setdefaultfolderpermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFolderPermissions()
