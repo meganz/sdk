@@ -13080,7 +13080,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
  *           Expected a successful download and no issues when accessing the folder.
  * - Test 2. TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
  *           Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
- *           Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing (because of the folder permissions).
+ *           Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
  * - Test 3: Restore folder permissions. Change file permissions: only read.
  *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
  *           File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
@@ -13189,18 +13189,18 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
-    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading or reading writing (because of the folder permissions: lack of the execution perm).
+    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
     int folderPermissions = 0400;
-    // T2-A. Files: opened both for reading and writing (expeted FAIL)
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
     downloadFolder(false);     /* False: Download will finish with API_EWRITE (-20) */
+    // T2-A. Files: opened both for reading and writing (expected FAIL)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         false, /* DO NOT delete folder at the end */
                         true,  /* Open files with permission to READ */
                         true,  /* Open files with permission to WRITE */
                         false  /* Expected for files: UNABLE to open (r + w) */
                         );
-    // T2-B. Files: opened only for reading (expeted FAIL)
+    // T2-B. Files: opened only for reading (expected FAIL)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         true,  /* Delete folder at the end */
                         true,  /* Open files with permission to READ */
@@ -13216,7 +13216,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
-    // T3-A. Files: opened both for reading and writing (expeted FAIL)
+    // T3-A. Files: opened both for reading and writing (expected FAIL)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         false, /* DO NOT delete folder at the end */
                         true,  /* Open file with permission to READ */
