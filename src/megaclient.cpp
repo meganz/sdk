@@ -5581,6 +5581,7 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        LOG_debug << "SCSN write at DB " << tscsn << " -  " << scsn.text();
 
         if (complete)
         {
@@ -13410,6 +13411,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
+    LOG_debug << "Max dbId after resume session: " << id;
+
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
         LOG_info << "Upgrading cache to NOD";
@@ -13713,6 +13716,9 @@ void MegaClient::handleDbError(DBError error)
         case DBError::DB_ERROR_IO:
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
             break;
+        case DBError::DB_ERROR_INDEX_OVERFLOW:
+            fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
+            break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
             break;
@@ -13740,6 +13746,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
                 break;
             case ErrorReason::REASON_ERROR_DB_FULL:
                 reason = "Data base is full";
+                break;
+            case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
+                reason = "DB index overflow";
+                sendevent(99471, "DB index overflow", 0);
                 break;
             default:
                 reason = "Unknown reason";

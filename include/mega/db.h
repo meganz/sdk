@@ -43,7 +43,10 @@ enum class DBError
     DB_ERROR_UNKNOWN = 0,
     DB_ERROR_FULL = 1,
     DB_ERROR_IO = 2,
+    DB_ERROR_INDEX_OVERFLOW = 3,
 };
+
+using DBErrorCallback = std::function<void(DBError)>;
 
 
 class MEGA_API DbTable
@@ -53,6 +56,7 @@ class MEGA_API DbTable
 protected:
     bool mCheckAlwaysTransacted = false;
     DBTableTransactionCommitter* mTransactionCommitter = nullptr;
+    DBErrorCallback mDBErrorCallBack;
     friend class DBTableTransactionCommitter;
     void checkTransaction();
     // should be called by the subclass' destructor
@@ -101,7 +105,7 @@ public:
     // autoincrement
     uint32_t nextid;
 
-    DbTable(PrnGen &rng, bool alwaysTransacted);
+    DbTable(PrnGen &rng, bool alwaysTransacted, DBErrorCallback dBErrorCallBack);
     virtual ~DbTable() { }
     DBTableTransactionCommitter *getTransactionCommitter() const;
 };
@@ -252,8 +256,6 @@ enum DbOpenFlag
     // Operations should always be transacted.
     DB_OPEN_FLAG_TRANSACTED = 0x2
 }; // DbOpenFlag
-
-using DBErrorCallback = std::function<void(DBError)>;
 
 struct MEGA_API DbAccess
 {
