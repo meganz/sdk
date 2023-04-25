@@ -12393,8 +12393,11 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type
          * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
          *
-         * @note in case type == MegaApi::USER_ATTR_APPS_PREFS, apps can remove any of the keys that make up the user attribute,
-         * by adding a keypair into MegaStringMap where key is the key we want to remove and an empty C-string null terminated as value
+         * You can remove existing records/keypairs from the following attributes:
+         *  - MegaApi::ATTR_ALIAS
+         *  - MegaApi::ATTR_DEVICE_NAMES
+         *  - MegaApi::USER_ATTR_APPS_PREFS
+         * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
          *
          * @param type Attribute type
          *
