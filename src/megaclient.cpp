@@ -184,7 +184,7 @@ bool MegaClient::JourneyID::isTrackingOn() const
 // Parse value to a 16-char hex string
 string MegaClient::JourneyID::getValue() const
 {
-    return Utils::intTo16CharsHexString(mJidValue);
+    return Utils::uint64ToHexString(mJidValue);
 }
 
 #ifdef DEBUG
@@ -214,7 +214,7 @@ MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId()
 
 string MegaClient::ViewID::viewIdToString(MegaClient::ViewID::IdValue viewId)
 {
-    return Utils::intTo16CharsHexString(viewId);
+    return Utils::uint64ToHexString(viewId);
 }
 
 // Generate a random ViewId (8 byte uint)

@@ -1784,7 +1784,7 @@ uint64_t Utils::hexStringToUint64(const std::string &input)
     return output;
 }
 
-std::string Utils::intTo16CharsHexString(uint64_t input)
+std::string Utils::uint64ToHexString(uint64_t input)
 {
     std::stringstream outputStream;
     outputStream << std::hex << std::setfill('0') << std::setw(16) << input;

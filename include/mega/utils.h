@@ -438,7 +438,7 @@ public:
      * @return A 16-character lowercase hexadecimal string representation of the input value (ex: "78b1bbbda5f32526").
      *
     */
-    static std::string intTo16CharsHexString(uint64_t input);
+    static std::string uint64ToHexString(uint64_t input);
 
     static int32_t toLower(const int32_t c)
     {
