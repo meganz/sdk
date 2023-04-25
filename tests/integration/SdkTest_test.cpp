@@ -3124,7 +3124,7 @@ TEST_F(SdkTest, SdkTestAppsPrefs)
     const auto isAppsPrefsUpdated = [this, &comparePrefs](const MegaStringMap* uprefs) -> bool
     {
         std::unique_ptr<MegaUser> u(megaApi[0]->getMyUser());
-        EXPECT_TRUE(u) << "some_function() failed";
+        EXPECT_TRUE(u) << "Can't get own user";
         EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), MegaApi::USER_ATTR_APPS_PREFS, maxTimeout, 0));
         EXPECT_TRUE(comparePrefs(mApi[0].mStringMap.get(), uprefs)) << "ERR";
         return true;
