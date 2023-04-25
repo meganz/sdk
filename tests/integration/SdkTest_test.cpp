@@ -13009,7 +13009,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
     };
 
-    auto openFileAndDelete = [&](bool readF, bool writeF, bool expectedF = true, bool deleteF = true)
+    auto openFileAndDelete = [&](bool readF, bool writeF, bool expectedF, bool deleteF)
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
@@ -13035,7 +13035,11 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
     downloadFile();
-    openFileAndDelete(true, true);
+    openFileAndDelete(true   /* Open file with permission to READ */,
+                      true   /* Open file with permission to WRITE */,
+                      true   /* Expected: ABLE to open (r + w) */,
+                      true   /* Delete file at the end */
+                      );
 
 
     // TEST 2: Change file permissions: 0400. Only for reading.
@@ -13043,9 +13047,16 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadFile();
-    openFileAndDelete(true, false, true, false); // Read & NOT write, expected true (can be opened for read
-    openFileAndDelete(true, true, false, false); // Read & Write, expected false (cannot be opened for read & write)
-    openFileAndDelete(true, false, true);
+    openFileAndDelete(true   /* Open file with permission to READ */,
+                      false  /* DO NOT open file with permission to WRITE */,
+                      true   /* Expected: ABLE to open (r + w) */,
+                      false  /* DO NOT delete file at the end */
+                      );
+    openFileAndDelete(true   /* Open file with permission to READ */,
+                      true   /* DO NOT open file with permission to WRITE */,
+                      false  /* Expected: UNABLE to open (r + w) */,
+                      true   /* Delete file at the end */
+                      );
 
 
     // TEST 3: Change file permissions: 0700. Read, write and execute.
@@ -13053,7 +13064,11 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     filePermissions = 0700;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadFile();
-    openFileAndDelete(true, true);
+    openFileAndDelete(true   /* Open file with permission to READ */,
+                      false  /* DO NOT open file with permission to WRITE */,
+                      true   /* Expected: ABLE to open (r + w) */,
+                      true   /* Delete file at the end */
+                      );
 }
 
 /**
@@ -13164,16 +13179,32 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
-    downloadFolder();
-    openFolderAndDelete();
+    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        true,  /* Delete folder at the end */
+                        true,  /* Open files with permission to READ */
+                        true,  /* Open files with permission to WRITE */
+                        true   /* Expected for files: ABLE to open (r + w) */
+                        );
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
     // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing (because of the folder permissions).
     int folderPermissions = 0400;
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
-    downloadFolder(false);
-    openFolderAndDelete(true, true, true, true, false);
+    downloadFolder(false);     /* False: Download will finish with API_EWRITE (-20) */
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        false, /* DO NOT delete folder at the end */
+                        true,  /* Open files with permission to READ */
+                        true,  /* Open files with permission to WRITE */
+                        false  /* Expected for files: UNABLE to open (r + w) */
+                        );
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        true,  /* Delete folder at the end */
+                        true,  /* Open files with permission to READ */
+                        false, /* DO NOT open files with permission to WRITE */
+                        true   /* Expected for files: ABLE to open (r) */
+                        );
 
     // TEST 3. Restore folder permissions. Change file permissions: only read.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
@@ -13182,16 +13213,32 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFolder();
-    openFolderAndDelete(true, true, true, true, false);
+    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        false, /* DO NOT delete folder at the end */
+                        true,  /* Open file with permission to READ */
+                        true,  /* Open file with permission to WRITE */
+                        false  /* Expected for files: UNABLE to open (r + w) */
+                        );
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        true,  /* Delete folder at the end */
+                        true,  /* Open file with permission to READ */
+                        false, /* DO NOT open file with permission to WRITE */
+                        true   /* Expected for files: ABLE to open (r) */
+                        );
 
     // TEST 4. Default folder permissions. Restore file permissions.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
     filePermissions = 0600;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFolder();
-    openFolderAndDelete();
+    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
+    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                        true,  /* Delete folder at the end */
+                        true,  /* Open file with permission to READ */
+                        true,  /* Open file with permission to WRITE */
+                        true   /* Expected for files: ABLE to open (r + w) */
+                        );
 
     // Logout from folder
     rt = asyncRequestLocalLogout(megaApi[0].get());
