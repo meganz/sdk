@@ -2734,7 +2734,7 @@ void MegaClient::exec()
                 auto fa = fsaccess->newfileaccess();
                 auto syncErr = NO_SYNC_ERROR;
 
-                if (fa->fopen(localPath, true, false))
+                if (fa->fopen(localPath, true, false, FSLogging::logOnError))
                 {
                     if (fa->type == FOLDERNODE)
                     {
@@ -4089,7 +4089,7 @@ void MegaClient::dispatchTransfers()
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext.reset( (nexttransfer->type == PUT)
-                            ? ts->fa->asyncfopen(nexttransfer->localfilename)
+                            ? ts->fa->asyncfopen(nexttransfer->localfilename, FSLogging::logOnError)
                             : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size));
                         asyncfopens++;
                     }
@@ -4123,8 +4123,8 @@ void MegaClient::dispatchTransfers()
                               << nexttransfer->localfilename;
 
                     openok = (nexttransfer->type == PUT)
-                        ? ts->fa->fopen(nexttransfer->localfilename)
-                        : ts->fa->fopen(nexttransfer->localfilename, false, true);
+                        ? ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError)
+                        : ts->fa->fopen(nexttransfer->localfilename, false, true, FSLogging::logOnError);
                     openfinished = true;
                 }
 
@@ -5581,6 +5581,7 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        LOG_debug << "SCSN write at DB " << tscsn << " -  " << scsn.text();
 
         if (complete)
         {
@@ -8103,13 +8104,16 @@ void MegaClient::persistAlert(UserAlert::Base* a)
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     if (a->removed())
     {
-        if (sctable->del(a->dbid))
+        if (a->dbid)
         {
-            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
-        }
-        else
-        {
-            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            if (sctable->del(a->dbid))
+            {
+                LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+            }
+            else
+            {
+                LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            }
         }
     }
     else // insert or replace
@@ -13407,6 +13411,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
+    LOG_debug << "Max dbId after resume session: " << id;
+
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
         LOG_info << "Upgrading cache to NOD";
@@ -13710,6 +13716,9 @@ void MegaClient::handleDbError(DBError error)
         case DBError::DB_ERROR_IO:
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
             break;
+        case DBError::DB_ERROR_INDEX_OVERFLOW:
+            fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
+            break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
             break;
@@ -13737,6 +13746,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
                 break;
             case ErrorReason::REASON_ERROR_DB_FULL:
                 reason = "Data base is full";
+                break;
+            case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
+                reason = "DB index overflow";
+                sendevent(99471, "DB index overflow", 0);
                 break;
             default:
                 reason = "Unknown reason";
@@ -15444,7 +15457,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
 
     openedLocalFolder = fsaccess->newfileaccess();
-    if (openedLocalFolder->fopen(rootpath, true, false, nullptr, true))
+    if (openedLocalFolder->fopen(rootpath, true, false, FSLogging::logOnError, nullptr, true))
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
@@ -16230,7 +16243,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LocalPath tmplocalpath = ll->getLocalPath();
 
                 auto fa = fsaccess->newfileaccess(false);
-                if (fa->fopen(tmplocalpath, true, false))
+                if (fa->fopen(tmplocalpath, true, false, FSLogging::logOnError))
                 {
                     FileFingerprint fp;
                     fp.genfingerprint(fa.get());
@@ -16393,7 +16406,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     bool download = true;
                     auto f = fsaccess->newfileaccess(false);
                     if (!rit->second->changed.syncdown_node_matched_here
-                            && (f->fopen(localpath) || f->type == FOLDERNODE))
+                            && (f->fopen(localpath, FSLogging::logOnError) || f->type == FOLDERNODE))
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
                         {
@@ -16449,7 +16462,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             else
             {
                 auto f = fsaccess->newfileaccess(false);
-                if (f->fopen(localpath) || f->type == FOLDERNODE)
+                if (f->fopen(localpath, FSLogging::logOnError) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
@@ -16648,7 +16661,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
             LocalPath localpath = ll->getLocalPath();
 
-            fa->fopen(localpath);
+            fa->fopen(localpath, FSLogging::logOnError);
             isSymLink = fa->mIsSymLink;
         }
 #endif
@@ -16777,7 +16790,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         auto lpath = ll->getLocalPath();
                         LocalPath stream = lpath;
                         stream.append(LocalPath::fromPlatformEncodedRelative(wstring(L":$CmdTcID:$DATA", 15)));
-                        if (f->fopen(stream))
+                        if (f->fopen(stream, FSLogging::logExceptFileNotFound))
                         {
                             LOG_warn << "COMODO detected";
                             HKEY hKey;
@@ -16805,7 +16818,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         }
 
                         lpath.append(LocalPath::fromPlatformEncodedRelative(wstring(L":OECustomProperty", 17)));
-                        if (f->fopen(lpath))
+                        if (f->fopen(lpath, FSLogging::logExceptFileNotFound))
                         {
                             LOG_warn << "Windows Search detected";
                             continue;
@@ -16942,7 +16955,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 LOG_debug << "Checking node stability: " << localpath;
 
-                if (!(t = fa->fopen(localpath, true, false))
+                if (!(t = fa->fopen(localpath, true, false, FSLogging::logOnError))
                  || fa->size != ll->size
                  || fa->mtime != ll->mtime)
                 {
@@ -17401,7 +17414,7 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa)
     // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
     LocalPath reuseBuffer;
     l->getlocalpath(reuseBuffer);
-    if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
+    if (fa->fopen(reuseBuffer, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";
         static bool reported99446 = false;
@@ -17705,7 +17718,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(f->getLocalname(), d == PUT, d == GET))
+                if (fa->fopen(f->getLocalname(), d == PUT, d == GET, FSLogging::logOnError))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -17894,7 +17907,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
                 auto fa = fsaccess->newfileaccess();
 
-                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename, FSLogging::logExceptFileNotFound))
                 {
                     if (d == PUT)
                     {
@@ -18131,7 +18144,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     auto localPath = localNode->getLocalPath();
 
-    if (!ifAccess->fopen(localPath, true, false))
+    if (!ifAccess->fopen(localPath, true, false, FSLogging::logOnError))
         return nullptr;
 
     std::string remoteKey = (*remoteNode)->nodekey();
@@ -18240,7 +18253,7 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const Loca
 
     FileFingerprint fp;
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(file2, true, false))
+    if (fa->fopen(file2, true, false, FSLogging::logOnError))
     {
 
         if (!fp.genfingerprint(fa.get())) return false;

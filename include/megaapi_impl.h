@@ -4236,10 +4236,10 @@ public:
     MegaScheduledFlagsPrivate& operator=(const MegaScheduledFlagsPrivate&&) = delete;
 
     void reset() override;
-    void setEmailsDisabled(bool enabled);
+    void setSendEmails(bool enabled);
     void importFlagsValue(unsigned long val) override;
 
-    bool emailsDisabled() const;
+    bool sendEmails() const;
     unsigned long getNumericValue() const override;
 
     MegaScheduledFlagsPrivate* copy() const override { return new MegaScheduledFlagsPrivate(this); }
