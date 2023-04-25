@@ -13189,8 +13189,9 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
-    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing (because of the folder permissions).
+    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading or reading writing (because of the folder permissions: lack of the execution perm).
     int folderPermissions = 0400;
+    // T2-A. Files: opened both for reading and writing (expeted FAIL)
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
     downloadFolder(false);     /* False: Download will finish with API_EWRITE (-20) */
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
@@ -13199,11 +13200,12 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                         true,  /* Open files with permission to WRITE */
                         false  /* Expected for files: UNABLE to open (r + w) */
                         );
+    // T2-B. Files: opened only for reading (expeted FAIL)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         true,  /* Delete folder at the end */
                         true,  /* Open files with permission to READ */
                         false, /* DO NOT open files with permission to WRITE */
-                        true   /* Expected for files: ABLE to open (r) */
+                        false  /* Expected for files: UNABLE to open (r) */
                         );
 
     // TEST 3. Restore folder permissions. Change file permissions: only read.
@@ -13214,12 +13216,14 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
+    // T3-A. Files: opened both for reading and writing (expeted FAIL)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         false, /* DO NOT delete folder at the end */
                         true,  /* Open file with permission to READ */
                         true,  /* Open file with permission to WRITE */
                         false  /* Expected for files: UNABLE to open (r + w) */
                         );
+    // T3-B. Files: opened only for reading (expected OK)
     openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                         true,  /* Delete folder at the end */
                         true,  /* Open file with permission to READ */
