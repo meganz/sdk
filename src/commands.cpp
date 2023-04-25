@@ -4146,6 +4146,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionBackupNames;
     string cookieSettings;
     string versionCookieSettings;
+    string appPrefs;
+    string versionAppPrefs;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4281,6 +4283,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
             parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
+            break;
+
+        case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
+            parseUserAttribute(appPrefs, versionAppPrefs);
             break;
 
 #ifdef ENABLE_SYNC
@@ -4631,6 +4637,11 @@ bool CommandGetUserData::procresult(Result r)
                 if (!myBackupsFolder.empty())
                 {
                     changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
+                }
+
+                if (!appPrefs.empty())
+                {
+                    changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
                 }
 
                 if (aliases.size())
