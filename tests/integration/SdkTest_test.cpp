@@ -13018,11 +13018,11 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
         if (expectedF)
         {
-            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << "File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
+            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << "File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
         }
         else
         {
-            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << "File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << "File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
         }
         if (deleteF)
         {
@@ -13139,12 +13139,12 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                         std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
                         if (expectedFile)
                         {
-                            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << " File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
+                            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << " File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
                         
                         }
                         else
                         {
-                            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF)) << " File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+                            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << " File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
                         }
                     }
                 }
