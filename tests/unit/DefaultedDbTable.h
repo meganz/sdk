@@ -29,7 +29,7 @@ class DefaultedDbTable: public mega::DbTable, public mega::DBTableNodes
 public:
     using mega::DbTable::DbTable;
     DefaultedDbTable(mega::PrnGen& gen)
-        : DbTable(gen, false, [](mega::DBError){})
+        : DbTable(gen, false, nullptr)
     {
     }
     void rewind() override
