@@ -12986,43 +12986,64 @@ TEST_F(SdkTest, SdkTestFilePermissions)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!Y2pkjAyK!XnArt4pD_yyr2exT1Esc664d-JxkGwOB03kfPIGavaM", rootnode.get());
-    MegaHandle imported_file_handle = importHandle;
-    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
-
-
+    // Create a new file
     string filename = DOTSLASH "file_permissions_test.sdktest";
+    ASSERT_TRUE(createFile(filename, false)) << "Couldn't create test file: '" << filename << "'";
+
+    // Upload the file
+    fs::path uploadPath = fs::current_path() / filename;
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(uploadPath.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &uploadListener);
+
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
+
+    // Delete the local file
     deleteFile(filename.c_str());
 
-    auto downloadFile = [&]()
+    auto downloadFile = [this, &nimported, &filename]()
     {
-        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        TransferTracker downloadListener(megaApi[0].get());
         megaApi[0]->startDownload(nimported.get(),
                                 filename.c_str(),
                                 nullptr  /*customName*/,
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
-                                nullptr  /*cancelToken*/);
-
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
-            << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
-        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+                                nullptr  /*cancelToken*/,
+                                &downloadListener);
+        return downloadListener.waitForResult();
     };
 
-    auto openFileAndDelete = [&](bool readF, bool writeF, bool expectedF, bool deleteF)
+    auto openFileAndDelete = [this, &filename](bool readF, bool writeF, bool expectedF, bool deleteF) -> std::pair<bool, std::string>
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
         LocalPath localfilePath = fspathToLocal(filePath);
 
         std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
+        string errorMsg;
+        bool resultOk = true;
+        bool openFileResult = plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
         if (expectedF)
         {
-            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << "File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
+            if (openFileResult == false)
+            {
+                errorMsg = "File couldn't be opened with read=" + to_string(readF) + " and write=" + to_string(writeF) + " and it should've been able to open it!";
+                resultOk = false;
+            }
         }
-        else
+        else if (openFileResult == true)
         {
-            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << "File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+            errorMsg = "File was successfuly opened with read=" + to_string(readF) + " and write=" + to_string(writeF) + " but it shouldn't be able to open it!";
+            resultOk = false;
         }
         if (deleteF)
         {
@@ -13030,45 +13051,57 @@ TEST_F(SdkTest, SdkTestFilePermissions)
             incrementFilename(filename);
             deleteFile(filename.c_str());
         }
+        return std::make_pair(resultOk, errorMsg);
     };
 
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
-    downloadFile();
-    openFileAndDelete(true   /* Open file with permission to READ */,
-                      true   /* Open file with permission to WRITE */,
-                      true   /* Expected: ABLE to open (r + w) */,
-                      true   /* Delete file at the end */
-                      );
+    auto downloadResult = downloadFile();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    std::pair<bool, string> resultOpenFileAndDelete =
+        openFileAndDelete(true   /* Open file with permission to READ */,
+                         true    /* Open file with permission to WRITE */,
+                         true    /* Expected: ABLE to open (r + w) */,
+                         true    /* Delete file at the end */
+                         );
+    ASSERT_TRUE(resultOpenFileAndDelete.first) << resultOpenFileAndDelete.second;
 
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFile();
-    openFileAndDelete(true   /* Open file with permission to READ */,
-                      false  /* DO NOT open file with permission to WRITE */,
-                      true   /* Expected: ABLE to open (r + w) */,
-                      false  /* DO NOT delete file at the end */
-                      );
-    openFileAndDelete(true   /* Open file with permission to READ */,
-                      true   /* DO NOT open file with permission to WRITE */,
-                      false  /* Expected: UNABLE to open (r + w) */,
-                      true   /* Delete file at the end */
-                      );
+    downloadResult = downloadFile();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    resultOpenFileAndDelete =
+        openFileAndDelete(true   /* Open file with permission to READ */,
+                         false   /* DO NOT open file with permission to WRITE */,
+                         true    /* Expected: ABLE to open (r + w) */,
+                         false   /* DO NOT delete file at the end */
+                         );
+    ASSERT_TRUE(resultOpenFileAndDelete.first) << resultOpenFileAndDelete.second;
+    resultOpenFileAndDelete =
+        openFileAndDelete(true   /* Open file with permission to READ */,
+                         true    /* DO NOT open file with permission to WRITE */,
+                         false   /* Expected: UNABLE to open (r + w) */,
+                         true    /* Delete file at the end */
+                         );
+    ASSERT_TRUE(resultOpenFileAndDelete.first) << resultOpenFileAndDelete.second;
 
 
     // TEST 3: Change file permissions: 0700. Read, write and execute.
     // Expected: successful download and successul file opening for reading and writing.
     filePermissions = 0700;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFile();
-    openFileAndDelete(true   /* Open file with permission to READ */,
-                      false  /* DO NOT open file with permission to WRITE */,
-                      true   /* Expected: ABLE to open (r + w) */,
-                      true   /* Delete file at the end */
-                      );
+    downloadResult = downloadFile();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    resultOpenFileAndDelete =
+        openFileAndDelete(true   /* Open file with permission to READ */,
+                         false   /* DO NOT open file with permission to WRITE */,
+                         true    /* Expected: ABLE to open (r + w) */,
+                         true    /* Delete file at the end */
+                         );
+    ASSERT_TRUE(resultOpenFileAndDelete.first) << resultOpenFileAndDelete.second;
 }
 
 /**
@@ -13079,7 +13112,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
  * - Test 1. Control test. Default folder permissions. Default file permissions.
  *           Expected a successful download and no issues when accessing the folder.
  * - Test 2. TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
- *           Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
+ *           Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
  *           Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
  * - Test 3: Restore folder permissions. Change file permissions: only read.
  *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
@@ -13093,58 +13126,67 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     LOG_info << "___TEST SdkTestFolderPermissions___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // Folder public link
-    string folderURL = MegaClient::MEGAURL+"/folder/sjxB1aSZ#AOXHGRHC71bTM3WayvtBXw";
+    // Create a new folder
+    string foldername = "folder_permissions_test.sdktest.folder";
+    fs::path folderpath = fs::current_path() / foldername;
+    std::error_code ec;
+    fs::remove_all(folderpath, ec);
+    ASSERT_TRUE(!fs::exists(folderpath)) << "Directory already exists (and still exists after trying to remove it): '" << folderpath.u8string() << "'";
+    fs::create_directories(folderpath);
 
-    // Logging to folder
-    auto rt = asyncRequestLoginToFolder(megaApi[0].get(), folderURL.c_str());
-    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to fetchnodes for account";
+    // Create a new file inside the new directory
+    string filename = DOTSLASH "file_permissions_test.sdktest";
+    fs::path fileInFolderPath = folderpath / filename;
+    ASSERT_TRUE(createFile(fileInFolderPath.u8string(), false)) << "Couldn't create test file in directory: '" << fileInFolderPath.u8string() << "'";
 
-    // Fetch nodes
-    rt = asyncRequestFetchnodes(megaApi[0].get());
-    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to fetchnodes for account";
+    // Upload the folder
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(folderpath.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult()) << "Couldn't upload folder";
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
+    int nimportedNumChildren = megaApi[0]->getNumChildren(nimported.get());
+    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'"; 
 
-    // Get root node after logging to folder
-    std::unique_ptr<MegaNode> nimported(megaApi[0]->getRootNode());
-
-    string foldername = "file_permissions_test.sdktest.folder";
+    // Delete the local folder
     deleteFolder(foldername);
-    auto downloadFolder = [&](bool expectedT = true)
-    {
-        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
 
+    auto downloadFolder = [this, &nimported, &foldername]()
+    {
+        TransferTracker downloadListener(megaApi[0].get());
         megaApi[0]->startDownload(nimported.get(),
                                 foldername.c_str(),
                                 nullptr  /*customName*/,
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
-                                nullptr  /*cancelToken*/);
-
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
-            << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
-        if (expectedT)
-        {
-            ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
-        }
-        else
-        {
-            ASSERT_EQ(API_EWRITE, mApi[0].lastError) << "Download should have failed with API_EWRITE (-20) but it didn't. (error: " << mApi[0].lastError << ")";
-        }
+                                nullptr  /*cancelToken*/,
+                                &downloadListener);
+        return downloadListener.waitForResult();
     };
 
-    auto openFolderAndDelete = [&](bool expectedFolder = true, bool deleteF = true, bool readF = true, bool writeF = true, bool expectedFile = true)
+    auto openFolderAndDelete = [this, &foldername, &nimported](bool expectedFolder = true, bool deleteF = true, bool readF = true, bool writeF = true, bool expectedFile = true) -> std::pair<bool, std::string>
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path dirPath = fs::current_path() / foldername.c_str();
         auto localDirPath = fspathToLocal(dirPath);
 
         std::unique_ptr<DirAccess> diropen_da(fsa->newdiraccess());
+        string errorMsg;
+        bool resultOk = true;
+        bool openFolderResult = diropen_da->dopen(&localDirPath, nullptr, false);
         if (expectedFolder)
         {
-            ASSERT_TRUE(diropen_da->dopen(&localDirPath, nullptr, false)) << "Diropen Folder couldn't be opened, but it should be able to open it!";
+            if (openFolderResult == true)
             {
                 std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(nimported.get()));
-                for (int childIndex = 0; childIndex < childrenList->size(); childIndex++)
+                for (int childIndex = 0; (childIndex < childrenList->size()) && resultOk; childIndex++)
                 {
                     if (childrenList->get(childIndex)->isFile())
                     {
@@ -13152,61 +13194,81 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                         fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
                         auto localfilePath = fspathToLocal(filePath);
                         std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
+                        bool openFileResult = plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
                         if (expectedFile)
                         {
-                            ASSERT_TRUE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << " File couldn't be opened with read=" << readF << " and write=" << writeF << " and it should've been able to open it!";
-                        
+                            if (!openFileResult)
+                            {
+                                errorMsg = "File couldn't be opened with read=" + to_string(readF) + " and write=" + to_string(writeF) + " and it should've been able to open it!";
+                                resultOk = false;
+                            }
                         }
-                        else
+                        else if (openFileResult)
                         {
-                            ASSERT_FALSE(plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError)) << " File was successfuly opened with read=" << readF << " and write=" << writeF << " but it shouldn't be able to open it!";
+                            errorMsg = "File was successfuly opened with read=" + to_string(readF) + " and write=" + to_string(writeF) + " but it shouldn't be able to open it!";
+                            resultOk = false;
                         }
                     }
                 }
             }
+            else
+            {
+                errorMsg = "Diropen Folder couldn't be opened, but it should be able to open it!";
+                resultOk = false;
+            }
         }
-        else
+        else if (openFolderResult == false) // dopen should be false if expectedFolder is false
         {
-            ASSERT_FALSE(diropen_da->dopen(&localDirPath, nullptr, false)) << "Diropen Folder was successfuly opened, but it shouldn't be able to open it!";
+            errorMsg = "Diropen Folder was successfuly opened, but it shouldn't be able to open it!";
+            resultOk = false;
         }
         if (deleteF)
         {
             deleteFolder(foldername.c_str());
             incrementFilename(foldername);
-            deleteFolder(foldername.c_str());
+            deleteFolder(foldername.c_str()); // Delete any folder with the increased name too
         }
+        return std::make_pair(resultOk, errorMsg);
     };
 
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
-    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        true,  /* Delete folder at the end */
-                        true,  /* Open files with permission to READ */
-                        true,  /* Open files with permission to WRITE */
-                        true   /* Expected for files: ABLE to open (r + w) */
-                        );
+    auto downloadResult = downloadFolder();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
+    std::pair<bool, string> resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            true,  /* Delete folder at the end */
+                            true,  /* Open files with permission to READ */
+                            true,  /* Open files with permission to WRITE */
+                            true   /* Expected for files: ABLE to open (r + w) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
-    // Folder permissions: 0400. Expected to fail with API_EWRITE (-20): can't write on resource (affecting children, not the parent folder downloaded).
+    // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
     // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
     int folderPermissions = 0400;
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
-    downloadFolder(false);     /* False: Download will finish with API_EWRITE (-20) */
+    downloadResult = downloadFolder();
+    ASSERT_EQ(API_EINCOMPLETE, downloadResult) << "Download should have failed with API_EINCOMPLETE (-13) but it didn't. Result code: '" << downloadResult << "'"; /* Download will finish with API_EWRITE (-20) */
     // T2-A. Files: opened both for reading and writing (expected FAIL)
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        false, /* DO NOT delete folder at the end */
-                        true,  /* Open files with permission to READ */
-                        true,  /* Open files with permission to WRITE */
-                        false  /* Expected for files: UNABLE to open (r + w) */
-                        );
+    resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            false, /* DO NOT delete folder at the end */
+                            true,  /* Open files with permission to READ */
+                            true,  /* Open files with permission to WRITE */
+                            false  /* Expected for files: UNABLE to open (r + w) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
     // T2-B. Files: opened only for reading (expected FAIL)
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        true,  /* Delete folder at the end */
-                        true,  /* Open files with permission to READ */
-                        false, /* DO NOT open files with permission to WRITE */
-                        false  /* Expected for files: UNABLE to open (r) */
-                        );
+    resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            true,  /* Delete folder at the end */
+                            true,  /* Open files with permission to READ */
+                            false, /* DO NOT open files with permission to WRITE */
+                            false  /* Expected for files: UNABLE to open (r) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
 
     // TEST 3. Restore folder permissions. Change file permissions: only read.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
@@ -13215,36 +13277,44 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
+    downloadResult = downloadFolder();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
     // T3-A. Files: opened both for reading and writing (expected FAIL)
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        false, /* DO NOT delete folder at the end */
-                        true,  /* Open file with permission to READ */
-                        true,  /* Open file with permission to WRITE */
-                        false  /* Expected for files: UNABLE to open (r + w) */
-                        );
+    resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            false, /* DO NOT delete folder at the end */
+                            true,  /* Open file with permission to READ */
+                            true,  /* Open file with permission to WRITE */
+                            false  /* Expected for files: UNABLE to open (r + w) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
     // T3-B. Files: opened only for reading (expected OK)
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        true,  /* Delete folder at the end */
-                        true,  /* Open file with permission to READ */
-                        false, /* DO NOT open file with permission to WRITE */
-                        true   /* Expected for files: ABLE to open (r) */
-                        );
+    resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            true,  /* Delete folder at the end */
+                            true,  /* Open file with permission to READ */
+                            false, /* DO NOT open file with permission to WRITE */
+                            true   /* Expected for files: ABLE to open (r) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
 
     // TEST 4. Default folder permissions. Restore file permissions.
     // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
     // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
     filePermissions = 0600;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadFolder();          /* True (default param): Download will finish with API_OK (0) */
-    openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
-                        true,  /* Delete folder at the end */
-                        true,  /* Open file with permission to READ */
-                        true,  /* Open file with permission to WRITE */
-                        true   /* Expected for files: ABLE to open (r + w) */
-                        );
+    downloadResult = downloadFolder();
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
+    resultOpenFolderAndDelete =
+        openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
+                            true,  /* Delete folder at the end */
+                            true,  /* Open file with permission to READ */
+                            true,  /* Open file with permission to WRITE */
+                            true   /* Expected for files: ABLE to open (r + w) */
+                            );
+    ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
 
     // Logout from folder
-    rt = asyncRequestLocalLogout(megaApi[0].get());
-    ASSERT_EQ(API_OK, rt->waitForResult()) << " Failed to local logout for folder";
+    //rt = asyncRequestLocalLogout(megaApi[0].get());
+    //ASSERT_EQ(API_OK, rt->waitForResult()) << "Failed to local logout for folder";
 }
