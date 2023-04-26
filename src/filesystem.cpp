@@ -47,7 +47,7 @@ FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
 bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
 {
     return setting == eLogOnError ||
-          (setting == eLogExceptFileNotFound && fsaccess.isErrorFileNotFound(os_errorcode));
+          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
 }
 
 namespace detail {

@@ -15767,6 +15767,20 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
     assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
 #endif
 
+    // call from other threads like sync thread. Push to requestQueue with performFireOnRequestFinish assigned,
+    // all fireOneRequestFinish is therefore handled in sendPendingRequests processed by a single thread.
+    if (threadId != std::this_thread::get_id())
+    {
+        auto ePtr = e.release();
+        request->performFireOnRequestFinish = [this, request, ePtr]()
+        {
+            fireOnRequestFinish(request, std::unique_ptr<MegaErrorPrivate>(ePtr), false);
+        };
+        requestQueue.push(request);
+        waiter->notify();
+        return;
+    }
+
     if(e->getErrorCode())
     {
         LOG_warn << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
@@ -18335,11 +18349,19 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
 
-        request = requestQueue.pop();
-        if (!request) break;
-
         e = API_OK;
 
+        if (!(request = requestQueue.pop()))
+        {
+            break;
+        }
+
+        if (request->performFireOnRequestFinish)
+        {
+            request->performFireOnRequestFinish();
+            request = nullptr;
+            continue;
+        }
 
         // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
         if ((lastRequestType == -1 || lastRequestType == request->getType()) && lastRequestConsecutive < 1024)
@@ -34492,10 +34514,10 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
-void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)     { mScheduledFlags->setEmailsDisabled(enabled); }
+void MegaScheduledFlagsPrivate::setSendEmails(bool enabled)         { mScheduledFlags->setSendEmails(enabled); }
 void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val) { mScheduledFlags->importFlagsValue(val); }
 
-bool MegaScheduledFlagsPrivate::emailsDisabled() const              { return mScheduledFlags->emailsDisabled(); }
+bool MegaScheduledFlagsPrivate::sendEmails() const                  { return mScheduledFlags->sendEmails(); }
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const    { return mScheduledFlags->getNumericValue();}
 
 bool MegaScheduledFlagsPrivate::isEmpty() const                     { return mScheduledFlags->isEmpty(); }
