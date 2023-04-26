@@ -619,7 +619,7 @@ bool FileSystemAccess::decodeEscape(const char* s, char& escapedChar) const
 }
 
 
-const char *FileSystemAccess::fstypetostring(FileSystemType type) const
+const char *FileSystemAccess::fstypetostring(FileSystemType type)
 {
     switch (type)
     {

@@ -738,7 +738,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(const int character, const FileSystemType type) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    const char *fstypetostring(FileSystemType type) const;
+    static const char *fstypetostring(FileSystemType type);
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*) const;

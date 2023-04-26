@@ -608,6 +608,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
     mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
+    LOG_debug << "Sync being created on filesystem type " << mFilesystemType << ": " << FileSystemAccess::fstypetostring(mFilesystemType);
 
     localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setSyncedNodeHandle(config.mRemoteNode);
