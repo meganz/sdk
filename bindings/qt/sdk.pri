@@ -619,8 +619,7 @@ vcpkg {
         !debug:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
         #QMAKE_LFLAGS_WINDOWS += /VERBOSE
     }
-    else
-    {
+    else {
         debug {
             # icu doesn't build debug libs with 'd' suffix, but check anyway
             exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
@@ -629,6 +628,7 @@ vcpkg {
             else {
                 LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
             }
+
             exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
                 LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
             }
@@ -636,14 +636,12 @@ vcpkg {
                 LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
             }
         }
-        else
-        {
+        else {
             LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
         }
     }
 }
-else
-{
+else {
     # Use system icu if we are not using vcpkg and PDFium is not used. PDFium already includes icu lib.
     !CONFIG(USE_PDFIUM)
     {
