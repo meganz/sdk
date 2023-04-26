@@ -4243,7 +4243,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
-        case TYPE_REMOVE_SET_ELEMENTS: return "REMOVE_SET_ELEMENTS";
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
     }
     return "UNKNOWN";
