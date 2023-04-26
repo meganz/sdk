@@ -8,6 +8,7 @@ include $(TOP_PATH)/sqlite/Android.mk
 include $(TOP_PATH)/libuv/Android.mk
 include $(TOP_PATH)/sodium/Android.mk
 include $(TOP_PATH)/mediainfo/Android.mk
+include $(TOP_PATH)/icu/Android.mk
 include $(TOP_PATH)/mega/Android.mk
 include $(TOP_PATH)/bindings/Android.mk
 
