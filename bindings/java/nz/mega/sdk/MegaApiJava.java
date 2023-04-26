@@ -16,6 +16,7 @@
 package nz.mega.sdk;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -1267,6 +1268,7 @@ public class MegaApiJava {
      *
      * @return Current session key
      */
+    @Nullable
     public String dumpSession() {
         return megaApi.dumpSession();
     }
@@ -1283,6 +1285,7 @@ public class MegaApiJava {
      *
      * @return Authentication token
      */
+    @Nullable
     public String getAccountAuth() {
         return megaApi.getAccountAuth();
     }
@@ -1970,6 +1973,7 @@ public class MegaApiJava {
      *
      * @return MegaProxy object with the detected proxy settings
      */
+    @Nullable
     public MegaProxy getAutoProxySettings() {
         return megaApi.getAutoProxySettings();
     }
@@ -2285,6 +2289,7 @@ public class MegaApiJava {
      *
      * @return Email of the account
      */
+    @Nullable
     public String getMyEmail() {
         return megaApi.getMyEmail();
     }
@@ -2299,6 +2304,7 @@ public class MegaApiJava {
      *
      * @return User handle of the account
      */
+    @Nullable
     public String getMyUserHandle() {
         return megaApi.getMyUserHandle();
     }
@@ -2325,6 +2331,7 @@ public class MegaApiJava {
      * @return MegaUser of the currently open account, otherwise NULL
      * @implSpec The visibility of your own user is undefined and shouldn't be used.
      */
+    @Nullable
     public MegaUser getMyUser() {
         return megaApi.getMyUser();
     }
@@ -2421,6 +2428,7 @@ public class MegaApiJava {
      *
      * @return MegaIntegerList with the timestamp corresponding to each warning
      */
+    @Nullable
     public MegaIntegerList getOverquotaWarningsTs() {
         return megaApi.getOverquotaWarningsTs();
     }
@@ -2446,6 +2454,7 @@ public class MegaApiJava {
      *
      * @return Fingerprint of the signing key of the current account
      */
+    @Nullable
     public String getMyCredentials() {
         return megaApi.getMyCredentials();
     }
@@ -3677,6 +3686,7 @@ public class MegaApiJava {
      * @param user MegaUser to get the color of the avatar.
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
+    @Nullable
     public String getUserAvatarColor(MegaUser user) {
         return MegaApi.getUserAvatarColor(user);
     }
@@ -3691,6 +3701,7 @@ public class MegaApiJava {
      * @param userhandle User handle (Base64 encoded) to get the avatar.
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
+    @Nullable
     public String getUserAvatarColor(String userhandle) {
         return MegaApi.getUserAvatarColor(userhandle);
     }
@@ -3706,6 +3717,7 @@ public class MegaApiJava {
      * @param user MegaUser to get the color of the avatar.
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
+    @Nullable
     public String getUserAvatarSecondaryColor(MegaUser user) {
         return MegaApi.getUserAvatarSecondaryColor(user);
     }
@@ -3721,6 +3733,7 @@ public class MegaApiJava {
      * @param userhandle User handle (Base64 encoded) to get the avatar.
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
+    @Nullable
     public String getUserAvatarSecondaryColor(String userhandle) {
         return MegaApi.getUserAvatarSecondaryColor(userhandle);
     }
