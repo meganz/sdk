@@ -12987,7 +12987,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
     // Create a new file
-    string filename = DOTSLASH "file_permissions_test.sdktest";
+    string filename = "file_permissions_test.sdktest";
     ASSERT_TRUE(createFile(filename, false)) << "Couldn't create test file: '" << filename << "'";
 
     // Upload the file
@@ -13057,7 +13057,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
     auto downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the file. Result code: '" << downloadResult << "'";
     std::pair<bool, string> resultOpenFileAndDelete =
         openFileAndDelete(true   /* Open file with permission to READ */,
                          true    /* Open file with permission to WRITE */,
@@ -13072,7 +13072,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the file. Result code: '" << downloadResult << "'";
     resultOpenFileAndDelete =
         openFileAndDelete(true   /* Open file with permission to READ */,
                          false   /* DO NOT open file with permission to WRITE */,
@@ -13094,7 +13094,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     filePermissions = 0700;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'";
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the file. Result code: '" << downloadResult << "'";
     resultOpenFileAndDelete =
         openFileAndDelete(true   /* Open file with permission to READ */,
                          false   /* DO NOT open file with permission to WRITE */,
@@ -13135,7 +13135,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     fs::create_directories(folderpath);
 
     // Create a new file inside the new directory
-    string filename = DOTSLASH "file_permissions_test.sdktest";
+    string filename = "file_permissions_test.sdktest";
     fs::path fileInFolderPath = folderpath / filename;
     ASSERT_TRUE(createFile(fileInFolderPath.u8string(), false)) << "Couldn't create test file in directory: '" << fileInFolderPath.u8string() << "'";
 
@@ -13234,7 +13234,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
     auto downloadResult = downloadFolder();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
     std::pair<bool, string> resultOpenFolderAndDelete =
         openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                             true,  /* Delete folder at the end */
@@ -13250,7 +13250,12 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     int folderPermissions = 0400;
     megaApi[0]->setDefaultFolderPermissions(folderPermissions);
     downloadResult = downloadFolder();
+#ifdef _WIN32
+    // The expected (API_EINCOMPLETE) will not happen on Windows. We expect API_OK there.
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) in Windows */
+#else
     ASSERT_EQ(API_EINCOMPLETE, downloadResult) << "Download should have failed with API_EINCOMPLETE (-13) but it didn't. Result code: '" << downloadResult << "'"; /* Download will finish with API_EWRITE (-20) */
+#endif
     // T2-A. Files: opened both for reading and writing (expected FAIL)
     resultOpenFolderAndDelete =
         openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
@@ -13278,7 +13283,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFolder();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the folder. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
     // T3-A. Files: opened both for reading and writing (expected FAIL)
     resultOpenFolderAndDelete =
         openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
@@ -13304,7 +13309,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     filePermissions = 0600;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFolder();
-    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the cloudraid file. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
+    ASSERT_EQ(API_OK, downloadResult) << "Cannot download the folder. Result code: '" << downloadResult << "'"; /* Download will finish with API_OK (0) */
     resultOpenFolderAndDelete =
         openFolderAndDelete(true,  /* Expected for folders: ABLE to open */
                             true,  /* Delete folder at the end */
