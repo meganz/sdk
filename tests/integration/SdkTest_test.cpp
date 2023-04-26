@@ -13313,8 +13313,4 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                             true   /* Expected for files: ABLE to open (r + w) */
                             );
     ASSERT_TRUE(resultOpenFolderAndDelete.first) << resultOpenFolderAndDelete.second;
-
-    // Logout from folder
-    //rt = asyncRequestLocalLogout(megaApi[0].get());
-    //ASSERT_EQ(API_OK, rt->waitForResult()) << "Failed to local logout for folder";
 }
