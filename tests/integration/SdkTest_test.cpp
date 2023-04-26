@@ -13069,6 +13069,10 @@ TEST_F(SdkTest, SdkTestFilePermissions)
 
     auto openFileAndDelete = [this, &filename](bool readF, bool writeF, bool expectedF, bool deleteF) -> std::pair<bool, std::string>
     {
+#ifdef _WIN32
+        // Files should be able to be opened: posix file permissions don't have any effect on Windows.
+        expectedF = true;
+#endif
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
         LocalPath localfilePath = fspathToLocal(filePath);
@@ -13218,6 +13222,11 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     auto openFolderAndDelete = [this, &foldername, &nimported](bool expectedFolder = true, bool deleteF = true, bool readF = true, bool writeF = true, bool expectedFile = true) -> std::pair<bool, std::string>
     {
+#ifdef _WIN32
+        // Folder and files should be able to be opened: posix file/folder permissions don't have any effect on Windows.
+        expectedFolder = true;
+        expectedFile = true;
+#endif
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path dirPath = fs::current_path() / foldername.c_str();
         auto localDirPath = fspathToLocal(dirPath);
