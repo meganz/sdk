@@ -1256,21 +1256,11 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (gVerboseMode)
     {
         cout << "Received " << l << " byte(s) of user attribute: ";
@@ -1303,11 +1293,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
