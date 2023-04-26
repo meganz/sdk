@@ -64,7 +64,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
         auto fileAccess = fsAccess.newfileaccess();
 
-        if (fileAccess->fopen(legacyPath))
+        if (fileAccess->fopen(legacyPath, FSLogging::logExceptFileNotFound))
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
@@ -255,7 +255,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     auto to = dbPath + suffix;
 
     // -shm could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -shm file";
@@ -267,7 +267,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     to = dbPath + suffix;
 
     // -wal could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -wall file";
@@ -280,7 +280,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     auto to = dbPath + suffix;
 
     // -journal could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -journal file";
@@ -315,11 +315,10 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
-  : DbTable(rng, checkAlwaysTransacted)
+  : DbTable(rng, checkAlwaysTransacted, dBErrorCallBack)
   , db(db)
   , dbfile(path)
   , fsaccess(&fsAccess)
-  , mDBErrorCallBack(std::move(dBErrorCallBack))
 {
 }
 
@@ -845,13 +844,13 @@ void SqliteAccountState::finalise()
 {
     sqlite3_finalize(mStmtPutNode);
     mStmtPutNode = nullptr;
-    
+
     sqlite3_finalize(mStmtUpdateNode);
     mStmtUpdateNode = nullptr;
 
     sqlite3_finalize(mStmtUpdateNodeAndFlags);
     mStmtUpdateNodeAndFlags = nullptr;
- 
+
     sqlite3_finalize(mStmtTypeAndSizeNode);
     mStmtTypeAndSizeNode = nullptr;
 
@@ -1035,7 +1034,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &mStmtNodeByOrigFp, NULL);
     }
 
-    bool result = false;    
+    bool result = false;
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_blob(mStmtNodeByOrigFp, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
@@ -1438,7 +1437,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     {
         return false;
     }
-    
+
     const std::string filenode = std::to_string(FILENODE);
     uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
     std::string sqlQuery =  "SELECT n1.nodehandle, n1.counter, n1.node "
@@ -1781,7 +1780,7 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
     bool result = false;
     int sqlResult = SQLITE_OK;
-    
+
     if (!mStmtNodeByMimeTypeExcludeRecursiveFlags)
     {
         // recursive query from ancestorHandle
@@ -1798,7 +1797,7 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
     }
-    
+
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 1, ancestorHandle.as8byte())) == SQLITE_OK &&

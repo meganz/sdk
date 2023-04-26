@@ -188,7 +188,7 @@ namespace mega {
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
         bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
-        bool serialize(std::string*) override;
+        bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
 
         enum // match MegaSetElement::CHANGE_TYPE_ELEM_XXX values
@@ -267,7 +267,7 @@ namespace mega {
 
         bool isExported() const { return mPublicId != UNDEF; }
 
-        bool serialize(std::string*) override;
+        bool serialize(std::string*) const override;
         static std::unique_ptr<Set> unserialize(std::string* d);
 
         enum // match MegaSet::CHANGE_TYPE_XXX values

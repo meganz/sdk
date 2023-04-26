@@ -61,7 +61,7 @@ struct MEGA_API PendingContactRequest : public Cacheable
         bool reminded : 1;
     } changed;
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static PendingContactRequest* unserialize(string*);
 
     PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing);

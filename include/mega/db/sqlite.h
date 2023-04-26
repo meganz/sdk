@@ -44,9 +44,6 @@ protected:
     // handler for DB errors ('interrupt' is true if caller can be interrupted by CancelToken)
     void errorHandler(int sqliteError, const std::string& operation, bool interrupt);
 
-    // callback to notify DB errors, provided at ctor
-    DBErrorCallback mDBErrorCallBack;
-
 public:
     void rewind() override;
     bool next(uint32_t*, string*) override;
