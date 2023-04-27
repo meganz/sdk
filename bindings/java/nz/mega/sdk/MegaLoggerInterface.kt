@@ -17,16 +17,14 @@ package nz.mega.sdk
 
 /**
  * Interface to receive SDK logs.
- *
- *
+ * <p>
  * You can implement this class and pass an object of your subclass to MegaApi.setLoggerClass() to receive SDK logs.
  * You will also have to use MegaApi.setLogLevel() to select the level of the logs that you want to receive.
  */
 interface MegaLoggerInterface {
     /**
      * This function will be called for all logs with level <= your selected level of logging.
-     *
-     *
+     * <p>
      * By default log level is MegaApi.LOG_LEVEL_INFO.
      *
      * @param time
