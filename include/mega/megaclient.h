@@ -1110,7 +1110,7 @@ public:
 
     // parse scheduled meeting or scheduled meeting occurrences
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
-                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 bool parsingOccurrences, JSON *j, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
@@ -1578,9 +1578,6 @@ public:
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
-
-    // MegaClient-Server response JSON
-    JSON json;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
@@ -2333,7 +2330,7 @@ public:
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool procaesp();
+    bool procaesp(JSON& j);
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
