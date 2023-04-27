@@ -13081,7 +13081,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // Expected: successful download and successul file opening for reading and writing.
     auto downloadResult = downloadFile();
     ASSERT_EQ(API_OK, downloadResult);
-    ASSERT_TRUE(openFile(true, true)) << " Couldn't open file for read|write";
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
 
@@ -13091,12 +13091,12 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFile();
     ASSERT_EQ(API_OK, downloadResult);
-    ASSERT_TRUE(openFile(true, false)) << " Couldn't open file for read";
+    ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
 #ifdef _WIN32
     // Files should be able to be opened: posix file permissions don't have any effect on Windows.
-    ASSERT_TRUE(openFile(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFile(true, true)) << " Could open files for read|write, while it shouldn't due to permissions";
+    ASSERT_FALSE(openFile(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
     deleteFile(filename.c_str());
 
@@ -13107,7 +13107,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     downloadResult = downloadFile();
     ASSERT_EQ(API_OK, downloadResult);
-    ASSERT_TRUE(openFile(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
     deleteFile(filename.c_str());
 }
 
@@ -13157,7 +13157,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/,
                             &uploadListener);
-    ASSERT_EQ(API_OK, uploadListener.waitForResult()) << "Couldn't upload folder";
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
     int nimportedNumChildren = megaApi[0]->getNumChildren(nimported.get());
     EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'"; 
@@ -13207,7 +13207,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
@@ -13218,12 +13218,12 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 #ifdef _WIN32
     // Folder and files should be able to be opened: posix file/folder permissions don't have any effect on Windows.
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << " Couldn't open files for read";
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
     ASSERT_EQ(API_EINCOMPLETE, downloadFolder()) << "Download should have failed as there are not enough permissions to write in the folder";
-    ASSERT_FALSE(openFolderAndFiles(true, false)) << " Could open files for read, while it shouldn't due to permissions";
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << " Could open files for read|write, while it shouldn't due to permissions";
+    ASSERT_FALSE(openFolderAndFiles(true, false)) << "Could open files for read, while it shouldn't due to permissions";
+    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
     deleteFolder(foldername.c_str());
 
@@ -13235,11 +13235,11 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, false)) << " Couldn't open files for read";
+    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
 #ifdef _WIN32
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
 #else
-    ASSERT_FALSE(openFolderAndFiles(true, true)) << " Could open files for read|write, while it shouldn't due to permissions";
+    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
     deleteFolder(foldername.c_str());
 
@@ -13249,6 +13249,6 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     filePermissions = 0600;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 }
