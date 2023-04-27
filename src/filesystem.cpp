@@ -47,7 +47,7 @@ FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
 bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
 {
     return setting == eLogOnError ||
-          (setting == eLogExceptFileNotFound && fsaccess.isErrorFileNotFound(os_errorcode));
+          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
 }
 
 namespace detail {
@@ -619,7 +619,7 @@ bool FileSystemAccess::decodeEscape(const char* s, char& escapedChar) const
 }
 
 
-const char *FileSystemAccess::fstypetostring(FileSystemType type) const
+const char *FileSystemAccess::fstypetostring(FileSystemType type)
 {
     switch (type)
     {

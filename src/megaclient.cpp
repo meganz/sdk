@@ -1410,8 +1410,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     ststatus = STORAGE_UNKNOWN;
     mOverquotaDeadlineTs = 0;
 
-    mFetchingAuthrings = 0;
-    fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
 
@@ -4051,7 +4049,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mPendingContactKeys.clear();
-    mFetchingAuthrings = 0;
 
     reportLoggedInChanges();
     mLastLoggedInReportedState = NOTLOGGEDIN;
@@ -4065,7 +4062,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         dbaccess->currentDbVersion = DbAccess::LEGACY_DB_VERSION;
     }
 
-    fetchingkeys = false;
     executingLocalLogout = false;
     mMyAccount = MyAccountData{};
     mKeyManager.reset();
@@ -4940,6 +4936,7 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+        LOG_debug << "SCSN write at DB " << tscsn << " -  " << scsn.text();
 
         if (complete && !mScDbStateRecord.seqTag.empty())
         {
@@ -10516,7 +10513,6 @@ void MegaClient::clearKeys()
     u->invalidateattr(ATTR_SIG_RSA_PUBK);
     u->invalidateattr(ATTR_SIG_CU255_PUBK);
 
-    fetchingkeys = false;
 }
 
 void MegaClient::resetKeyring()
@@ -11280,7 +11276,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
         const string *cachedav = u->getattr(at);
         int tag = (ctag != -1) ? ctag : reqtag;
 
-        if (!fetchingkeys && cachedav && u->isattrvalid(at))
+        if (cachedav && u->isattrvalid(at))
         {
             if (User::scope(at) == '*') // private attribute, TLV encoding
             {
@@ -12859,6 +12855,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
+    LOG_debug << "Max dbId after resume session: " << id;
+
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
         LOG_info << "Upgrading cache to NOD";
@@ -13168,6 +13166,9 @@ void MegaClient::handleDbError(DBError error)
         case DBError::DB_ERROR_IO:
             fatalError(ErrorReason::REASON_ERROR_DB_IO);
             break;
+        case DBError::DB_ERROR_INDEX_OVERFLOW:
+            fatalError(ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW);
+            break;
         default:
             fatalError(ErrorReason::REASON_ERROR_UNKNOWN);
             break;
@@ -13195,6 +13196,10 @@ void MegaClient::fatalError(ErrorReason errorReason)
                 break;
             case ErrorReason::REASON_ERROR_DB_FULL:
                 reason = "Data base is full";
+                break;
+            case ErrorReason::REASON_ERROR_DB_INDEX_OVERFLOW:
+                reason = "DB index overflow";
+                sendevent(99471, "DB index overflow", 0);
                 break;
             default:
                 reason = "Unknown reason";
@@ -13343,6 +13348,11 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
+            // Sanity clean before getting the User Data
+            resetKeyring();
+            discarduser(me);
+            finduser(me, 1);
+
             // we need this one to ensure we have the sync config read/write key for example
             getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e)
             {
@@ -13357,6 +13367,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 if (loggedin() == FULLACCOUNT
                         || loggedin() == EPHEMERALACCOUNTPLUSPLUS)
                 {
+                    initializekeys();
                     loadAuthrings();
                 }
 
@@ -13364,12 +13375,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
                 reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
             });
-
-            if (loggedin() == FULLACCOUNT
-                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS) // need to create early the chat and sign keys
-            {
-                fetchkeys();
-            }
 
             fetchtimezone();
         }
@@ -13381,25 +13386,6 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
     }
 }
 
-void MegaClient::fetchkeys()
-{
-    fetchingkeys = true;
-
-    resetKeyring();
-    discarduser(me);
-    User *u = finduser(me, 1);
-
-    // RSA public key is retrieved by getuserdata
-
-    // This attribute won't be used for migrated accounts
-    getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
-
-    getua(u, ATTR_ED25519_PUBK, 0);
-    getua(u, ATTR_CU25519_PUBK, 0);
-    getua(u, ATTR_SIG_CU255_PUBK, 0);
-    getua(u, ATTR_SIG_RSA_PUBK, 0);   // it triggers MegaClient::initializekeys() --> must be the latest
-}
-
 void MegaClient::initializekeys()
 {
     string prEd255, puEd255;    // keypair for Ed25519  --> MegaClient::signkey
@@ -13407,6 +13393,7 @@ void MegaClient::initializekeys()
     string sigCu255, sigPubk;   // signatures for Cu25519 and RSA
 
     User *u = finduser(me);
+    assert(u && "Own user not available while initializing keys");
 
     if (mKeyManager.generation())   // account has ^!keys already available
     {
@@ -13572,7 +13559,6 @@ void MegaClient::initializekeys()
 
         // if we reached this point, everything is OK
         LOG_info << "Keypairs and signatures loaded successfully";
-        fetchingkeys = false;
         return;
     }
     else if (!signkey && !chatkey)       // THERE ARE NO KEYS
@@ -13663,13 +13649,21 @@ void MegaClient::initializekeys()
             buf.assign(sigCu255.data(), sigCu255.size());
             attrs[ATTR_SIG_CU255_PUBK] = buf;
 
-            putua(&attrs, 0);
+            putua(&attrs, 0, [this](Error e)
+            {
+                if (e != API_OK)
+                {
+                    LOG_err << "Error attaching keys: " << e;
+                    sendevent(99419, "Error Attaching keys", 0);
+                    clearKeys();
+                    resetKeyring();
+                }
+            });
 
             delete chatkey;
             delete signkey; // MegaClient::signkey & chatkey are created on putua::procresult()
 
             LOG_info << "Creating new keypairs and signatures";
-            fetchingkeys = false;
             return;
         }
     }
@@ -13722,24 +13716,18 @@ void MegaClient::loadAuthrings()
                     }
                     else
                     {
-                        LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
-                        getua(ownUser, at, 0);
-                        ++mFetchingAuthrings;
+                        LOG_err << User::attr2string(at) << " not available: found in cache, but out of date.";
                     }
                 }
                 else
                 {
-                    LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
-                    getua(ownUser, at, 0);
-                    ++mFetchingAuthrings;
+                    // It does not exist yet in the account. Will be created upon retrieval of contact keys.
+                    LOG_warn << User::attr2string(at) << " not found in cache. Setting an empty one.";
+                    mAuthRings.emplace(at, AuthRing(at, TLVstore()));
                 }
             }
 
-            // if all authrings were loaded from cache...
-            if (mFetchingAuthrings == 0)
-            {
-                fetchContactsKeys();
-            }
+            fetchContactsKeys();
 
         }   // --> end if(!mKeyManager.generation())
     }

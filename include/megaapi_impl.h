@@ -1425,6 +1425,10 @@ class MegaRequestPrivate : public MegaRequest
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
         std::function<error(TransferDbCommitter&)> performTransferRequest;
+        
+        // perform fireOnRequestFinish in sendPendingReqeusts()
+        // See fireOnRequestFinish
+        std::function<void()> performFireOnRequestFinish;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -4499,10 +4503,10 @@ public:
     MegaScheduledFlagsPrivate& operator=(const MegaScheduledFlagsPrivate&&) = delete;
 
     void reset() override;
-    void setEmailsDisabled(bool enabled);
+    void setSendEmails(bool enabled);
     void importFlagsValue(unsigned long val) override;
 
-    bool emailsDisabled() const;
+    bool sendEmails() const;
     unsigned long getNumericValue() const override;
 
     MegaScheduledFlagsPrivate* copy() const override { return new MegaScheduledFlagsPrivate(this); }
