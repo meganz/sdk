@@ -114,19 +114,19 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param changeType The type of change to check. It can be one of the following values:
  *
- * - MEGASetChangeTypeNew                  = 0x01
+ * - MEGASetChangeTypeNew                  = 0
  * Check if the Set was new
  *
- * - MEGASetChangeTypeName                 = 0x02
+ * - MEGASetChangeTypeName                = 1
  * Check if Set name has changed
  *
- * - MEGASetChangeTypeCover                = 0x04
+ * - MEGASetChangeTypeCover                = 2
  * Check if Set cover has changed
  *
- * - MEGASetChangeTypeRemoved              = 0x08
+ * - MEGASetChangeTypeRemoved          = 3
  * Check if the Set was removed
  *
- * - MEGASetChangeTypeExported             = 0x10
+ * - MEGASetChangeTypeExported           = 4
  * Check if the Set was exported or disabled (i.e. exporting ended)
  *
  * @return YES if this Set has a specific change

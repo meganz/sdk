@@ -1256,21 +1256,11 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (gVerboseMode)
     {
         cout << "Received " << l << " byte(s) of user attribute: ";
@@ -1303,11 +1293,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
@@ -2230,10 +2215,10 @@ int loadfile(LocalPath& localPath, string* data)
 {
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localPath, 1, 0))
+    if (fa->fopen(localPath, 1, 0, FSLogging::logOnError))
     {
         data->resize(size_t(fa->size));
-        fa->fread(data, unsigned(data->size()), 0, 0);
+        fa->fread(data, unsigned(data->size()), 0, 0, FSLogging::logOnError);
         return 1;
     }
     return 0;
@@ -3464,7 +3449,7 @@ void exec_fingerprint(autocomplete::ACState& s)
     auto localfilepath = localPathArg(s.words[1].s);
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localfilepath, true, false, nullptr))
+    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError, nullptr))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -3535,7 +3520,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
     // perform get in both cases
     auto fa = client->fsaccess->newfileaccess();
-    if (fa->fopen(localfilepath, true, false))
+    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -5382,7 +5367,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     if (type == FILENODE)
     {
         auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(localname, true, false))
+        if (fa->fopen(localname, true, false, FSLogging::logOnError))
         {
             FileFingerprint fp;
             fp.genfingerprint(fa.get());
@@ -5461,7 +5446,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
 #ifndef DONT_USE_SCAN_SERVICE
 
     auto fa = client->fsaccess->newfileaccess();
-    fa->fopen(localname);
+    fa->fopen(localname, FSLogging::logOnError);
     if (fa->type != FOLDERNODE)
     {
         cout << "Path is not a folder: " << localname.toPath(false);
@@ -10048,7 +10033,7 @@ void exec_metamac(autocomplete::ACState& s)
     auto ifAccess = client->fsaccess->newfileaccess();
     {
         auto localPath = localPathArg(s.words[1].s);
-        if (!ifAccess->fopen(localPath, 1, 0))
+        if (!ifAccess->fopen(localPath, 1, 0, FSLogging::logOnError))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
             return;

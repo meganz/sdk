@@ -2088,7 +2088,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         auto fa = fsa->newfileaccess();
-        ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str())));
+        ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str()), FSLogging::logOnError));
         ASSERT_TRUE(ffp.genfingerprint(fa.get()));
     }
 
@@ -4558,7 +4558,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
-        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
+        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false, FSLogging::logOnError));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa->newdiraccess());
@@ -4576,16 +4576,16 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false));
+                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
 
-                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, da.get()));
+                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
             }
         }
 
         std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
-        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false));
+        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false, FSLogging::logOnError));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
@@ -4603,10 +4603,10 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false));
+                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, da_follow.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
@@ -5553,7 +5553,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
             m_time_t mtime = 0;
             {
                 auto nfa = fsa->newfileaccess();
-                nfa->fopen(localname);
+                nfa->fopen(localname, FSLogging::logOnError);
                 mtime = nfa->mtime;
             }
 
@@ -12409,6 +12409,209 @@ TEST_F(SdkTest, SdkUserAlerts)
 }
 
 /**
+ * ___SdkVersionManagement___
+ * Steps:
+ * - Create 2 folders
+ * - Upload several versions of the same file to first folder
+ * - Move file with versions to second folder
+ * - Move second folder to first folder
+ * - Remove current version
+ * - Remove oldest version
+ * - Remove version in the middle
+ * - Remove node in the middle (and all previous versions)
+ * - Remove all versions across entire account; will keep only last version
+ * - Delete a version by the API when limit was reached (chain must have 100 versions)
+ */
+TEST_F(SdkTest, SdkVersionManagement)
+{
+    LOG_info << "___TEST SdkVersionManagement";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    doSetFileVersionsOption(0, false); // enable versioning
+    auto& api = megaApi[0];
+    unique_ptr<MegaNode> rootNode(api->getRootNode());
+
+    //  Create 2 folders
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    std::string folder1 = "Folder1";
+    auto folder1Handle = createFolder(0, folder1.c_str(), rootNode.get());
+    ASSERT_NE(folder1Handle, UNDEF);
+    waitForResponse(&check);
+    unique_ptr<MegaNode> folder1Node(api->getNodeByHandle(folder1Handle));
+    ASSERT_TRUE(folder1Node);
+    check = false;
+    std::string folder2 = "Folder2";
+    auto folder2Handle = createFolder(0, folder2.c_str(), rootNode.get());
+    ASSERT_NE(folder2Handle, UNDEF);
+    waitForResponse(&check);
+    unique_ptr<MegaNode> folder2Node(api->getNodeByHandle(folder2Handle));
+    ASSERT_TRUE(folder2Node);
+    resetOnNodeUpdateCompletionCBs();
+
+    auto upldSingleVersion = [this](const string& name, int version, MegaNode* folderNode, MegaHandle* fh)
+    {
+        string localName = name + '_' + std::to_string(version);
+        createFile(localName, false, std::to_string(version));
+
+        int result = doStartUpload(0, fh, localName.c_str(), folderNode,
+                             name.c_str() /*fileName*/,
+                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                             nullptr /*appData*/,
+                             false   /*isSourceTemporary*/,
+                             false   /*startFirst*/,
+                             nullptr /*cancelToken*/);
+        deleteFile(localName);
+        return result;
+    };
+
+    auto upldVersions = [upldSingleVersion](const string& name, int versions, MegaNode* folderNode, MegaHandle* fh)
+    {
+#define UPLOAD_SINGLE_THREAD 1
+#if UPLOAD_SINGLE_THREAD
+        for (int i = 0; i < versions - 1; ++i)
+        {
+            ASSERT_EQ(upldSingleVersion(name, i + 1, folderNode, nullptr), API_OK);
+        }
+        ASSERT_EQ(upldSingleVersion(name, versions, folderNode, fh), API_OK);
+#else
+        // This would be very nice to have. Unfortunately crashes occur while running multiple threads.
+        assert(versions);
+
+        std::vector<std::thread> tpool(std::min(6u, std::thread::hardware_concurrency()));
+        std::vector<int> results(tpool.size(), 0);
+        for (size_t i = 0; i < versions - 1; ++i)
+        {
+            if (i >= tpool.size())
+            {
+                tpool[i%tpool.size()].join();
+                if (results[i] != API_OK)
+                {
+                    // retry another version?
+                    //++versions;
+                }
+            }
+
+            tpool[i % tpool.size()] = std::thread([&name, i, folderNode, &r = results[i], upldSingleVersion]()
+            {
+                r = upldSingleVersion(name, i + 1, folderNode, nullptr);
+            });
+        }
+
+        for (size_t i = 0; i < (versions - 1) % tpool.size(); ++i)
+        {
+            tpool[i].join();
+            EXPECT_EQ(results[i], API_OK) << "Version upload failed";
+        }
+
+        int r = upldSingleVersion(name, versions, folderNode, fh);
+        EXPECT_EQ(r, API_OK) << "Version upload failed";
+#endif
+    };
+
+    //  Upload several versions of the same file to first folder
+    const int verCount = 10;
+    MegaHandle fileHandle = 0;
+    ASSERT_NO_FATAL_FAILURE(upldVersions(UPFILE, verCount, folder1Node.get(), &fileHandle));
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode(api->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(fileNode);
+    unique_ptr<MegaNodeList> allVersions(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verCount);
+    ASSERT_EQ(fileNode->getHandle(), allVersions->get(0)->getHandle());
+
+    //  Move file with versions to second folder
+    ASSERT_EQ(API_OK, doMoveNode(0, &fileHandle, fileNode.get(), folder2Node.get())) << "Cannot move file";
+    string destinationPath = '/' + folder2 + '/' + UPFILE;
+    for (int i = 0; i < allVersions->size(); ++i)
+    {
+        unique_ptr<char> filePath(api->getNodePath(allVersions->get(i)));
+        ASSERT_STREQ(destinationPath.c_str(), filePath.get()) << "Wrong file path (1) for version " << (i + 1);
+        destinationPath += '/' + UPFILE;
+    }
+
+    //  Move second folder to first folder
+    ASSERT_EQ(API_OK, doMoveNode(0, &folder2Handle, folder2Node.get(), folder1Node.get())) << "Cannot move folder";
+    destinationPath = '/' + folder1 + '/' + folder2 + '/' + UPFILE;
+    for (int i = 0; i < allVersions->size(); ++i)
+    {
+        unique_ptr<char> filePath(api->getNodePath(allVersions->get(i)));
+        ASSERT_STREQ(destinationPath.c_str(), filePath.get()) << "Wrong file path (2) for version " << (i + 1);
+        destinationPath += '/' + UPFILE;
+    }
+    folder2Node.reset(api->getNodeByHandle(folder2Handle));
+    ASSERT_TRUE(folder2Node);
+
+    //  Remove current version
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(0)));
+    int verRemoved = 1;
+    unique_ptr<MegaNodeList> versionsAfterRemoval(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove oldest version
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(verCount - 1)));
+    ++verRemoved;
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove version in the middle
+    ASSERT_GT(versionsAfterRemoval->size(), 2) << "Not enough versions to test further";
+    int middle = (verCount + 1) / 2;
+    ASSERT_EQ(API_OK, doRemoveVersion(0, allVersions->get(middle)));
+    ++verRemoved;
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), verCount - verRemoved);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        int j = i < middle - 1 ? 1 : 2;
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + j)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove node in the middle (and all previous versions)
+    ASSERT_GT(versionsAfterRemoval->size(), 2) << "Not enough versions to test further";
+    middle = (versionsAfterRemoval->size() + 1) / 2;
+    ASSERT_EQ(API_OK, doDeleteNode(0, versionsAfterRemoval->get(middle)));
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), middle);
+    for (int i = 0; i < versionsAfterRemoval->size(); ++i)
+    {
+        ASSERT_EQ(versionsAfterRemoval->get(i)->getHandle(), allVersions->get(i + 1)->getHandle()) << "i = " << i;
+    }
+
+    //  Remove all versions across entire account; will keep only last version
+    ASSERT_GT(versionsAfterRemoval->size(), 1) << "Not enough versions to test further";
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(versionsAfterRemoval->get(1)->getHandle(), MegaNode::CHANGE_TYPE_REMOVED, check);
+    ASSERT_EQ(API_OK, doRemoveVersions(0));
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+    versionsAfterRemoval.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(versionsAfterRemoval->size(), 1);
+    ASSERT_EQ(versionsAfterRemoval->get(0)->getHandle(), allVersions->get(1)->getHandle());
+
+
+    //  Delete a version by the API when limit was reached (chain must have 100 versions)
+    doSetFileVersionsOption(0, false); // enable versioning
+    int verLimit = 100;
+    ASSERT_NO_FATAL_FAILURE(upldVersions(UPFILE, verLimit, folder1Node.get(), &fileHandle));
+    fileNode.reset(api->getNodeByHandle(fileHandle));
+    allVersions.reset(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verLimit);
+    // upload one more version
+    ASSERT_EQ(upldSingleVersion(UPFILE, verLimit + 1, folder1Node.get(), nullptr), API_OK);
+    allVersions.reset(api->getVersions(fileNode.get()));
+    ASSERT_EQ(allVersions->size(), verLimit);
+}
+
+/**
  * ___SdkGetNodesByName___
  * Steps:
  * - Create tree structure
@@ -12430,6 +12633,7 @@ TEST_F(SdkTest, SdkUserAlerts)
  * - Get nodes by name recursively inside out share
  * - Get out share by name (no recursive)
  * - Get out share by name (no recursive) -> mismatch
+ * - Get nodes with utf8 characters insensitive case
  */
 TEST_F(SdkTest, SdkGetNodesByName)
 {
@@ -12614,6 +12818,26 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeFile.reset(megaApi[0]->getNodeByHandle(file8Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 8 node for scenario (error: " << mApi[0].lastError << ")";
 
+    mApi[0].nodeUpdated = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
+    std::string fileUtf8 = "ñamÚ";
+    createFile(fileUtf8, false);
+    MegaHandle fileUtf8Handle = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileUtf8Handle, fileUtf8.data(), folder1.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    waitForResponse(&check);
+    deleteFile(fileUtf8);
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+    nodeFile.reset(megaApi[0]->getNodeByHandle(fileUtf8Handle));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 5 node for scenario (error: " << mApi[0].lastError << ")";
+
 
     // Tree structure
     // Root node
@@ -12626,6 +12850,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     //       - file3Check
     //       - file4Check
     //       - file5Check
+    //       - ñam
     //   - file6Test
 
     stringSearch = file1;
@@ -12757,4 +12982,27 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 2);
+
+    // --- Test strings with UTF-8 characters
+    stringSearch = "Ñ";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    stringSearch = "ñ";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    // No recursive search
+    stringSearch = "Ñ";
+    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+
+    stringSearch = "ú";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 }

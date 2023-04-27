@@ -843,6 +843,7 @@ typedef enum {
     REASON_ERROR_UNSERIALIZE_NODE   = 1,
     REASON_ERROR_DB_IO              = 2,
     REASON_ERROR_DB_FULL            = 3,
+    REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
