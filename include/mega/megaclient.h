@@ -646,9 +646,6 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();
-
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
@@ -2036,12 +2033,6 @@ public:
 
     // Pending contact keys during initialization
     std::map<attr_t, set<handle>> mPendingContactKeys;
-
-    // number of authrings being fetched
-    unsigned short mFetchingAuthrings = 0;
-
-    // actual state of keys
-    bool fetchingkeys;
 
     // invalidate received keys (when fail to load)
     void clearKeys();

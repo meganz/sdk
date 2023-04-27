@@ -3129,7 +3129,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
             userattr_map::iterator it = this->attrs.find(type);
             if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
             {
-                LOG_err << "Error in CommandPutUA. Undefined attribute or version: " << key;
+                LOG_err << "Error in CommandPutMultipleUAVer. Undefined attribute or version: " << key;
                 for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
                 break;
             }
@@ -3187,13 +3187,6 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
     }
     else if (r.wasErrorOrOK())
     {
-        if (client->fetchingkeys)
-        {
-            client->sendevent(99419, "Error attaching keys", 0);
-            client->clearKeys();
-            client->resetKeyring();
-        }
-
         mCompletion(r.errorOrOK());
         return true;
     }
@@ -3474,30 +3467,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
             return true;
         }
 
-        if (u && u->userhandle == client->me && !r.wasError(API_EBLOCKED))
-        {
-            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
-            {
-                assert(r.wasError(API_ENOENT));
-                client->initializekeys(); // we have now all the required data
-            }
-
-            if (r.wasError(API_ENOENT) && User::isAuthring(at))
-            {
-                if (!client->mKeyManager.generation())
-                {
-                    // authring not created yet, will do it upon retrieval of public keys
-                    client->mAuthRings.erase(at);
-                    client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-                }
-
-                if (--client->mFetchingAuthrings == 0)
-                {
-                    client->fetchContactsKeys();
-                }
-            }
-        }
-
         if (u && !u->isTemporary && u->userhandle != client->me && r.wasError(API_ENOENT))
         {
             if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
@@ -3571,11 +3540,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         mCompletionErr(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                            assert(false);
-                        }
                         return false;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -3586,11 +3550,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     if (!(ptr = json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         mCompletionErr(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                            assert(false);
-                        }
                         return false;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3649,30 +3608,12 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                             u->setattr(at, &value, &version);
                             mCompletionTLV(tlvRecords.get(), at);
 
-                            if (User::isAuthring(at))
-                            {
-                                if (!client->mKeyManager.generation())
-                                {
-                                    client->mAuthRings.erase(at);
-                                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
-                                }
-
-                                if (--client->mFetchingAuthrings == 0)
-                                {
-                                    client->fetchContactsKeys();
-                                }
-                            }
                             break;
                         }
                         case '+':   // public
                         {
                             u->setattr(at, &value, &version);
                             mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-
-                            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                            {
-                                client->initializekeys(); // we have now all the required data
-                            }
 
                             if (!u->isTemporary && u->userhandle != client->me)
                             {
@@ -3765,10 +3706,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-                        {
-                            client->initializekeys(); // we have now all the required data
-                        }
                         return false;
                     }
                 }
@@ -4024,12 +3961,6 @@ bool CommandPubKeyRequest::procresult(Result r, JSON& json)
                         }
                     }
 
-                    if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
-                    {
-                        client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
-                        return true;
-                    }
-
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                     {
                         len_pubk = 0;
@@ -4151,6 +4082,13 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string jsonSyncConfigDataVersion;
 #endif
     string keys, keysVersion;
+    string keyring, versionKeyring;
+    string pubEd255, versionPubEd255;
+    string pubCu255, versionPubCu255;
+    string sigPubk, versionSigPubk;
+    string sigCu255, versionSigCu255;
+    string authringEd255, versionAuthringEd255;
+    string authringCu255, versionAuthringCu255;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4290,6 +4228,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 #endif
         case MAKENAMEID6('^', '!', 'k', 'e', 'y', 's'):
             parseUserAttribute(json, keys, keysVersion);
+            break;
+        case MAKENAMEID8('*', 'k', 'e', 'y', 'r', 'i', 'n', 'g'):
+            parseUserAttribute(keyring, versionKeyring);
+            break;
+        case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
+            parseUserAttribute(pubEd255, versionPubEd255);
+            break;
+        case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
+            parseUserAttribute(pubCu255, versionPubCu255);
+            break;
+        case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
+            parseUserAttribute(sigPubk, versionSigPubk);
             break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
@@ -4747,6 +4697,45 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     // include the user's attribute
                     client->sendevent(99465, "KeyMgr / Setup failure");
                 }
+                else
+                {
+                    // Process the following ones only when there is no ^!keys yet in the account.
+                    // If ^!keys exists, they are all already in it.
+                    if (keyring.size()) // priv Ed255 and Cu255 keys
+                    {
+                        changes += u->updateattr(ATTR_KEYRING, &keyring, &versionKeyring);
+                    }
+
+                    if (authringEd255.size())
+                    {
+                        changes += u->updateattr(ATTR_AUTHRING, &authringEd255, &versionAuthringEd255);
+                    }
+
+                    if (authringCu255.size())
+                    {
+                        changes += u->updateattr(ATTR_AUTHCU255, &authringCu255, &versionAuthringCu255);
+                    }
+                }
+
+                if (pubEd255.size())
+                {
+                    changes += u->updateattr(ATTR_ED25519_PUBK, &pubEd255, &versionPubEd255);
+                }
+
+                if (pubCu255.size())
+                {
+                    changes += u->updateattr(ATTR_CU25519_PUBK, &pubCu255, &versionPubCu255);
+                }
+
+                if (sigPubk.size())
+                {
+                    changes += u->updateattr(ATTR_SIG_RSA_PUBK, &sigPubk, &versionSigPubk);
+                }
+
+                if (sigCu255.size())
+                {
+                    changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
 
                 if (changes > 0)
                 {
@@ -4858,6 +4847,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
                 case ATTR_BIRTHYEAR:
                     parseUserAttribute(json, birthyear, versionBirthyear);
+                    break;
+
+                case ATTR_SIG_CU255_PUBK:
+                    parseUserAttribute(sigCu255, versionSigCu255);
+                    break;
+
+                case ATTR_AUTHRING:
+                    parseUserAttribute(authringEd255, versionAuthringEd255);
+                    break;
+
+                case ATTR_AUTHCU255:
+                    parseUserAttribute(authringCu255, versionAuthringCu255);
                     break;
 
                 default:
