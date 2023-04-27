@@ -13220,7 +13220,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_EQ(API_OK, downloadFolder());
     ASSERT_TRUE(openFolderAndFiles(true, false)) << " Couldn't open files for read";
     ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
-else
+#else
     ASSERT_EQ(API_EINCOMPLETE, downloadFolder()) << "Download should have failed as there are not enough permissions to write in the folder";
     ASSERT_FALSE(openFolderAndFiles(true, false)) << " Could open files for read, while it shouldn't due to permissions";
     ASSERT_FALSE(openFolderAndFiles(true, true)) << " Could open files for read|write, while it shouldn't due to permissions";
@@ -13238,7 +13238,7 @@ else
     ASSERT_TRUE(openFolderAndFiles(true, false)) << " Couldn't open files for read";
 #ifdef _WIN32
     ASSERT_TRUE(openFolderAndFiles(true, true)) << " Couldn't open files for read|write";
-else
+#else
     ASSERT_FALSE(openFolderAndFiles(true, true)) << " Could open files for read|write, while it shouldn't due to permissions";
 #endif
     deleteFolder(foldername.c_str());
