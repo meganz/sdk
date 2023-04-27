@@ -113,6 +113,7 @@ private:
      * @param taglen Length of expected authentication tag.
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_encrypt(const byte* data, const size_t datasize, const byte* key, const size_t keylen,
                      const byte* additionalData, const size_t additionalDatalen, const byte* iv,
@@ -135,6 +136,7 @@ private:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt(const byte* data, const size_t datalen, const byte* additionalData, const size_t additionalDatalen,
                      const byte* key, const size_t keylength, const byte* tag, const size_t taglen, const byte* iv,
@@ -196,6 +198,7 @@ public:
      * @param key Encryption key
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
     bool cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
@@ -207,6 +210,7 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
@@ -222,6 +226,7 @@ public:
      * @param key Decryption key
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
@@ -326,6 +331,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
@@ -345,6 +351,7 @@ public:
      * @param taglen Length of expected authentication tag.
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_encrypt_add(const byte* data, const size_t datasize, const byte* additionalData, const size_t additionalDatalen, const byte* iv,
                          const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
@@ -361,6 +368,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
@@ -379,6 +387,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
                          const size_t additionalDatalen, const byte* tag, const size_t taglen,
@@ -400,6 +409,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt_with_key(const byte* data, const size_t datalen, const byte* key, const size_t keylength,
                               const byte* tag, const size_t taglen, const byte* iv, const size_t ivlen, byte* result,

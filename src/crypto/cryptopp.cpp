@@ -465,7 +465,7 @@ bool SymmCipher::gcm_decrypt_with_key(const byte* data, const size_t datalen, co
 {
     if (!key || !keylength)
     {
-        LOG_err << "Failed AES-GCM dncryption. Invalid decryption key";
+        LOG_err << "Failed AES-GCM decryption. Invalid decryption key";
         return false;
     }
     return gcm_decrypt(data, datalen, nullptr /*additionalData*/, 0 /*additionalDatalen*/,
