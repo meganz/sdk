@@ -4302,31 +4302,6 @@ void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
     pImpl->removeGlobalListener(listener);
 }
 
-MegaRequest *MegaApi::getCurrentRequest()
-{
-    return pImpl->getCurrentRequest();
-}
-
-MegaTransfer *MegaApi::getCurrentTransfer()
-{
-    return pImpl->getCurrentTransfer();
-}
-
-MegaError *MegaApi::getCurrentError()
-{
-    return pImpl->getCurrentError();
-}
-
-MegaNodeList *MegaApi::getCurrentNodes()
-{
-    return pImpl->getCurrentNodes();
-}
-
-MegaUserList *MegaApi::getCurrentUsers()
-{
-    return pImpl->getCurrentUsers();
-}
-
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
 {
     return pImpl->checkAccess(megaNode, level);

@@ -66,7 +66,7 @@ void File::setLocalname(const LocalPath& ln)
     localname_multithreaded = ln;
 }
 
-bool File::serialize(string *d)
+bool File::serialize(string *d) const
 {
     char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
@@ -574,7 +574,7 @@ void SyncFileGet::prepare(FileSystemAccess&)
                 LocalPath lockname = LocalPath::fromRelativeName("lock", *sync->client->fsaccess, sync->mFilesystemType);
                 transfer->localfilename.appendWithSeparator(lockname, true);
 
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
+                if (sync->tmpfa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
                 {
                     break;
                 }

@@ -131,7 +131,7 @@ public:
     {
         auto fileAccess = mFSAccess.newfileaccess(false);
 
-        if (!fileAccess->fopen(path, false, true))
+        if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
         {
             return false;
         }
