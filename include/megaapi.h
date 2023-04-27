@@ -1318,24 +1318,35 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW                   = 0x00
+     * - MegaSet::CHANGE_TYPE_NEW     = 0
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME                  = 0x01
+     * - MegaSet::CHANGE_TYPE_NAME    = 1
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER                 = 0x02
+     * - MegaSet::CHANGE_TYPE_COVER   = 2
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
+     * - MegaSet::CHANGE_TYPE_REMOVED = 3
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
+     * current MegaSet
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSet::CHANGE_TYPE_*
+     *
+     * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1457,7 +1468,42 @@ public:
      */
     virtual const char* name() const { return nullptr; }
 
+    /**
+     * @brief Returns true if this SetElement has a specific change
+     *
+     * This value is only useful for Sets notified by MegaListener::onSetElementsUpdate or
+     * MegaGlobalListener::onSetElementsUpdate that can notify about SetElements modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * Check if the SetElement was new
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * Check if SetElement name has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * Check if SetElement order has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * Check if the SetElement was removed
+     *
+     * @return true if this Set has a specific change
+     */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
+     * current MegaSetElement
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSetElement::CHANGE_TYPE_ELEM_*
+     *
+     * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
