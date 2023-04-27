@@ -103,6 +103,9 @@ public:
     ECDH(const std::string &privKey); // initialize the private key (and derive public key)
     ECDH(const ECDH& aux);
     ECDH* copy() const { return new ECDH(*this); }
+    ECDH& operator=(const ECDH& aux) = delete;
+    ECDH(ECDH&& aux) = delete;
+    ECDH& operator=(ECDH&& aux) = delete;
     ~ECDH();
 
     const unsigned char* getPrivKey() const { return privKey; }
