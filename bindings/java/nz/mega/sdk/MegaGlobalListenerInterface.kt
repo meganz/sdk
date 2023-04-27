@@ -36,7 +36,7 @@ interface MegaGlobalListenerInterface {
      * @param users
      * List of new or updated Contacts.
      */
-    fun onUsersUpdate(api: MegaApiJava, users: ArrayList<MegaUser?>?)
+    fun onUsersUpdate(api: MegaApiJava, users: ArrayList<MegaUser>)
 
     /**
      * This function is called when there are new or updated user alerts in the account
@@ -49,7 +49,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param userAlerts List that contains the new or updated contacts
      */
-    fun onUserAlertsUpdate(api: MegaApiJava, userAlerts: ArrayList<MegaUserAlert?>?)
+    fun onUserAlertsUpdate(api: MegaApiJava, userAlerts: ArrayList<MegaUserAlert>)
 
     /**
      * This function is called when there are new or updated nodes in the account.
@@ -67,7 +67,7 @@ interface MegaGlobalListenerInterface {
      * @param nodeList
      * List of new or updated Nodes.
      */
-    fun onNodesUpdate(api: MegaApiJava, nodeList: ArrayList<MegaNode?>?)
+    fun onNodesUpdate(api: MegaApiJava, nodeList: ArrayList<MegaNode>?)
 
     /**
      * This function is called when an inconsistency is detected in the local cache.
@@ -104,7 +104,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param requests List that contains the new or updated contact requests
      */
-    fun onContactRequestsUpdate(api: MegaApiJava, requests: ArrayList<MegaContactRequest?>?)
+    fun onContactRequestsUpdate(api: MegaApiJava, requests: ArrayList<MegaContactRequest>)
 
     /**
      * The details about the event, like the type of event and optionally any
@@ -219,7 +219,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param event Details about the event
      */
-    fun onEvent(api: MegaApiJava, event: MegaEvent?)
+    fun onEvent(api: MegaApiJava, event: MegaEvent)
 
     /**
      * This function is called when a Set has been updated (created / updated / removed)
@@ -232,7 +232,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param sets List that contains the new or updated Sets
      */
-    fun onSetsUpdate(api: MegaApiJava, sets: ArrayList<MegaSet?>?)
+    fun onSetsUpdate(api: MegaApiJava, sets: ArrayList<MegaSet>)
 
     /**
      * This function is called when a Set-Element has been updated (created / updated / removed)
@@ -245,5 +245,5 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param elements List that contains the new or updated Set-Elements
      */
-    fun onSetElementsUpdate(api: MegaApiJava, elements: ArrayList<MegaSetElement?>?)
+    fun onSetElementsUpdate(api: MegaApiJava, elements: ArrayList<MegaSetElement>)
 }
