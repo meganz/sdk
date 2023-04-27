@@ -13,7 +13,11 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.sdk
+package nz.mega.sdk;
+
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
 
 /**
  * Interface to get information about global events.
@@ -36,7 +40,7 @@ interface MegaGlobalListenerInterface {
      * @param users
      * List of new or updated Contacts.
      */
-    fun onUsersUpdate(api: MegaApiJava, users: ArrayList<MegaUser>)
+    void onUsersUpdate(MegaApiJava api, @Nullable ArrayList<MegaUser> users);
 
     /**
      * This function is called when there are new or updated user alerts in the account
@@ -49,7 +53,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param userAlerts List that contains the new or updated contacts
      */
-    fun onUserAlertsUpdate(api: MegaApiJava, userAlerts: ArrayList<MegaUserAlert>)
+    void onUserAlertsUpdate(MegaApiJava api, @Nullable ArrayList<MegaUserAlert> userAlerts);
 
     /**
      * This function is called when there are new or updated nodes in the account.
@@ -67,7 +71,7 @@ interface MegaGlobalListenerInterface {
      * @param nodeList
      * List of new or updated Nodes.
      */
-    fun onNodesUpdate(api: MegaApiJava, nodeList: ArrayList<MegaNode>?)
+    void onNodesUpdate(MegaApiJava api, @Nullable ArrayList<MegaNode> nodeList);
 
     /**
      * This function is called when an inconsistency is detected in the local cache.
@@ -78,7 +82,7 @@ interface MegaGlobalListenerInterface {
      * @param api
      * API connected to account.
      */
-    fun onReloadNeeded(api: MegaApiJava)
+    void onReloadNeeded(MegaApiJava api);
 
     /**
      * This function is called when the account has been updated (confirmed/upgraded/downgraded)
@@ -88,7 +92,7 @@ interface MegaGlobalListenerInterface {
      *
      * @param api MegaApi object connected to the account
      */
-    fun onAccountUpdate(api: MegaApiJava)
+    void onAccountUpdate(MegaApiJava api);
 
     /**
      * This function is called when there are new or updated contact requests in the account
@@ -104,7 +108,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param requests List that contains the new or updated contact requests
      */
-    fun onContactRequestsUpdate(api: MegaApiJava, requests: ArrayList<MegaContactRequest>)
+    void onContactRequestsUpdate(MegaApiJava api, @Nullable ArrayList<MegaContactRequest> requests);
 
     /**
      * The details about the event, like the type of event and optionally any
@@ -219,7 +223,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param event Details about the event
      */
-    fun onEvent(api: MegaApiJava, event: MegaEvent)
+    void onEvent(MegaApiJava api, MegaEvent event);
 
     /**
      * This function is called when a Set has been updated (created / updated / removed)
@@ -232,7 +236,7 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param sets List that contains the new or updated Sets
      */
-    fun onSetsUpdate(api: MegaApiJava, sets: ArrayList<MegaSet>)
+    void onSetsUpdate(MegaApiJava api, @Nullable ArrayList<MegaSet> sets);
 
     /**
      * This function is called when a Set-Element has been updated (created / updated / removed)
@@ -245,5 +249,5 @@ interface MegaGlobalListenerInterface {
      * @param api MegaApi object connected to the account
      * @param elements List that contains the new or updated Set-Elements
      */
-    fun onSetElementsUpdate(api: MegaApiJava, elements: ArrayList<MegaSetElement>)
+    void onSetElementsUpdate(MegaApiJava api, @Nullable ArrayList<MegaSetElement> elements);
 }
