@@ -726,6 +726,7 @@ public:
     MegaHandle cover() const override { return mCover; }
 
     bool hasChanged(int changeType) const override;
+    long long getChanges() const override { return mChanges.to_ulong(); }
     bool isExported() const override { return mPublicId != UNDEF; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
@@ -775,6 +776,7 @@ public:
     const char* name() const override { return mName.c_str(); }
 
     bool hasChanged(int changeType) const override;
+    long long getChanges() const override { return mChanges.to_ulong(); }
 
     virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
