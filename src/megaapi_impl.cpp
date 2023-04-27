@@ -11600,6 +11600,7 @@ static inline int orderProLevel(int proLevel)
 
 int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
 {
+    // if this algorithm changes also have the webclient implementation updated
     int currProLevel = details.getProLevel();
     if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
         return currProLevel; 
