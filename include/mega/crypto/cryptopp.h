@@ -114,11 +114,9 @@ private:
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
      */
-    bool gcm_encrypt(const byte* data, const size_t datasize,
-                                           const byte* key, const size_t keylen,
-                                           const byte* additionalData, const size_t additionalDatalen,
-                                           const byte* iv, const size_t ivlen, const size_t taglen,
-                                           std::string& result, const size_t expectedSize);
+    bool gcm_encrypt(const byte* data, const size_t datasize, const byte* key, const size_t keylen,
+                     const byte* additionalData, const size_t additionalDatalen, const byte* iv,
+                     const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode
@@ -138,12 +136,9 @@ private:
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
      */
-    bool gcm_decrypt(const byte* data, const size_t datalen,
-                                              const byte* additionalData, const size_t additionalDatalen,
-                                              const byte* key, const size_t keylength,
-                                              const byte* tag, const size_t taglen,
-                                              const byte* iv, const size_t ivlen,
-                                              byte* result, const size_t resultSize);
+    bool gcm_decrypt(const byte* data, const size_t datalen, const byte* additionalData, const size_t additionalDatalen,
+                     const byte* key, const size_t keylength, const byte* tag, const size_t taglen, const byte* iv,
+                     const size_t ivlen, byte* result, const size_t resultSize);
 
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
@@ -351,10 +346,8 @@ public:
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
      */
-    bool gcm_encrypt_add(const byte* data, const size_t datasize,
-                                           const byte* additionalData, const size_t additionalDatalen,
-                                           const byte* iv, const size_t ivlen, const size_t taglen,
-                                           std::string& result, const size_t expectedSize);
+    bool gcm_encrypt_add(const byte* data, const size_t datasize, const byte* additionalData, const size_t additionalDatalen, const byte* iv,
+                         const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -387,9 +380,8 @@ public:
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
      */
-    bool gcm_decrypt_aad(const byte* data, const size_t datalen,
-                         const byte* additionalData, const size_t additionalDatalen,
-                         const byte* tag, const size_t taglen,
+    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+                         const size_t additionalDatalen, const byte* tag, const size_t taglen,
                          const byte* iv, const size_t ivlen, byte* result, const size_t resultSize);
 
     /**
@@ -409,11 +401,10 @@ public:
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
      */
-    bool gcm_decrypt_with_key(const byte* data, const size_t datalen,
-                         const byte* key, const size_t keylength,
-                         const byte* tag, const size_t taglen,
-                         const byte* iv, const size_t ivlen,
-                         byte* result, const size_t resultSize);
+    bool gcm_decrypt_with_key(const byte* data, const size_t datalen, const byte* key, const size_t keylength,
+                              const byte* tag, const size_t taglen, const byte* iv, const size_t ivlen, byte* result,
+                              const size_t resultSize);
+
     /**
      * @brief Serialize key for compatibility with the webclient
      *
