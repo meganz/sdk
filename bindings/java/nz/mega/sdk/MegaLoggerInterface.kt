@@ -32,14 +32,14 @@ interface MegaLoggerInterface {
      * @param time
      * Readable string representing the current time.
      * The SDK retains the ownership of this string, it will not be valid after this function returns.
-     * @param loglevel
+     * @param logLevel
      * Log level of this message.
-     * Valid values are: <br></br>
-     * - LOG_LEVEL_FATAL = 0. <br></br>
-     * - LOG_LEVEL_ERROR = 1. <br></br>
-     * - LOG_LEVEL_WARNING = 2. <br></br>
-     * - LOG_LEVEL_INFO = 3. <br></br>
-     * - LOG_LEVEL_DEBUG = 4. <br></br>
+     * Valid values are: <br>
+     * - LOG_LEVEL_FATAL = 0. <br>
+     * - LOG_LEVEL_ERROR = 1. <br>
+     * - LOG_LEVEL_WARNING = 2. <br>
+     * - LOG_LEVEL_INFO = 3. <br>
+     * - LOG_LEVEL_DEBUG = 4. <br>
      * - LOG_LEVEL_MAX = 5.
      * @param source
      * Location where this log was generated.
@@ -49,5 +49,5 @@ interface MegaLoggerInterface {
      * Log message.
      * The SDK retains the ownership of this string, it won't be valid after this function returns.
      */
-    fun log(time: String?, loglevel: Int, source: String?, message: String?)
+    fun log(time: String, logLevel: Int, source: String, message: String)
 }
