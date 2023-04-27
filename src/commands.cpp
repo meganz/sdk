@@ -6520,6 +6520,7 @@ bool CommandQueryRecoveryLink::procresult(Result r)
 
 CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
 {
+    mSeqtagArray = true;
     cmd("erx");
     arg("r", "gk");
     arg("c", code);
@@ -6556,6 +6557,7 @@ bool CommandGetPrivateKey::procresult(Result r)
 CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
 {
     cmd("erx");
+    mSeqtagArray = true;
 
     if (!initialSession)
     {
