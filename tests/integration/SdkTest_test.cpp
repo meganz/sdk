@@ -13079,8 +13079,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
 
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
-    auto downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult);
+    ASSERT_EQ(API_OK, downloadFile());
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
@@ -13089,8 +13088,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
     int filePermissions = 0400;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult);
+    ASSERT_EQ(API_OK, downloadFile());
     ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
 #ifdef _WIN32
     // Files should be able to be opened: posix file permissions don't have any effect on Windows.
@@ -13105,8 +13103,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // Expected: successful download and successul file opening for reading and writing.
     filePermissions = 0700;
     megaApi[0]->setDefaultFilePermissions(filePermissions);
-    downloadResult = downloadFile();
-    ASSERT_EQ(API_OK, downloadResult);
+    ASSERT_EQ(API_OK, downloadFile());
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
     deleteFile(filename.c_str());
 }
