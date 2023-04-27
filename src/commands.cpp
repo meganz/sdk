@@ -4230,16 +4230,16 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             parseUserAttribute(json, keys, keysVersion);
             break;
         case MAKENAMEID8('*', 'k', 'e', 'y', 'r', 'i', 'n', 'g'):
-            parseUserAttribute(keyring, versionKeyring);
+            parseUserAttribute(json, keyring, versionKeyring);
             break;
         case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
-            parseUserAttribute(pubEd255, versionPubEd255);
+            parseUserAttribute(json, pubEd255, versionPubEd255);
             break;
         case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
-            parseUserAttribute(pubCu255, versionPubCu255);
+            parseUserAttribute(json, pubCu255, versionPubCu255);
             break;
         case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
-            parseUserAttribute(sigPubk, versionSigPubk);
+            parseUserAttribute(json, sigPubk, versionSigPubk);
             break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
@@ -4850,15 +4850,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     break;
 
                 case ATTR_SIG_CU255_PUBK:
-                    parseUserAttribute(sigCu255, versionSigCu255);
+                    parseUserAttribute(json, sigCu255, versionSigCu255);
                     break;
 
                 case ATTR_AUTHRING:
-                    parseUserAttribute(authringEd255, versionAuthringEd255);
+                    parseUserAttribute(json, authringEd255, versionAuthringEd255);
                     break;
 
                 case ATTR_AUTHCU255:
-                    parseUserAttribute(authringCu255, versionAuthringCu255);
+                    parseUserAttribute(json, authringCu255, versionAuthringCu255);
                     break;
 
                 default:
