@@ -2428,7 +2428,6 @@ public class MegaApiJava {
      *
      * @return MegaIntegerList with the timestamp corresponding to each warning
      */
-    @Nullable
     public MegaIntegerList getOverquotaWarningsTs() {
         return megaApi.getOverquotaWarningsTs();
     }
@@ -2454,7 +2453,6 @@ public class MegaApiJava {
      *
      * @return Fingerprint of the signing key of the current account
      */
-    @Nullable
     public String getMyCredentials() {
         return megaApi.getMyCredentials();
     }
@@ -3687,7 +3685,7 @@ public class MegaApiJava {
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
     @Nullable
-    public String getUserAvatarColor(MegaUser user) {
+    public String getUserAvatarColor(@Nullable MegaUser user) {
         return MegaApi.getUserAvatarColor(user);
     }
 
@@ -3702,7 +3700,7 @@ public class MegaApiJava {
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
     @Nullable
-    public String getUserAvatarColor(String userhandle) {
+    public String getUserAvatarColor(@Nullable String userhandle) {
         return MegaApi.getUserAvatarColor(userhandle);
     }
 
@@ -3718,7 +3716,7 @@ public class MegaApiJava {
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
     @Nullable
-    public String getUserAvatarSecondaryColor(MegaUser user) {
+    public String getUserAvatarSecondaryColor(@Nullable MegaUser user) {
         return MegaApi.getUserAvatarSecondaryColor(user);
     }
 
@@ -3734,7 +3732,7 @@ public class MegaApiJava {
      * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
      */
     @Nullable
-    public String getUserAvatarSecondaryColor(String userhandle) {
+    public String getUserAvatarSecondaryColor(@Nullable String userhandle) {
         return MegaApi.getUserAvatarSecondaryColor(userhandle);
     }
 
