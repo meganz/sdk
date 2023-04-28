@@ -3649,7 +3649,7 @@ bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
     client.syncs.syncRun([&](){
         result = client.syncs.conflictsDetected(&conflicts);
         pb->set_value(true);
-    });
+    }, "StandardClient::conflictsDetected");
 
     EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
 

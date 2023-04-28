@@ -1112,10 +1112,12 @@ public:
 
     typedef std::function<void(MegaClient&, TransferDbCommitter&)> QueuedClientFunc;
     ThreadSafeDeque<QueuedClientFunc> clientThreadActions;
-    ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
-    void syncRun(std::function<void()>);
-    void queueSync(std::function<void()>&&);
+    typedef std::pair<std::function<void()>, string> QueuedSyncFunc;
+    ThreadSafeDeque<QueuedSyncFunc> syncThreadActions;
+
+    void syncRun(std::function<void()>, const string& actionName);
+    void queueSync(std::function<void()>&&, const string& actionName);
     void queueClient(QueuedClientFunc&&, bool fromAnyThread = false);
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
@@ -1420,8 +1422,9 @@ private:
     bool mExecutingLocallogout = false;
 
     // local record of client's state for thread safety
-    bool mDownloadsPaused = false;
-    bool mUploadsPaused = false;
+    std::atomic<bool> mDownloadsPaused {false};
+    std::atomic<bool> mUploadsPaused {false};
+    std::atomic<bool> mTransferPauseFlagsChanged {false};
 
     // Responsible for tracking when to send sync/backup heartbeats
     unique_ptr<BackupMonitor> mHeartBeatMonitor;

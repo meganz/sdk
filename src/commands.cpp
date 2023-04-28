@@ -5961,7 +5961,7 @@ bool CommandFetchNodes::procresult(Result r)
     client->actionpacketsCurrent = false;
 #ifdef ENABLE_SYNC
     // this just makes sure syncs exit any current tree iteration
-    client->syncs.syncRun([&](){});
+    client->syncs.syncRun([&](){}, "fetchnodes ready");
 #endif
     std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
     client->purgenodesusersabortsc(true);

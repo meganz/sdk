@@ -3230,7 +3230,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, b
     queueSync([=]()
         {
             enableSyncByBackupId_inThread(backupId, paused, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
-        });
+        }, "enableSyncByBackupId");
 }
 
 void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
@@ -3559,30 +3559,30 @@ Syncs::~Syncs()
     assert(!onSyncThread());
 
     // null function is the signal to end the thread
-    syncThreadActions.pushBack(nullptr);
+    syncThreadActions.pushBack(QueuedSyncFunc(nullptr, ""));
     waiter->notify();
     if (syncThread.joinable()) syncThread.join();
 }
 
-void Syncs::syncRun(std::function<void()> f)
+void Syncs::syncRun(std::function<void()> f, const string& actionName)
 {
     assert(!onSyncThread());
     std::promise<bool> synchronous;
-    syncThreadActions.pushBack([&]()
+    syncThreadActions.pushBack(QueuedSyncFunc([&]()
         {
             f();
             synchronous.set_value(true);
-        });
+        }, actionName));
 
     mSyncFlags->earlyRecurseExitRequested = true;
     waiter->notify();
     synchronous.get_future().get();
 }
 
-void Syncs::queueSync(std::function<void()>&& f)
+void Syncs::queueSync(std::function<void()>&& f, const string& actionName)
 {
     assert(!onSyncThread());
-    syncThreadActions.pushBack(move(f));
+    syncThreadActions.pushBack(QueuedSyncFunc(move(f), actionName));
     mSyncFlags->earlyRecurseExitRequested = true;
     waiter->notify();
 }
@@ -3615,7 +3615,7 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
         unique_ptr<SyncProblems> problems(new SyncProblems);
         getSyncProblems_inThread(*problems);
         completion(move(problems));
-    });
+    }, "getSyncProblems");
 }
 
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
@@ -3732,7 +3732,7 @@ void Syncs::getSyncStatusInfo(handle backupID,
     // Queue the request on the sync thread.
     queueSync([backupID, completion, this]() {
         getSyncStatusInfoInThread(backupID, std::move(completion));
-    });
+    }, "getSyncStatusInfo");
 }
 
 void Syncs::getSyncStatusInfoInThread(handle backupID,
@@ -3905,7 +3905,7 @@ void Syncs::backupCloseDrive(const LocalPath& drivePath, std::function<void(Erro
                 {
                     clientCallback(e);
                 });
-        });
+        }, "backupCloseDrive");
 }
 
 error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
@@ -3964,7 +3964,7 @@ void Syncs::backupOpenDrive(const LocalPath& drivePath, std::function<void(Error
                 {
                     clientCallback(e);
                 });
-        });
+        }, "backupOpenDrive");
 }
 
 error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
@@ -4122,7 +4122,7 @@ NodeHandle Syncs::getSyncedNodeForLocalPath(const LocalPath& lp)
             }
         }
 
-    });
+    }, "getSyncedNodeForLocalPath");
     return result;
 }
 
@@ -4175,7 +4175,7 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     assert(!onSyncThread());
 
     error result = API_OK;
-    syncRun([&](){ syncConfigStoreAdd_inThread(config, [&](error e){ result = e; }); });
+    syncRun([&](){ syncConfigStoreAdd_inThread(config, [&](error e){ result = e; }); }, "syncConfigStoreAdd");
     return result;
 }
 
@@ -5111,7 +5111,7 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
     queueSync([=]()
     {
         appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname, excludedPath);
-    });
+    }, "appendNewSync");
 }
 
 void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
@@ -5237,19 +5237,12 @@ void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
 {
     assert(!onSyncThread());
 
-    queueSync([this, downloadsPaused, uploadsPaused]() {
+    bool unchanged = mDownloadsPaused == downloadsPaused &&
+                        mUploadsPaused == uploadsPaused;
 
-        assert(onSyncThread());
-        lock_guard<mutex> g(mSyncVecMutex);
-
-        mDownloadsPaused = downloadsPaused;
-        mUploadsPaused = uploadsPaused;
-
-        for (auto& us : mSyncVec)
-        {
-            mHeartBeatMonitor->updateOrRegisterSync(*us);
-        }
-    });
+    mDownloadsPaused = downloadsPaused;
+    mUploadsPaused = uploadsPaused;
+    mTransferPauseFlagsChanged = mTransferPauseFlagsChanged || !unchanged;
 }
 
 void Syncs::stopSyncsInErrorState()
@@ -5271,7 +5264,7 @@ void Syncs::stopSyncsInErrorState()
 void Syncs::purgeRunningSyncs()
 {
     assert(!onSyncThread());
-    syncRun([&](){ purgeRunningSyncs_inThread(); });
+    syncRun([&](){ purgeRunningSyncs_inThread(); }, "purgeRunningSyncs");
 }
 
 void Syncs::purgeRunningSyncs_inThread()
@@ -5308,7 +5301,7 @@ void Syncs::renameSync(handle backupId, const string& newname, std::function<voi
     queueSync([this, backupId, newname, clientCompletion]()
         {
             renameSync_inThread(backupId, newname, clientCompletion);
-        });
+        }, "renameSync");
 }
 
 void Syncs::renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> completion)
@@ -5369,7 +5362,7 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSync
                     disableSyncByBackupId_inThread(c.mBackupId, syncError, newEnabledFlag, keepSyncDb, completion);
                 }
             }
-        });
+        }, "disableSyncs");
 }
 
 void Syncs::disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
@@ -5378,7 +5371,7 @@ void Syncs::disableSyncByBackupId(handle backupId, SyncError syncError, bool new
     queueSync([this, backupId, syncError, newEnabledFlag, keepSyncDb, completion]()
     {
             disableSyncByBackupId_inThread(backupId, syncError, newEnabledFlag, keepSyncDb, completion);
-    });
+    }, "disableSyncByBackupId");
 }
 
 void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
@@ -5464,7 +5457,7 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); }, "deregisterThenRemoveSync");
                 }));
     }, true);
 
@@ -5529,7 +5522,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
 
 void Syncs::prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
 {
-    queueSync([=](){ prepareForLogout_inThread(keepSyncsConfigFile, clientCompletion); });
+    queueSync([=](){ prepareForLogout_inThread(keepSyncsConfigFile, clientCompletion); }, "prepareForLogout");
 }
 
 void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
@@ -5584,7 +5577,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
 void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
 {
     assert(!onSyncThread());
-    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile, reopenStoreAfter); });
+    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile, reopenStoreAfter); }, "locallogout");
 }
 
 void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
@@ -5671,7 +5664,7 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
     queueSync([this, resetSyncConfigStore]()
         {
             loadSyncConfigsOnFetchnodesComplete_inThread(resetSyncConfigStore);
-        });
+        }, "loadSyncConfigsOnFetchnodesComplete");
 }
 
 void Syncs::resumeSyncsOnStateCurrent()
@@ -5683,10 +5676,10 @@ void Syncs::resumeSyncsOnStateCurrent()
     if (mSyncsResumed) return;
     mSyncsResumed = true;
 
-    syncThreadActions.pushBack([this]()
+    queueSync([this]()
         {
             resumeSyncsOnStateCurrent_inThread();
-        });
+        }, "resumeSyncsOnStateCurrent");
 }
 
 void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore)
@@ -9675,7 +9668,7 @@ std::future<size_t> Syncs::triggerPeriodicScanEarly(handle backupID)
         }
 
         notifier->set_value(count);
-    });
+    }, "triggerPeriodicScanEarly");
 
     return result;
 }
@@ -10790,10 +10783,10 @@ void Syncs::syncLoop()
 
         // execute any requests from the MegaClient
         waiter->bumpds();
-        std::function<void()> f;
+        QueuedSyncFunc f;
         while (syncThreadActions.popFront(f))
         {
-            if (!f)
+            if (!f.first)
             {
                 // null function is the signal to end the thread
                 // Be sure to flush changes made to internal configs.
@@ -10801,7 +10794,12 @@ void Syncs::syncLoop()
                 return;
             }
 
-            f();
+            if (!f.second.empty())
+            {
+                LOG_debug << "Sync thread executing request: " << f.second;
+            }
+
+            f.first();
         }
 
         waiter->bumpds();
@@ -11171,6 +11169,17 @@ void Syncs::syncLoop()
             }
         }
 
+        if (mTransferPauseFlagsChanged.load())
+        {
+            mTransferPauseFlagsChanged = false;
+
+            lock_guard<mutex> g(mSyncVecMutex);
+            for (auto& us : mSyncVec)
+            {
+                mHeartBeatMonitor->updateOrRegisterSync(*us);
+            }
+        }
+
 #ifdef MEGA_MEASURE_CODE
         rst.complete();
 #endif
@@ -11498,7 +11507,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
                 }
             }
             finalcompletion(move(nc));
-        });
+        }, "collectSyncNameConflicts");
 }
 
 void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)
@@ -11524,7 +11533,7 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
                 }
             }
         }
-    });
+    }, "setSyncsNeedFullSync");
 }
 
 void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
