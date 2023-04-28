@@ -535,6 +535,13 @@ public:
     template<typename ... requestArgs> int synchronousShare(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->share(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->resetPassword(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousConfirmResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmResetPassword(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousGetRecommendedProLevel(unsigned apiIndex, int& recommendedLevel, requestArgs... args) {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getRecommendedProLevel(args..., &rt);
+        int err = rt.waitForResult();
+        if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
+        return err;
+    }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);

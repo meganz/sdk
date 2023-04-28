@@ -2593,6 +2593,7 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
@@ -2703,6 +2704,9 @@ class MegaApiImpl : public MegaApp
         void stopPublicSetPreview();
         bool isExportedSet(MegaHandle sid);
         bool inPublicSetPreview();
+
+        // returns the Pro level based on the current plan and storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
+        static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
 
     private:
         bool nodeInRubbishCheck(handle) const;
@@ -3196,7 +3200,7 @@ protected:
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
-
+        
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
