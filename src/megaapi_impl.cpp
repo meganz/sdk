@@ -8991,7 +8991,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
                 }
             }
             LOG_verbose << "Completed updates for OS path icon ovelays for . " << tmp->size() << " paths";
-        });
+        }, "syncPathState catchup after glitches");
     }
 
     mRecentlyRequestedOverlayIconPaths.addOrUpdate(localpath, ts);
