@@ -147,7 +147,7 @@ struct MEGA_API Transfer : public FileFingerprint
     virtual ~Transfer();
 
     // serialize the Transfer object
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_multimap *);

@@ -7588,7 +7588,10 @@ void MegaClient::sc_delscheduledmeeting()
                         for_each(begin(deletedChildren), end(deletedChildren),
                                  [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
 
-                        createDeletedSMAlert(ou, chatid, schedId);
+                        if (statecurrent)
+                        {
+                            createDeletedSMAlert(ou, chatid, schedId);
+                        }
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
                     }
@@ -7627,7 +7630,7 @@ void MegaClient::sc_scheduledmeetings()
         textchat_map::iterator it = chats.find(sm->chatid());
         if (it == chats.end())
         {
-            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsmp";
             continue;
         }
         TextChat* chat = it->second;
@@ -7654,14 +7657,17 @@ void MegaClient::sc_scheduledmeetings()
             chat->setTag(0);    // external change
             notifychat(chat);
 
-            // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
-            for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
-                     [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
-
-            if (res)
+            if (statecurrent)
             {
-                if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
+                for_each(begin(childMeetingsDeleted), end(childMeetingsDeleted),
+                         [this, ou, chatid](const handle& sm) { createDeletedSMAlert(ou, chatid, sm); });
+
+                if (res)
+                {
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                }
             }
         }
 
@@ -8097,13 +8103,16 @@ void MegaClient::persistAlert(UserAlert::Base* a)
     // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
     if (a->removed())
     {
-        if (sctable->del(a->dbid))
+        if (a->dbid)
         {
-            LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
-        }
-        else
-        {
-            LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            if (sctable->del(a->dbid))
+            {
+                LOG_verbose << "UserAlert of type " << a->type << " removed from db.";
+            }
+            else
+            {
+                LOG_err << "Failed to remove UserAlert of type " << a->type << " from db.";
+            }
         }
     }
     else // insert or replace
@@ -11106,6 +11115,7 @@ void MegaClient::queuepubkeyreq(User* u, std::unique_ptr<PubKeyAction> pka)
     {
         restag = pka->tag;
         pka->proc(this, u);
+        unique_ptr<User> cleanup(u && u->isTemporary ? u : nullptr);
     }
     else
     {
@@ -11415,7 +11425,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     }
 
     User *u = getUserForSharing(user);
-    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion));
+    setShareCompletion(n, u, a, writable, personal_representation, tag, move(completion)); // will release u, if temporary
 }
 
 void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)

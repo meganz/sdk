@@ -658,7 +658,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode *copy() override;
 
         char *serialize() override;
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
 
     protected:
@@ -1073,7 +1073,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         long long getNotificationNumber() const override;
         bool getTargetOverride() const override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(shared_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
@@ -2288,7 +2288,7 @@ struct MegaFile : public File
 
     void setTransfer(MegaTransferPrivate *transfer);
     MegaTransferPrivate *getTransfer();
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
 
     static MegaFile* unserialize(string*);
 
@@ -2307,7 +2307,7 @@ struct MegaFileGet : public MegaFile
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -2321,7 +2321,7 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static MegaFilePut* unserialize(string*);
 
 protected:
@@ -2400,12 +2400,6 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
-
-        MegaRequest *getCurrentRequest();
-        MegaTransfer *getCurrentTransfer();
-        MegaError *getCurrentError();
-        MegaNodeList *getCurrentNodes();
-        MegaUserList *getCurrentUsers();
 
         //Utils
         long long getSDKtime();
@@ -3279,13 +3273,6 @@ protected:
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
         std::atomic<bool> syncPathStateLockTimeout{ false };
         MegaTransferPrivate *currentTransfer;
-        MegaRequestPrivate *activeRequest;
-        MegaTransferPrivate *activeTransfer;
-        MegaError *activeError;
-        MegaNodeList *activeNodes;
-        MegaUserList *activeUsers;
-        MegaUserAlertList *activeUserAlerts;
-        MegaContactRequestList *activeContactRequests;
         string appKey;
 
         MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
@@ -3633,6 +3620,19 @@ private:
         error performRequest_getChangeEmailLink(MegaRequestPrivate* request);
         error performRequest_getCancelLink(MegaRequestPrivate* request);
         error performRequest_confirmAccount(MegaRequestPrivate* request);
+        error performRequest_sendSignupLink(MegaRequestPrivate* request);
+        error performRequest_createAccount(MegaRequestPrivate* request);
+        error performRequest_retryPendingConnections(MegaRequestPrivate* request);
+        error performRequest_setAttrNode(MegaRequestPrivate* request);
+        error performRequest_setAttrFile(MegaRequestPrivate* request);
+        error performRequest_setAttrUser(MegaRequestPrivate* request);
+        error performRequest_getAttrUser(MegaRequestPrivate* request);
+        error performRequest_logout(MegaRequestPrivate* request);
+        error performRequest_changePw(MegaRequestPrivate* request);
+        error performRequest_export(MegaRequestPrivate* request);
+        error performRequest_passwordLink(MegaRequestPrivate* request);
+        error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
+        error performRequest_copy(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
