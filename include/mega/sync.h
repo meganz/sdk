@@ -1422,9 +1422,9 @@ private:
     bool mExecutingLocallogout = false;
 
     // local record of client's state for thread safety
-    std::atomic<bool> mDownloadsPaused = false;
-    std::atomic<bool> mUploadsPaused = false;
-    std::atomic<bool> mTransferPauseFlagsChanged = false;
+    std::atomic<bool> mDownloadsPaused {false};
+    std::atomic<bool> mUploadsPaused {false};
+    std::atomic<bool> mTransferPauseFlagsChanged {false};
 
     // Responsible for tracking when to send sync/backup heartbeats
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
