@@ -13006,3 +13006,15 @@ TEST_F(SdkTest, SdkGetNodesByName)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 }
+
+TEST_F(SdkTest, GetRecommendedProLevel)
+{
+    // see also unit test MegaApi.MegaApiImpl_calcRecommendedProLevel in ..>unit>MegaApi_test.cpp
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    int level = -1;
+    int err = synchronousGetRecommendedProLevel(0, level);
+    ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
+    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+}

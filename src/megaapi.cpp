@@ -1940,6 +1940,11 @@ char *MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+void MegaApi::getRecommendedProLevel(MegaRequestListener* listener)
+{
+    pImpl->getRecommendedProLevel(listener);
+}
+
 int64_t MegaApi::getAccountCreationTs()
 {
     return pImpl->getAccountCreationTs();
