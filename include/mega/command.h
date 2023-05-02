@@ -287,7 +287,7 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandSendSignupLink2(MegaClient*, const char*, const char*);
-    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
+    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*, int ctag);
 };
 
 class MEGA_API CommandConfirmSignupLink2 : public Command

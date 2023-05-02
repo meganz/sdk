@@ -13505,7 +13505,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 string fullname = firstname + lastname;
-                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
+                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str(), client->restag); // Use the tag where the request belongs
                 string b64derivedKey;
                 Base64::btoa(derivedKey, b64derivedKey);
                 request->setPrivateKey(b64derivedKey.c_str());

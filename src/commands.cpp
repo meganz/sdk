@@ -5875,7 +5875,7 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = client->reqtag;
 }
 
-CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey)
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey, int ctag)
 {
     cmd("uc2");
     arg("n", (byte*)name, int(strlen(name)));
@@ -5885,7 +5885,7 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     arg("k", encmasterkey, SymmCipher::KEYLENGTH);
     arg("v", 2);
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 bool CommandSendSignupLink2::procresult(Result r, JSON& json)

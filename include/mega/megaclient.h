@@ -543,7 +543,7 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    string sendsignuplink2(const char*, const char *, const char*);
+    string sendsignuplink2(const char*, const char *, const char*, int ctag = 0);
     void resendsignuplink2(const char*, const char *);
 
     void confirmsignuplink2(const byte*, unsigned);
