@@ -1775,7 +1775,7 @@ public class MegaApiJava {
      * @param listener  MegaRequestListener to track this request
      * @see MegaApi::queryResetPasswordLink and the flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in there.
      */
-    public void confirmResetPassword(String link, String newPwd, String masterKey, MegaRequestListenerInterface listener) {
+    public void confirmResetPassword(String link, String newPwd, @Nullable String masterKey, MegaRequestListenerInterface listener) {
         megaApi.confirmResetPassword(link, newPwd, masterKey, createDelegateRequestListener(listener));
     }
 
@@ -4496,7 +4496,7 @@ public class MegaApiJava {
      * @param count    if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
      * @param listener MegaRequestListener to track this request
      */
-    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
+    public void getFavourites(@Nullable MegaNode node, int count, MegaRequestListenerInterface listener) {
         megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
     }
 
@@ -5365,6 +5365,7 @@ public class MegaApiJava {
      *
      * @return Base64-encoded master key
      */
+    @Nullable
     public String exportMasterKey() {
         return megaApi.exportMasterKey();
     }
@@ -5898,6 +5899,7 @@ public class MegaApiJava {
      *
      * @return The id of this device
      */
+    @Nullable
     public String getDeviceId() {
         return megaApi.getDeviceId();
     }
@@ -7449,6 +7451,7 @@ public class MegaApiJava {
      * @param listener MegaTransferListener to start receiving information about transfers
      * @return Information about transfer queues
      */
+    @Nullable
     public MegaTransferData getTransferData(MegaTransferListenerInterface listener) {
         return megaApi.getTransferData(createDelegateTransferListener(listener, false));
     }
@@ -7501,6 +7504,7 @@ public class MegaApiJava {
      * @return List with all active transfers
      * @see MegaApi::startUpload, MegaApi::startDownload
      */
+    @Nullable
     public ArrayList<MegaTransfer> getTransfers() {
         return transferListToArray(megaApi.getTransfers());
     }
@@ -7516,6 +7520,7 @@ public class MegaApiJava {
      * @return MegaTransfer object with that tag, or NULL if there isn't any
      * active transfer with it
      */
+    @Nullable
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
     }
@@ -7531,6 +7536,7 @@ public class MegaApiJava {
      * @param type MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
      * @return List with transfers of the desired type
      */
+    @Nullable
     public ArrayList<MegaTransfer> getTransfers(int type) {
         return transferListToArray(megaApi.getTransfers(type));
     }
@@ -7555,6 +7561,7 @@ public class MegaApiJava {
      * @return List of transfers in the context of the selected folder transfer
      * @see MegaTransfer::isFolderTransfer, MegaTransfer::getFolderTransferTag
      */
+    @Nullable
     public ArrayList<MegaTransfer> getChildTransfers(int transferTag) {
         return transferListToArray(megaApi.getChildTransfers(transferTag));
     }
@@ -8039,6 +8046,7 @@ public class MegaApiJava {
      * @param name   Name of the node
      * @return The MegaNode that has the selected parent and name
      */
+    @Nullable
     public MegaNode getChildNode(MegaNode parent, String name) {
         return megaApi.getChildNode(parent, name);
     }
@@ -8054,6 +8062,7 @@ public class MegaApiJava {
      * @param node MegaNode to get the parent
      * @return The parent of the provided node
      */
+    @Nullable
     public MegaNode getParentNode(MegaNode node) {
         return megaApi.getParentNode(node);
     }
@@ -8070,6 +8079,7 @@ public class MegaApiJava {
      * @param node MegaNode for which the path will be returned
      * @return The path of the node
      */
+    @Nullable
     public String getNodePath(MegaNode node) {
         return megaApi.getNodePath(node);
     }
@@ -8094,6 +8104,7 @@ public class MegaApiJava {
      * @param n    Base node if the path is relative
      * @return The MegaNode object in the path, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByPath(String path, MegaNode n) {
         return megaApi.getNodeByPath(path, n);
     }
@@ -8117,6 +8128,7 @@ public class MegaApiJava {
      * @param path Path to check
      * @return The MegaNode object in the path, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByPath(String path) {
         return megaApi.getNodeByPath(path);
     }
@@ -11501,7 +11513,7 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Set
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(String name, MegaRequestListenerInterface listener) {
+    public void createSet(@Nullable String name, MegaRequestListenerInterface listener) {
         megaApi.createSet(name, createDelegateRequestListener(listener));
     }
 
@@ -12166,6 +12178,7 @@ public class MegaApiJava {
      *
      * @return Current public/exported Set in preview mode or nullptr if there is none
      */
+    @Nullable
     public MegaSet getPublicSetInPreview() {
         return megaApi.getPublicSetInPreview();
     }
