@@ -1803,76 +1803,69 @@ AM_CONDITIONAL([USE_PDFIUM], [test "x$pdfium" = "xtrue"])
 
 
 # ICU
-if test "x$pdfium" = "xfalse" ; then
-    AC_MSG_CHECKING(for icu)
-    icu=false
-    AC_ARG_WITH(icu,
-      AS_HELP_STRING(--with-icu=PATH, base of ICU installation),
-      [
-       case $with_icu in
-       no)
-        AC_MSG_ERROR([icu library is required. Please specify the installation path.])
-        ;;
-       yes)
-        AC_CHECK_HEADERS([unicode/uchar.h],, [
-            AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
-        ])
-        AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-        AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-        icu=true
-         ;;
-       *)
-        # determine if library is installed in the provided path
-        if test -d "$with_icu/lib"; then
-            LDFLAGS="-L$with_icu/lib $LDFLAGS"
-            CXXFLAGS="-I$with_icu/include $CXXFLAGS"
-            CPPFLAGS="-I$with_icu/include $CPPFLAGS"
+AC_MSG_CHECKING(for icu)
+icu=false
+AC_ARG_WITH(icu,
+  AS_HELP_STRING(--with-icu=PATH, base of ICU installation),
+  [
+   case $with_icu in
+   no)
+    AC_MSG_ERROR([icu library is required. Please specify the installation path.])
+    ;;
+   yes)
+    AC_CHECK_HEADERS([unicode/uchar.h],, [
+        AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    icu=true
+     ;;
+   *)
+    # determine if library is installed in the provided path
+    if test -d "$with_icu/lib"; then
+        LDFLAGS="-L$with_icu/lib $LDFLAGS"
+        CXXFLAGS="-I$with_icu/include $CXXFLAGS"
+        CPPFLAGS="-I$with_icu/include $CPPFLAGS"
 
-            AC_CHECK_HEADERS("unicode/uchar.h",
-             ICU_CXXFLAGS="-I$with_icu/include"
-             ICU_CPPFLAGS="-I$with_icu/include"
-             ICU_LDFLAGS="-L$with_icu/lib",
-             AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
-            )
-        fi
-        AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-        AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-
-        #restore
-        LDFLAGS=$SAVE_LDFLAGS
-        CXXFLAGS=$SAVE_CXXFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
-
-        icu=true
-         ;;
-       esac
-      ],
-       [AC_MSG_RESULT([--with-icu not specified])
-        AC_CHECK_HEADERS([unicode/uchar.h], [icu=true], [
-            AC_MSG_ERROR([unicode/uchar.h header not found or not usable])])
-        AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-        AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
-            AC_MSG_ERROR([Could not find ICU lib])])
-       ]
-    )
-    AC_SUBST(ICU_CXXFLAGS)
-    AC_SUBST(ICU_CPPFLAGS)
-    AC_SUBST(ICU_LDFLAGS)
-    AC_SUBST(ICU_LIBS)
-
-    if test "x$icu" = "xtrue" ; then
-        AC_DEFINE(HAVE_ICU, [1], [Define to have icu ])
+        AC_CHECK_HEADERS("unicode/uchar.h",
+         ICU_CXXFLAGS="-I$with_icu/include"
+         ICU_CPPFLAGS="-I$with_icu/include"
+         ICU_LDFLAGS="-L$with_icu/lib",
+         AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
+        )
     fi
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
 
-else
-    # Pdfium includes ICU.
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+
+    icu=true
+     ;;
+   esac
+  ],
+   [AC_MSG_RESULT([--with-icu not specified])
+    AC_CHECK_HEADERS([unicode/uchar.h], [icu=true], [
+        AC_MSG_ERROR([unicode/uchar.h header not found or not usable])])
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+   ]
+)
+AC_SUBST(ICU_CXXFLAGS)
+AC_SUBST(ICU_CPPFLAGS)
+AC_SUBST(ICU_LDFLAGS)
+AC_SUBST(ICU_LIBS)
+
+if test "x$icu" = "xtrue" ; then
     AC_DEFINE(HAVE_ICU, [1], [Define to have icu ])
-    ICU_MSG="<Included in pdfium>"
 fi
 
 USE_FUSE=0
