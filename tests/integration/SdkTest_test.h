@@ -66,6 +66,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
     }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
+        LOG_debug << "TransferTracker::onTransferFinish callback received.  Result: " << error->getErrorCode() << " for " << (transfer->getFileName() ? transfer->getFileName() : "<null>");
+
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
         result = static_cast<ErrorCodes>(error->getErrorCode());
