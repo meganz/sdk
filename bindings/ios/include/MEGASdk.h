@@ -140,7 +140,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeCookieSettings          = 33, // private - byte array
     MEGAUserAttributeJsonSyncConfigData      = 34, // private - byte array
     MEGAUserAttributeDrivesName              = 35, // private - byte array
-    MEGAUserAttributeNoCallKit               = 36  // private - byte array
+    MEGAUserAttributeNoCallKit               = 36, // private - byte array
+    MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -4956,6 +4957,89 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Set a private attribute of the current user
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest megaStringDictionary] - Returns the new value for the attribute
+ *
+ * You can remove existing records/keypairs from the following attributes:
+ *  - MEGAUserAttributeAlias
+ *  - MEGAUserAttributeDeviceNames
+ *  - MEGAUserAttributeAppsPreferences
+ * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Set whether the user can send geolocation messages (private)
+ * MEGAUserAttributeAlias = 27
+ * Set the list of users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Set the list of device names (private)
+ * MEGAUserAttributeAppsPreferences = 38
+ * Set the apps prefs (private)
+ *
+ * @param value New attribute value
+ */
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value;
+
+/**
+ * @brief Set a private attribute of the current user
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest megaStringDictionary] - Returns the new value for the attribute
+ *
+ * You can remove existing records/keypairs from the following attributes:
+ *  - MEGAUserAttributeAlias
+ *  - MEGAUserAttributeDeviceNames
+ *  - MEGAUserAttributeAppsPreferences
+ * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Set whether the user can send geolocation messages (private)
+ * MEGAUserAttributeAlias = 27
+ * Set the list of users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Set the list of device names (private)
+ * MEGAUserAttributeAppsPreferences = 38
+ * Set the apps prefs (private)
+ *
+ * @param value New attribute value
+ * @param listener MEGARequestDelegate to track this request
+ */
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
+    
 /**
  * @brief Gets the alias for an user
  *
