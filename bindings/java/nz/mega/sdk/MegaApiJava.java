@@ -113,6 +113,8 @@ public class MegaApiJava {
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
     public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
     public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
+    public final static int USER_ATTR_APPS_PREFS = MegaApi.USER_ATTR_APPS_PREFS;
+
     // deprecated: public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
     public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
@@ -4306,6 +4308,93 @@ public class MegaApiJava {
      * @param value New attribute value
      */
     public void setUserAttribute(int type, String value) {
+        megaApi.setUserAttribute(type, value);
+    }
+
+    /**
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * You can remove existing records/keypairs from the following attributes:
+     *  - MegaApi::ATTR_ALIAS
+     *  - MegaApi::ATTR_DEVICE_NAMES
+     *  - MegaApi::USER_ATTR_APPS_PREFS
+     * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Set whether the user can send geolocation messages (private)
+     * MegaApi::ATTR_ALIAS = 27
+     * Set the list of users's aliases (private)
+     * MegaApi::ATTR_DEVICE_NAMES = 30
+     * Set the list of device names (private)
+     * MegaApi::ATTR_APPS_PREFS = 38
+     * Set the apps prefs (private)
+     *
+     * @param value New attribute value
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setUserAttribute(int type, MegaStringMap value, MegaRequestListenerInterface listener) {
+        megaApi.setUserAttribute(type, value, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * You can remove existing records/keypairs from the following attributes:
+     *  - MegaApi::ATTR_ALIAS
+     *  - MegaApi::ATTR_DEVICE_NAMES
+     *  - MegaApi::USER_ATTR_APPS_PREFS
+     * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Set whether the user can send geolocation messages (private)
+     * MegaApi::ATTR_ALIAS = 27
+     * Set the list of users's aliases (private)
+     * MegaApi::ATTR_DEVICE_NAMES = 30
+     * Set the list of device names (private)
+     * MegaApi::ATTR_APPS_PREFS = 38
+     * Set the apps prefs (private)
+     *
+     * @param value New attribute value
+     */
+    public void setUserAttribute(int type, MegaStringMap value) {
         megaApi.setUserAttribute(type, value);
     }
 
