@@ -1318,24 +1318,35 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW                   = 0x00
+     * - MegaSet::CHANGE_TYPE_NEW     = 0
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME                  = 0x01
+     * - MegaSet::CHANGE_TYPE_NAME    = 1
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER                 = 0x02
+     * - MegaSet::CHANGE_TYPE_COVER   = 2
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
+     * - MegaSet::CHANGE_TYPE_REMOVED = 3
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
+     * current MegaSet
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSet::CHANGE_TYPE_*
+     *
+     * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1457,7 +1468,42 @@ public:
      */
     virtual const char* name() const { return nullptr; }
 
+    /**
+     * @brief Returns true if this SetElement has a specific change
+     *
+     * This value is only useful for Sets notified by MegaListener::onSetElementsUpdate or
+     * MegaGlobalListener::onSetElementsUpdate that can notify about SetElements modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * Check if the SetElement was new
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * Check if SetElement name has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * Check if SetElement order has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * Check if the SetElement was removed
+     *
+     * @return true if this Set has a specific change
+     */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
+     * current MegaSetElement
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSetElement::CHANGE_TYPE_ELEM_*
+     *
+     * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
@@ -4259,7 +4305,8 @@ class MegaRequest
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
-            TOTAL_OF_REQUEST_TYPES                                          = 168,
+            TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
+            TOTAL_OF_REQUEST_TYPES                                          = 169,
         };
 
         virtual ~MegaRequest();
@@ -5153,6 +5200,7 @@ public:
         REASON_ERROR_FAILURE_UNSERIALIZE_NODE   = 1,    // Failure when node is unserialized from DB
         REASON_ERROR_DB_IO_FAILURE              = 2,    // Input/output error at DB layer
         REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
+        REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
     };
 
     virtual ~MegaEvent();
@@ -12923,6 +12971,25 @@ class MegaApi
          * @see MegaApi::getPaymentId
          */
         void getPricing(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
+         * and has enough space.
+         * 
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber: the recommended PRO level:
+         *     Valid values are (there are other account types):
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+         *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         * 
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the payment URL for an upgrade

@@ -646,9 +646,6 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();
-
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
@@ -1110,7 +1107,7 @@ public:
 
     // parse scheduled meeting or scheduled meeting occurrences
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
-                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 bool parsingOccurrences, JSON *j, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
@@ -1579,9 +1576,6 @@ public:
     // flag to pause / resume the processing of action packets
     bool scpaused;
 
-    // MegaClient-Server response JSON
-    JSON json;
-
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
@@ -2040,12 +2034,6 @@ public:
     // Pending contact keys during initialization
     std::map<attr_t, set<handle>> mPendingContactKeys;
 
-    // number of authrings being fetched
-    unsigned short mFetchingAuthrings = 0;
-
-    // actual state of keys
-    bool fetchingkeys;
-
     // invalidate received keys (when fail to load)
     void clearKeys();
 
@@ -2333,7 +2321,7 @@ public:
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool procaesp();
+    bool procaesp(JSON& j);
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
