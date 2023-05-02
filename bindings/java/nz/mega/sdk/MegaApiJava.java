@@ -1775,7 +1775,7 @@ public class MegaApiJava {
      * @param listener  MegaRequestListener to track this request
      * @see MegaApi::queryResetPasswordLink and the flag of the MegaRequest::TYPE_QUERY_RECOVERY_LINK in there.
      */
-    public void confirmResetPassword(String link, String newPwd, @Nullable String masterKey, MegaRequestListenerInterface listener) {
+    public void confirmResetPassword(String link, String newPwd, String masterKey, MegaRequestListenerInterface listener) {
         megaApi.confirmResetPassword(link, newPwd, masterKey, createDelegateRequestListener(listener));
     }
 
@@ -4496,7 +4496,7 @@ public class MegaApiJava {
      * @param count    if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
      * @param listener MegaRequestListener to track this request
      */
-    public void getFavourites(@Nullable MegaNode node, int count, MegaRequestListenerInterface listener) {
+    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
         megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
     }
 
@@ -11513,7 +11513,7 @@ public class MegaApiJava {
      * @param name     the name that should be given to the new Set
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(@Nullable String name, MegaRequestListenerInterface listener) {
+    public void createSet(String name, MegaRequestListenerInterface listener) {
         megaApi.createSet(name, createDelegateRequestListener(listener));
     }
 
