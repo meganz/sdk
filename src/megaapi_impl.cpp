@@ -21934,7 +21934,7 @@ void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener* listener)
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->syncs.deregisterThenRemoveSync(backupId, completion, false);
+            client->syncs.deregisterThenRemoveSync(backupId, completion, false, nullptr);
             return API_OK;
         };
 

@@ -3036,10 +3036,11 @@ dstime Sync::procscanq()
             // if we are higher up the tree than that, it's again the same
             // basically, scan the folder we can determine this notification is below: nearest.
 
-            while (nearest && nearest->type == FILENODE)
+            if (nearest && nearest->type == FILENODE)
             {
                 nearest->recomputeFingerprint = true;
                 nearest = nearest->parent;
+                assert(nearest && nearest->type != FILENODE);
             }
         }
 
@@ -5419,7 +5420,7 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());
 
@@ -5447,23 +5448,23 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
     }
 
     // use queueClient since we are not certain to be locked on client thread
-    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+    queueClient([backupId, completion, this, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter&){
 
         mc.reqs.add(new CommandBackupRemove(&mc, backupId,
-                [backupId, completion, this](Error e){
+                [backupId, completion, this, clientRemoveSdsEntryFunction](Error e){
                     if (e)
                     {
                         // de-registering is not critical - we continue anyway
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); }, "deregisterThenRemoveSync");
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion), clientRemoveSdsEntryFunction); }, "deregisterThenRemoveSync");
                 }));
     }, true);
 
 }
 
-void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(onSyncThread());
 
@@ -5473,6 +5474,9 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
     {
         mClient.app->sync_removed(configCopy);
         mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
+
+        // lastly, send the command to remove the sds entry from the (former) sync root Node's attributes
+        queueClient(move(clientRemoveSdsEntryFunction));
     }
     else
     {
@@ -5840,6 +5844,7 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
     // (SyncNode = LocalNode, we'll rename LocalNode eventually)
 
     if (wasSynced && !belowRemovedFsNode &&
+        !syncNode->lastFolderScan && syncNode->syncAgain < TREE_ACTION_HERE &&   // if fully matching, we would have removed the fsNode vector to save space
         syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
     {
         // success, the already sorted and aligned triplets were inferred
@@ -6491,7 +6496,6 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
     // in case of sync failing while we recurse
     if (getConfig().mError) return false;
-    (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
     assert(row.syncNode->type > FILENODE);
@@ -6744,6 +6748,8 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 {
                                     cs.push_back(i.second);
                                 }
+                                // this technique might seem a bit roundabout, but deletion will cause these to
+                                // remove themselves from s->children. // we can't have that happening while we iterate that map.
                                 for (auto p : cs)
                                 {
                                     // deletion this way includes statecachedel
@@ -10685,8 +10691,9 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
-bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups)
+bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction)
 {
+    assert(onSyncThread());
     if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress) return false;
 
     bool deleteSync = false;
@@ -10708,22 +10715,24 @@ bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>
 
     if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
     {
-        LOG_debug << "SDS: clearing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode;
+        LOG_debug << "SDS: preparing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode << " for execution after sync removal";
 
         auto sdsCopy = sdsBackups;
         auto remoteNode = us.mConfig.mRemoteNode;
         auto boolsptr = us.sdsUpdateInProgress;
-        queueClient([remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
+        clientRemoveSdsEntryFunction = [remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
         {
-            Node* node = mc.nodeByHandle(remoteNode);
-            mc.setattr(node,
-                    attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
-                    [boolsptr](NodeHandle handle, Error result) {
-                        LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
-                        *boolsptr = false;
-                    },
-                    true);
-        });
+            if (Node* node = mc.nodeByHandle(remoteNode))
+            {
+                mc.setattr(node,
+                        attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
+                        [boolsptr](NodeHandle handle, Error result) {
+                            LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
+                            *boolsptr = false;
+                        },
+                        true);
+            }
+        };
     }
 
     return deleteSync;
@@ -10838,6 +10847,7 @@ void Syncs::syncLoop()
         {
 
             vector<pair<handle, int>> sdsBackups;
+            std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
 
             CloudNode cloudNode;
             string cloudRootPath;
@@ -10854,7 +10864,7 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &sdsBackups);
 
-            if (checkSdsCommandsForDelete(*us, sdsBackups))
+            if (checkSdsCommandsForDelete(*us, sdsBackups, clientRemoveSdsEntryFunction))
             {
                 LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
 
@@ -10865,8 +10875,8 @@ void Syncs::syncLoop()
                 }
 
                 auto backupId = us->mConfig.mBackupId;
-                queueClient([backupId](MegaClient& mc, TransferDbCommitter& committer) {
-                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true);
+                queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
+                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
                 });
                 continue;
             }
@@ -11067,6 +11077,7 @@ void Syncs::syncLoop()
                                 << ")";
 
                         sync->changestate(NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
+                        continue;
                     }
                 }
                 else
