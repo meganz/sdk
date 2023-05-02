@@ -5476,7 +5476,10 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
         mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
 
         // lastly, send the command to remove the sds entry from the (former) sync root Node's attributes
-        queueClient(move(clientRemoveSdsEntryFunction));
+        if (clientRemoveSdsEntryFunction)
+        {
+            queueClient(move(clientRemoveSdsEntryFunction));
+        }
     }
     else
     {
