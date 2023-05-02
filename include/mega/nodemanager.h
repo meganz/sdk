@@ -217,11 +217,12 @@ private:
         // sometimes we call functions there, and it then calls back into NodeManager.
         // So, it has to be recursive for now.  We can work towards tidying that up, and
         // eventually swap to plain `mutex`.
-        void lock() { /*assert(lockedBy != std::this_thread::get_id());*/ recursive_mutex::lock(); lockedBy = std::this_thread::get_id(); }
-        void unlock() { /*lockedBy = std::thread::id();*/ recursive_mutex::unlock(); }
-        bool locked() { return lockedBy == std::this_thread::get_id(); }
+        void lock() { recursive_mutex::lock(); lockedBy = std::this_thread::get_id(); ++lockCount; }
+        void unlock() { --lockCount; recursive_mutex::unlock();  }
+        bool locked() { return lockedBy == std::this_thread::get_id() && lockCount > 0; }
     private:
         std::thread::id lockedBy;
+        uint32_t lockCount = 0;
 #endif
     };
     mutable checkableMutex mMutex;
