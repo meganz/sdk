@@ -4224,7 +4224,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
-            parseUserAttribute(appPrefs, versionAppPrefs);
+            parseUserAttribute(json, appPrefs, versionAppPrefs);
             break;
 
 #ifdef ENABLE_SYNC
