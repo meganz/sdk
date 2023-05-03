@@ -10938,6 +10938,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s2p, nullptr);
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1up->ts());
+    ASSERT_EQ(s2p->cts(), s1up->cts());
 
     // 3. Upload test files
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
@@ -11253,6 +11254,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->id(), sh);
     ASSERT_EQ(s1p->user(), s1up->user());
     ASSERT_EQ(s1p->ts(), s1up->ts());
+    ASSERT_EQ(s1p->cts(), s1up->cts());
     ASSERT_EQ(s1p->name(), name);
     elCount = megaApi[0]->getSetElementCount(sh);
     ASSERT_EQ(elCount, 2u) << "Wrong Element count after resumeSession";
