@@ -331,7 +331,7 @@ bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte
         }
         else
         {
-            // resynchronizes with the provided IV
+            // resynchronizes with the provided Key and IV
             aesgcm_e.SetKeyWithIV(key, keylen, iv, ivlen);
         }
 
@@ -390,14 +390,15 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
     }
     try
     {
-        if (key && keylength)
-        {
-            aesgcm_d.SetKeyWithIV(key, keylength, iv, ivlen);
-        }
-        else
+        if (!key || !keylength)
         {
             // resynchronizes with provided IV
             aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
+        }
+        else
+        {
+            // resynchronizes with the provided Key and IV
+            aesgcm_d.SetKeyWithIV(key, keylength, iv, ivlen);
         }
 
         unsigned int flags = AuthenticatedDecryptionFilter::MAC_AT_BEGIN | AuthenticatedDecryptionFilter::THROW_EXCEPTION;

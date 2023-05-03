@@ -91,6 +91,7 @@ class MEGA_API ECDH
 public:
     static const int PRIVATE_KEY_LENGTH = crypto_box_SECRETKEYBYTES;
     static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
+    static const int DERIVED_KEY_LENGTH = crypto_scalarmult_BYTES;
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;

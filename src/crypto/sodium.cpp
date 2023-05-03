@@ -213,9 +213,9 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
 
     int err = 0;
     std::string sharedSecret;
-    sharedSecret.resize(crypto_scalarmult_BYTES);
-    auto auxPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
-    err = crypto_scalarmult(const_cast<unsigned char*>(auxPtr), getPrivKey(), pubkey);
+    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
+    auto ssPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
+    err = crypto_scalarmult(const_cast<unsigned char*>(ssPtr), getPrivKey(), pubkey);
     if (err)
     {
         LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;
@@ -224,11 +224,10 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
 
     try
     {
-        char auxderived[mega::ECDH::PUBLIC_KEY_LENGTH];
+        output.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
+        auto outPtr = reinterpret_cast<const unsigned char *>(output.data());
         CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
-        hkdf.DeriveKey(reinterpret_cast<byte*>(auxderived), mega::ECDH::PUBLIC_KEY_LENGTH, reinterpret_cast<const unsigned char*>(sharedSecret.data()), sharedSecret.size(), salt, saltSize, nullptr, 0);
-        output.resize(mega::ECDH::PUBLIC_KEY_LENGTH);
-        std::copy(auxderived, auxderived + mega::ECDH::PUBLIC_KEY_LENGTH, output.begin());
+        hkdf.DeriveKey(const_cast<unsigned char*>(outPtr), output.size(), reinterpret_cast<const unsigned char*>(sharedSecret.data()), sharedSecret.size(), salt, saltSize, nullptr, 0);
         return true;
     }
     catch (std::invalid_argument const& e)
