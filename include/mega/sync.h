@@ -519,6 +519,9 @@ public:
 
     string logTriplet(SyncRow& row, SyncPath& fullPath);
 
+    // resolve_* functions are to do with managing the various cases syncing a single item
+    // they all return true/false depending on whether the node is now in sync
+    // and therefore does not need to be visited again (until another change arrives).
     bool resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
@@ -545,6 +548,7 @@ public:
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     void purgeStaleDownloads();
+    bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
 
     // debris path component relative to the base path
     string debris;

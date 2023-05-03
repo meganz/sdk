@@ -1637,14 +1637,9 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                if (!resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false))
+                if (!makeSyncNode_fromFS(row, parentRow, fullPath, false))
                 {
-                    // this can happen if eg. we can't read the fingerprint
-                    monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                        SyncWaitReason::FileIssue, false, false,
-                        {}, {},
-                        {sourceSyncNode->getLocalPath(), PathProblem::CannotFingerprintFile}, {}));
-
+                    // if it failed, it already set up a waitingLocal with PathProblem::CannotFingerprintFile
                     row.suppressRecursion = true;
                     return rowResult = false, true;
                 }
@@ -6809,10 +6804,10 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         {
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
-                            // in particular contradictroy moves.
+                            // in particular contradictory moves.
                             if (childRow.type() == SRT_XXF && row.exclusionState(*childRow.fsNode) == ES_INCLUDED)
                             {
-                                resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
+                                makeSyncNode_fromFS(childRow, row, fullPath, false);
                             }
                         }
                         else if (belowRemovedFsNode)
@@ -7491,7 +7486,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN, -1) == ES_INCLUDED)
     {
         // so that we can checkForScanBlocked() immediately below
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+        if (!makeSyncNode_fromFS(row, parentRow, fullPath, false))
+        {
+            row.suppressRecursion = true;
+            row.itemProcessed = true;
+            return false;
+        }
     }
     if (row.syncNode &&
         row.syncNode->checkForScanBlocked(row.fsNode))
@@ -8013,9 +8013,18 @@ bool Sync::resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     return true;
 }
 
-
 bool Sync::resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
+    makeSyncNode_fromFS(row, parentRow, fullPath, considerSynced);
+
+    // the row is not in sync, so we return false
+    // future visits will make more steps towards getting in sync
+    return false;
+}
+
+bool Sync::makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
+{
+    // this version of the function returns true/false depending on whether it was able to make the SyncNode.
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
 
@@ -8063,9 +8072,8 @@ bool Sync::resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPat
 
     statecacheadd(row.syncNode);
 
-    //row.syncNode->setSyncAgain(true, false, false);
-
-    return false;
+    // success making the LocalNode/SyncNode
+    return true;
 }
 
 bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
