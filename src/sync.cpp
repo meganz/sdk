@@ -1416,10 +1416,24 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
     // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
     // (well we do but in a very limited capacity, only checking if the cloud side has new nodes to detect crossed-over moves)
-    // If the move/rename is successful, then on one of those iterations we will detect it as a synced row in
-    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
-    // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
-    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    //
+    // If the move/rename is successful, then we will set the syncedNodeHandle and syncedFsid for this syncNode.
+    // That captures that the row has been synced, and if the Node and FSNode are still in place, that completes the operation
+    // (well, the old syncNode representing the source location will need to be removed, that won't have any fields preventing that anymore)
+    // However if other changes occurred in the meantime, such as the local item being renamed or moved again,
+    // while this operation was in progress, then the actions taken here will set it up to be in a situation
+    // equal to how it would have been if we completed this operation first, so that the fields are set up for
+    // the new change to be detected and acted on in turn.
+    //
+    // In the original conception of the algoritm, we would have waited for resolve_rowMatched to detect a fully synced row,
+    // however for the case described above, it was insufficient because with another move/rename starting, the
+    // FSNode or cloudNode would not be present at the end of our initial operation, and so the syncedFsid and
+    // syncedNodeHandle would not be set, and so we could not get into a synced state or indeed detect the subsequent
+    // move/rename properly.  However we still keep resolve_rowMatched as a backstop to deal with
+    // cases where rows become synced independently, such as via the actions of the user themselves,
+    // perhaps while a stall is going on.
+    //
+    // We do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
     // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
     // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
     // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
@@ -2445,10 +2459,19 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
     // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
     // (well we do but in a very limited capacity, only checking if the local side has new nodes to detect crossed-over moves)
-    // If the move/rename is successful, then on the next tree iteration we will detect it as a synced row in
-    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
+    //
+    // If the move/rename is successful, we set the syncedNodeHandle and syncedFsid for this node appropriately,
+    // so that even in the presence of other actions happening in this sync row, such as another move/rename occurring
+    // that we see on the next pass over the tree, we can still know that this row was synced, and we have
+    // sufficient state recorded in order to be able to detect that subsequent move/rename, and take further actions
+    // to propagate that to the other side.
+    //
+    // We also have the backstop of resolve_rowMatched which will recognize rows that have gotten into a synced state
+    // perhaps via the actions of the user themselves, rather than the efforts of the sync (eg, when resolving stall cases)
+    // That function will update our data structures, moving the sub-LocalNodes from the
     // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
-    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    //
+    // We do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
     // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
     // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
     // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
