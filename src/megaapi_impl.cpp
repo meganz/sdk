@@ -1851,8 +1851,7 @@ bool MegaSetPrivate::hasChanged(int changeType) const
 
 bool MegaSetElementPrivate::hasChanged(int changeType) const
 {
-    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE);
-    return (unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE ? mChanges[changeType] : false;
+    return getChanges() & changeType;
 }
 
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)

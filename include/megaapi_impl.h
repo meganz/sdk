@@ -776,7 +776,7 @@ public:
     const char* name() const override { return mName.c_str(); }
 
     bool hasChanged(int changeType) const override;
-    long long getChanges() const override { return mChanges.to_ulong(); }
+    uint64_t getChanges() const override { return mChanges.to_ullong(); }
 
     virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
@@ -787,7 +787,7 @@ private:
     int64_t mOrder;
     m_time_t mTs;
     string mName;
-    std::bitset<CHANGE_TYPE_ELEM_SIZE> mChanges;
+    std::bitset<MegaSetElement::CHANGE_TYPE_ELEM_SIZE> mChanges;
 };
 
 
