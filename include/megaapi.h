@@ -1001,7 +1001,7 @@ class MegaNode
          * Check if counter for this node (its subtree) has changed
          *
          */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Returns true if the node has an associated thumbnail

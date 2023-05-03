@@ -994,7 +994,7 @@ bool MegaNodePrivate::hasChanged(int changeType)
     return (changed & changeType);
 }
 
-int MegaNodePrivate::getChanges()
+uint64_t MegaNodePrivate::getChanges()
 {
     return changed;
 }

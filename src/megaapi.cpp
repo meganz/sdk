@@ -547,7 +547,7 @@ bool MegaNode::hasChanged(int /*changeType*/)
     return false;
 }
 
-int MegaNode::getChanges()
+uint64_t MegaNode::getChanges()
 {
     return 0;
 }

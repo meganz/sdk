@@ -628,7 +628,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isFolder() override;
         bool isRemoved() override;
         bool hasChanged(int changeType) override;
-        int getChanges() override;
+        uint64_t getChanges() override;
         bool hasThumbnail() override;
         bool hasPreview() override;
         bool isPublic() override;
@@ -681,7 +681,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string mDeviceId;
         std::string mS4;
         const char *chatAuth;
-        int changed;
+        uint64_t changed;
         struct {
             bool thumbnailAvailable : 1;
             bool previewAvailable : 1;
