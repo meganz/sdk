@@ -210,7 +210,6 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
@@ -331,7 +330,6 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
-     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
