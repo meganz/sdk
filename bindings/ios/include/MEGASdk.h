@@ -4994,6 +4994,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
  *
+ * @param key Key for the new attribute in the string map
  * @param value New attribute value
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value;
@@ -5035,8 +5036,9 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
  *
+ * @param key Key for the new attribute in the string map
  * @param value New attribute value
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
     
