@@ -2761,7 +2761,7 @@ public:
      *
      * @return The returned value is an OR combination of these flags
      */
-    virtual int getChanges() const;
+    virtual uint64_t getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.

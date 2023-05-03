@@ -1912,7 +1912,7 @@ public:
     bool isMeeting() const override;
 
     bool hasChanged(int changeType) const override;
-    int getChanges() const override;
+    uint64_t getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
     const MegaScheduledMeetingList* getUpdatedOccurrencesList() const override;
@@ -1928,7 +1928,7 @@ private:
     handle ou;
     string title;
     string unifiedKey;
-    int changed;
+    uint64_t changed;
     int tag;
     bool archived;
     bool publicchat;

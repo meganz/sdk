@@ -6860,7 +6860,7 @@ bool MegaTextChat::hasChanged(int) const
     return false;
 }
 
-int MegaTextChat::getChanges() const
+uint64_t MegaTextChat::getChanges() const
 {
     return 0;
 }

@@ -34601,7 +34601,7 @@ bool MegaTextChatPrivate::hasChanged(int changeType) const
     return (changed & changeType);
 }
 
-int MegaTextChatPrivate::getChanges() const
+uint64_t MegaTextChatPrivate::getChanges() const
 {
     return changed;
 }
