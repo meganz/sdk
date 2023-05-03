@@ -104,9 +104,8 @@ bool SymmCipher::cbc_encrypt_with_key(const std::string& plain, std::string& cip
 {
     try
     {
-        CBC_Mode<AES>::Encryption e;
-        e.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
-        StringSource ss(plain, true, new StreamTransformationFilter(e, new StringSink(cipher)));
+        aescbc_e.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        StringSource ss(plain, true, new StreamTransformationFilter(aescbc_e, new StringSink(cipher)));
         return true;
     }
     catch (const CryptoPP::Exception& e)
@@ -120,9 +119,8 @@ bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher, std::string& pl
 {
     try
     {
-        CBC_Mode<AES>::Decryption d;
-        d.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
-        StringSource ss(cipher, true, new StreamTransformationFilter(d, new StringSink(plain)));
+        aescbc_d.SetKeyWithIV(key, keylen, iv ? iv: zeroiv);
+        StringSource ss(cipher, true, new StreamTransformationFilter(aescbc_d, new StringSink(plain)));
         return true;
     }
     catch(const CryptoPP::Exception& e)
