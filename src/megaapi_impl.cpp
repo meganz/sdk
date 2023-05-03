@@ -1846,8 +1846,7 @@ int MegaUserPrivate::isOwnChange()
 
 bool MegaSetPrivate::hasChanged(int changeType) const
 {
-    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE);
-    return (unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE ? mChanges[changeType] : false;
+    return getChanges() & changeType;
 }
 
 bool MegaSetElementPrivate::hasChanged(int changeType) const

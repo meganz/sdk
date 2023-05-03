@@ -1318,19 +1318,19 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW     = 0
+     * - MegaSet::CHANGE_TYPE_NEW     = 1
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME    = 1
+     * - MegaSet::CHANGE_TYPE_NAME    = 2
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER   = 2
+     * - MegaSet::CHANGE_TYPE_COVER   = 4
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED = 3
+     * - MegaSet::CHANGE_TYPE_REMOVED = 8
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 16
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
@@ -1346,7 +1346,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1360,15 +1360,15 @@ public:
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
-    enum // match Set::CH_XXX values
+    enum // 1:1 with Set::CH_XXX values
     {
-        CHANGE_TYPE_NEW,
-        CHANGE_TYPE_NAME,
-        CHANGE_TYPE_COVER,
-        CHANGE_TYPE_REMOVED,
-        CHANGE_TYPE_EXPORT,
+        CHANGE_TYPE_NEW     = 0x01,
+        CHANGE_TYPE_NAME    = 0x02,
+        CHANGE_TYPE_COVER   = 0x04,
+        CHANGE_TYPE_REMOVED = 0x08,
+        CHANGE_TYPE_EXPORT  = 0x10,
 
-        CHANGE_TYPE_SIZE
+        CHANGE_TYPE_SIZE    = 5     // remember to update this when adding new fields
     };
 };
 

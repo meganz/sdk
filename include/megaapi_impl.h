@@ -726,7 +726,7 @@ public:
     MegaHandle cover() const override { return mCover; }
 
     bool hasChanged(int changeType) const override;
-    long long getChanges() const override { return mChanges.to_ulong(); }
+    uint64_t getChanges() const override { return mChanges.to_ullong(); }
     bool isExported() const override { return mPublicId != UNDEF; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
@@ -739,7 +739,7 @@ private:
     m_time_t mCTs;
     string mName;
     MegaHandle mCover;
-    std::bitset<CHANGE_TYPE_SIZE> mChanges;
+    std::bitset<MegaSet::CHANGE_TYPE_SIZE> mChanges;
 };
 
 
