@@ -708,7 +708,7 @@ bool MegaUser::hasChanged(int)
     return false;
 }
 
-int MegaUser::getChanges()
+uint64_t MegaUser::getChanges()
 {
     return 0;
 }

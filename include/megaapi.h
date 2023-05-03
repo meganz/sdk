@@ -1875,7 +1875,7 @@ class MegaUser
          * Check if option for iOS CallKit has changed
          *
          * Check if backup names have changed         */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Indicates if the user is changed by yourself or by another client.

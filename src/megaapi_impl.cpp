@@ -1834,7 +1834,7 @@ bool MegaUserPrivate::hasChanged(int changeType)
     return (changed & changeType);
 }
 
-int MegaUserPrivate::getChanges()
+uint64_t MegaUserPrivate::getChanges()
 {
     return changed;
 }

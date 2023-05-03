@@ -822,7 +822,7 @@ class MegaUserPrivate : public MegaUser
         virtual int getVisibility();
         virtual int64_t getTimestamp();
         virtual bool hasChanged(int changeType);
-        virtual int getChanges();
+        uint64_t getChanges() override;
         virtual int isOwnChange();
 
 	protected:
@@ -830,7 +830,7 @@ class MegaUserPrivate : public MegaUser
         MegaHandle handle;
         int visibility;
         int64_t ctime;
-        int changed;
+        uint64_t changed;
         int tag;
 };
 
