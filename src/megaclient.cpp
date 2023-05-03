@@ -14014,7 +14014,7 @@ void MegaClient::initializekeys()
         }
 
         // Check Cu25519 public key against derive version
-        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
@@ -14131,7 +14131,7 @@ void MegaClient::initializekeys()
             ECDH *chatkey = new ECDH();
 
             prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
-            prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
+            prCu255 = string((char *)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
@@ -14168,7 +14168,7 @@ void MegaClient::initializekeys()
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
             TLVstore tlvRecords;
             tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
             unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
 
             buf.assign(tlvContainer->data(), tlvContainer->size());
@@ -14182,12 +14182,12 @@ void MegaClient::initializekeys()
                 pubk.serializekeyforjs(pubkStr);
                 signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
-            signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
+            signkey->signKey(chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             attrs[ATTR_ED25519_PUBK] = buf;
 
-            buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+            buf.assign((const char *) chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
             attrs[ATTR_CU25519_PUBK] = buf;
 
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -22153,7 +22153,7 @@ string KeyManager::computeSymmetricKey(handle user)
     std::string sharedSecret;
     sharedSecret.resize(crypto_scalarmult_BYTES);
     if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                          mClient.chatkey->privKey,
+                          mClient.chatkey->getPrivKey(),
                           (unsigned char *)cachedav->data()))
     {
         return std::string();

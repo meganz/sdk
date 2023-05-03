@@ -96,9 +96,6 @@ public:
     static const std::string TLV_KEY;
     bool initializationOK = false;
 
-    unsigned char privKey[PRIVATE_KEY_LENGTH];  // move to private section when all usages have been replaced by getter
-    unsigned char pubKey[PUBLIC_KEY_LENGTH];    // move to private section when all usages have been replaced by getter
-
     ECDH(); // constructs an instance of ECDH and generates a new x25519 key pair
     ECDH(const std::string &privKey); // initialize the private key (and derive public key)
     ECDH(const ECDH& aux);
@@ -151,6 +148,10 @@ public:
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
                  const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
+
+private:
+    unsigned char privKey[PRIVATE_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
 };
 } // namespace
 
