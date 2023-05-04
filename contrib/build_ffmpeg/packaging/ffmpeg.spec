@@ -1,11 +1,11 @@
 Name:		ffmpeg-mega
-Version:	1.0
+Version:	512.0
 Release:	%(cat MEGA_BUILD_ID || echo "1").1
 Summary:	TODO
 License:	TODO
 Group:		Applications/Others
 Url:		https://mega.nz
-Source0:	ffmpeg-mega_1.0.tar.gz
+Source0:	ffmpeg-mega_512.0.tar.gz
 Vendor:		TODO
 Packager:	TODO
 

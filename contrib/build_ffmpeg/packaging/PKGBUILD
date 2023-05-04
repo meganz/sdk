@@ -1,7 +1,7 @@
 # Maintainer: Pablo Martin <pm@mega.nz>
 pkgname=ffmpeg-mega
-pkgver=1.0
-pkgrel=1
+pkgver=512.0
+pkgrel=`cat MEGA_BUILD_ID || echo "1"`
 epoch=
 pkgdesc="TODO"
 arch=('i686' 'x86_64')
