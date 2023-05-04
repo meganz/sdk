@@ -1329,7 +1329,6 @@ public:
             bool mTrackValue;
             MegaClient& mClient;
             LocalPath mCacheFilePath;
-            unique_ptr<FileSystemAccess> mFsAccess;
             bool storeValuesToCache(bool storeJidValue, bool storeTrackValue) const;
 
         public:

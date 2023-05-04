@@ -106,8 +106,7 @@ dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 MegaClient::JourneyID::JourneyID(MegaClient& client) :
     mJidValue(0),
     mTrackValue(false),
-    mClient(client),
-    mFsAccess(new FSACCESS_CLASS())
+    mClient(client)
 {
 };
 
@@ -211,7 +210,7 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
     if (newCacheFilePath != mCacheFilePath)
     {
         // Try open the dir
-        unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
+        unique_ptr<DirAccess> dirAccess(mClient.fsaccess->newdiraccess());
 
         if (!dirAccess->dopen(&newCacheDirPath, nullptr, true))
         {
@@ -221,13 +220,11 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
             return false;
         }
 
-        auto fileAccess = mFsAccess->newfileaccess(false);
+        auto fileAccess = mClient.fsaccess->newfileaccess(false);
         mCacheFilePath = newCacheFilePath;
 
         // Try open the file
-        bool fileExists = fileAccess->fopen(mCacheFilePath);
-        fileAccess.reset();
-        if (fileExists)
+        if (fileAccess->fopen(mCacheFilePath))
         {
             loadValuesFromCache();
         }
@@ -242,28 +239,30 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
 
 bool MegaClient::JourneyID::loadValuesFromCache()
 {
-    auto fileAccess = mFsAccess->newfileaccess(false);
+    auto fileAccess = mClient.fsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, true, false);
     if (success)
     {
         string cachedJidValue, cachedTrackValue;
         success &= fileAccess->fread(&cachedJidValue, HEX_STRING_SIZE, 0, 0);
         success &= fileAccess->fread(&cachedTrackValue, 1, 0, HEX_STRING_SIZE);
-        assert((cachedJidValue.size() == HEX_STRING_SIZE) && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
-        assert((cachedTrackValue.size() == 1) && "CachedJidValue size is not 1!!!!");
-        assert(cachedTrackValue == "1" || cachedTrackValue == "0");
-        if (cachedJidValue == string(NULL_JOURNEY_ID))
+        if (success)
         {
-            mJidValue = 0;
-            mTrackValue = 0;
-        }
-        else
-        {
-            mJidValue = Utils::hexStringToUint64(cachedJidValue);
-            mTrackValue = (cachedTrackValue == "1") ? true : false;
+            assert((cachedJidValue.size() == HEX_STRING_SIZE) && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
+            assert((cachedTrackValue.size() == 1) && "CachedJidValue size is not 1!!!!");
+            assert(cachedTrackValue == "1" || cachedTrackValue == "0");
+            if (cachedJidValue == string(NULL_JOURNEY_ID))
+            {
+                mJidValue = 0;
+                mTrackValue = 0;
+            }
+            else
+            {
+                mJidValue = Utils::hexStringToUint64(cachedJidValue);
+                mTrackValue = (cachedTrackValue == "1") ? true : false;
+            }
         }
     }
-    fileAccess.reset();
     if (!success)
     {
         LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] Unable to load values from local cache";
@@ -283,7 +282,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
     {
         return false;
     }
-    auto fileAccess = mFsAccess->newfileaccess(false);
+    auto fileAccess = mClient.fsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, false, true);
     if (success)
     {
@@ -296,7 +295,6 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
             success &= fileAccess->fwrite((const byte*)(mTrackValue ? "1" : "0"), 1, HEX_STRING_SIZE);
         }
     }
-    fileAccess.reset();
     if (!success)
     {
         LOG_err << "[MegaClient::JourneyID::storeValuesToCache] Unable to store values in local cache";
@@ -317,14 +315,13 @@ bool MegaClient::JourneyID::resetCacheValues(bool resetObjectValues)
         assert(false && "The cache file path is empty. Cannot reset values");
         return false;
     }
-    auto fileAccess = mFsAccess->newfileaccess(false);
+    auto fileAccess = mClient.fsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, false, true);
     if (success)
     {
         success &= fileAccess->fwrite((const byte*)(NULL_JOURNEY_ID), HEX_STRING_SIZE, 0);
         success &= fileAccess->fwrite((const byte*)("0"), 1, HEX_STRING_SIZE);
     }
-    fileAccess.reset();
     if (!success)
     {
         LOG_err << "[MegaClient::JourneyID::resetCacheValues] Unable to reset values from local cache"; 
