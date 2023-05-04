@@ -2467,10 +2467,6 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
         return "blocked";
     case STATUS_PRO_LEVEL:
         return "pro-level";
-    case STATUS_JOURNEY_ID:
-        return "journeyID";
-    case STATUS_JOURNEY_TRACKING:
-        return "tracking-journeyID";
     default:
         return "undefined";
     }

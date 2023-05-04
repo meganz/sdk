@@ -5620,6 +5620,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
         this->appKey = appKey;
     }
     client = new MegaClient(this, waiter, httpio, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
+    if (basePath)
+    {
+        client->setJourneyIdCacheFilePath(basePath);
+    }
 
 #if defined(_WIN32)
     httpio->unlock();

@@ -1324,13 +1324,17 @@ public:
     struct JourneyID
     {
         private:
+            static constexpr const char* NULL_JOURNEY_ID = "0000000000000000";
             uint64_t mJidValue;
             bool mTrackValue;
             MegaClient& mClient;
+            LocalPath mCacheFilePath;
+            unique_ptr<FileSystemAccess> mFsAccess;
+            bool storeValuesToCache(bool storeJidValue, bool storeTrackValue) const;
 
         public:
             static constexpr size_t HEX_STRING_SIZE = 16;
-            JourneyID(MegaClient& client) : mJidValue(0), mTrackValue(false), mClient(client) {};
+            JourneyID(MegaClient& client);
             // Set the jidValue with a new 8-byte uint64_t
             bool setValue(uint64_t jidValue, bool updateCachedTrackingFlag = true);
             // Set the jidValue as a 8-byte uint64_t from a 16-char hexadecimal value (journeyID="78b1bbbda5f32526" -> 8656088129828704806)
@@ -1341,6 +1345,16 @@ public:
             string getValue() const;
             // Check if the journeyID must be tracked (used on API reqs)
             bool isTrackingOn() const;
+            // Get the utf8 string representation of the local cache file path
+            string getCacheFilePath() const;
+            // Set the file path from the base directory path to be used for the cache file.
+            // Returns false if the file couldn't be read/written to basePath.
+            bool setCacheFilePath(const char* basePath);
+            // Load values stored in the cache file.
+            bool loadValuesFromCache();
+            // Reset the stored values from cache so a new JourneyID value can be loaded from the next "ug"/"umf" command.
+            // Param resetObjectValues to reset the attribute values too.
+            bool resetCacheValues(bool resetObjectValues);
 #ifdef DEBUG
             // Reset journeyID for tests
             void reset();
@@ -2150,10 +2164,15 @@ public:
     // Retrieves the JourneyID value as the original 16-character hexadecimal string (for submission to the API)
     string getJourneyId() const;
 
-#ifdef DEBUG
-    // Reset JourneyID for testing
-    void resetJourneyId();
-#endif
+    // Set the file cache path for the JourneyId. Param basePath is the absolute path, pointing to a valid directory to store the JourneyId value.
+    bool setJourneyIdCacheFilePath(const char* basePath);
+
+    // Load the JourneyID values from the local cache.
+    bool loadJourneyIdCacheValues();
+
+    // Reset the cache values so new values can be loaded after the next "ug"/"umf" command.
+    // Param resetObjectValues: to also reset the values on the actual JourneyID
+    bool resetJourneyIdCacheValues(bool resetObjectValues = false);
 
     // Generates a random ViewID as an 8-byte uint64_t
     ViewID::IdValue generateViewId();

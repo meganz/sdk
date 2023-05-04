@@ -1932,6 +1932,7 @@ bool CommandLogin::procresult(Result r)
                 }
 
                 client->openStatusTable(true);
+                client->loadJourneyIdCacheValues();
                 client->app->login_result(API_OK);
                 client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                 return true;
@@ -5807,6 +5808,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
                 client->openStatusTable(true);
+                client->loadJourneyIdCacheValues();
                 client->app->ephemeral_result(uh, pw);
                 return true;
 
