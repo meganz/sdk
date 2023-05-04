@@ -19,7 +19,7 @@ backup=()
 options=()
 #~ install=()
 changelog= #TODO
-source=("./ffmpeg.tar.gz"
+source=("./ffmpeg-mega_${pkgver}.tar.gz"
 )
 noextract=()
 md5sums=('SKIP')
