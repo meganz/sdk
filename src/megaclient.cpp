@@ -207,33 +207,27 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
     LocalPath newCacheFilePath = newCacheDirPath;
     newCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("sdk_journey_cache_file"), true);
     
-    if (newCacheFilePath != mCacheFilePath)
+    if (newCacheFilePath == mCacheFilePath)
     {
-        // Try open the dir
-        unique_ptr<DirAccess> dirAccess(mClient.fsaccess->newdiraccess());
-
-        if (!dirAccess->dopen(&newCacheDirPath, nullptr, true))
-        {
-            // Couldn't open directory for load/store cache file.
-            LOG_err << "[JourneyID::setCacheFilePath] Cannot open path for the file cache!!! Cache path won't change. [Failed path: '" << newCacheFilePath.toPath(false) << "']";
-            mCacheFilePath.clear();
-            return false;
-        }
-
-        auto fileAccess = mClient.fsaccess->newfileaccess(false);
-        mCacheFilePath = newCacheFilePath;
-
-        // Try open the file
-        if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
-        {
-            loadValuesFromCache();
-        }
-        else
-        {
-            storeValuesToCache(true, true);
-        }
+        LOG_debug << "[MegaClient::JourneyID::setCacheFilePath] New cache file path is the same as the actual file path. It won't change. [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
+        return false;
     }
 
+    auto fileAccess = mClient.fsaccess->newfileaccess(false);
+    mCacheFilePath = newCacheFilePath;
+    LOG_debug << "[MegaClient::JourneyID::setCacheFilePath] New cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
+
+    // Try to open the file
+    if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
+    {
+        // The file already exists - load values from cache
+        loadValuesFromCache();
+    }
+    else
+    {
+        // The file doesn't exist yet - store values (if they're valid at this point) to the cache
+        storeValuesToCache(true, true);
+    }
     return true;
 }
 
