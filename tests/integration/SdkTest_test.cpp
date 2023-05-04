@@ -13267,15 +13267,15 @@ TEST_F(SdkTest, GetRecommendedProLevel)
 /**
  * @brief Test JourneyID Tracking support and ViewID generation
  *
- * - Test JourneyID functionality (obtained from "ug" and "umf" commands)
+ * - Test JourneyID functionality (obtained from "ug" and "gmf" commands)
  *   and ViewID generation - Values used for tracking on API requests.
  * - Ref: SDK-2768 - User Journey Tracking Support
  *
  * TEST ViewID: Generate a ViewID and check its string representation.
  *
  * Tests JourneyID:
- * Test 0A: JourneyID before login (retrieved from "umf" command)
- * Test 0B: JourneyID after login (must be the same as the one loaded and cached from "umf" command)
+ * Test 0A: JourneyID before login (retrieved from "gmf" command)
+ * Test 0B: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
  * TEST 1A: Check JourneyID after being retrieved the for the first time.
  * TEST 1B: locallogout, resume session, check journeyId. JourneyId must be valid and tracking flag set to true.
  * TEST 2: Set tracking flag to false.
@@ -13313,9 +13313,9 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
     MegaClient* client = impl->getMegaClient();
 
-    // Test 0A: JourneyID before login (retrieved from "umf" command)
+    // Test 0A: JourneyID before login (retrieved from "gmf" command)
     auto initialJourneyId = client->getJourneyId();
-    client->resetJourneyIdCacheValues(true);
+    client->resetJourneyIdCacheAndValues();
     ASSERT_FALSE(client->journeyIdHasValue()) << "There shouldn't be any valid journeyId value after reset cache and object values";
 
     // GetMiscFlags() -- not logged in
@@ -13336,7 +13336,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     ASSERT_TRUE(journeyIdGmf == journeyIdAfterFirstLogin) << "JourneyId value after login must be the same than the previous journeyId loaded from cache";
 
     // Reset the values - logout and login again
-    client->resetJourneyIdCacheValues();
+    client->resetJourneyIdCacheAndValues();
     logout(0, false, maxTimeout);
     gSessionIDs[0] = "invalid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));

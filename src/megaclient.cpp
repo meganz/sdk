@@ -248,35 +248,27 @@ bool MegaClient::JourneyID::loadValuesFromCache()
         {
             if (cachedJidValue.size() != HEX_STRING_SIZE)
             {
-                resetCacheValues(false);
+                resetCacheAndValues();
                 LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedJidValue size is not HEX_STRING_SIZE!!!! -> reset cache";
                 assert(false && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
                 return false;
             }
             if (cachedTrackValue.size() != 1)
             {
-                resetCacheValues(false);
+                resetCacheAndValues();
                 LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedTrackValue size is not 1!!!! -> reset cache";
                 assert(false && "CachedJidValue size is not 1!!!!");
                 return false;
             }
             if (cachedTrackValue != "1" && cachedTrackValue != "0")
             {
-                resetCacheValues(false);
+                resetCacheAndValues();
                 LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedTrackValue is not 1 or 0!!!! -> reset cache";
                 assert(false && "CachedTrackValue size is not 1 or 0!!!!");
                 return false;
             }
-            if (cachedJidValue == string(NULL_JOURNEY_ID))
-            {
-                mJidValue = 0;
-                mTrackValue = 0;
-            }
-            else
-            {
-                mJidValue = Utils::hexStringToUint64(cachedJidValue);
-                mTrackValue = (cachedTrackValue == "1") ? true : false;
-            }
+            mJidValue = Utils::hexStringToUint64(cachedJidValue);
+            mTrackValue = (cachedTrackValue == "1") ? true : false;
         }
     }
     if (!success)
@@ -321,28 +313,21 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
     return true;
 }
 
-bool MegaClient::JourneyID::resetCacheValues(bool resetObjectValues)
+bool MegaClient::JourneyID::resetCacheAndValues()
 {
-    if (resetObjectValues)
-    {
-        mJidValue = 0;
-        mTrackValue = false;
-    }
+    // Reset local values
+    mJidValue = 0;
+    mTrackValue = false;
+
+    // Remove local cache file
     if (mCacheFilePath.empty())
     {
-        LOG_debug << "[MegaClient::JourneyID::resetCacheValues] Cache file path is empty. Cannot reset values on the local cache";
+        LOG_debug << "[MegaClient::JourneyID::resetCacheAndValues] Cache file path is empty. Cannot remove local cache file";
         return false;
     }
-    auto fileAccess = mClient.fsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
-    if (success)
+    if (!mClient.fsaccess->unlinklocal(mCacheFilePath))
     {
-        success &= fileAccess->fwrite((const byte*)(NULL_JOURNEY_ID), HEX_STRING_SIZE, 0);
-        success &= fileAccess->fwrite((const byte*)("0"), 1, HEX_STRING_SIZE);
-    }
-    if (!success)
-    {
-        LOG_err << "[MegaClient::JourneyID::resetCacheValues] Unable to reset values from local cache"; 
+        LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file"; 
         return false;
     }
     return true;
@@ -962,9 +947,9 @@ bool MegaClient::loadJourneyIdCacheValues()
     return mJourneyId.loadValuesFromCache();
 }
 
-bool MegaClient::resetJourneyIdCacheValues(bool resetObjectValues)
+bool MegaClient::resetJourneyIdCacheAndValues()
 {
-    return mJourneyId.resetCacheValues(resetObjectValues);
+    return mJourneyId.resetCacheAndValues();
 }
 // -- MegaClient JourneyID methods end --
 
@@ -5064,6 +5049,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
 void MegaClient::removeCaches()
 {
+    resetJourneyIdCacheAndValues();
+
     if (sctable)
     {
         mNodeManager.setTable(nullptr);
@@ -5077,8 +5064,6 @@ void MegaClient::removeCaches()
         statusTable->remove();
         statusTable.reset();
     }
-
-    resetJourneyIdCacheValues();
 
     disabletransferresumption();
 }

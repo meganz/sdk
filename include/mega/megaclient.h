@@ -1321,7 +1321,6 @@ public:
     struct JourneyID
     {
         private:
-            static constexpr const char* NULL_JOURNEY_ID = "0000000000000000";
             uint64_t mJidValue;
             bool mTrackValue;
             MegaClient& mClient;
@@ -1348,9 +1347,8 @@ public:
             bool setCacheFilePath(const LocalPath& rootPath);
             // Load values stored in the cache file.
             bool loadValuesFromCache();
-            // Reset the stored values from cache so a new JourneyID value can be loaded from the next "ug"/"umf" command.
-            // Param resetObjectValues to reset the attribute values too.
-            bool resetCacheValues(bool resetObjectValues);
+            // Remove local cache file and reset the stored values from cache so a new JourneyID value can be loaded with the next "ug"/"gmf" command.
+            bool resetCacheAndValues();
     };
 
 private:
@@ -2150,9 +2148,8 @@ public:
     // Load the JourneyID values from the local cache.
     bool loadJourneyIdCacheValues();
 
-    // Reset the cache values so new values can be loaded after the next "ug"/"umf" command.
-    // Param resetObjectValues: to also reset the values on the actual JourneyID
-    bool resetJourneyIdCacheValues(bool resetObjectValues = false);
+    // Remove journeyId cache file and seset the cache values so new values can be loaded after the next "ug"/"gmf" command.
+    bool resetJourneyIdCacheAndValues();
 
 private:
     // Set the file cache path for the JourneyId.
