@@ -1343,9 +1343,9 @@ public:
             bool isTrackingOn() const;
             // Get the utf8 string representation of the local cache file path
             string getCacheFilePath() const;
-            // Set the file path from the base directory path to be used for the cache file.
+            // Set the file path from the root path to be used for the cache file.
             // Returns false if the file couldn't be read/written to basePath.
-            bool setCacheFilePath(const char* basePath);
+            bool setCacheFilePath(const LocalPath& rootPath);
             // Load values stored in the cache file.
             bool loadValuesFromCache();
             // Reset the stored values from cache so a new JourneyID value can be loaded from the next "ug"/"umf" command.
@@ -2147,9 +2147,6 @@ public:
     // Retrieves the JourneyID value as the original 16-character hexadecimal string (for submission to the API)
     string getJourneyId() const;
 
-    // Set the file cache path for the JourneyId. Param basePath is the absolute path, pointing to a valid directory to store the JourneyId value.
-    bool setJourneyIdCacheFilePath(const char* basePath);
-
     // Load the JourneyID values from the local cache.
     bool loadJourneyIdCacheValues();
 
@@ -2157,6 +2154,12 @@ public:
     // Param resetObjectValues: to also reset the values on the actual JourneyID
     bool resetJourneyIdCacheValues(bool resetObjectValues = false);
 
+private:
+    // Set the file cache path for the JourneyId.
+    // MegaClient::dbaccess must be initialized to a valid rootPath, as that will be the rootPath for the journeyId cache.
+    bool setJourneyIdCacheFilePath();
+
+public:
     // Generates a random ViewID as an 8-byte uint64_t
     ViewID::IdValue generateViewId();
 

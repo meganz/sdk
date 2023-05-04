@@ -201,10 +201,9 @@ string MegaClient::JourneyID::getCacheFilePath() const
 }
 
 // Set the base directory path to be used for the cache file. Returns false if the file couldn't be read/written to basePath.
-bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
+bool MegaClient::JourneyID::setCacheFilePath(const LocalPath& rootPath)
 {
-    LocalPath newCacheDirPath = LocalPath::fromAbsolutePath(basePath).parentPath();
-    LocalPath newCacheFilePath = newCacheDirPath;
+    LocalPath newCacheFilePath = rootPath;
     newCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("sdk_journey_cache_file"), true);
     
     if (newCacheFilePath == mCacheFilePath)
@@ -947,9 +946,14 @@ bool MegaClient::setJourneyId(uint64_t jidValue)
     return false;
 }
 
-bool MegaClient::setJourneyIdCacheFilePath(const char* basePath)
+bool MegaClient::setJourneyIdCacheFilePath()
 {
-    return mJourneyId.setCacheFilePath(basePath);
+    if (!dbaccess)
+    {
+        LOG_warn << "[MegaClient::setJourneyIdCacheFilePath] There is no MegaClient::dbaccess valid pointer to obtain the root path";
+        return false;
+    }
+    return mJourneyId.setCacheFilePath(dbaccess->rootPath());
 }
 
 // Load the JourneyID values from the local cache.
@@ -1784,6 +1788,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     httpio = h;
 
     dbaccess = d;
+    setJourneyIdCacheFilePath();
 
     if ((gfx = g))
     {
@@ -4899,7 +4904,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     if (removecaches)
     {
         removeCaches();
-        resetJourneyIdCacheValues();
     }
 
     sctable.reset();
@@ -5073,6 +5077,8 @@ void MegaClient::removeCaches()
         statusTable->remove();
         statusTable.reset();
     }
+
+    resetJourneyIdCacheValues();
 
     disabletransferresumption();
 }
