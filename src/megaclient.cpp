@@ -1779,9 +1779,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     {
         a->client = this;
     }
-    else
-    {
-    }
 
     waiter = w;
     httpio = h;
@@ -4903,9 +4900,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     {
         removeCaches();
         resetJourneyIdCacheValues();
-    }
-    else
-    {
     }
 
     sctable.reset();
