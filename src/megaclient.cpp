@@ -114,7 +114,7 @@ MegaClient::JourneyID::JourneyID(MegaClient& client) :
 constexpr size_t MegaClient::JourneyID::HEX_STRING_SIZE;
 
 // Set value for JourneyID from a numeric value
-bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackingFlag)
+bool MegaClient::JourneyID::setValue(uint64_t jidValue)
 {
     if (jidValue)
     {
@@ -128,9 +128,9 @@ bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackin
         {
             LOG_debug << "[MegaClient::JourneyID::setValue] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
         }
-        if (!updateCachedTrackingFlag || mTrackValue)
+        if (mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", updateCachedTrackingFlag = " << updateCachedTrackingFlag << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
         LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to true";
@@ -138,9 +138,9 @@ bool MegaClient::JourneyID::setValue(uint64_t jidValue, bool updateCachedTrackin
     }
     else
     {
-        if (!updateCachedTrackingFlag || !mTrackValue)
+        if (!mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", updateCachedTrackingFlag = " << updateCachedTrackingFlag << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
         LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
@@ -937,9 +937,9 @@ bool MegaClient::setJourneyId(const string& jid)
     return false;
 }
 
-bool MegaClient::setJourneyId(uint64_t jidValue, bool updateCachedTrackingFlag)
+bool MegaClient::setJourneyId(uint64_t jidValue)
 {
-    if (mJourneyId.setValue(jidValue, updateCachedTrackingFlag))
+    if (mJourneyId.setValue(jidValue))
     {
         LOG_debug << "[MegaClient::setJourneyID] Updated journeyID or tracking flag from jidValue. Param jidValue = '" << jidValue << "', (converted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
         return true;

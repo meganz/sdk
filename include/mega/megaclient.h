@@ -1332,7 +1332,7 @@ public:
             static constexpr size_t HEX_STRING_SIZE = 16;
             JourneyID(MegaClient& client);
             // Set the jidValue with a new 8-byte uint64_t
-            bool setValue(uint64_t jidValue, bool updateCachedTrackingFlag = true);
+            bool setValue(uint64_t jidValue);
             // Set the jidValue as a 8-byte uint64_t from a 16-char hexadecimal value (journeyID="78b1bbbda5f32526" -> 8656088129828704806)
             bool setFromHexString(const string& journeyID);
             // Determines if there is a valid (non-zero) jidValue already set
@@ -2136,7 +2136,7 @@ public:
     bool setJourneyId(const string& jid);
 
     // Sets the JourneyID from another 8-byte numeric value (to be used for cached values)
-    bool setJourneyId(uint64_t jidValue, bool updateCachedTrackingFlag = true);
+    bool setJourneyId(uint64_t jidValue);
 
     // Checks if a valid JourneyID is already set and tracking flag is ON
     bool trackJourneyId() const;
