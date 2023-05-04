@@ -229,40 +229,13 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
         fileAccess.reset();
         if (fileExists)
         {
-            // 2. File exists? -> Load values.
-            if (loadValuesFromCache())
-            {
-            }
-            else
-            {
-            }
-
+            loadValuesFromCache();
         }
         else
         {
-            // 3. No file? -> Create file
-            bool createFile = true;
-            if (createFile)
-            {
-                // 2.b Valid values on jid object? -> Store values.
-                if (storeValuesToCache(true, true))
-                {
-                }
-                else
-                {
-                }
-            }
-            else
-            {
-                LOG_err << "[JourneyID::setCacheFilePath] Cannot create cache file for the jid values! Cache path won't change";
-                return false;
-            }
+            storeValuesToCache(true, true);
         }
     }
-    //else
-    //{
-        //return false;
-    //}
 
     return true;
 }
@@ -289,9 +262,6 @@ bool MegaClient::JourneyID::loadValuesFromCache()
             mJidValue = Utils::hexStringToUint64(cachedJidValue);
             mTrackValue = (cachedTrackValue == "1") ? true : false;
         }
-    }
-    else
-    {
     }
     fileAccess.reset();
     if (!success)
@@ -326,9 +296,6 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
             success &= fileAccess->fwrite((const byte*)(mTrackValue ? "1" : "0"), 1, HEX_STRING_SIZE);
         }
     }
-    else
-    {
-    }
     fileAccess.reset();
     if (!success)
     {
@@ -356,9 +323,6 @@ bool MegaClient::JourneyID::resetCacheValues(bool resetObjectValues)
     {
         success &= fileAccess->fwrite((const byte*)(NULL_JOURNEY_ID), HEX_STRING_SIZE, 0);
         success &= fileAccess->fwrite((const byte*)("0"), 1, HEX_STRING_SIZE);
-    }
-    else
-    {
     }
     fileAccess.reset();
     if (!success)
