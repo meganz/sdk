@@ -1318,19 +1318,19 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW     = 1
+     * - MegaSet::CHANGE_TYPE_NEW     = 0x01
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME    = 2
+     * - MegaSet::CHANGE_TYPE_NAME    = 0x02
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER   = 4
+     * - MegaSet::CHANGE_TYPE_COVER   = 0x04
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED = 8
+     * - MegaSet::CHANGE_TYPE_REMOVED = 0x08
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT  = 16
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 0x10
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
@@ -1478,16 +1478,16 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 1
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0x01
      * Check if the SetElement was new
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 2
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 0x02
      * Check if SetElement name has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 4
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 0x04
      * Check if SetElement order has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 8
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 0x08
      * Check if the SetElement was removed
      *
      * @return true if this Set has a specific change
