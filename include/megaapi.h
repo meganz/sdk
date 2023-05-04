@@ -1367,8 +1367,6 @@ public:
         CHANGE_TYPE_COVER   = 0x04,
         CHANGE_TYPE_REMOVED = 0x08,
         CHANGE_TYPE_EXPORT  = 0x10,
-
-        CHANGE_TYPE_SIZE    = 5     // remember to update this when adding new fields
     };
 };
 
@@ -1514,8 +1512,6 @@ public:
         CHANGE_TYPE_ELEM_NAME    = 0x02,
         CHANGE_TYPE_ELEM_ORDER   = 0x04,
         CHANGE_TYPE_ELEM_REMOVED = 0x08,
-
-        CHANGE_TYPE_ELEM_SIZE    = 4     // remember to update this when adding new fields
     };
 };
 
