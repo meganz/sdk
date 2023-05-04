@@ -224,7 +224,7 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
         mCacheFilePath = newCacheFilePath;
 
         // Try open the file
-        if (fileAccess->fopen(mCacheFilePath))
+        if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
         {
             loadValuesFromCache();
         }
@@ -240,12 +240,12 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
 bool MegaClient::JourneyID::loadValuesFromCache()
 {
     auto fileAccess = mClient.fsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, true, false);
+    bool success = fileAccess->fopen(mCacheFilePath, true, false, FSLogging::logOnError);
     if (success)
     {
         string cachedJidValue, cachedTrackValue;
-        success &= fileAccess->fread(&cachedJidValue, HEX_STRING_SIZE, 0, 0);
-        success &= fileAccess->fread(&cachedTrackValue, 1, 0, HEX_STRING_SIZE);
+        success &= fileAccess->fread(&cachedJidValue, HEX_STRING_SIZE, 0, 0, FSLogging::logOnError);
+        success &= fileAccess->fread(&cachedTrackValue, 1, 0, HEX_STRING_SIZE, FSLogging::logOnError);
         if (success)
         {
             assert((cachedJidValue.size() == HEX_STRING_SIZE) && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
@@ -283,7 +283,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
         return false;
     }
     auto fileAccess = mClient.fsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, false, true);
+    bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
     if (success)
     {
         if (storeJidValue)
@@ -316,7 +316,7 @@ bool MegaClient::JourneyID::resetCacheValues(bool resetObjectValues)
         return false;
     }
     auto fileAccess = mClient.fsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, false, true);
+    bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
     if (success)
     {
         success &= fileAccess->fwrite((const byte*)(NULL_JOURNEY_ID), HEX_STRING_SIZE, 0);
