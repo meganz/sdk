@@ -1351,10 +1351,6 @@ public:
             // Reset the stored values from cache so a new JourneyID value can be loaded from the next "ug"/"umf" command.
             // Param resetObjectValues to reset the attribute values too.
             bool resetCacheValues(bool resetObjectValues);
-#ifdef DEBUG
-            // Reset journeyID for tests
-            void reset();
-#endif
     };
 
 private:
