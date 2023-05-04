@@ -8136,6 +8136,7 @@ public class MegaApiJava {
      * @param h Node handle to check
      * @return MegaNode object with the handle, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByHandle(long h) {
         return megaApi.getNodeByHandle(h);
     }
