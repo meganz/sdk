@@ -233,6 +233,11 @@ bool MegaClient::JourneyID::setCacheFilePath(const char* basePath)
 
 bool MegaClient::JourneyID::loadValuesFromCache()
 {
+    if (mCacheFilePath.empty())
+    {
+        LOG_debug << "[MegaClient::JourneyID::loadValuesFromCache] Cache file path is empty. Cannot load values from the local cache";
+        return false;
+    }
     auto fileAccess = mClient.fsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, true, false, FSLogging::logOnError);
     if (success)
@@ -242,9 +247,27 @@ bool MegaClient::JourneyID::loadValuesFromCache()
         success &= fileAccess->fread(&cachedTrackValue, 1, 0, HEX_STRING_SIZE, FSLogging::logOnError);
         if (success)
         {
-            assert((cachedJidValue.size() == HEX_STRING_SIZE) && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
-            assert((cachedTrackValue.size() == 1) && "CachedJidValue size is not 1!!!!");
-            assert(cachedTrackValue == "1" || cachedTrackValue == "0");
+            if (cachedJidValue.size() != HEX_STRING_SIZE)
+            {
+                resetCacheValues(false);
+                LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedJidValue size is not HEX_STRING_SIZE!!!! -> reset cache";
+                assert(false && "CachedJidValue size is not HEX_STRING_SIZE!!!!");
+                return false;
+            }
+            if (cachedTrackValue.size() != 1)
+            {
+                resetCacheValues(false);
+                LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedTrackValue size is not 1!!!! -> reset cache";
+                assert(false && "CachedJidValue size is not 1!!!!");
+                return false;
+            }
+            if (cachedTrackValue != "1" && cachedTrackValue != "0")
+            {
+                resetCacheValues(false);
+                LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] CachedTrackValue is not 1 or 0!!!! -> reset cache";
+                assert(false && "CachedTrackValue size is not 1 or 0!!!!");
+                return false;
+            }
             if (cachedJidValue == string(NULL_JOURNEY_ID))
             {
                 mJidValue = 0;
@@ -259,9 +282,10 @@ bool MegaClient::JourneyID::loadValuesFromCache()
     }
     if (!success)
     {
-        LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] Unable to load values from local cache";
+        LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] Unable to load values from the local cache";
         return false;
     }
+    LOG_debug << "[MegaClient::JourneyID::loadValuesFromCache] Values loaded from the local cache";
     return true;
 }
 
@@ -269,7 +293,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
 {
     if (mCacheFilePath.empty())
     {
-        assert(false && "The cache file path is empty. Cannot store values");
+        LOG_debug << "[MegaClient::JourneyID::storeValuesToCache] Cache file path is empty. Cannot store values to the local cache";
         return false;
     }
     if (!hasValue())
@@ -291,9 +315,10 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
     }
     if (!success)
     {
-        LOG_err << "[MegaClient::JourneyID::storeValuesToCache] Unable to store values in local cache";
+        LOG_err << "[MegaClient::JourneyID::storeValuesToCache] Unable to store values in the local cache";
         return false;
     }
+    LOG_err << "[MegaClient::JourneyID::storeValuesToCache] Values stored in the local cache";
     return true;
 }
 
@@ -306,7 +331,7 @@ bool MegaClient::JourneyID::resetCacheValues(bool resetObjectValues)
     }
     if (mCacheFilePath.empty())
     {
-        assert(false && "The cache file path is empty. Cannot reset values");
+        LOG_debug << "[MegaClient::JourneyID::resetCacheValues] Cache file path is empty. Cannot reset values on the local cache";
         return false;
     }
     auto fileAccess = mClient.fsaccess->newfileaccess(false);
