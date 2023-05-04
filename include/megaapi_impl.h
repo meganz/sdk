@@ -739,7 +739,7 @@ private:
     m_time_t mCTs;
     string mName;
     MegaHandle mCover;
-    std::bitset<MegaSet::CHANGE_TYPE_SIZE> mChanges;
+    std::bitset<Set::CH_SIZE> mChanges;
 };
 
 
@@ -787,7 +787,7 @@ private:
     int64_t mOrder;
     m_time_t mTs;
     string mName;
-    std::bitset<MegaSetElement::CHANGE_TYPE_ELEM_SIZE> mChanges;
+    std::bitset<SetElement::CH_EL_SIZE> mChanges;
 };
 
 
