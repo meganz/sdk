@@ -20913,6 +20913,7 @@ bool KeyManager::fromKeysContainer(const string &data)
                 mClient.sendevent(99463, "KeyMgr / Failed to unserialize ^!keys");
             }
         }
+        else LOG_err << "Failed to decode ^!keys. Unexpected size";
     }
 
     // validate received data and update local values
