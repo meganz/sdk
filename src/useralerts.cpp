@@ -1749,26 +1749,28 @@ void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
                              UpdatedScheduledMeeting::Changeset::StrChangeset* sSet,
                              UpdatedScheduledMeeting::Changeset::TsChangeset* tSet)
 {
-    if (isValidChange(changeType))
+    mUpdatedFields |= changeType;
+    switch (changeType)
     {
-        mUpdatedFields[static_cast<size_t>(changeType)] = true; // update bitmask
-        switch (changeType)
-        {
-            case CHANGE_TYPE_TITLE:
-                if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_TIMEZONE:
-                if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_STARTDATE:
-                if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            case CHANGE_TYPE_ENDDATE:
-                if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            default:
-                break;
-        }
+        case CHANGE_TYPE_TITLE:
+            if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_TIMEZONE:
+            if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_STARTDATE:
+            if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_ENDDATE:
+            if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_DESCRIPTION:
+        case CHANGE_TYPE_CANCELLED:
+        case CHANGE_TYPE_RULES:
+            break;
+        default:
+            mUpdatedFields &= ~changeType;
+            break;
     }
     if (!invariant())
     {
