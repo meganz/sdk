@@ -295,6 +295,7 @@ User* User::unserialize(MegaClient* client, string* d)
     {
         string prEd255, prCu255;
 
+        LOG_debug << "Getting user keys for 'me'";
         const string* keys = u->getattr(ATTR_KEYS);
         if (keys)
         {
@@ -305,6 +306,7 @@ User* User::unserialize(MegaClient* client, string* d)
                 prCu255 = client->mKeyManager.privCu25519();
             }
         }
+        LOG_debug << "Done getting user keys for 'me'";
 
         if (!client->mKeyManager.generation())
         {

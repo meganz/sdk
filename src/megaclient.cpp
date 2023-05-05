@@ -18752,6 +18752,19 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
 
 bool KeyManager::fromKeysContainer(const string &data)
 {
+    LOG_debug << "Entering KeyManager::fromKeysContainer";
+
+    string s;
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        char hex[20];
+        snprintf(hex, 20, "%02x ", (unsigned char)data[i]);
+        s += hex;
+    }
+
+    LOG_debug << "data is " << data.size() << ": " << s;
+
+
     bool success = false;
     KeyManager km(mClient);  // keymanager to store values temporary
 
@@ -18768,6 +18781,7 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
+            LOG_debug << "calling unserialize";
             success = unserialize(km, keysPlain);
             if (!success)
             {
@@ -18782,6 +18796,8 @@ bool KeyManager::fromKeysContainer(const string &data)
     {
         updateValues(km);
     }
+
+    LOG_debug << "Leaving KeyManager::fromKeysContainer";
 
     assert(success);
     return success;
