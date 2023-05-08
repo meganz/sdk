@@ -13300,14 +13300,12 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     //==================||
 
     // Generate a ViewID (8 byte numeric value)
-    auto viewId = megaApi[0]->generateViewId(client->rng);
-    ASSERT_TRUE(viewId > 0) << "Invalid generated viewID (" << viewId << ") - expected: positive number";
-    // Convert numeric value to a 16-char hexadecimal string
-    string viewIdStr = MegaClient::ViewID::viewIdToString(viewId);
-    ASSERT_FALSE (viewIdStr.empty()) << "Invalid hex string for generated viewId - it's empty";
+    auto viewIdCstr = megaApi[0]->generateViewId();
+    auto viewId = string(viewIdCstr);
+    ASSERT_FALSE (viewId.empty()) << "Invalid hex string for generated viewId - it's empty";
     constexpr size_t HEX_STRING_SIZE = 16;
-    ASSERT_TRUE (viewIdStr.size() == HEX_STRING_SIZE) << "Invalid hex string size for generated viewId (" << viewIdStr.size() << ") - expected (" << HEX_STRING_SIZE << ")";
-
+    ASSERT_TRUE (viewId.size() == HEX_STRING_SIZE) << "Invalid hex string size for generated viewId (" << viewId.size() << ") - expected (" << HEX_STRING_SIZE << ") [ViewID: '" << viewId << "']";
+    delete viewIdCstr;
 
     //=====================||
     //    Test JourneyID   ||
@@ -13405,7 +13403,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 
 
     // TEST 4: Update journeyID with a numeric value - must keep the previous one
-    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(666) (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
+    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(\"0000000000000001\") (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
     checkJourneyIdWithLogoutAndResume(7, true);
 
 

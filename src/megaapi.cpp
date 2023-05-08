@@ -1065,16 +1065,6 @@ int MegaRequest::getTag() const
     return 0;
 }
 
-bool MegaRequest::getAddJourneyId() const
-{
-    return 0;
-}
-
-MegaViewID MegaRequest::getViewId() const
-{
-    return 0;
-}
-
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequest::getMegaTextChatPeerList() const
 {
@@ -3228,7 +3218,7 @@ void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener 
     pImpl->sendEvent(eventType, message, false, nullptr, listener);
 }
 
-void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, MegaViewID *viewId, MegaRequestListener *listener)
+void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, const char *viewId, MegaRequestListener *listener)
 {
     pImpl->sendEvent(eventType, message, addJourneyId, viewId, listener);
 }
@@ -4076,9 +4066,9 @@ bool MegaApi::setLanguage(const char *languageCode)
     return pImpl->setLanguage(languageCode);
 }
 
-MegaViewID MegaApi::generateViewId(PrnGen& rng)
+const char* MegaApi::generateViewId()
 {
-    return pImpl->generateViewId(rng);
+    return strdup(pImpl->generateViewId().c_str());
 }
 
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)

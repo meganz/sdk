@@ -1466,8 +1466,6 @@ class MegaRequestPrivate : public MegaRequest
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
-        void setAddJourneyId(bool addJourneyId);
-        void setViewId(MegaViewID viewId);
 
         int getType() const override;
         const char *getRequestString() const override;
@@ -1507,8 +1505,6 @@ class MegaRequestPrivate : public MegaRequest
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
-        bool getAddJourneyId() const override;
-        MegaViewID getViewId() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1586,8 +1582,6 @@ protected:
         int numRetry;
         int tag;
         Proxy *proxy;
-        bool addJourneyId;
-        MegaViewID megaViewId;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;
@@ -2628,7 +2622,7 @@ class MegaApiImpl : public MegaApp
         int getPasswordStrength(const char *password);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
-        void sendEvent(int eventType, const char* message, bool addJourneyId, MegaViewID *viewId, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
@@ -2907,7 +2901,7 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
-        MegaViewID generateViewId(PrnGen& rng);
+        string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);

@@ -302,24 +302,18 @@ bool MegaClient::JourneyID::resetCacheAndValues()
 }
 // -- JourneyID methods end --
 
-// -- ViewID methods --
-MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId(PrnGen& rng)
+// Generate ViewID
+string MegaClient::generateViewId(PrnGen& rng)
 {
-    IdValue viewId;
+    uint64_t viewId;
     rng.genblock((byte*)&viewId, sizeof(viewId));
 
     // Incorporate current timestamp in ms into the generated value for uniqueness
     uint64_t tsInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     viewId ^= tsInMs;
 
-    return viewId;
-}
-
-string MegaClient::ViewID::viewIdToString(MegaClient::ViewID::IdValue viewId)
-{
     return Utils::uint64ToHexString(viewId);
 }
-// -- ViewID methods end --
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
