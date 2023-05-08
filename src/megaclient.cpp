@@ -103,72 +103,89 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // -- JourneyID constructor and methods --
-MegaClient::JourneyID::JourneyID(MegaClient& client) :
+MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath) :
     mJidValue(0),
     mTrackValue(false),
-    mClient(client)
+    mClientFsaccess(clientFsaccess)
 {
+    mCacheFilePath = rootPath;
+    mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("sdk_journey_cache_file"), true);
+
+    auto fileAccess = mClientFsaccess->newfileaccess(false);
+    LOG_verbose << "[MegaClient::JourneyID] Cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
+
+    // Try to open the file
+    if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
+    {
+        // The file already exists - load values from cache
+        loadValuesFromCache();
+    }
+    else
+    {
+        // The file doesn't exist yet - store values (if they're valid at this point) to the cache
+        storeValuesToCache(true, true);
+    }
 };
 
 // Declaration of constexpr
 constexpr size_t MegaClient::JourneyID::HEX_STRING_SIZE;
 
 // Set value for JourneyID from a numeric value
-bool MegaClient::JourneyID::setValue(uint64_t jidValue)
+bool MegaClient::JourneyID::setValueBinary(uint64_t jidValue)
 {
     if (jidValue)
     {
         if (!mJidValue)
         {
-            LOG_debug << "[MegaClient::JourneyID::setValue] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
+            LOG_debug << "[MegaClient::JourneyID::setValueBinary] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
             mJidValue = jidValue;
             storeValuesToCache(true, false);
         }
         else // Reuse previous value if there is one already
         {
-            LOG_debug << "[MegaClient::JourneyID::setValue] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
+            LOG_debug << "[MegaClient::JourneyID::setValueBinary] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
         }
         if (mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValueBinary] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to true";
+        LOG_debug << "[MegaClient::JourneyID::setValueBinary] Setting tracking flag to true";
         mTrackValue = true;
     }
     else
     {
         if (!mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValueBinary] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
+        LOG_debug << "[MegaClient::JourneyID::setValueBinary] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
         mTrackValue = false;
     }
-    LOG_debug << "[MegaClient::JourneyID::setValue] Update cached tracking flag for journeyId";
+    LOG_debug << "[MegaClient::JourneyID::setValueBinary] Update cached tracking flag for journeyId";
     storeValuesToCache(false, true);
     return true;
 }
 
 // Set value for JourneyID from a 16-char hexadecimal string
-bool MegaClient::JourneyID::setFromHexString(const string& journeyID)
+bool MegaClient::JourneyID::setValue(const string& journeyID)
 {
     if (journeyID.empty()) // If empty, let's consider it as a zero (set tracking OFF)
     {
-        return setValue(0);
+        return setValueBinary(0);
     }
     if (journeyID.size() != HEX_STRING_SIZE)
     {
-        LOG_err << "[MegaClient::JourneyID::setFromHexString] Arg JourneyID has an invalid size (" << journeyID.size() << "), expected size: " << HEX_STRING_SIZE;
+        LOG_err << "[MegaClient::JourneyID::setValue] Arg JourneyID has an invalid size (" << journeyID.size() << "), expected size: " << HEX_STRING_SIZE;
         assert(false && "Invalid size for JourneyID string param");
         return false;
     }
     if (mJidValue) // If there is already a valid jidValue, we'll just update tracking flag (set tracking ON)
     {
-        return setValue(1);
+        return setValueBinary(1);
     }
-    return setValue(Utils::hexStringToUint64(journeyID));
+    return setValueBinary(Utils::hexStringToUint64(journeyID));
 }
 
 // Check if it has a valid jid value
@@ -194,37 +211,6 @@ string MegaClient::JourneyID::getValue() const
     return Utils::uint64ToHexString(mJidValue);
 }
 
-
-// Set the base directory path to be used for the cache file. Returns false if the file couldn't be read/written to basePath.
-bool MegaClient::JourneyID::setCacheFilePath(const LocalPath& rootPath)
-{
-    LocalPath newCacheFilePath = rootPath;
-    newCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("sdk_journey_cache_file"), true);
-    
-    if (newCacheFilePath == mCacheFilePath)
-    {
-        LOG_debug << "[MegaClient::JourneyID::setCacheFilePath] New cache file path is the same as the actual file path. It won't change. [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
-        return false;
-    }
-
-    auto fileAccess = mClient.fsaccess->newfileaccess(false);
-    mCacheFilePath = newCacheFilePath;
-    LOG_debug << "[MegaClient::JourneyID::setCacheFilePath] New cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
-
-    // Try to open the file
-    if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
-    {
-        // The file already exists - load values from cache
-        loadValuesFromCache();
-    }
-    else
-    {
-        // The file doesn't exist yet - store values (if they're valid at this point) to the cache
-        storeValuesToCache(true, true);
-    }
-    return true;
-}
-
 bool MegaClient::JourneyID::loadValuesFromCache()
 {
     if (mCacheFilePath.empty())
@@ -232,7 +218,7 @@ bool MegaClient::JourneyID::loadValuesFromCache()
         LOG_debug << "[MegaClient::JourneyID::loadValuesFromCache] Cache file path is empty. Cannot load values from the local cache";
         return false;
     }
-    auto fileAccess = mClient.fsaccess->newfileaccess(false);
+    auto fileAccess = mClientFsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, true, false, FSLogging::logOnError);
     if (success)
     {
@@ -268,6 +254,7 @@ bool MegaClient::JourneyID::loadValuesFromCache()
     }
     if (!success)
     {
+        resetCacheAndValues();
         LOG_err << "[MegaClient::JourneyID::loadValuesFromCache] Unable to load values from the local cache";
         return false;
     }
@@ -286,7 +273,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
     {
         return false;
     }
-    auto fileAccess = mClient.fsaccess->newfileaccess(false);
+    auto fileAccess = mClientFsaccess->newfileaccess(false);
     bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
     if (success)
     {
@@ -320,7 +307,7 @@ bool MegaClient::JourneyID::resetCacheAndValues()
         LOG_debug << "[MegaClient::JourneyID::resetCacheAndValues] Cache file path is empty. Cannot remove local cache file";
         return false;
     }
-    if (!mClient.fsaccess->unlinklocal(mCacheFilePath))
+    if (!mClientFsaccess->unlinklocal(mCacheFilePath))
     {
         LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file"; 
         return false;
@@ -346,12 +333,6 @@ MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId()
 string MegaClient::ViewID::viewIdToString(MegaClient::ViewID::IdValue viewId)
 {
     return Utils::uint64ToHexString(viewId);
-}
-
-// Generate a random ViewId (8 byte uint)
-MegaClient::ViewID::IdValue MegaClient::generateViewId()
-{
-    return ViewID::generateViewId();
 }
 // -- ViewID methods end --
 
@@ -906,9 +887,16 @@ bool MegaClient::journeyIdHasValue() const
     return mJourneyId.hasValue();
 }
 
+// Load the JourneyID values from the local cache.
+bool MegaClient::loadJourneyIdCacheValues()
+{
+    return mJourneyId.loadValuesFromCache();
+}
+
+#ifdef DEBUG
 bool MegaClient::setJourneyId(const string& jid)
 {
-    if (mJourneyId.setFromHexString(jid))
+    if (mJourneyId.setValue(jid))
     {
         LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "', (reconverted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
         return true;
@@ -918,7 +906,7 @@ bool MegaClient::setJourneyId(const string& jid)
 
 bool MegaClient::setJourneyId(uint64_t jidValue)
 {
-    if (mJourneyId.setValue(jidValue))
+    if (mJourneyId.setValueBinary(jidValue))
     {
         LOG_debug << "[MegaClient::setJourneyID] Updated journeyID or tracking flag from jidValue. Param jidValue = '" << jidValue << "', (converted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
         return true;
@@ -926,26 +914,11 @@ bool MegaClient::setJourneyId(uint64_t jidValue)
     return false;
 }
 
-bool MegaClient::setJourneyIdCacheFilePath()
-{
-    if (!dbaccess)
-    {
-        LOG_warn << "[MegaClient::setJourneyIdCacheFilePath] There is no MegaClient::dbaccess valid pointer to obtain the root path";
-        return false;
-    }
-    return mJourneyId.setCacheFilePath(dbaccess->rootPath());
-}
-
-// Load the JourneyID values from the local cache.
-bool MegaClient::loadJourneyIdCacheValues()
-{
-    return mJourneyId.loadValuesFromCache();
-}
-
 bool MegaClient::resetJourneyIdCacheAndValues()
 {
     return mJourneyId.resetCacheAndValues();
 }
+#endif
 // -- MegaClient JourneyID methods end --
 
 error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
@@ -1668,9 +1641,9 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
    , btworkinglock(rng)
    , btreqstat(rng)
    , btsc(rng)
-   , mJourneyId(*this)
    , btpfa(rng)
    , fsaccess(new FSACCESS_CLASS())
+   , dbaccess(d)
    , mNodeManager(*this)
 #ifdef ENABLE_SYNC
     , syncs(*this, fsaccess)
@@ -1684,6 +1657,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 #endif
    , reqs(rng)
    , mKeyManager(*this)
+   , mJourneyId(fsaccess, dbaccess->rootPath())
 {
     mNodeManager.reset();
     sctable.reset();
@@ -1766,9 +1740,6 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 
     waiter = w;
     httpio = h;
-
-    dbaccess = d;
-    setJourneyIdCacheFilePath();
 
     if ((gfx = g))
     {
@@ -5044,7 +5015,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
 void MegaClient::removeCaches()
 {
-    resetJourneyIdCacheAndValues();
+    mJourneyId.resetCacheAndValues();
 
     if (sctable)
     {
@@ -10245,7 +10216,7 @@ error MegaClient::readmiscflags(JSON *json)
                     if (!trackJourneyId()) // If there is already a value and tracking flag is true, do nothing
                     {
                         LOG_verbose << "[MegaClient::readmiscflags] set jid: '" << jid << "'";
-                        setJourneyId(jid);
+                        mJourneyId.setValue(jid);
                     }
                 }
             }
@@ -10254,7 +10225,7 @@ error MegaClient::readmiscflags(JSON *json)
             if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
                 LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                setJourneyId(0);
+                mJourneyId.setValueBinary(0);
             }
             return API_OK;
         default:
