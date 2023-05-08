@@ -6416,9 +6416,10 @@ CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *des
     // Attach JourneyID
     if (addJourneyId)
     {
-        if (client->journeyIdHasValue())
+        string journeyId = client->getJourneyId();
+        if (!journeyId.empty())
         {
-            arg("j", client->getJourneyId().c_str());
+            arg("j", journeyId.c_str());
             m_off_t currentms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             arg("ms", currentms);
         }

@@ -121,11 +121,6 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
             // The file already exists - load values from cache
             loadValuesFromCache();
         }
-        else
-        {
-            // The file doesn't exist yet - store values (if they're valid at this point) to the cache
-            storeValuesToCache(true, true);
-        }
     }
     else
     {
@@ -179,12 +174,6 @@ bool MegaClient::JourneyID::setValue(const string& jidValue)
     LOG_debug << "[MegaClient::JourneyID::setValue] Update cached tracking flag for journeyId";
     storeValuesToCache(false, true);
     return true;
-}
-
-// Check if it has a valid jid value
-bool MegaClient::JourneyID::hasValue() const
-{
-    return !mJidValue.empty();
 }
 
 // Check if the journeyID must be tracked (used on API reqs)
@@ -262,8 +251,10 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
         LOG_debug << "[MegaClient::JourneyID::storeValuesToCache] Cache file path is empty. Cannot store values to the local cache";
         return false;
     }
-    if (!hasValue())
+    if (mJidValue.empty())
     {
+        LOG_warn << "[MegaClient::JourneyID::storeValuesToCache] Jid value is empty. It cannot be stored to the cache";
+        assert(!storeTrackValue && "storeTrackValue is true with an empty mJidValue!!!");
         return false;
     }
     auto fileAccess = mClientFsaccess->newfileaccess(false);
@@ -864,12 +855,7 @@ string MegaClient::getJourneyId() const
 
 bool MegaClient::trackJourneyId() const
 {
-    return mJourneyId.hasValue() && mJourneyId.isTrackingOn();
-}
-
-bool MegaClient::journeyIdHasValue() const
-{
-    return mJourneyId.hasValue();
+    return !getJourneyId().empty() && mJourneyId.isTrackingOn();
 }
 
 // Load the JourneyID values from the local cache.
@@ -878,7 +864,6 @@ bool MegaClient::loadJourneyIdCacheValues()
     return mJourneyId.loadValuesFromCache();
 }
 
-#ifdef DEBUG
 bool MegaClient::setJourneyId(const string& jid)
 {
     if (mJourneyId.setValue(jid))
@@ -893,7 +878,6 @@ bool MegaClient::resetJourneyIdCacheAndValues()
 {
     return mJourneyId.resetCacheAndValues();
 }
-#endif
 // -- MegaClient JourneyID methods end --
 
 error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
