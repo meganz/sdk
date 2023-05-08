@@ -55,7 +55,7 @@ public:
 
     void process(MegaClient* client);
     bool processCmdJSON(Command* cmd, bool couldBeError, JSON& json);
-    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray);
+    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson);
 
     void clear();
     bool empty() const;

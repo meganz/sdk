@@ -117,14 +117,14 @@ bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
     }
 }
 
-bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray)
+bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson)
 {
     string st;
-    json.storeobject(&st);
+    processingJson.storeobject(&st);
 
     if (inSeqTagArray)
     {
-        if (*json.pos == ',') ++json.pos;
+        if (*processingJson.pos == ',') ++processingJson.pos;
     }
 
     // In normal operation, we get called once to figure out the `st` to watch out for in sc json (else case below)
@@ -138,8 +138,8 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
         assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;
-        parsedOk = withJSON ? processCmdJSON(cmd, false, json)
-                            : cmd->procresult(Command::Result(Command::CmdError, API_OK), json); // just an `st` returned is implicitly successful
+        parsedOk = withJSON ? processCmdJSON(cmd, false, processingJson)
+                            : cmd->procresult(Command::Result(Command::CmdError, API_OK), processingJson); // just an `st` returned is implicitly successful
         return true;
     }
     else
@@ -175,7 +175,7 @@ void Request::process(MegaClient* client)
 
         if (*processingJson.pos == ',') ++processingJson.pos;
 
-        if (cmd->mSeqtagArray && json.enterarray())
+        if (cmd->mSeqtagArray && processingJson.enterarray())
         {
             // Some commands need to return seqtag and also some JSON,
             // in which case they are in an array with `st` first, and the JSON second
@@ -183,29 +183,29 @@ void Request::process(MegaClient* client)
             // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
             // If the command failed, there is no array, just the error code
             assert(cmd->mV3);
-            assert(*json.pos == '0' || *json.pos == '\"');
-            if (*json.pos == '0' && *(json.pos+1) == ',')
+            assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
+            if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
             {
-                json.pos += 2;
-                parsedOk = processCmdJSON(cmd, false, json);
+                processingJson.pos += 2;
+                parsedOk = processCmdJSON(cmd, false, processingJson);
             }
-            else if (!processSeqTag(cmd, true, parsedOk, true)) // executes the command's procresult if we match the seqtag
+            else if (!processSeqTag(cmd, true, parsedOk, true, processingJson)) // executes the command's procresult if we match the seqtag
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
                 return;
             }
 
-            if (parsedOk && !json.leavearray())
+            if (parsedOk && !processingJson.leavearray())
             {
                 LOG_err << "Invalid seqtag array";
                 parsedOk = false;
             }
         }
-        else if (mV3 && *json.pos == '"')
+        else if (mV3 && *processingJson.pos == '"')
         {
             // For v3 commands, a string result is a string which is a seqtag.
-            if (!processSeqTag(cmd, false, parsedOk, false))
+            if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
