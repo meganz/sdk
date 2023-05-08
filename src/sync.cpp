@@ -4079,7 +4079,7 @@ error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
     // Couldn't open the database.
     LOG_warn << "Failed to restore "
              << drivePath
-             << " as we couldn't open its config database.";
+             << " as we couldn't open its config database: " << drivePath;
 
     return result;
 }
@@ -9967,7 +9967,15 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
                 driveInfo.slot = (slot + 1) % NUM_CONFIG_SLOTS;
                 break;
             }
+            else
+            {
+                LOG_debug << "SyncConfigStore::read returned: " << int(result);
+            }
         }
+    }
+    else
+    {
+        LOG_debug << "getSlotsInOrder returned: " << int(result);
     }
 
     if (result != API_EREAD)
@@ -10043,6 +10051,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
     if (mIOContext.read(dbp, data, slot) != API_OK)
     {
+        LOG_debug << "mIOContext read failed";
         return API_EREAD;
     }
 
@@ -10050,6 +10059,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
     if (!mIOContext.deserialize(dbp, configs, reader, slot, isExternal))
     {
+        LOG_debug << "mIOContext deserialize failed";
         return API_EREAD;
     }
 
