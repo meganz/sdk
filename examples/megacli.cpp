@@ -3299,7 +3299,6 @@ void exec_getuserquota(autocomplete::ACState& s)
 
 void exec_getuserdata(autocomplete::ACState&)
 {
-    client->getuserdata(client->reqtag);
     if (client->loggedin()) client->getuserdata(client->reqtag);
     else client->getmiscflags();
 }
