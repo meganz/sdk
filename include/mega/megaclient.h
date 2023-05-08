@@ -2281,7 +2281,7 @@ private:
 struct JourneyID
 {
 private:
-    uint64_t mJidValue;
+    string mJidValue;
     bool mTrackValue;
     unique_ptr<FileSystemAccess>& mClientFsaccess;
     LocalPath mCacheFilePath;
@@ -2290,21 +2290,18 @@ private:
 public:
     static constexpr size_t HEX_STRING_SIZE = 16;
     JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath);
-    // Updates mJidValue and mTrackValue based on the provided jidValue.
-    // When jidValue is positive:
+    // Updates mJidValue and mTrackValue based on the provided jidValue, which must be a 16-char hex string.
+    // When jidValue is not empty:
     // - Sets mJidValue to jidValue if it is currently unset (0).
     // - Changes mTrackValue to 1 if it is currently 0.
-    // When jidValue is zero:
+    // When jidValue is empty:
     // - Keeps mJidValue unchanged.
     // - Changes mTrackValue to 0 if it is currently 1.
     // Returns true if either mJidValue or mTrackValue has been modified.
-    bool setValueBinary(uint64_t jidValue);
-    // Set the jidValue from a 16-char hexadecimal value (journeyID="78b1bbbda5f32526" -> 8656088129828704806)
-    // Uses setValueBinary() to set the jidValue the hex value has been converted.
-    bool setValue(const string& journeyID);
-    // Determines if there is a valid (non-zero) jidValue already set
+    bool setValue(const string& jidValue);
+    // Determines if there is a valid (not empty) jidValue already set
     bool hasValue() const;
-    // Get the jidValue as a 16-char lowercase hexadecimal value (jid=8656088129828704806 -> "78b1bbbda5f32526")
+    // Get the jidValue
     string getValue() const;
     // Check if the journeyID must be tracked (used on API reqs)
     bool isTrackingOn() const;
@@ -2360,9 +2357,6 @@ public:
 #ifdef DEBUG
     // Sets the JourneyID value from a 16-character hexadecimal string (obtained from API commands "ug"/"gmf")
     bool setJourneyId(const string& jid);
-
-    // Sets the JourneyID from another 8-byte numeric value (to be used for cached values)
-    bool setJourneyId(uint64_t jidValue);
 
     // Remove journeyId cache file and seset the cache values so new values can be loaded after the next "ug"/"gmf" command.
     bool resetJourneyIdCacheAndValues();

@@ -104,7 +104,6 @@ dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // -- JourneyID constructor and methods --
 MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath) :
-    mJidValue(0),
     mTrackValue(false),
     mClientFsaccess(clientFsaccess)
 {
@@ -131,73 +130,59 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
 constexpr size_t MegaClient::JourneyID::HEX_STRING_SIZE;
 
 // Set value for JourneyID from a numeric value
-bool MegaClient::JourneyID::setValueBinary(uint64_t jidValue)
+bool MegaClient::JourneyID::setValue(const string& jidValue)
 {
-    if (jidValue)
+    if (!jidValue.empty())
     {
-        if (!mJidValue)
+        if (jidValue.size() != HEX_STRING_SIZE)
         {
-            LOG_debug << "[MegaClient::JourneyID::setValueBinary] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
+            LOG_err << "[MegaClient::JourneyID::setValue] Arg JourneyID has an invalid size (" << jidValue.size() << "), expected size: " << HEX_STRING_SIZE;
+            assert(false && "Invalid size for JourneyID string param");
+            return false;
+        }
+        if (mJidValue.empty())
+        {
+            LOG_debug << "[MegaClient::JourneyID::setValue] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
             mJidValue = jidValue;
             storeValuesToCache(true, false);
         }
         else // Reuse previous value if there is one already
         {
-            LOG_debug << "[MegaClient::JourneyID::setValueBinary] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
+            LOG_debug << "[MegaClient::JourneyID::setValue] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
         }
         if (mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValueBinary] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValueBinary] Setting tracking flag to true";
+        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to true";
         mTrackValue = true;
     }
     else
     {
         if (!mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValueBinary] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValueBinary] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
+        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
         mTrackValue = false;
     }
-    LOG_debug << "[MegaClient::JourneyID::setValueBinary] Update cached tracking flag for journeyId";
+    LOG_debug << "[MegaClient::JourneyID::setValue] Update cached tracking flag for journeyId";
     storeValuesToCache(false, true);
     return true;
-}
-
-// Set value for JourneyID from a 16-char hexadecimal string
-bool MegaClient::JourneyID::setValue(const string& journeyID)
-{
-    if (journeyID.empty()) // If empty, let's consider it as a zero (set tracking OFF)
-    {
-        return setValueBinary(0);
-    }
-    if (journeyID.size() != HEX_STRING_SIZE)
-    {
-        LOG_err << "[MegaClient::JourneyID::setValue] Arg JourneyID has an invalid size (" << journeyID.size() << "), expected size: " << HEX_STRING_SIZE;
-        assert(false && "Invalid size for JourneyID string param");
-        return false;
-    }
-    if (mJidValue) // If there is already a valid jidValue, we'll just update tracking flag (set tracking ON)
-    {
-        return setValueBinary(1);
-    }
-    return setValueBinary(Utils::hexStringToUint64(journeyID));
 }
 
 // Check if it has a valid jid value
 bool MegaClient::JourneyID::hasValue() const
 {
-    return mJidValue != 0;
+    return !mJidValue.empty();
 }
 
 // Check if the journeyID must be tracked (used on API reqs)
 bool MegaClient::JourneyID::isTrackingOn() const
 {
-    if (mTrackValue && !mJidValue)
+    if (mTrackValue && mJidValue.empty())
     {
         LOG_err << "[MegaClient::JourneyID::isTrackingOn] TrackValue is ON without a valid jidValue (0)";
         assert(false && "TrackValue is ON without a valid jidValue");
@@ -208,7 +193,7 @@ bool MegaClient::JourneyID::isTrackingOn() const
 // Parse value to a 16-char hex string
 string MegaClient::JourneyID::getValue() const
 {
-    return Utils::uint64ToHexString(mJidValue);
+    return mJidValue;
 }
 
 bool MegaClient::JourneyID::loadValuesFromCache()
@@ -248,7 +233,7 @@ bool MegaClient::JourneyID::loadValuesFromCache()
                 assert(false && "CachedTrackValue size is not 1 or 0!!!!");
                 return false;
             }
-            mJidValue = Utils::hexStringToUint64(cachedJidValue);
+            mJidValue = cachedJidValue;
             mTrackValue = (cachedTrackValue == "1") ? true : false;
         }
     }
@@ -298,7 +283,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
 bool MegaClient::JourneyID::resetCacheAndValues()
 {
     // Reset local values
-    mJidValue = 0;
+    mJidValue = "";
     mTrackValue = false;
 
     // Remove local cache file
@@ -898,17 +883,7 @@ bool MegaClient::setJourneyId(const string& jid)
 {
     if (mJourneyId.setValue(jid))
     {
-        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "', (reconverted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
-        return true;
-    }
-    return false;
-}
-
-bool MegaClient::setJourneyId(uint64_t jidValue)
-{
-    if (mJourneyId.setValueBinary(jidValue))
-    {
-        LOG_debug << "[MegaClient::setJourneyID] Updated journeyID or tracking flag from jidValue. Param jidValue = '" << jidValue << "', (converted string: '" << mJourneyId.getValue() << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
+        LOG_debug << "[MegaClient::setJourneyID] Set journeyID from string = '" << jid << "') [tracking: " << mJourneyId.isTrackingOn() << "]";
         return true;
     }
     return false;
@@ -10225,7 +10200,7 @@ error MegaClient::readmiscflags(JSON *json)
             if (!journeyIdFound && trackJourneyId()) // If there is no value or tracking flag is false, do nothing
             {
                 LOG_verbose << "[MegaClient::readmiscflags] No JourneyId found -> set tracking to false";
-                mJourneyId.setValueBinary(0);
+                mJourneyId.setValue("");
             }
             return API_OK;
         default:

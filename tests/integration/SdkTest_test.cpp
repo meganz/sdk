@@ -13395,7 +13395,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 
     // TEST 2: Set tracking flag to false
     // JourneyID must still be valid, but tracking flag set to true
-    ASSERT_TRUE (client->setJourneyId(0)) << "Wrong returned value for setJourneyId(0) - it should be true (changed), i.e.: tracking flag should've been changed to OFF";
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong returned value for setJourneyId(\"\") - it should be true (changed), i.e.: tracking flag should've been changed to OFF";
     checkJourneyIdWithLogoutAndResume(3, false);
 
 
@@ -13405,7 +13405,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 
 
     // TEST 4: Update journeyID with a numeric value - must keep the previous one
-    ASSERT_FALSE (client->setJourneyId(666)) << "Wrong result for client->setJourneyId(666) (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
+    ASSERT_FALSE (client->setJourneyId("666")) << "Wrong result for client->setJourneyId(666) (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
     checkJourneyIdWithLogoutAndResume(7, true);
 
 
