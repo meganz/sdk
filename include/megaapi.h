@@ -13964,7 +13964,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the event type
          * - MegaRequest::getText - Returns the event message
-         * - MegaRequest::getText
+         * - MegaRequest::getFlag - Returns the addJourneyId flag
+         * - MegaRequest::getSessionKey - Returns the ViewID
          *
          * @param eventType Event type
          * @param message Event message
