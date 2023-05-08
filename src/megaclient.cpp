@@ -194,11 +194,6 @@ string MegaClient::JourneyID::getValue() const
     return Utils::uint64ToHexString(mJidValue);
 }
 
-// Get the utf8 string representaiton of the local cache file path
-string MegaClient::JourneyID::getCacheFilePath() const
-{
-    return mCacheFilePath.leafName().toPath(false);
-}
 
 // Set the base directory path to be used for the cache file. Returns false if the file couldn't be read/written to basePath.
 bool MegaClient::JourneyID::setCacheFilePath(const LocalPath& rootPath)

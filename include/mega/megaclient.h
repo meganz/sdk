@@ -1340,8 +1340,6 @@ public:
             string getValue() const;
             // Check if the journeyID must be tracked (used on API reqs)
             bool isTrackingOn() const;
-            // Get the utf8 string representation of the local cache file path
-            string getCacheFilePath() const;
             // Set the file path from the root path to be used for the cache file.
             // Returns false if the file couldn't be read/written to basePath.
             bool setCacheFilePath(const LocalPath& rootPath);
