@@ -1065,6 +1065,16 @@ int MegaRequest::getTag() const
     return 0;
 }
 
+bool MegaRequest::getAddJourneyId() const
+{
+    return 0;
+}
+
+MegaViewID MegaRequest::getViewId() const
+{
+    return 0;
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequest::getMegaTextChatPeerList() const
 {

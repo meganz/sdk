@@ -1466,6 +1466,8 @@ class MegaRequestPrivate : public MegaRequest
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
+        void setAddJourneyId(bool addJourneyId);
+        void setViewId(MegaViewID viewId);
 
         int getType() const override;
         const char *getRequestString() const override;
@@ -1505,6 +1507,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
         MegaHandleList* getMegaHandleList() const override;
+        bool getAddJourneyId() const override;
+        MegaViewID getViewId() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1582,6 +1586,8 @@ protected:
         int numRetry;
         int tag;
         Proxy *proxy;
+        bool addJourneyId;
+        MegaViewID megaViewId;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *chatPeerList;

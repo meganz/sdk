@@ -5149,6 +5149,26 @@ class MegaRequest
          * @return list of elements in the requested MegaSet, or null if Set not found
          */
         virtual MegaSetElementList* getMegaSetElementList() const;
+
+        /**
+         * @brief Returns the tracking flag for the JourneyID
+         *
+         * This value is valid for these requests:
+         * - MegaApi::sendEvent - Returns MegaApi::TYPE_SEND_EVENT
+         *
+         * @return True if JourneyID tracking was set, false otherwise.
+         */
+        virtual bool getAddJourneyId() const;
+
+        /**
+         * @brief Returns the ViewID
+         *
+         * This value is valid for these requests:
+         * - MegaApi::sendEvent - Returns MegaApi::TYPE_SEND_EVENT
+         *
+         * @return ViewID value used for the request, or 0 if it wasn't set.
+         */
+        virtual MegaViewID getViewId() const;
 };
 
 /**
@@ -13963,10 +13983,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the event type
          * - MegaRequest::getText - Returns the event message
+         * - MegaRequest::getText
          *
          * @param eventType Event type
          * @param message Event message
-         * @param addJourneyId If the JourneyID value must be tracked or not. If true, the value will be sent with the event, along with the current ms.
+         * @param addJourneyId True if JourneyID should be included. Otherwise, false.
          * @param viewId ViewID value (type MegaViewID - 8-byte uint) to be sent with the event. This value should have been generated with MegaApi::generateViewId() method.
          * @param listener MegaRequestListener to track this request
          *

@@ -3425,6 +3425,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setTransferTag(request->getTransferTag());
     this->setTotalBytes(request->getTotalBytes());
     this->setTransferredBytes(request->getTransferredBytes());
+    this->setAddJourneyId(request->getAddJourneyId());
+    this->setViewId(request->getViewId());
     this->listener = request->getListener();
 
     this->backupListener = request->getBackupListener();
@@ -3496,11 +3498,19 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
-
-
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
     return mHandleList.get();
+}
+
+bool MegaRequestPrivate::getAddJourneyId() const
+{
+    return addJourneyId;
+}
+
+MegaViewID MegaRequestPrivate::getViewId() const
+{
+    return megaViewId;
 }
 
 #ifdef ENABLE_CHAT
@@ -3993,6 +4003,16 @@ void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails
         delete this->timeZoneDetails;
     }
     this->timeZoneDetails = timeZoneDetails ? timeZoneDetails->copy() : NULL;
+}
+
+void MegaRequestPrivate::setAddJourneyId(bool addJourneyId)
+{
+    this->addJourneyId = addJourneyId;
+}
+
+void MegaRequestPrivate::setViewId(MegaViewID viewId)
+{
+    this->megaViewId = viewId;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
@@ -11343,7 +11363,7 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
 
 MegaViewID MegaApiImpl::generateViewId()
 {
-    return client->generateViewId();
+    return MegaClient::ViewID::generateViewId();
 }
 
 void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
@@ -22429,13 +22449,15 @@ void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyId, MegaViewID *viewId, MegaRequestListener* listener)
+void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyId, MegaViewID* viewId, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);
     request->setText(message);
+    request->setAddJourneyId(addJourneyId);
+    request->setViewId(viewId ? *viewId : 0);
 
-    request->performRequest = [this, request, addJourneyId, viewId]()
+    request->performRequest = [this, request]()
         {
             int number = int(request->getNumber());
             const char *text = request->getText();
@@ -22445,9 +22467,10 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
                 return API_EARGS;
             }
 
-            std::string viewIdstr = viewId ? MegaClient::ViewID::viewIdToString(*viewId) : "";
-            const char* viewIdcstr = viewIdstr.empty() ? nullptr : viewIdstr.c_str();
-            client->sendevent(number, text, viewIdcstr, addJourneyId);
+            MegaViewID megaViewId = request->getViewId();
+            const char* viewId = megaViewId ? MegaClient::ViewID::viewIdToString(megaViewId).c_str() : "";
+            bool addJourneyId = request->getAddJourneyId();
+            client->sendevent(number, text, viewId, addJourneyId);
             return API_OK;
         };
 
