@@ -302,11 +302,10 @@ bool MegaClient::JourneyID::resetCacheAndValues()
 // -- JourneyID methods end --
 
 // -- ViewID methods --
-MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId()
+MegaClient::ViewID::IdValue MegaClient::ViewID::generateViewId(PrnGen& rng)
 {
-    uint64_t tsEpoch = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937_64 randomGen(tsEpoch);
-    IdValue viewId = randomGen(); // 8-byte (64-bit) integer for the viewID
+    IdValue viewId;
+    rng.genblock((byte*)&viewId, sizeof(viewId));
 
     // Incorporate current timestamp in ms into the generated value for uniqueness
     uint64_t tsInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

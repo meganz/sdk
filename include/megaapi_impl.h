@@ -2907,7 +2907,7 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
-        MegaViewID generateViewId();
+        MegaViewID generateViewId(PrnGen& rng);
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
