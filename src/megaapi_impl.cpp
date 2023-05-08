@@ -22468,7 +22468,8 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
             }
 
             MegaViewID megaViewId = request->getViewId();
-            const char* viewId = megaViewId ? MegaClient::ViewID::viewIdToString(megaViewId).c_str() : "";
+            string viewIdStr = megaViewId ? MegaClient::ViewID::viewIdToString(megaViewId) : "";
+            const char* viewId = !viewIdStr.empty() ? viewIdStr.c_str() : nullptr;
             bool addJourneyId = request->getAddJourneyId();
             client->sendevent(number, text, viewId, addJourneyId);
             return API_OK;
