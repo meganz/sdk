@@ -1416,10 +1416,24 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
     // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
     // (well we do but in a very limited capacity, only checking if the cloud side has new nodes to detect crossed-over moves)
-    // If the move/rename is successful, then on one of those iterations we will detect it as a synced row in
-    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
-    // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
-    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    //
+    // If the move/rename is successful, then we will set the syncedNodeHandle and syncedFsid for this syncNode.
+    // That captures that the row has been synced, and if the Node and FSNode are still in place, that completes the operation
+    // (well, the old syncNode representing the source location will need to be removed, that won't have any fields preventing that anymore)
+    // However if other changes occurred in the meantime, such as the local item being renamed or moved again,
+    // while this operation was in progress, then the actions taken here will set it up to be in a situation
+    // equal to how it would have been if we completed this operation first, so that the fields are set up for
+    // the new change to be detected and acted on in turn.
+    //
+    // In the original conception of the algoritm, we would have waited for resolve_rowMatched to detect a fully synced row,
+    // however for the case described above, it was insufficient because with another move/rename starting, the
+    // FSNode or cloudNode would not be present at the end of our initial operation, and so the syncedFsid and
+    // syncedNodeHandle would not be set, and so we could not get into a synced state or indeed detect the subsequent
+    // move/rename properly.  However we still keep resolve_rowMatched as a backstop to deal with
+    // cases where rows become synced independently, such as via the actions of the user themselves,
+    // perhaps while a stall is going on.
+    //
+    // We do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
     // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
     // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
     // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
@@ -1637,14 +1651,9 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             if (!row.syncNode)
             {
-                if (!resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false))
+                if (!makeSyncNode_fromFS(row, parentRow, fullPath, false))
                 {
-                    // this can happen if eg. we can't read the fingerprint
-                    monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                        SyncWaitReason::FileIssue, false, false,
-                        {}, {},
-                        {sourceSyncNode->getLocalPath(), PathProblem::CannotFingerprintFile}, {}));
-
+                    // if it failed, it already set up a waitingLocal with PathProblem::CannotFingerprintFile
                     row.suppressRecursion = true;
                     return rowResult = false, true;
                 }
@@ -2450,10 +2459,19 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // In the meantime this thread can continue recursing and iterate over the tree multiple times until the move is resolved.
     // We don't recurse below the moved-from or moved-to node in the meantime though as that would cause incorrect decisions to be made.
     // (well we do but in a very limited capacity, only checking if the local side has new nodes to detect crossed-over moves)
-    // If the move/rename is successful, then on the next tree iteration we will detect it as a synced row in
-    // resolve_rowMatched.   That function will update our data structures, moving the sub-LocalNodes from the
+    //
+    // If the move/rename is successful, we set the syncedNodeHandle and syncedFsid for this node appropriately,
+    // so that even in the presence of other actions happening in this sync row, such as another move/rename occurring
+    // that we see on the next pass over the tree, we can still know that this row was synced, and we have
+    // sufficient state recorded in order to be able to detect that subsequent move/rename, and take further actions
+    // to propagate that to the other side.
+    //
+    // We also have the backstop of resolve_rowMatched which will recognize rows that have gotten into a synced state
+    // perhaps via the actions of the user themselves, rather than the efforts of the sync (eg, when resolving stall cases)
+    // That function will update our data structures, moving the sub-LocalNodes from the
     // moved-from LocalNode to the moved-to LocalNode.  Later the moved-from LocalNode will be removed as it has no FSNode or CloudNode.
-    // So yes that means we do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
+    //
+    // We do briefly have two LocalNodes for a the single moved file/folder while the move goes on.
     // That's convenient algorithmicaly for tracking the move, and also it's not safe to delete the old node early
     // as it might have come from a parent folder, which in data structures in the recursion stack are referring to.
     // If the move/rename fails, it's likely because the move is no longer appropriate, eg new parent folder
@@ -3036,10 +3054,11 @@ dstime Sync::procscanq()
             // if we are higher up the tree than that, it's again the same
             // basically, scan the folder we can determine this notification is below: nearest.
 
-            while (nearest && nearest->type == FILENODE)
+            if (nearest && nearest->type == FILENODE)
             {
                 nearest->recomputeFingerprint = true;
                 nearest = nearest->parent;
+                assert(nearest && nearest->type != FILENODE);
             }
         }
 
@@ -4060,7 +4079,7 @@ error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
     // Couldn't open the database.
     LOG_warn << "Failed to restore "
              << drivePath
-             << " as we couldn't open its config database.";
+             << " as we couldn't open its config database: " << drivePath;
 
     return result;
 }
@@ -5419,7 +5438,7 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());
 
@@ -5447,23 +5466,23 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
     }
 
     // use queueClient since we are not certain to be locked on client thread
-    queueClient([backupId, completion, this](MegaClient& mc, TransferDbCommitter&){
+    queueClient([backupId, completion, this, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter&){
 
         mc.reqs.add(new CommandBackupRemove(&mc, backupId,
-                [backupId, completion, this](Error e){
+                [backupId, completion, this, clientRemoveSdsEntryFunction](Error e){
                     if (e)
                     {
                         // de-registering is not critical - we continue anyway
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); }, "deregisterThenRemoveSync");
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion), clientRemoveSdsEntryFunction); }, "deregisterThenRemoveSync");
                 }));
     }, true);
 
 }
 
-void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(onSyncThread());
 
@@ -5473,6 +5492,12 @@ void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::functio
     {
         mClient.app->sync_removed(configCopy);
         mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
+
+        // lastly, send the command to remove the sds entry from the (former) sync root Node's attributes
+        if (clientRemoveSdsEntryFunction)
+        {
+            queueClient(move(clientRemoveSdsEntryFunction));
+        }
     }
     else
     {
@@ -5840,6 +5865,7 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
     // (SyncNode = LocalNode, we'll rename LocalNode eventually)
 
     if (wasSynced && !belowRemovedFsNode &&
+        !syncNode->lastFolderScan && syncNode->syncAgain < TREE_ACTION_HERE &&   // if fully matching, we would have removed the fsNode vector to save space
         syncNode->sync->inferRegeneratableTriplets(cloudChildren, *syncNode, fsInferredChildren, childRows))
     {
         // success, the already sorted and aligned triplets were inferred
@@ -6491,7 +6517,6 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
     // in case of sync failing while we recurse
     if (getConfig().mError) return false;
-    (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
     assert(row.syncNode->type > FILENODE);
@@ -6744,6 +6769,8 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 {
                                     cs.push_back(i.second);
                                 }
+                                // this technique might seem a bit roundabout, but deletion will cause these to
+                                // remove themselves from s->children. // we can't have that happening while we iterate that map.
                                 for (auto p : cs)
                                 {
                                     // deletion this way includes statecachedel
@@ -6800,10 +6827,10 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         {
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
                             // and make syncNodes to visit, so we can be sure of detecting all the moves,
-                            // in particular contradictroy moves.
+                            // in particular contradictory moves.
                             if (childRow.type() == SRT_XXF && row.exclusionState(*childRow.fsNode) == ES_INCLUDED)
                             {
-                                resolve_makeSyncNode_fromFS(childRow, row, fullPath, false);
+                                makeSyncNode_fromFS(childRow, row, fullPath, false);
                             }
                         }
                         else if (belowRemovedFsNode)
@@ -7482,7 +7509,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         parentRow.syncNode->exclusionState(row.fsNode->localname, TYPE_UNKNOWN, -1) == ES_INCLUDED)
     {
         // so that we can checkForScanBlocked() immediately below
-        resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+        if (!makeSyncNode_fromFS(row, parentRow, fullPath, false))
+        {
+            row.suppressRecursion = true;
+            row.itemProcessed = true;
+            return false;
+        }
     }
     if (row.syncNode &&
         row.syncNode->checkForScanBlocked(row.fsNode))
@@ -8004,9 +8036,18 @@ bool Sync::resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     return true;
 }
 
-
 bool Sync::resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
 {
+    makeSyncNode_fromFS(row, parentRow, fullPath, considerSynced);
+
+    // the row is not in sync, so we return false
+    // future visits will make more steps towards getting in sync
+    return false;
+}
+
+bool Sync::makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
+{
+    // this version of the function returns true/false depending on whether it was able to make the SyncNode.
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
 
@@ -8054,9 +8095,8 @@ bool Sync::resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPat
 
     statecacheadd(row.syncNode);
 
-    //row.syncNode->setSyncAgain(true, false, false);
-
-    return false;
+    // success making the LocalNode/SyncNode
+    return true;
 }
 
 bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced)
@@ -9927,7 +9967,15 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
                 driveInfo.slot = (slot + 1) % NUM_CONFIG_SLOTS;
                 break;
             }
+            else
+            {
+                LOG_debug << "SyncConfigStore::read returned: " << int(result);
+            }
         }
+    }
+    else
+    {
+        LOG_debug << "getSlotsInOrder returned: " << int(result);
     }
 
     if (result != API_EREAD)
@@ -10003,6 +10051,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
     if (mIOContext.read(dbp, data, slot) != API_OK)
     {
+        LOG_debug << "mIOContext read failed";
         return API_EREAD;
     }
 
@@ -10010,6 +10059,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
     if (!mIOContext.deserialize(dbp, configs, reader, slot, isExternal))
     {
+        LOG_debug << "mIOContext deserialize failed";
         return API_EREAD;
     }
 
@@ -10685,8 +10735,9 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
-bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups)
+bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction)
 {
+    assert(onSyncThread());
     if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress) return false;
 
     bool deleteSync = false;
@@ -10708,22 +10759,24 @@ bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>
 
     if (us.sdsUpdateInProgress && *us.sdsUpdateInProgress)
     {
-        LOG_debug << "SDS: clearing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode;
+        LOG_debug << "SDS: preparing sds command attribute for sync/backup " << toHandle(us.mConfig.mBackupId) << " on node " << us.mConfig.mRemoteNode << " for execution after sync removal";
 
         auto sdsCopy = sdsBackups;
         auto remoteNode = us.mConfig.mRemoteNode;
         auto boolsptr = us.sdsUpdateInProgress;
-        queueClient([remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
+        clientRemoveSdsEntryFunction = [remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
         {
-            Node* node = mc.nodeByHandle(remoteNode);
-            mc.setattr(node,
-                    attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
-                    [boolsptr](NodeHandle handle, Error result) {
-                        LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
-                        *boolsptr = false;
-                    },
-                    true);
-        });
+            if (Node* node = mc.nodeByHandle(remoteNode))
+            {
+                mc.setattr(node,
+                        attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
+                        [boolsptr](NodeHandle handle, Error result) {
+                            LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;
+                            *boolsptr = false;
+                        },
+                        true);
+            }
+        };
     }
 
     return deleteSync;
@@ -10838,6 +10891,7 @@ void Syncs::syncLoop()
         {
 
             vector<pair<handle, int>> sdsBackups;
+            std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
 
             CloudNode cloudNode;
             string cloudRootPath;
@@ -10854,7 +10908,7 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &sdsBackups);
 
-            if (checkSdsCommandsForDelete(*us, sdsBackups))
+            if (checkSdsCommandsForDelete(*us, sdsBackups, clientRemoveSdsEntryFunction))
             {
                 LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
 
@@ -10865,8 +10919,8 @@ void Syncs::syncLoop()
                 }
 
                 auto backupId = us->mConfig.mBackupId;
-                queueClient([backupId](MegaClient& mc, TransferDbCommitter& committer) {
-                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true);
+                queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
+                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
                 });
                 continue;
             }
@@ -11067,6 +11121,7 @@ void Syncs::syncLoop()
                                 << ")";
 
                         sync->changestate(NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
+                        continue;
                     }
                 }
                 else

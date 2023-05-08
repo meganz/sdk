@@ -1253,9 +1253,11 @@ void NodeManager::notifyPurge()
 
         if (!mClient.fetchingnodes)
         {
+            assert(!mMutex.locked());
             mClient.app->nodes_updated(&nodesToReport.data()[0], static_cast<int>(nodesToReport.size()));
         }
 
+        LockGuard g(mMutex);
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
@@ -1299,7 +1301,6 @@ void NodeManager::notifyPurge()
             {
                 NodeHandle h = n->nodeHandle();
 
-                // Decrease counters for all ancestor in the tree
                 updateTreeCounter(n->parent, n->getCounter(), DECREASE);
 
                 if (n->parent)

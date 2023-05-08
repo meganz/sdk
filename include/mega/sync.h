@@ -519,6 +519,9 @@ public:
 
     string logTriplet(SyncRow& row, SyncPath& fullPath);
 
+    // resolve_* functions are to do with managing the various cases syncing a single item
+    // they all return true/false depending on whether the node is now in sync
+    // and therefore does not need to be visited again (until another change arrives).
     bool resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
@@ -545,6 +548,7 @@ public:
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
     void purgeStaleDownloads();
+    bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
 
     // debris path component relative to the base path
     string debris;
@@ -993,7 +997,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1203,7 +1207,7 @@ private:
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
-    void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion);
+    void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
     void purgeRunningSyncs_inThread();
@@ -1211,7 +1215,7 @@ private:
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
-    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups);
+    bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
 
     void syncLoop();
 
