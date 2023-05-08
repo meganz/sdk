@@ -552,7 +552,7 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    string sendsignuplink2(const char*, const char *, const char*);
+    string sendsignuplink2(const char*, const char *, const char*, int ctag = 0);
     void resendsignuplink2(const char*, const char *);
 
     void confirmsignuplink2(const byte*, unsigned);
@@ -1112,7 +1112,7 @@ public:
 
     // parse scheduled meeting or scheduled meeting occurrences
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
-                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 bool parsingOccurrences, JSON *j, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
@@ -1585,9 +1585,6 @@ public:
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
-
-    // MegaClient-Server response JSON
-    JSON json;
 
     // actionpacket sequence tags (current refers to the one expected by the Requests)
     string mCurrentSeqtag;
@@ -2263,7 +2260,7 @@ public:
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool procaesp();
+    bool procaesp(JSON& j);
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);

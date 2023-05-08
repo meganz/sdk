@@ -1902,6 +1902,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
     }
+    if (user->changed.aPrefs)
+    {
+        changed |= MegaUser::CHANGE_APPS_PREFS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -3456,7 +3460,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->number = 0;
     this->timeZoneDetails = NULL;
 
-    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         this->accountDetails = std::make_shared<AccountDetails>();
     }
@@ -3474,9 +3478,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->achievementsDetails = NULL;
     }
 
-    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
-        this->megaPricing = new MegaPricingPrivate();
+        megaPricing = new MegaPricingPrivate();
         megaCurrency = new MegaCurrencyPrivate();
     }
     else
@@ -4385,6 +4389,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
+        case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
@@ -6330,6 +6335,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_APPS_PREFS:
             scope = '*';
             break;
 
@@ -7705,6 +7711,24 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
     request->performRequest = [this, request]()
     {
         return performRequest_enumeratequotaitems(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getRecommendedProLevel(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN, listener);
+    
+    request->performRequest = [this, request]() {
+        if (client->loggedin() != FULLACCOUNT)
+        {
+            return API_EACCESS;
+        }
+
+        client->getaccountdetails(request->getAccountDetails(), true /*storage*/, false, false, false, false, false, -1);
+        return API_OK;
     };
 
     requestQueue.push(request);
@@ -9324,7 +9348,9 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
 
 void MegaApiImpl::setDefaultFilePermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfilepermissions(permissions);
+    client->fsaccess->setdefaultfilepermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFilePermissions()
@@ -9334,7 +9360,9 @@ int MegaApiImpl::getDefaultFilePermissions()
 
 void MegaApiImpl::setDefaultFolderPermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfolderpermissions(permissions);
+    client->fsaccess->setdefaultfolderpermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFolderPermissions()
@@ -11560,6 +11588,72 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
     }
 }
 
+// map to an ACCOUNT_* value to an int that can be compared:
+// free -> lite -> proi -> proii -> proiii
+// the ACCOUNT_* values are out of order
+// int proLevel is a MegaAccountDetails::ACCOUNT_*
+static inline int orderProLevel(int proLevel)
+{
+    switch (proLevel)
+    {
+    case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
+        return -1;
+    case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
+        return 0;
+    default:
+        return proLevel; // 1..3
+    }
+}
+
+int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
+{
+    // if this algorithm changes also have the webclient implementation updated
+    int currProLevel = details.getProLevel();
+    if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
+        return currProLevel; 
+        // business can not upgrade, flexi can only change to free so we do not recommend that
+    int orderedCurrProLevel = orderProLevel(currProLevel); 
+    uint64_t usedStorageBytes = details.getStorageUsed();
+    int bestProLevel = -1;
+    uint64_t bestStorageBytes = UINT64_MAX;
+    for (int i = 0; i <= pricing.getNumProducts(); ++i)
+    {
+        // only upgrade to lite, pro1, pro2 and pro3
+        int planProLevel = pricing.getProLevel(i);
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_LITE)
+            continue;
+        // only monthly plans
+        int planMonths = pricing.getMonths(i);
+        if (planMonths != 1)
+            continue;
+        // must have enough space for user's data
+        int planStorageGb = pricing.getGBStorage(i);
+        if (planStorageGb < 0)
+        {
+            assert(!"business plan, should never happen");
+            continue;
+        }
+        uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
+        if (usedStorageBytes > planStorageBytes)
+            continue;
+        // must be an upgrade free->lite->proi->proii->proiii
+        int orderedPlanProLevel = orderProLevel(planProLevel);
+        if (orderedCurrProLevel >= orderedPlanProLevel)
+            continue;
+        // get smallest storage
+        if (planStorageBytes >= bestStorageBytes)
+            continue;
+        bestProLevel = planProLevel;
+        bestStorageBytes = planStorageBytes;
+    }
+    if (bestStorageBytes != UINT64_MAX)
+    {
+        assert(bestProLevel != -1);
+        return bestProLevel;
+    }
+    // too much storage required
+    return MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI;
+}
 
 #if defined(_WIN32) || defined(__APPLE__)
 
@@ -13373,7 +13467,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 string fullname = firstname + lastname;
-                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
+                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str(), client->restag); // Use the tag where the request belongs
                 string b64derivedKey;
                 Base64::btoa(derivedKey, b64derivedKey);
                 request->setPrivateKey(b64derivedKey.c_str());
@@ -13639,7 +13733,8 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13653,7 +13748,8 @@ void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyDa
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13667,8 +13763,24 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
+    {
+        if (e != API_OK)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            return;
+        }
+        unique_ptr<MegaAccountDetails> details(request->getMegaAccountDetails());
+        unique_ptr<MegaPricing> pricing(request->getPricing());
+        int recommended = calcRecommendedProLevel(*pricing.get(), *details.get());
+        request->setNumber(recommended);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -14483,7 +14595,14 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
+
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
+    {
+        // only ever one message
+        client->purchase_enumeratequotaitems();
+        return;
+    }
 
     long long numPending = request->getNumber();
     numPending--;
@@ -14502,7 +14621,7 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -14595,7 +14714,8 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -19923,7 +20043,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 std::unique_ptr<TLVstore> tlv;
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES)
+                        || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_APPS_PREFS)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -28125,6 +28246,8 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, Meg
     , fsaccess(new FSACCESS_CLASS())
 {
     megaApi = api;
+    fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
+    fsaccess->setdefaultfolderpermissions(megaApi->getDefaultFolderPermissions()); // Grant default folder permissions
     transfer = t;
     listener = t->getListener();
     recursive = 0;

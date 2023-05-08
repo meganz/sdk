@@ -2597,7 +2597,7 @@ public:
     }
 
     // process file credentials
-    bool procresult(Result r) override
+    bool procresult(Result r, JSON& json) override
     {
         if (!r.wasErrorOrOK())
         {
@@ -2605,25 +2605,25 @@ public:
             bool done = false;
             while (!done)
             {
-                switch (client->json.getnameid())
+                switch (json.getnameid())
                 {
                 case EOO:
                     done = true;
                     break;
 
                 case 'g':
-                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
                         {
                             std::string tu;
-                            if (!client->json.storeobject(&tu))
+                            if (!json.storeobject(&tu))
                             {
                                 break;
                             }
                             tempurls.push_back(tu);
                         }
-                        client->json.leavearray();
+                        json.leavearray();
                         if (tempurls.size() == 6)
                         {
                             if (Node* n = client->nodebyhandle(h))
@@ -2641,7 +2641,7 @@ public:
                     // fall-through
 
                 default:
-                    client->json.storeobject();
+                    json.storeobject();
                 }
             }
         }
