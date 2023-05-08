@@ -7979,20 +7979,17 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
 
     // Check and delete invalid fav attributes
+    if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
     {
         std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
         for (nameid& nameId : nameIds)
         {
-            auto itAttr= n->attrs.map.find(nameId);
-            if (itAttr != n->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
-            {
-                updates[nameId] = "";
-            }
+            updates.erase(nameId);
         }
-    }
-    if (n->changed.favourite && (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES)) // Avoid an inshare to be tagged as favourite by the sharee
-    {
-        return API_EACCESS;
+        if (updates.empty())
+        {
+            return API_EACCESS;
+        }
     }
 
     // we only update the values stored in the node once the command completes successfully
