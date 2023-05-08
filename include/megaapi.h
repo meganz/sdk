@@ -13970,7 +13970,8 @@ class MegaApi
          * @param eventType Event type
          * @param message Event message
          * @param addJourneyId True if JourneyID should be included. Otherwise, false.
-         * @param viewId ViewID value (16-char hex string) to be sent with the event. This value should have been generated with MegaApi::generateViewId() method.
+         * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+         *               This value should have been generated with MegaApi::generateViewId method.
          * @param listener MegaRequestListener to track this request
          *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
@@ -17956,7 +17957,7 @@ class MegaApi
          *
          * The caller gets the ownership of the object.
          *
-         * A ViewID consists of a random generated 16-char hex string.
+         * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
          */
         const char* generateViewId();
 
