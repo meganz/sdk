@@ -4076,9 +4076,9 @@ bool MegaApi::setLanguage(const char *languageCode)
     return pImpl->setLanguage(languageCode);
 }
 
-MegaViewID MegaApi::generateViewId()
+MegaViewID MegaApi::generateViewId(PrnGen& rng)
 {
-    return pImpl->generateViewId();
+    return pImpl->generateViewId(rng);
 }
 
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)

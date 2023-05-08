@@ -2317,7 +2317,7 @@ struct ViewID
 {
     using IdValue = uint64_t;
     // Generates a unique ViewID that the caller should store and can optionally use in subsequent sendevent() calls.
-    static IdValue generateViewId();
+    static IdValue generateViewId(PrnGen& rng);
     // Converts the numeric value (used only for efficiency reasons) into the 16-byte hex string which will be attached to the log request.
     static string viewIdToString(IdValue viewId);
 };

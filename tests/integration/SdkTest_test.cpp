@@ -13292,12 +13292,15 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     LOG_info << "___TEST JourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaClient* client = impl->getMegaClient();
+
     //==================||
     //    Test ViewID   ||
     //==================||
 
     // Generate a ViewID (8 byte numeric value)
-    auto viewId = megaApi[0]->generateViewId();
+    auto viewId = megaApi[0]->generateViewId(client->rng);
     ASSERT_TRUE(viewId > 0) << "Invalid generated viewID (" << viewId << ") - expected: positive number";
     // Convert numeric value to a 16-char hexadecimal string
     string viewIdStr = MegaClient::ViewID::viewIdToString(viewId);
@@ -13309,9 +13312,6 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     //=====================||
     //    Test JourneyID   ||
     //=====================||
-
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
 
     // Test 0A: JourneyID before login (retrieved from "gmf" command)
     auto initialJourneyId = client->getJourneyId();
@@ -13405,7 +13405,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 
 
     // TEST 4: Update journeyID with a numeric value - must keep the previous one
-    ASSERT_FALSE (client->setJourneyId("666")) << "Wrong result for client->setJourneyId(666) (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
+    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(666) (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
     checkJourneyIdWithLogoutAndResume(7, true);
 
 
