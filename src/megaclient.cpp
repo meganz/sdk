@@ -108,21 +108,28 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
     mClientFsaccess(clientFsaccess)
 {
     mCacheFilePath = rootPath;
-    mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("jid"), true);
-
-    auto fileAccess = mClientFsaccess->newfileaccess(false);
-    LOG_verbose << "[MegaClient::JourneyID] Cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
-
-    // Try to open the file
-    if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
+    if (!mCacheFilePath.empty())
     {
-        // The file already exists - load values from cache
-        loadValuesFromCache();
+        mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("jid"), true);
+
+        auto fileAccess = mClientFsaccess->newfileaccess(false);
+        LOG_verbose << "[MegaClient::JourneyID] Cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
+
+        // Try to open the file
+        if (fileAccess->fopen(mCacheFilePath, FSLogging::logOnError))
+        {
+            // The file already exists - load values from cache
+            loadValuesFromCache();
+        }
+        else
+        {
+            // The file doesn't exist yet - store values (if they're valid at this point) to the cache
+            storeValuesToCache(true, true);
+        }
     }
     else
     {
-        // The file doesn't exist yet - store values (if they're valid at this point) to the cache
-        storeValuesToCache(true, true);
+        LOG_debug << "[MegaClient::JourneyID] No file path for cache. No cache will be used";
     }
 };
 
@@ -1626,7 +1633,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 #endif
    , reqs(rng)
    , mKeyManager(*this)
-   , mJourneyId(fsaccess, dbaccess->rootPath())
+   , mJourneyId(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath())
 {
     mNodeManager.reset();
     sctable.reset();
