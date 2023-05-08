@@ -859,7 +859,6 @@ bool MegaClient::setlang(string *code)
 // -- MegaClient JourneyID methods --
 string MegaClient::getJourneyId() const
 {
-    assert(mJourneyId.hasValue());
     return mJourneyId.getValue();
 }
 
