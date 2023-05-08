@@ -108,7 +108,7 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
     mClientFsaccess(clientFsaccess)
 {
     mCacheFilePath = rootPath;
-    mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("sdk_journey_cache_file"), true);
+    mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("jid"), true);
 
     auto fileAccess = mClientFsaccess->newfileaccess(false);
     LOG_verbose << "[MegaClient::JourneyID] Cache file path set [mCacheFilePath = '" << mCacheFilePath.toPath(false) << "']";
@@ -142,6 +142,7 @@ bool MegaClient::JourneyID::setValue(const string& jidValue)
         }
         if (mJidValue.empty())
         {
+            assert(!mTrackValue && "Invalid jid value, but tracking is set!!!");
             LOG_debug << "[MegaClient::JourneyID::setValue] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
             mJidValue = jidValue;
             storeValuesToCache(true, false);
