@@ -131,48 +131,48 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
 // Declaration of constexpr
 constexpr size_t MegaClient::JourneyID::HEX_STRING_SIZE;
 
-// Set value for JourneyID from a numeric value
+// Set the JourneyID value or update tracking flag
 bool MegaClient::JourneyID::setValue(const string& jidValue)
 {
+    bool updateJourneyID = false;
+    bool updateTrackingFlag = false;
     if (!jidValue.empty())
     {
         if (jidValue.size() != HEX_STRING_SIZE)
         {
-            LOG_err << "[MegaClient::JourneyID::setValue] Arg JourneyID has an invalid size (" << jidValue.size() << "), expected size: " << HEX_STRING_SIZE;
-            assert(false && "Invalid size for JourneyID string param");
+            LOG_err << "[MegaClient::JourneyID::setValue] Param jidValue has an invalid size (" << jidValue.size() << "), expected size: " << HEX_STRING_SIZE;
+            assert(false && "Invalid size for new jidValue");
             return false;
         }
         if (mJidValue.empty())
         {
-            assert(!mTrackValue && "Invalid jid value, but tracking is set!!!");
-            LOG_debug << "[MegaClient::JourneyID::setValue] Set new jidValue (no previous value jidValue): '" << jidValue << "'";
+            assert(!mTrackValue && "There is no JourneyID value, but tracking flag is set!!!");
+            LOG_debug << "[MegaClient::JourneyID::setValue] Set new JourneyID: '" << jidValue << "'";
             mJidValue = jidValue;
-            storeValuesToCache(true, false);
+            updateJourneyID = true;
         }
-        else // Reuse previous value if there is one already
+        else if (mTrackValue)
         {
-            LOG_debug << "[MegaClient::JourneyID::setValue] Reusing previous value: '" << mJidValue << "' -> set trackValue to true [prev trackValue: " << mTrackValue << "]";
-        }
-        if (mTrackValue)
-        {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to true [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag is already set [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to true";
+        LOG_debug << "[MegaClient::JourneyID::setValue] Set tracking flag [mJidValue: " << mJidValue << "]";
         mTrackValue = true;
+        updateTrackingFlag = true;
     }
     else
     {
         if (!mTrackValue)
         {
-            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag not being updated to false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
+            LOG_verbose << "[MegaClient::JourneyID::setValue] Tracking flag is already false [mJidValue: " << mJidValue << ", mTrackValue = " << mTrackValue << "]";
             return false;
         }
-        LOG_debug << "[MegaClient::JourneyID::setValue] Setting tracking flag to false. Actual jidValue: '" << mJidValue << "' [prev trackValue: " << mTrackValue << "]";
+        LOG_debug << "[MegaClient::JourneyID::setValue] Unset tracking flag";
         mTrackValue = false;
+        updateTrackingFlag = true;
     }
-    LOG_debug << "[MegaClient::JourneyID::setValue] Update cached tracking flag for journeyId";
-    storeValuesToCache(false, true);
+    LOG_debug << "[MegaClient::JourneyID::setValue] Store updated values in cache file";
+    storeValuesToCache(updateJourneyID, updateTrackingFlag);
     return true;
 }
 
@@ -187,7 +187,7 @@ bool MegaClient::JourneyID::isTrackingOn() const
     return mTrackValue;
 }
 
-// Parse value to a 16-char hex string
+// Get the 16-char hex string value
 string MegaClient::JourneyID::getValue() const
 {
     return mJidValue;
@@ -872,11 +872,6 @@ bool MegaClient::setJourneyId(const string& jid)
         return true;
     }
     return false;
-}
-
-bool MegaClient::resetJourneyIdCacheAndValues()
-{
-    return mJourneyId.resetCacheAndValues();
 }
 // -- MegaClient JourneyID methods end --
 

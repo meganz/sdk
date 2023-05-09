@@ -13267,29 +13267,28 @@ TEST_F(SdkTest, GetRecommendedProLevel)
 /**
  * @brief Test JourneyID Tracking support and ViewID generation
  *
- * - Test JourneyID functionality (obtained from "ug" and "gmf" commands)
+ * - Test JourneyID functionality (obtained from "ug"/"gmf" commands)
  *   and ViewID generation - Values used for tracking on API requests.
  * - Ref: SDK-2768 - User Journey Tracking Support
  *
- * TEST ViewID: Generate a ViewID and check its string representation.
+ * TEST ViewID: Generate a ViewID and check the hex string obtained.
  *
  * Tests JourneyID:
- * Test 0A: JourneyID before login (retrieved from "gmf" command)
- * Test 0B: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
- * TEST 1A: Check JourneyID after being retrieved the for the first time.
- * TEST 1B: locallogout, resume session, check journeyId. JourneyId must be valid and tracking flag set to true.
- * TEST 2: Set tracking flag to false.
- * TEST 3: Update journeyID with a new hex string value - must keep the previous one - must set tracking flag to true.
- * TEST 4: Update journeyID with a numeric value - must keep the previous one.
- * TEST 5: Update journeyID with an empty string - should be considered as a zero value (tracking flag set to OFF).
- * TEST 6: Fetch nodes (will update JourneyID information with a valid value from Api: now tracking flag should be set to TRUE).
- * TEST 7: Reset JourneyID on Megaclient (needed as MegaClient persists on memory on this execution), invalidate session and logout.
- *         A new JourneyID value should be retrieved from the next "ug" command after login: must be different from the original retrieved on TEST 1A.
+ * Test 1: JourneyID before login (retrieved from "gmf" command)
+ * Test 2: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
+ * TEST 3: Full logout and login from a fresh instance - cache file is deleted - new JourneyID retrieved from "ug" command
+ * TEST 4:  Unset tracking flag.
+ * TEST 5:  Update journeyID with a new hex string - must keep the previous one - must set tracking flag.
+ * TEST 6:  Update journeyID with another hex string - must keep the previous one - no values must be updated.
+ * TEST 7:  Update journeyID with an empty string - tracking flag must be unset.
+ * TEST 8:  Local logout, resume session and do a fetch nodes request - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+ * TEST 9:  Full logout and login from the same instance - JourneyID is reset -
+ *          A new JourneyID should be retrieved from the next "ug" command after login: must be different from the original retrieved on TEST 1A.
  *
  */
 TEST_F(SdkTest, SdkTestJourneyTracking)
 {
-    LOG_info << "___TEST JourneyTracking___";
+    LOG_info << "___TEST SdkTestJourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // This UGLY cast is used so we can access the MegaClient.
@@ -13304,7 +13303,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     //    Test ViewID   ||
     //==================||
 
-    // Generate a ViewID (8 byte numeric value)
+    // Generate a ViewID (16-char hex string)
     auto viewIdCstr = megaApi[0]->generateViewId();
     auto viewId = string(viewIdCstr);
     ASSERT_FALSE (viewId.empty()) << "Invalid hex string for generated viewId - it's empty";
@@ -13316,117 +13315,99 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     //    Test JourneyID   ||
     //=====================||
 
-    // Test 0A: JourneyID before login (retrieved from "gmf" command)
-    auto initialJourneyId = client->getJourneyId();
-    client->resetJourneyIdCacheAndValues();
-    ASSERT_TRUE(client->getJourneyId().empty()) << "There shouldn't be any valid journeyId value after reset cache and object values";
+    // TEST 1: JourneyID before login (retrieved from "gmf" command)
+    auto initialJourneyId = client->getJourneyId(); // Check the actual JourneyID before the logout
+    ASSERT_FALSE(initialJourneyId.empty()) << "There should be a valid initial JourneyID from the first login";;
 
-    // GetMiscFlags() -- not logged in
+    // Logout and GetMiscFlags()
     logout(0, false, maxTimeout);
+    ASSERT_TRUE(client->getJourneyId().empty()) << "There shouldn't be any valid journeyId value after a full logout - values must be reset and cache file deleted";
     gSessionIDs[0] = "invalid";
     auto err = synchronousGetMiscFlags(0);
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
-    // Get journeyId from "gmf" command
+    // Get a new JourneyId from "gmf" command
     auto journeyIdGmf = client->getJourneyId();
     ASSERT_FALSE(initialJourneyId == journeyIdGmf) << "The initial JourneyId (loaded from cache) cannot be equal to the new Journeyid (obtained from \"gmf\" command)";
 
-    // Test 0B: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    client = impl->getMegaClient();
+    // TEST 2: JourneyID after login - must be the same than the one loaded and cached after "gmf" command
+    auto trackerLogin1 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin1->waitForResult()) << " Failed to establish a login/session for account " << 0;
     auto journeyIdAfterFirstLogin = client->getJourneyId();
     ASSERT_TRUE(journeyIdGmf == journeyIdAfterFirstLogin) << "JourneyId value after login must be the same than the previous journeyId loaded from cache";
 
-    // Reset the values - logout and login again
-    client->resetJourneyIdCacheAndValues();
+    // Full logout and login from a fresh instance
     logout(0, false, maxTimeout);
+    auto journeyIdAfterLogout = client->getJourneyId();
+    ASSERT_TRUE(journeyIdAfterLogout.empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
     gSessionIDs[0] = "invalid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // New impl and client - we need to update pointers
     impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
     client = impl->getMegaClient();
 
-    // TEST 1A: Check JourneyID 
-    // JourneyID should have been retrieved from the initial "ug" command
+    // TEST 3: Check JourneyID after login from a fresh instance with no cache file
+    // A new JourneyID should have been retrieved from the initial "ug" command
     auto journeyId = client->getJourneyId();
     ASSERT_FALSE (journeyId.empty()) << "Invalid hex string for generated journeyId - it's empty";
     ASSERT_TRUE (journeyId.size() == MegaClient::JourneyID::HEX_STRING_SIZE) << "Invalid hex string size for generated journeyId (" << journeyId.size() << ") - expected (" << MegaClient::JourneyID::HEX_STRING_SIZE << ")";
     ASSERT_TRUE (client->trackJourneyId()) << "Wrong value for client->trackJourneyId() (false) - expected true: it has a value and tracking flag is ON";
     ASSERT_FALSE(journeyId == journeyIdAfterFirstLogin) << "JourneyId value after second login (obtained from \"ug\" command) cannot be the same as the previous journeyId value (obtained from \"gmf\" command - reset from cache)";
 
-        // Lambda function for next journeyId checks after updates and resume session
+        // Lambda function for checking JourneyID values after updates
         // ref_id: A numeric value to identify the call
-        // trackJourneyId: Whether client->trackJourneyId() should return true (stored value, tracking flag is ON) or false (no stored value or tracking flag is OFF)
+        // trackJourneyId: Whether client->trackJourneyId() should return true (stored value, tracking flag is set) or false (tracking flag is unset)
         auto checkJourneyId = [client, &journeyId] (int ref_id, bool trackJourneyId)
         {
             auto actualJourneyId = client->getJourneyId();
             ASSERT_TRUE (actualJourneyId == journeyId) << "[Jid " << ref_id << "] Wrong value for actual journeyId" << "(" << actualJourneyId << "). Expected to be equal to original journeyID (" << journeyId << ")";
             if (trackJourneyId)
             {
-                ASSERT_TRUE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() (false) - expected true: it has a value and tracking flag must be ON";
+                ASSERT_TRUE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected TRUE: it has a value and tracking flag must be set";
             }
             else
             {
-                ASSERT_FALSE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() (true) - expected false: it has a value, but tracking flag must be OFF";
+                ASSERT_FALSE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected FALSE: it has a value, but tracking flag must be unset";
             }
         };
 
-        // Lambda function to dump session, locallogout and resume session
-        auto logoutAndResume = [this] ()
-        {
-            // Dump, locallogout and resume session
-            unique_ptr<char[]> session(dumpSession());
-            ASSERT_NO_FATAL_FAILURE( locallogout() );
-            ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
-        };
+    // TEST 4: Unset tracking flag
+    // JourneyID must still be valid, but tracking flag must be set
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong returned value for setJourneyId(\"\") - expected TRUE (updated): tracking flag should've been unset";
+    checkJourneyId(4, false);
 
-        // Lambda function to checkJourneyId, logoutAndResume and checkJourneyId again
-        auto checkJourneyIdWithLogoutAndResume = [&checkJourneyId, &logoutAndResume] (int ref_id, bool trackJourneyId)
-        {
-            checkJourneyId(ref_id, trackJourneyId);
-            logoutAndResume();
-            checkJourneyId(ref_id + 1, trackJourneyId);
-        };
+    // TEST 5: Update journeyID with a new hex string - must keep the previous one - must set tracking flag
+    ASSERT_TRUE (client->setJourneyId("FF00FF00FF00FF00")) << "Wrong result for client->setJourneyId(\"FF00FF00FF00FF00\") - expected TRUE (updated): tracking flag should've been set";
+    checkJourneyId(5, true);
 
-    // TEST 1B: locallogout, resume session, check journeyId
-    // JourneyId must be valid and tracking flag set to true
-    logoutAndResume();
-    checkJourneyId(2, true);
+    // TEST 6: Update journeyID with a another hex string - must keep the previous one - no changes, no cache updates -> setJourneyId should return false
+    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(\"0000000000000001\") - expected FALSE (not updated): neither journeyId value nor tracking flag should've been updated";
+    checkJourneyId(6, true);
 
-    // TEST 2: Set tracking flag to false
-    // JourneyID must still be valid, but tracking flag set to true
-    ASSERT_TRUE (client->setJourneyId("")) << "Wrong returned value for setJourneyId(\"\") - it should be true (changed), i.e.: tracking flag should've been changed to OFF";
-    checkJourneyIdWithLogoutAndResume(3, false);
+    // TEST 7: Update journeyID with an empty string - tracking flag must be unset
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong result for client->setJourneyId(\"\") - expected TRUE: tracking flag should've been unset";
+    checkJourneyId(7, false);
 
-    // TEST 3: Update journeyID with a new hex string value - must keep the previous one - must set tracking flag to true
-    ASSERT_TRUE (client->setJourneyId("FF00FF00FF00FF00")) << "Wrong result for client->setJourneyId(\"FF00FF00FF00FF00\") (false) - expected TRUE: tracking flag should had been set to ON";
-    checkJourneyIdWithLogoutAndResume(5, true);
-
-    // TEST 4: Update journeyID with a numeric value - must keep the previous one
-    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(\"0000000000000001\") (true) - expected FALSE: neither journeyId value nor tracking flag should had been updated";
-    checkJourneyIdWithLogoutAndResume(7, true);
-
-    // TEST 5: Update journeyID with an empty string - should be considered as a zero value (tracking flag set to OFF)
-    ASSERT_TRUE (client->setJourneyId("")) << "Wrong result for client->setJourneyId(\"\") (false) - expected TRUE: tracking flag should had been set to OFF";
-    checkJourneyIdWithLogoutAndResume(9, false);
-
-    // TEST 6: Fetch nodes (will update JourneyID information with a valid value from Api: now tracking flag should be set to TRUE)
+    // TEST 8: Locallogout, resume session and request to fetch nodes - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    checkJourneyIdWithLogoutAndResume(11, true);
+    checkJourneyId(8, true);
 
-    // TEST 7: Invalidate session and logout
+    // TEST 9: Full logout and login from the same instance - values must be reset and cache file deleted
     // A new JourneyID value should be retrieved from the next "ug" command after login
     ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
     gSessionIDs[0] = "invalid";
-    auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
-    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for account " << 0;
-    ASSERT_TRUE(client->getJourneyId().empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID cache has been reset and reloaded";
+    auto trackerLogin2 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin2->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_TRUE(client->getJourneyId().empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
 
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // This will get a new JourneyID
     auto newJourneyId = client->getJourneyId();
 
-    // New value should be different from the original JourneyID (there are no cached values after logout) - and a new checkWithLogoutAndResume should run OK
-    ASSERT_FALSE(newJourneyId == journeyId) << "Wrong result when comparing newJourneyId and old JourneyId. They should be different after a logout (cached values are lost from session)";
-    journeyId = newJourneyId; // Update journeyId reference (captured on lambda functions)
-    checkJourneyIdWithLogoutAndResume(13, true);
+    // New value should be different from the original JourneyID
+    ASSERT_FALSE(newJourneyId == journeyId) << "Wrong result when comparing newJourneyId and old JourneyId. They should be different after a full logout - values are reset and cached file is deleted";
+    journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
+    checkJourneyId(9, true);
 }
