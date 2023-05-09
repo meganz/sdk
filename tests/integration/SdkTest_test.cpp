@@ -13173,11 +13173,11 @@ TEST_F(SdkTest, SdkResumableTrasfers)
 
     //  3. Logout / Login
     unique_ptr<char[]> session(dumpSession());
-    locallogout();
+    ASSERT_NO_FATAL_FAILURE(locallogout());
     int result = ut.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
-    resumeSession(session.get());
-    fetchnodes(0);
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     //  4. Check upload resumption
     timer.reset();
@@ -13223,11 +13223,11 @@ TEST_F(SdkTest, SdkResumableTrasfers)
 
     //  7. Logout / Login
     session.reset(dumpSession());
-    locallogout();
+    ASSERT_NO_FATAL_FAILURE(locallogout());
     result = dt.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
-    resumeSession(session.get());
-    fetchnodes(0);
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     //  8. Check download resumption
     timer.reset();
