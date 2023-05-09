@@ -313,7 +313,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     // Find decoder for video stream
     AVCodecID codecId = codecParm->codec_id;
-    AVCodec* decoder = avcodec_find_decoder(codecId);
+    auto decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
@@ -330,7 +330,6 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     // Force seeking to key frames
     formatContext->seek2any = false;
-    videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CAP_TRUNCATED)
     {
         codecContext->flags |= CAP_TRUNCATED;
