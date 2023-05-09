@@ -11391,6 +11391,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Check if Set is exported
     // U1: Enable Set export (creates public link)
     // U1: Check if Set is exported
+    // U1: Update Set name and verify Set is still exported
     // U1: Logout / login to retrieve Set
     // U1: Check if Set is exported
     // U1: Get public Set URL
@@ -11509,6 +11510,15 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Check if Set is exported";
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Update Set name and verify Set is still exported";
+    userIdx = 0;
+    const string updatedName = name + u8" 手";
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
+    // reset to previous name to keep using existing original cached Set for validation
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
