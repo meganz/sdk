@@ -3500,8 +3500,6 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
-
-
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
     return mHandleList.get();
@@ -11344,6 +11342,11 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
 
     SdkMutexGuard g(sdkMutex);
     return client->setlang(&code);
+}
+
+string MegaApiImpl::generateViewId()
+{
+    return MegaClient::generateViewId(client->rng);
 }
 
 void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
@@ -22431,11 +22434,13 @@ void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener)
+void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);
     request->setText(message);
+    request->setFlag(addJourneyId);
+    request->setSessionKey(viewId);
 
     request->performRequest = [this, request]()
         {
@@ -22447,7 +22452,9 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListe
                 return API_EARGS;
             }
 
-            client->sendevent(number, text);
+            const char* viewId = request->getSessionKey();
+            bool addJourneyId = request->getFlag();
+            client->sendevent(number, text, viewId, addJourneyId);
             return API_OK;
         };
 
