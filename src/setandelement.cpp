@@ -194,7 +194,8 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags();
+        r.serializeexpansionflags(true);
+        r.serializecompressedi64(mCTs);
 
         return true;
     }
@@ -231,13 +232,16 @@ namespace mega {
         }
 
         unsigned char expansionsS[8];
-        if (!r.unserializeexpansionflags(expansionsS, 0))
+        m_time_t cts = 0;
+        if (!r.unserializeexpansionflags(expansionsS, 1) ||
+            (expansionsS[0] && !r.unserializecompressedi64(cts))) // creation timestamp
         {
             return nullptr;
         }
 
         auto s = ::mega::make_unique<Set>(id, publicId, move(k), u, move(attrs));
         s->setTs(ts);
+        s->setCTs(cts);
 
         return s;
     }

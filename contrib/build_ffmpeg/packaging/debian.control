@@ -7,11 +7,10 @@ Build-Depends:  debhelper,
                 wget,
                 libtool,
                 dh-autoreconf,
-                cdbs,
-                extra-cmake-modules
+                cdbs
 
 Package: ffmpeg-mega
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends:
 Description: TODO
  TODO

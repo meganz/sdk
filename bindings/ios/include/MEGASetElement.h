@@ -24,10 +24,17 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGASetElementChangeType) {
-    MEGASetElementChangeTypeNew   = 0,
-    MEGASetElementChangeTypeName  = 1,
-    MEGASetElementChangeTypeOrder = 2,
-    MEGASetElementChangeTypeSize  = 3
+    MEGASetElementChangeTypeNew     = 0,
+    MEGASetElementChangeTypeName    = 1,
+    MEGASetElementChangeTypeOrder   = 2,
+    MEGASetElementChangeTypeRemoved = 3
+};
+
+typedef NS_OPTIONS (NSUInteger, MEGASetElementChanges) {
+    MEGASetElementChangesChangeNew   = 1 << MEGASetElementChangeTypeNew,
+    MEGASetElementChangesName        = 1 << MEGASetElementChangeTypeName,
+    MEGASetElementChangesOrder       = 1 << MEGASetElementChangeTypeOrder,
+    MEGASetElementChangesRemoved     = 1 << MEGASetElementChangeTypeRemoved
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -112,6 +119,15 @@ NS_ASSUME_NONNULL_BEGIN
  * @return YES if this SetElement has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetElementChangeType)changeType;
+
+/**
+ * @brief Returns changes  for MEGASetElement
+ *
+ * Note that the position of each bit matches the MEGASetElementChangeType value
+ *
+ * @return combination of changes in
+ */
+- (MEGASetElementChanges)changes;
 
 @end
 

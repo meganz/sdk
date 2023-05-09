@@ -59,9 +59,10 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         if (newValue != currentValue)
         {
             if ((type == ATTR_ALIAS
-                 || type == ATTR_DEVICE_NAMES) && newValue[0] == '\0')
+                 || type == ATTR_DEVICE_NAMES
+                 || type == ATTR_APPS_PREFS) && newValue[0] == '\0')
             {
-                // alias/deviceName/driveName being removed
+                // alias/deviceName/appPrefs being removed
                 tlv.reset(key);
             }
             else
@@ -81,7 +82,9 @@ bool User::serialize(string* d) const
     unsigned short ll;
     time_t ts;
     AttrMap attrmap;
-    char attrVersion = '1';
+    char attrVersion = '2';
+    // Version 1: attributes are serialized along with its version
+    // Version 2: size of attributes use 4B (uint32_t) instead of 2B (unsigned short)
 
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
@@ -114,9 +117,9 @@ bool User::serialize(string* d) const
     {
         d->append((char*)&it->first, sizeof it->first);
 
-        ll = (unsigned short)it->second.size();
-        d->append((char*)&ll, sizeof ll);
-        d->append(it->second.data(), ll);
+        uint32_t valueSize = static_cast<uint32_t>(it->second.size());
+        d->append((char*)&valueSize, sizeof valueSize);
+        d->append(it->second.data(), valueSize);
 
         auto itattrsv = attrsv.find(it->first);
         if (itattrsv != attrsv.end())
@@ -231,9 +234,14 @@ User* User::unserialize(MegaClient* client, string* d)
             return NULL;
         }
     }
-    else if (attrVersion == '1')
+    else if (attrVersion == '1' || attrVersion == '2')
     {
         attr_t key;
+
+        // attrVersion = 1 -> size of value uses 2 bytes
+        // attrVersion = 2 -> size of value uses 4 bytes
+        uint32_t valueSize = 0;
+        size_t sizeLength = (attrVersion == '1') ? sizeof ll : sizeof valueSize;
 
         if (ptr + sizeof(char) > end)
         {
@@ -244,7 +252,7 @@ User* User::unserialize(MegaClient* client, string* d)
         l = *ptr++;
         for (int i = 0; i < l; i++)
         {
-            if (ptr + sizeof key + sizeof(ll) > end)
+            if (ptr + sizeof key + sizeLength > end)
             {
                 client->discarduser(uh);
                 return NULL;
@@ -253,10 +261,17 @@ User* User::unserialize(MegaClient* client, string* d)
             key = MemAccess::get<attr_t>(ptr);
             ptr += sizeof key;
 
-            ll = MemAccess::get<short>(ptr);
-            ptr += sizeof ll;
+            if (attrVersion == '1')
+            {
+                valueSize = MemAccess::get<short>(ptr);
+            }
+            else // attrVersion == '2'
+            {
+                valueSize = MemAccess::get<uint32_t>(ptr);
+            }
+            ptr += sizeLength;
 
-            if (ptr + ll + sizeof(ll) > end)
+            if (ptr + valueSize + sizeof ll > end)
             {
                 client->discarduser(uh);
                 return NULL;
@@ -264,10 +279,10 @@ User* User::unserialize(MegaClient* client, string* d)
 
             if (!u->isattrvalid(key))
             {
-                u->attrs[key].assign(ptr, ll);
+                u->attrs[key].assign(ptr, valueSize);
             }
 
-            ptr += ll;
+            ptr += valueSize;
 
             ll = MemAccess::get<short>(ptr);
             ptr += sizeof ll;
@@ -601,6 +616,10 @@ string User::attr2string(attr_t type)
             attrname =  "^!keys";
             break;
 
+        case ATTR_APPS_PREFS:
+            attrname =  "*!aPrefs";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -757,6 +776,10 @@ string User::attr2longname(attr_t type)
     case ATTR_KEYS:
         longname = "KEYS";
         break;
+
+    case ATTR_APPS_PREFS:
+        longname = "APPS_PREFS";
+        break;
     }
 
     return longname;
@@ -905,6 +928,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_KEYS;
     }
+    else if (!strcmp(name, "*!aPrefs"))
+    {
+        return ATTR_APPS_PREFS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -951,6 +978,7 @@ int User::needversioning(attr_t at)
         case ATTR_JSON_SYNC_CONFIG_DATA:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_KEYS:
+        case ATTR_APPS_PREFS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -976,6 +1004,7 @@ char User::scope(attr_t at)
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
         case ATTR_JSON_SYNC_CONFIG_DATA:
+        case ATTR_APPS_PREFS:
             return '*';
 
         case ATTR_AVATAR:
@@ -1425,6 +1454,10 @@ bool User::setChanged(attr_t at)
         case ATTR_KEYS:
             changed.keys = true;
             changed.authring = true;
+            break;
+
+        case ATTR_APPS_PREFS:
+            changed.aPrefs = true;
             break;
 
         default:

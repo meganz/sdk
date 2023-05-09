@@ -232,20 +232,20 @@ bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<str
 }
 
 // Store ips from response in the vector passed
-bool Command::loadIpsFromJson(std::vector<string>& ips)
+bool Command::loadIpsFromJson(std::vector<string>& ips, JSON& json)
 {
-    if (client->json.enterarray()) // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+    if (json.enterarray()) // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
     {
         for (;;)
         {
             std::string ti;
-            if (!client->json.storeobject(&ti))
+            if (!json.storeobject(&ti))
             {
                 break;
             }
             ips.emplace_back(std::move(ti));
         }
-        client->json.leavearray();
+        json.leavearray();
         return true;
     }
     return false;

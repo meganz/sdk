@@ -1909,6 +1909,26 @@ using namespace mega;
     }
 }
 
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value {
+    if (self.megaApi) {
+        const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
+        MegaStringMap *stringMap = MegaStringMap::createInstance();
+        stringMap->set(key.UTF8String, base64Value);
+
+        self.megaApi->setUserAttribute((int)type, stringMap);
+    }
+}
+
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
+        MegaStringMap *stringMap = MegaStringMap::createInstance();
+        stringMap->set(key.UTF8String, base64Value);
+
+        self.megaApi->setUserAttribute((int)type, stringMap, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getUserAlias(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);

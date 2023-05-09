@@ -96,35 +96,35 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
     return cachedJSON;
 }
 
-bool Request::processCmdJSON(Command* cmd, bool couldBeError)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
 {
     Error e;
-    if (couldBeError && cmd->checkError(e, cmd->client->json))
+    if (couldBeError && cmd->checkError(e, json))
     {
-        return cmd->procresult(Command::Result(Command::CmdError, e));
+        return cmd->procresult(Command::Result(Command::CmdError, e), json);
     }
-    else if (cmd->client->json.enterobject())
+    else if (json.enterobject())
     {
-        return cmd->procresult(Command::CmdObject) && cmd->client->json.leaveobject();
+        return cmd->procresult(Command::CmdObject, json) && json.leaveobject();
     }
-    else if (cmd->client->json.enterarray())
+    else if (json.enterarray())
     {
-        return cmd->procresult(Command::CmdArray) && cmd->client->json.leavearray();
+        return cmd->procresult(Command::CmdArray, json) && json.leavearray();
     }
     else
     {
-        return cmd->procresult(Command::CmdItem);
+        return cmd->procresult(Command::CmdItem, json);
     }
 }
 
-bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray)
+bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson)
 {
     string st;
-    cmd->client->json.storeobject(&st);
+    processingJson.storeobject(&st);
 
     if (inSeqTagArray)
     {
-        if (*cmd->client->json.pos == ',') ++cmd->client->json.pos;
+        if (*processingJson.pos == ',') ++processingJson.pos;
     }
 
     // In normal operation, we get called once to figure out the `st` to watch out for in sc json (else case below)
@@ -138,8 +138,8 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
         assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;
-        parsedOk = withJSON ? processCmdJSON(cmd, false)
-                            : cmd->procresult(Command::Result(Command::CmdError, API_OK)); // just an `st` returned is implicitly successful
+        parsedOk = withJSON ? processCmdJSON(cmd, false, processingJson)
+                            : cmd->procresult(Command::Result(Command::CmdError, API_OK), processingJson); // just an `st` returned is implicitly successful
         return true;
     }
     else
@@ -149,7 +149,6 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
         cmd->client->mCurrentSeqtag = st;
         cmd->client->mCurrentSeqtagSeen = false;
         cmd->client->mCurrentSeqtagCmdtag = cmd->tag;
-        cmd->client->json.pos = nullptr;
         assert(cmd->client->mPriorSeqTag.size() < cmd->client->mCurrentSeqtag.size() ||
               (cmd->client->mPriorSeqTag.size() == cmd->client->mCurrentSeqtag.size() &&
                cmd->client->mPriorSeqTag < cmd->client->mCurrentSeqtag));
@@ -162,7 +161,7 @@ void Request::process(MegaClient* client)
     TransferDbCommitter committer(client->tctable);
     client->mTctableRequestCommitter = &committer;
 
-    client->json = json;
+    JSON processingJson = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
         Command* cmd = cmds[processindex].get();
@@ -171,12 +170,12 @@ void Request::process(MegaClient* client)
 
         cmd->client = client;
 
-        auto cmdJSON = client->json;
+        auto cmdJSON = processingJson;
         bool parsedOk = true;
 
-        if (*client->json.pos == ',') ++client->json.pos;
+        if (*processingJson.pos == ',') ++processingJson.pos;
 
-        if (cmd->mSeqtagArray && client->json.enterarray())
+        if (cmd->mSeqtagArray && processingJson.enterarray())
         {
             // Some commands need to return seqtag and also some JSON,
             // in which case they are in an array with `st` first, and the JSON second
@@ -184,29 +183,29 @@ void Request::process(MegaClient* client)
             // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
             // If the command failed, there is no array, just the error code
             assert(cmd->mV3);
-            assert(*client->json.pos == '0' || *client->json.pos == '\"');
-            if (*client->json.pos == '0' && *(client->json.pos+1) == ',')
+            assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
+            if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
             {
-                client->json.pos += 2;
-                parsedOk = processCmdJSON(cmd, false);
+                processingJson.pos += 2;
+                parsedOk = processCmdJSON(cmd, false, processingJson);
             }
-            else if (!processSeqTag(cmd, true, parsedOk, true)) // executes the command's procresult if we match the seqtag
+            else if (!processSeqTag(cmd, true, parsedOk, true, processingJson)) // executes the command's procresult if we match the seqtag
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
                 return;
             }
 
-            if (parsedOk && !client->json.leavearray())
+            if (parsedOk && !processingJson.leavearray())
             {
                 LOG_err << "Invalid seqtag array";
                 parsedOk = false;
             }
         }
-        else if (mV3 && *client->json.pos == '"')
+        else if (mV3 && *processingJson.pos == '"')
         {
             // For v3 commands, a string result is a string which is a seqtag.
-            if (!processSeqTag(cmd, false, parsedOk, false))
+            if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
             {
                 // we need to wait for sc processing to catch up with the seqtag we just read
                 json = cmdJSON;
@@ -216,14 +215,14 @@ void Request::process(MegaClient* client)
         else
         {
             // straightforward case - plain JSON response, no seqtag
-            parsedOk = processCmdJSON(cmd, true);
+            parsedOk = processCmdJSON(cmd, true, processingJson);
         }
 
         if (!parsedOk)
         {
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
-            client->json = cmdJSON;
-            client->json.storeobject();
+            processingJson = cmdJSON;
+            processingJson.storeobject();
 
             // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
             assert(false);
@@ -233,9 +232,9 @@ void Request::process(MegaClient* client)
 #ifdef DEBUG
             // double check the command consumed the right amount of JSON
             cmdJSON.storeobject();
-            if (client->json.pos != cmdJSON.pos)
+            if (processingJson.pos != cmdJSON.pos)
             {
-                assert(client->json.pos == cmdJSON.pos);
+                assert(processingJson.pos == cmdJSON.pos);
             }
 #endif
         }
@@ -244,8 +243,7 @@ void Request::process(MegaClient* client)
         cmds[processindex].reset();
     }
 
-    json = client->json;
-    client->json.pos = nullptr;
+    json = processingJson;
     if (processindex == cmds.size() || stopProcessing)
     {
         clear();
