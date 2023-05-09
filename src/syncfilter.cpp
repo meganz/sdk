@@ -301,6 +301,9 @@ bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& f
     // Generate the ignore file's content.
     auto content = generate(targetPath, fsAccess);
 
+    // write the Utf-8 BOM at the front, to assist text editors to use the right encoding
+    content.insert(0, string("\xEF\xBB\xBF", 3));
+
     // Write the content to disk.
     return fileAccess->fwrite((const byte*)content.data(),
                               (unsigned)content.size(),

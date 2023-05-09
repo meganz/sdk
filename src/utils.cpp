@@ -2638,6 +2638,15 @@ bool readLines(const std::string& input, string_vector& destination)
     const char *current = input.data();
     const char *end = current + input.size();
 
+    // we assume utf8.  Skip the BOM if there is one
+    if (input.size() > 2 &&
+        static_cast<unsigned char>(current[0]) == 0xEF &&
+        static_cast<unsigned char>(current[1]) == 0xBB &&
+        static_cast<unsigned char>(current[2]) == 0xBF)
+    {
+        current += 3;
+    }
+
     while (current < end && (*current == '\r' || *current == '\n'))
     {
         ++current;
