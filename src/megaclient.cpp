@@ -19403,6 +19403,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setKey(setToBeUpdated.key());
         s.setUser(setToBeUpdated.user());
         s.rebaseAttrsOn(setToBeUpdated);
+        s.setPublicId(setToBeUpdated.publicId());
 
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
@@ -20182,6 +20183,9 @@ void MegaClient::sc_asp()
             assert(false);
             return;
         }
+
+        // copy any existing data not received via AP
+        s.setPublicId(existing.publicId());
 
         if (existing.updateWith(move(s)))
         {

@@ -11391,6 +11391,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Check if Set is exported
     // U1: Enable Set export (creates public link)
     // U1: Check if Set is exported
+    // U1: Update Set name and verify Set is still exported
     // U1: Logout / login to retrieve Set
     // U1: Check if Set is exported
     // U1: Get public Set URL
@@ -11489,26 +11490,41 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(isExported, s->isExported());
         ASSERT_NE(s->ts(), 0);
     };
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Set export updated not received after " << maxTimeout << " seconds";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tChecking export enable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
     s1pEnabledExport.reset(exportedSet);
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Update Set name and verify Set is still exported";
+    userIdx = 0;
+    differentApiDtlsPtr->setUpdated = false;
+    const string updatedName = name + u8" 手";
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name updated not received after " << maxTimeout << " seconds in different client";
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
+    // reset to previous name to keep using existing original cached Set for validation
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name reset not received after " << maxTimeout << " seconds in different client";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
@@ -11530,7 +11546,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(el->order(), elp->order());
     };
     unique_ptr<MegaSetElement> reloadedSessionElement(megaApi[userIdx]->getSetElement(sh, eh));
-    lIsSameElement(reloadedSessionElement.get());
+    ASSERT_NO_FATAL_FAILURE(lIsSameElement(reloadedSessionElement.get()));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11546,7 +11562,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         else                   ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
-    lCheckSetLink(API_OK);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_OK));
 
 
     LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
@@ -11556,7 +11572,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     {
         ASSERT_NE(ell, nullptr);
         ASSERT_EQ(ell->size(), els->size());
-        lIsSameElement(ell->get(0));
+        ASSERT_NO_FATAL_FAILURE(lIsSameElement(ell->get(0)));
     };
     const auto lFetchCurrentSetInPreviewMode =
     [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
@@ -11566,8 +11582,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
         if (isSuccessExpected)
         {
-            lIsSameSet(s.get(), true);
-            lIsSameElementList(ell.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), true));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(ell.get()));
         }
         else
         {
@@ -11588,8 +11604,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         if (isSetExportExpected)
         {
             ASSERT_EQ(reqResult, API_OK);
-            lIsSameSet(s.get(), isSetExportExpected);
-            lIsSameElementList(els.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), isSetExportExpected));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(els.get()));
         }
         else
         {
@@ -11599,25 +11615,25 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         }
 
         ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
-        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+        ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected));
     };
 
-    lFetchPublicSet(0, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(0, isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Stop Public Set preview mode";
     userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
     userIdx = 1;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
 
 
     LOG_debug << "# U2: Download foreign Set Element in preview set mode";
@@ -11647,20 +11663,20 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         fs::remove(downloadPath);
     };
 
-    lFetchForeignNode(API_OK);
-    lDownloadForeignElement(API_OK, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_OK));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_OK, foreignNode.get()));
 
 
     LOG_debug << "# U2: Stop Public Set preview mode";
     userIdx = 1;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
-    lFetchForeignNode(API_EACCESS);
-    lDownloadForeignElement(API_ENOENT, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_EACCESS));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_ENOENT, foreignNode.get()));
 
 
     LOG_debug << "# U1: Disable Set export (invalidates public link)";
@@ -11670,18 +11686,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     isExpectedToBeExported = false;
     unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // wait for action packets on both APIs (disable updates through APs)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // test shortcut on disable export
     LOG_debug << "\tChecking export disable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     s1pDisabledExport.reset(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11689,12 +11705,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL (expect -9)";
-    lCheckSetLink(API_ENOENT);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_ENOENT));
 
 
     LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
     userIdx = 0;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
 
 
