@@ -11572,7 +11572,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     {
         ASSERT_NE(ell, nullptr);
         ASSERT_EQ(ell->size(), els->size());
-        lIsSameElement(ell->get(0));
+        ASSERT_NO_FATAL_FAILURE(lIsSameElement(ell->get(0)));
     };
     const auto lFetchCurrentSetInPreviewMode =
     [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
@@ -11582,8 +11582,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
         if (isSuccessExpected)
         {
-            lIsSameSet(s.get(), true);
-            lIsSameElementList(ell.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), true));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(ell.get()));
         }
         else
         {
@@ -11604,8 +11604,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         if (isSetExportExpected)
         {
             ASSERT_EQ(reqResult, API_OK);
-            lIsSameSet(s.get(), isSetExportExpected);
-            lIsSameElementList(els.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), isSetExportExpected));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(els.get()));
         }
         else
         {
@@ -11615,7 +11615,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         }
 
         ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
-        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+        ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected));
     };
 
     ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(0, isExpectedToBeExported));
