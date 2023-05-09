@@ -82,6 +82,7 @@ doc/example/lsmega
 .project
 .cproject
 .settings
+.vs
 *.vscode
 *~
 Debug
@@ -101,6 +102,9 @@ Release
 /contrib/cmake/build
 /contrib/cmake/build3rdParty/build
 megaclient_statecache*
+
+# clangd index
+.cache
 
 # Building stuff
 build-*Debug

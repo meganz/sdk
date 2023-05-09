@@ -48,9 +48,6 @@ namespace mega {
         // get timestamp
         const m_time_t& ts() const { return mTs; }
 
-        // get creation timestamp
-        const m_time_t& cts() const { return mCTs; }
-
         // get own name
         const std::string& name() const { return getAttr(nameTag); }
 
@@ -63,9 +60,6 @@ namespace mega {
 
         // set timestamp
         void setTs(m_time_t ts) { mTs = ts; }
-
-        // set creation timestamp
-        void setCTs(m_time_t ts) { mCTs = ts; }
 
         // set own name
         void setName(std::string&& name);
@@ -101,7 +95,6 @@ namespace mega {
         std::string mKey;
         std::unique_ptr<string_map> mAttrs;
         m_time_t mTs = 0;  // timestamp
-        m_time_t mCTs = 0; // creation timestamp
 
         void setAttr(const std::string& tag, std::string&& value); // set any non-standard attr
         const std::string& getAttr(const std::string& tag) const;
@@ -238,6 +231,9 @@ namespace mega {
         // return id of the Element that was set as cover, or UNDEF if none was set
         handle cover() const;
 
+        // get creation timestamp
+        const m_time_t& cts() const { return mCTs; }
+
         // set public id of the set (Set exported); UNDEF received when disabled
         void setPublicId(handle pid) { mPublicId = pid; }
 
@@ -246,6 +242,9 @@ namespace mega {
 
         // set id of the Element that will act as cover; pass UNDEF to remove cover
         void setCover(handle h);
+
+        // set creation timestamp
+        void setCTs(m_time_t ts) { mCTs = ts; }
 
         // replace internal parameters with the ones of 's', and mark any CH_XXX change
         bool updateWith(Set&& s);
@@ -284,6 +283,7 @@ namespace mega {
     private:
         handle mPublicId = UNDEF;
         handle mUser = UNDEF;
+        m_time_t mCTs = 0; // creation timestamp
 
         std::bitset<CH_SIZE> mChanges;
 

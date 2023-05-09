@@ -577,6 +577,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
             }
+            else if (request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
+            {
+                mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
+            }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : "");
@@ -1127,6 +1131,13 @@ void SdkTest::deleteFile(string filename)
     fs::path p = fs::u8path(filename);
     std::error_code ignoredEc;
     fs::remove(p, ignoredEc);
+}
+
+void SdkTest::deleteFolder(string foldername)
+{
+    fs::path p = fs::u8path(foldername);
+    std::error_code ignoredEc;
+    fs::remove_all(p, ignoredEc);
 }
 
 void SdkTest::getAccountsForTest(unsigned howMany)
@@ -3087,6 +3098,84 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, u->getVisibility()) << "New contact is still visible";
 
     delete u;
+}
+
+TEST_F(SdkTest, SdkTestAppsPrefs)
+{
+    const auto comparePrefs = [](const MegaStringMap* currentMap, const MegaStringMap* testMap) -> bool
+    {
+        if (!currentMap || !testMap) return false;
+
+        std::unique_ptr<MegaStringList> currentKeys (currentMap->getKeys());
+        std::unique_ptr<MegaStringList> testKeys (testMap->getKeys());
+        if (!currentKeys || !testKeys)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < testMap->size(); ++i)
+        {
+            // search the same key in both maps to check that pair<key, value> matches with current user attr pair
+            const char* testKey = currentKeys->get(i);
+            const char* aVal = currentMap->get(testKey);
+            const char* bVal = testMap->get(testKey);
+            if (!aVal || !bVal || strcmp(aVal, bVal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    const auto isAppsPrefsUpdated = [this, &comparePrefs](const MegaStringMap* uprefs) -> bool
+    {
+        std::unique_ptr<MegaUser> u(megaApi[0]->getMyUser());
+        EXPECT_TRUE(u) << "Can't get own user";
+        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), MegaApi::USER_ATTR_APPS_PREFS, maxTimeout, 0));
+        EXPECT_TRUE(comparePrefs(mApi[0].mStringMap.get(), uprefs)) << "ERR";
+        return true;
+    };
+
+    const auto fetchAppsPrefs = [this](const unsigned int index) -> int
+    {
+        std::unique_ptr<MegaUser> u(megaApi[index]->getMyUser());
+        if (!u) { return API_ENOENT; }
+        mApi[index].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+        return synchronousGetUserAttribute(index, u.get(), MegaApi::USER_ATTR_APPS_PREFS);
+    };
+
+    LOG_info << "___TEST AppsPrefs___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // fetch for current attr value
+    static constexpr char keyname[] = "key1";
+    const unsigned int index = 0;
+    const int res = fetchAppsPrefs(index);
+    ASSERT_TRUE(res == API_ENOENT || res == API_OK);
+
+    // set value for attr (overwrite any posible value that could exists for keyname)
+    std::unique_ptr <MegaStringMap> newAppPrefs(MegaStringMap::createInstance());
+    std::string val = std::to_string(m_time());
+    unique_ptr<char[]> valB64(MegaApi::binaryToBase64(val.data(), val.size()));
+    newAppPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+
+    // logout and login
+    releaseMegaApi(index);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // check attr value is expected after logout/login
+    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+
+    // set value for attr again (overwrite latest value for keyname)
+    val = std::to_string(m_time());
+    valB64.reset(MegaApi::binaryToBase64(val.data(), val.size()));
+    newAppPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+
+    // check attr value is expected
+    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
 }
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
@@ -10931,6 +11020,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s2p, nullptr);
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->ts(), s1up->ts());
+    ASSERT_EQ(s2p->cts(), s1up->cts());
 
     // 3. Upload test files
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
@@ -11246,6 +11336,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->id(), sh);
     ASSERT_EQ(s1p->user(), s1up->user());
     ASSERT_EQ(s1p->ts(), s1up->ts());
+    ASSERT_EQ(s1p->cts(), s1up->cts());
     ASSERT_EQ(s1p->name(), name);
     elCount = megaApi[0]->getSetElementCount(sh);
     ASSERT_EQ(elCount, 2u) << "Wrong Element count after resumeSession";
@@ -11300,6 +11391,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Check if Set is exported
     // U1: Enable Set export (creates public link)
     // U1: Check if Set is exported
+    // U1: Update Set name and verify Set is still exported
     // U1: Logout / login to retrieve Set
     // U1: Check if Set is exported
     // U1: Get public Set URL
@@ -11398,26 +11490,41 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(isExported, s->isExported());
         ASSERT_NE(s->ts(), 0);
     };
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Set export updated not received after " << maxTimeout << " seconds";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tChecking export enable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
     s1pEnabledExport.reset(exportedSet);
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Update Set name and verify Set is still exported";
+    userIdx = 0;
+    differentApiDtlsPtr->setUpdated = false;
+    const string updatedName = name + u8" 手";
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name updated not received after " << maxTimeout << " seconds in different client";
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
+    // reset to previous name to keep using existing original cached Set for validation
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name reset not received after " << maxTimeout << " seconds in different client";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
@@ -11439,7 +11546,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(el->order(), elp->order());
     };
     unique_ptr<MegaSetElement> reloadedSessionElement(megaApi[userIdx]->getSetElement(sh, eh));
-    lIsSameElement(reloadedSessionElement.get());
+    ASSERT_NO_FATAL_FAILURE(lIsSameElement(reloadedSessionElement.get()));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11455,7 +11562,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         else                   ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
-    lCheckSetLink(API_OK);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_OK));
 
 
     LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
@@ -11465,7 +11572,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     {
         ASSERT_NE(ell, nullptr);
         ASSERT_EQ(ell->size(), els->size());
-        lIsSameElement(ell->get(0));
+        ASSERT_NO_FATAL_FAILURE(lIsSameElement(ell->get(0)));
     };
     const auto lFetchCurrentSetInPreviewMode =
     [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
@@ -11475,8 +11582,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
         if (isSuccessExpected)
         {
-            lIsSameSet(s.get(), true);
-            lIsSameElementList(ell.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), true));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(ell.get()));
         }
         else
         {
@@ -11497,8 +11604,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         if (isSetExportExpected)
         {
             ASSERT_EQ(reqResult, API_OK);
-            lIsSameSet(s.get(), isSetExportExpected);
-            lIsSameElementList(els.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), isSetExportExpected));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(els.get()));
         }
         else
         {
@@ -11508,25 +11615,25 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         }
 
         ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
-        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+        ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected));
     };
 
-    lFetchPublicSet(0, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(0, isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Stop Public Set preview mode";
     userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
     userIdx = 1;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
 
 
     LOG_debug << "# U2: Download foreign Set Element in preview set mode";
@@ -11556,20 +11663,20 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         fs::remove(downloadPath);
     };
 
-    lFetchForeignNode(API_OK);
-    lDownloadForeignElement(API_OK, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_OK));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_OK, foreignNode.get()));
 
 
     LOG_debug << "# U2: Stop Public Set preview mode";
     userIdx = 1;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
-    lFetchForeignNode(API_EACCESS);
-    lDownloadForeignElement(API_ENOENT, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_EACCESS));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_ENOENT, foreignNode.get()));
 
 
     LOG_debug << "# U1: Disable Set export (invalidates public link)";
@@ -11579,18 +11686,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     isExpectedToBeExported = false;
     unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // wait for action packets on both APIs (disable updates through APs)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // test shortcut on disable export
     LOG_debug << "\tChecking export disable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     s1pDisabledExport.reset(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11598,12 +11705,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL (expect -9)";
-    lCheckSetLink(API_ENOENT);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_ENOENT));
 
 
     LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
     userIdx = 0;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
 
 
@@ -12633,6 +12740,7 @@ TEST_F(SdkTest, SdkVersionManagement)
  * - Get nodes by name recursively inside out share
  * - Get out share by name (no recursive)
  * - Get out share by name (no recursive) -> mismatch
+ * - Get nodes with utf8 characters insensitive case
  */
 TEST_F(SdkTest, SdkGetNodesByName)
 {
@@ -12817,6 +12925,26 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeFile.reset(megaApi[0]->getNodeByHandle(file8Handle));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 8 node for scenario (error: " << mApi[0].lastError << ")";
 
+    mApi[0].nodeUpdated = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
+    std::string fileUtf8 = "ñamÚ";
+    createFile(fileUtf8, false);
+    MegaHandle fileUtf8Handle = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileUtf8Handle, fileUtf8.data(), folder1.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    waitForResponse(&check);
+    deleteFile(fileUtf8);
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+    nodeFile.reset(megaApi[0]->getNodeByHandle(fileUtf8Handle));
+    ASSERT_NE(nodeFile, nullptr) << "Cannot initialize 5 node for scenario (error: " << mApi[0].lastError << ")";
+
 
     // Tree structure
     // Root node
@@ -12829,6 +12957,7 @@ TEST_F(SdkTest, SdkGetNodesByName)
     //       - file3Check
     //       - file4Check
     //       - file5Check
+    //       - ñam
     //   - file6Test
 
     stringSearch = file1;
@@ -12960,6 +13089,29 @@ TEST_F(SdkTest, SdkGetNodesByName)
     nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
                                             MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
     ASSERT_EQ(nodeList->size(), 2);
+
+    // --- Test strings with UTF-8 characters
+    stringSearch = "Ñ";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    stringSearch = "ñ";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+    // No recursive search
+    stringSearch = "Ñ";
+    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
+
+
+    stringSearch = "ú";
+    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 }
 
 /**
@@ -13091,4 +13243,400 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
 
     megaApi[0]->setMaxDownloadSpeed(-1);
+}
+
+/**
+ * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
+ *
+ * - Test 1: Control test. Default file permissions (0600).
+ *         Expected: successful download and successul file opening for reading and writing.
+ * - Test 2: Change file permissions: 0400. Only for reading.
+ *         Expected successful download, unsuccessful file opening for reading and writing (only for reading)
+ * - Test 3: Change file permissions: 0700. Read, write and execute.
+ *         Expected: successful download and successul file opening for reading and writing.
+ */
+TEST_F(SdkTest, SdkTestFilePermissions)
+{
+    LOG_info << "___TEST SdkTestFilePermissions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+    // Create a new file
+    string filename = "file_permissions_test.sdktest";
+    ASSERT_TRUE(createFile(filename, false)) << "Couldn't create test file: '" << filename << "'";
+
+    // Upload the file
+    fs::path uploadPath = fs::current_path() / filename;
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(uploadPath.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &uploadListener);
+
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
+
+    // Delete the local file
+    deleteFile(filename.c_str());
+
+    auto downloadFile = [this, &nimported, &filename]()
+    {
+        TransferTracker downloadListener(megaApi[0].get());
+        megaApi[0]->startDownload(nimported.get(),
+                                filename.c_str(),
+                                nullptr  /*customName*/,
+                                nullptr  /*appData*/,
+                                false    /*startFirst*/,
+                                nullptr  /*cancelToken*/,
+                                &downloadListener);
+        return downloadListener.waitForResult();
+    };
+
+    auto openFile = [this, &filename](bool readF, bool writeF) -> bool
+    {
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        fs::path filePath = fs::current_path() / filename.c_str();
+        LocalPath localfilePath = fspathToLocal(filePath);
+
+        std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
+        return plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+    };
+
+    // TEST 1: Control test. Default file permissions (0600).
+    // Expected: successful download and successul file opening for reading and writing.
+    ASSERT_EQ(API_OK, downloadFile());
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
+    deleteFile(filename.c_str());
+
+
+    // TEST 2: Change file permissions: 0400. Only for reading.
+    // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
+    int filePermissions = 0400;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    ASSERT_EQ(API_OK, downloadFile());
+    ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
+#ifdef _WIN32
+    // Files should be able to be opened: posix file permissions don't have any effect on Windows.
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+#else
+    ASSERT_FALSE(openFile(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+#endif
+    deleteFile(filename.c_str());
+
+
+    // TEST 3: Change file permissions: 0700. Read, write and execute.
+    // Expected: successful download and successul file opening for reading and writing.
+    filePermissions = 0700;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    ASSERT_EQ(API_OK, downloadFile());
+    ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+    deleteFile(filename.c_str());
+}
+
+/**
+ * @brief Test folder permissions for a download when using megaApi->setDefaultFolderPermissions.
+ *
+ *  Note: folder downloads use MegaFolderDownloadController, which has its own FileAccess object.
+ *
+ * - Test 1. Control test. Default folder permissions. Default file permissions.
+ *           Expected a successful download and no issues when accessing the folder.
+ * - Test 2. TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
+ *           Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
+ *           Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
+ * - Test 3: Restore folder permissions. Change file permissions: only read.
+ *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+ *           File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
+ * - Test 4: Default folder permissions. Restore file permissions.
+ *           Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+ *           File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
+ */
+TEST_F(SdkTest, SdkTestFolderPermissions)
+{
+    LOG_info << "___TEST SdkTestFolderPermissions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Create a new folder
+    string foldername = "folder_permissions_test.sdktest.folder";
+    fs::path folderpath = fs::current_path() / foldername;
+    std::error_code ec;
+    fs::remove_all(folderpath, ec);
+    ASSERT_TRUE(!fs::exists(folderpath)) << "Directory already exists (and still exists after trying to remove it): '" << folderpath.u8string() << "'";
+    fs::create_directories(folderpath);
+
+    // Create a new file inside the new directory
+    string filename = "file_permissions_test.sdktest";
+    fs::path fileInFolderPath = folderpath / filename;
+    ASSERT_TRUE(createFile(fileInFolderPath.u8string(), false)) << "Couldn't create test file in directory: '" << fileInFolderPath.u8string() << "'";
+
+    // Upload the folder
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(folderpath.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+    std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
+    int nimportedNumChildren = megaApi[0]->getNumChildren(nimported.get());
+    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'"; 
+
+    // Delete the local folder
+    deleteFolder(foldername);
+
+    auto downloadFolder = [this, &nimported, &foldername]()
+    {
+        TransferTracker downloadListener(megaApi[0].get());
+        megaApi[0]->startDownload(nimported.get(),
+                                foldername.c_str(),
+                                nullptr  /*customName*/,
+                                nullptr  /*appData*/,
+                                false    /*startFirst*/,
+                                nullptr  /*cancelToken*/,
+                                &downloadListener);
+        return downloadListener.waitForResult();
+    };
+
+    auto openFolderAndFiles = [this, &foldername, &nimported](bool readF, bool writeF) -> bool
+    {
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        fs::path dirPath = fs::current_path() / foldername.c_str();
+        auto localDirPath = fspathToLocal(dirPath);
+
+        bool openResult = true;
+        std::unique_ptr<DirAccess> diropen_da(fsa->newdiraccess());
+        if (diropen_da->dopen(&localDirPath, nullptr, false))
+        {
+            std::unique_ptr<MegaNodeList> childrenList(megaApi[0]->getChildren(nimported.get()));
+            for (int childIndex = 0; (childIndex < childrenList->size()); childIndex++)
+            {
+                if (childrenList->get(childIndex)->isFile())
+                {
+                    auto filesa = ::mega::make_unique<FSACCESS_CLASS>();
+                    fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
+                    auto localfilePath = fspathToLocal(filePath);
+                    std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
+                    openResult &= plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+                }
+            }
+        }
+        return openResult;
+    };
+
+    // TEST 1. Control test. Default folder permissions. Default file permissions.
+    // Expected a successful download and no issues when accessing the folder.
+    ASSERT_EQ(API_OK, downloadFolder());
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+    deleteFolder(foldername.c_str());
+
+    // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
+    // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
+    // Still, if there is any file children inside the folder, it won't be able able to be opened for reading and writing or even for reading only (because of the folder permissions: lack of the execution perm).
+    int folderPermissions = 0400;
+    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+#ifdef _WIN32
+    // Folder and files should be able to be opened: posix file/folder permissions don't have any effect on Windows.
+    ASSERT_EQ(API_OK, downloadFolder());
+    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+#else
+    ASSERT_EQ(API_EINCOMPLETE, downloadFolder()) << "Download should have failed as there are not enough permissions to write in the folder";
+    ASSERT_FALSE(openFolderAndFiles(true, false)) << "Could open files for read, while it shouldn't due to permissions";
+    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+#endif
+    deleteFolder(foldername.c_str());
+
+    // TEST 3. Restore folder permissions. Change file permissions: only read.
+    // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+    // File permissions: 0400. Expected result: cannot open files for R and W (perm: 0400 -> only read).
+    folderPermissions = 0700;
+    megaApi[0]->setDefaultFolderPermissions(folderPermissions);
+    int filePermissions = 0400;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    ASSERT_EQ(API_OK, downloadFolder());
+    ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+#ifdef _WIN32
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+#else
+    ASSERT_FALSE(openFolderAndFiles(true, true)) << "Could open files for read|write, while it shouldn't due to permissions";
+#endif
+    deleteFolder(foldername.c_str());
+
+    // TEST 4. Default folder permissions. Restore file permissions.
+    // Folder permissions: 0700. Expected a successful download and no issues when accessing the folder.
+    // File permissions: 0600. Expected result: Can open files for R and W (perm: 0600 -> r and w).
+    filePermissions = 0600;
+    megaApi[0]->setDefaultFilePermissions(filePermissions);
+    ASSERT_EQ(API_OK, downloadFolder());
+    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+    deleteFolder(foldername.c_str());
+}
+
+TEST_F(SdkTest, GetRecommendedProLevel)
+{
+    // see also unit test MegaApi.MegaApiImpl_calcRecommendedProLevel in ..>unit>MegaApi_test.cpp
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    int level = -1;
+    int err = synchronousGetRecommendedProLevel(0, level);
+    ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
+    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+}
+
+/**
+ * @brief Test JourneyID Tracking support and ViewID generation
+ *
+ * - Test JourneyID functionality (obtained from "ug"/"gmf" commands)
+ *   and ViewID generation - Values used for tracking on API requests.
+ * - Ref: SDK-2768 - User Journey Tracking Support
+ *
+ * TEST ViewID: Generate a ViewID and check the hex string obtained.
+ *
+ * Tests JourneyID:
+ * Test 1: JourneyID before login (retrieved from "gmf" command)
+ * Test 2: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
+ * TEST 3: Full logout and login from a fresh instance - cache file is deleted - new JourneyID retrieved from "ug" command
+ * TEST 4:  Unset tracking flag.
+ * TEST 5:  Update journeyID with a new hex string - must keep the previous one - must set tracking flag.
+ * TEST 6:  Update journeyID with another hex string - must keep the previous one - no values must be updated.
+ * TEST 7:  Update journeyID with an empty string - tracking flag must be unset.
+ * TEST 8:  Local logout, resume session and do a fetch nodes request - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+ * TEST 9:  Full logout and login from the same instance - JourneyID is reset -
+ *          A new JourneyID should be retrieved from the next "ug" command after login: must be different from the original retrieved on TEST 1A.
+ *
+ */
+TEST_F(SdkTest, SdkTestJourneyTracking)
+{
+    LOG_info << "___TEST SdkTestJourneyTracking___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // This UGLY cast is used so we can access the MegaClient.
+    // We need to access the MegaClient to test JourneyID functionality according to specifications.
+    // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
+    // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
+    // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaClient* client = impl->getMegaClient();
+
+    //==================||
+    //    Test ViewID   ||
+    //==================||
+
+    // Generate a ViewID (16-char hex string)
+    auto viewIdCstr = megaApi[0]->generateViewId();
+    auto viewId = string(viewIdCstr);
+    ASSERT_FALSE (viewId.empty()) << "Invalid hex string for generated viewId - it's empty";
+    constexpr size_t HEX_STRING_SIZE = 16;
+    ASSERT_TRUE (viewId.size() == HEX_STRING_SIZE) << "Invalid hex string size for generated viewId (" << viewId.size() << ") - expected (" << HEX_STRING_SIZE << ") [ViewID: '" << viewId << "']";
+    delete viewIdCstr;
+
+    //=====================||
+    //    Test JourneyID   ||
+    //=====================||
+
+    // TEST 1: JourneyID before login (retrieved from "gmf" command)
+    auto initialJourneyId = client->getJourneyId(); // Check the actual JourneyID before the logout
+    ASSERT_FALSE(initialJourneyId.empty()) << "There should be a valid initial JourneyID from the first login";;
+
+    // Logout and GetMiscFlags()
+    logout(0, false, maxTimeout);
+    ASSERT_TRUE(client->getJourneyId().empty()) << "There shouldn't be any valid journeyId value after a full logout - values must be reset and cache file deleted";
+    gSessionIDs[0] = "invalid";
+    auto err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // Get a new JourneyId from "gmf" command
+    auto journeyIdGmf = client->getJourneyId();
+    ASSERT_FALSE(initialJourneyId == journeyIdGmf) << "The initial JourneyId (loaded from cache) cannot be equal to the new Journeyid (obtained from \"gmf\" command)";
+
+    // TEST 2: JourneyID after login - must be the same than the one loaded and cached after "gmf" command
+    auto trackerLogin1 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin1->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    auto journeyIdAfterFirstLogin = client->getJourneyId();
+    ASSERT_TRUE(journeyIdGmf == journeyIdAfterFirstLogin) << "JourneyId value after login must be the same than the previous journeyId loaded from cache";
+
+    // Full logout and login from a fresh instance
+    logout(0, false, maxTimeout);
+    auto journeyIdAfterLogout = client->getJourneyId();
+    ASSERT_TRUE(journeyIdAfterLogout.empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
+    gSessionIDs[0] = "invalid";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // New impl and client - we need to update pointers
+    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    client = impl->getMegaClient();
+
+    // TEST 3: Check JourneyID after login from a fresh instance with no cache file
+    // A new JourneyID should have been retrieved from the initial "ug" command
+    auto journeyId = client->getJourneyId();
+    ASSERT_FALSE (journeyId.empty()) << "Invalid hex string for generated journeyId - it's empty";
+    ASSERT_TRUE (journeyId.size() == MegaClient::JourneyID::HEX_STRING_SIZE) << "Invalid hex string size for generated journeyId (" << journeyId.size() << ") - expected (" << MegaClient::JourneyID::HEX_STRING_SIZE << ")";
+    ASSERT_TRUE (client->trackJourneyId()) << "Wrong value for client->trackJourneyId() (false) - expected true: it has a value and tracking flag is ON";
+    ASSERT_FALSE(journeyId == journeyIdAfterFirstLogin) << "JourneyId value after second login (obtained from \"ug\" command) cannot be the same as the previous journeyId value (obtained from \"gmf\" command - reset from cache)";
+
+        // Lambda function for checking JourneyID values after updates
+        // ref_id: A numeric value to identify the call
+        // trackJourneyId: Whether client->trackJourneyId() should return true (stored value, tracking flag is set) or false (tracking flag is unset)
+        auto checkJourneyId = [client, &journeyId] (int ref_id, bool trackJourneyId)
+        {
+            auto actualJourneyId = client->getJourneyId();
+            ASSERT_TRUE (actualJourneyId == journeyId) << "[Jid " << ref_id << "] Wrong value for actual journeyId" << "(" << actualJourneyId << "). Expected to be equal to original journeyID (" << journeyId << ")";
+            if (trackJourneyId)
+            {
+                ASSERT_TRUE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected TRUE: it has a value and tracking flag must be set";
+            }
+            else
+            {
+                ASSERT_FALSE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected FALSE: it has a value, but tracking flag must be unset";
+            }
+        };
+
+    // TEST 4: Unset tracking flag
+    // JourneyID must still be valid, but tracking flag must be set
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong returned value for setJourneyId(\"\") - expected TRUE (updated): tracking flag should've been unset";
+    checkJourneyId(4, false);
+
+    // TEST 5: Update journeyID with a new hex string - must keep the previous one - must set tracking flag
+    ASSERT_TRUE (client->setJourneyId("FF00FF00FF00FF00")) << "Wrong result for client->setJourneyId(\"FF00FF00FF00FF00\") - expected TRUE (updated): tracking flag should've been set";
+    checkJourneyId(5, true);
+
+    // TEST 6: Update journeyID with a another hex string - must keep the previous one - no changes, no cache updates -> setJourneyId should return false
+    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(\"0000000000000001\") - expected FALSE (not updated): neither journeyId value nor tracking flag should've been updated";
+    checkJourneyId(6, true);
+
+    // TEST 7: Update journeyID with an empty string - tracking flag must be unset
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong result for client->setJourneyId(\"\") - expected TRUE: tracking flag should've been unset";
+    checkJourneyId(7, false);
+
+    // TEST 8: Locallogout, resume session and request to fetch nodes - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    checkJourneyId(8, true);
+
+    // TEST 9: Full logout and login from the same instance - values must be reset and cache file deleted
+    // A new JourneyID value should be retrieved from the next "ug" command after login
+    ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
+    gSessionIDs[0] = "invalid";
+    auto trackerLogin2 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin2->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_TRUE(client->getJourneyId().empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
+
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // This will get a new JourneyID
+    auto newJourneyId = client->getJourneyId();
+
+    // New value should be different from the original JourneyID
+    ASSERT_FALSE(newJourneyId == journeyId) << "Wrong result when comparing newJourneyId and old JourneyId. They should be different after a full logout - values are reset and cached file is deleted";
+    journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
+    checkJourneyId(9, true);
 }

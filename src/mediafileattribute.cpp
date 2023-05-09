@@ -175,12 +175,12 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     }
 }
 
-void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, JSON& json, int codecListVersion)
 {
-    client->mediaFileInfo.onCodecMappingsReceipt(client, codecListVersion);
+    client->mediaFileInfo.onCodecMappingsReceipt(client, json, codecListVersion);
 }
 
-void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, JSON& json, int codecListVersion)
 {
     if (codecListVersion < 0)
     {
@@ -195,12 +195,12 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
 
         downloadedCodecMapsVersion = codecListVersion;
         assert(downloadedCodecMapsVersion < 10000);
-        client->json.enterarray();
-        ReadIdRecords(mediaCodecs.containers, client->json);
-        ReadIdRecords(mediaCodecs.videocodecs, client->json);
-        ReadIdRecords(mediaCodecs.audiocodecs, client->json);
-        ReadShortFormats(mediaCodecs.shortformats, client->json);
-        client->json.leavearray();
+        json.enterarray();
+        ReadIdRecords(mediaCodecs.containers, json);
+        ReadIdRecords(mediaCodecs.videocodecs, json);
+        ReadIdRecords(mediaCodecs.audiocodecs, json);
+        ReadShortFormats(mediaCodecs.shortformats, json);
+        json.leavearray();
         mediaCodecsReceived = true;
 
         // update any download transfers we already processed

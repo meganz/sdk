@@ -1256,21 +1256,11 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (gVerboseMode)
     {
         cout << "Received " << l << " byte(s) of user attribute: ";
@@ -1303,11 +1293,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
@@ -2619,7 +2604,7 @@ public:
     }
 
     // process file credentials
-    bool procresult(Result r) override
+    bool procresult(Result r, JSON& json) override
     {
         if (!r.wasErrorOrOK())
         {
@@ -2627,25 +2612,25 @@ public:
             bool done = false;
             while (!done)
             {
-                switch (client->json.getnameid())
+                switch (json.getnameid())
                 {
                 case EOO:
                     done = true;
                     break;
 
                 case 'g':
-                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
                         {
                             std::string tu;
-                            if (!client->json.storeobject(&tu))
+                            if (!json.storeobject(&tu))
                             {
                                 break;
                             }
                             tempurls.push_back(tu);
                         }
-                        client->json.leavearray();
+                        json.leavearray();
                         if (tempurls.size() == 6)
                         {
                             if (Node* n = client->nodebyhandle(h))
@@ -2663,7 +2648,7 @@ public:
                     // fall-through
 
                 default:
-                    client->json.storeobject();
+                    json.storeobject();
                 }
             }
         }
@@ -3312,9 +3297,10 @@ void exec_getuserquota(autocomplete::ACState& s)
     client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
-void exec_getuserdata(autocomplete::ACState& s)
+void exec_getuserdata(autocomplete::ACState&)
 {
-    client->getuserdata(client->reqtag);
+    if (client->loggedin()) client->getuserdata(client->reqtag);
+    else client->getmiscflags();
 }
 
 void exec_querytransferquota(autocomplete::ACState& ac)

@@ -743,6 +743,7 @@ typedef enum {
     //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
+    ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -843,6 +844,7 @@ typedef enum {
     REASON_ERROR_UNSERIALIZE_NODE   = 1,
     REASON_ERROR_DB_IO              = 2,
     REASON_ERROR_DB_FULL            = 3,
+    REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
