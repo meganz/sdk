@@ -107,9 +107,10 @@ MegaClient::JourneyID::JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, c
     mTrackValue(false),
     mClientFsaccess(clientFsaccess)
 {
-    mCacheFilePath = rootPath;
-    if (!mCacheFilePath.empty())
+    if (!rootPath.empty())
     {
+        LocalPath newCacheFilePath = rootPath;
+        mCacheFilePath = newCacheFilePath;
         mCacheFilePath.appendWithSeparator(LocalPath::fromRelativePath("jid"), true);
 
         auto fileAccess = mClientFsaccess->newfileaccess(false);
