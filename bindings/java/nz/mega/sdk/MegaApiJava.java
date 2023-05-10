@@ -8252,6 +8252,7 @@ public class MegaApiJava {
      * @param handle Contact request handle to check
      * @return MegaContactRequest object with the handle, otherwise NULL
      */
+    @Nullable
     public MegaContactRequest getContactRequestByHandle(long handle) {
         return megaApi.getContactRequestByHandle(handle);
     }
@@ -8277,6 +8278,7 @@ public class MegaApiJava {
      * @param user Email or Base64 handle of the user
      * @return MegaUser that has the email address, otherwise NULL
      */
+    @Nullable
     public MegaUser getContact(String user) {
         return megaApi.getContact(user);
     }
@@ -8408,6 +8410,7 @@ public class MegaApiJava {
      * @param node Node to look for inshare user.
      * @return MegaUser relative to the incoming share
      */
+    @Nullable
     public MegaUser getUserFromInShare(MegaNode node) {
         return megaApi.getUserFromInShare(node);
     }
@@ -8428,6 +8431,7 @@ public class MegaApiJava {
      * @param recurse use root node corresponding to the node passed
      * @return MegaUser relative to the incoming share
      */
+    @Nullable
     public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
         return megaApi.getUserFromInShare(node, recurse);
     }
@@ -8613,6 +8617,7 @@ public class MegaApiJava {
      * @param filePath Local file path
      * @return Base64-encoded fingerprint for the file
      */
+    @Nullable
     public String getFingerprint(String filePath) {
         return megaApi.getFingerprint(filePath);
     }
@@ -8627,6 +8632,7 @@ public class MegaApiJava {
      * @param fingerprint Fingerprint to check
      * @return MegaNode object with the provided fingerprint
      */
+    @Nullable
     public MegaNode getNodeByFingerprint(String fingerprint) {
         return megaApi.getNodeByFingerprint(fingerprint);
     }
@@ -8644,6 +8650,7 @@ public class MegaApiJava {
      * @param parent      Preferred parent node
      * @return MegaNode object with the provided fingerprint
      */
+    @Nullable
     public MegaNode getNodeByFingerprint(String fingerprint, MegaNode parent) {
         return megaApi.getNodeByFingerprint(fingerprint, parent);
     }
@@ -8677,6 +8684,7 @@ public class MegaApiJava {
      * @param name        Name that the node should have (optional)
      * @return Exportable node that meet the requirements
      */
+    @Nullable
     public MegaNode getExportableNodeByFingerprint(String fingerprint, String name) {
         return megaApi.getExportableNodeByFingerprint(fingerprint, name);
     }
@@ -8694,6 +8702,7 @@ public class MegaApiJava {
      * @param fingerprint Fingerprint to check
      * @return Exportable node that meet the requirements
      */
+    @Nullable
     public MegaNode getExportableNodeByFingerprint(String fingerprint) {
         return megaApi.getExportableNodeByFingerprint(fingerprint);
     }
@@ -8723,6 +8732,7 @@ public class MegaApiJava {
      * @param filePath Local file path
      * @return Base64-encoded CRC of the file
      */
+    @Nullable
     public String getCRC(String filePath) {
         return megaApi.getCRC(filePath);
     }
@@ -8735,6 +8745,7 @@ public class MegaApiJava {
      * @param fingerprint fingerprint from which we want to get the CRC
      * @return Base64-encoded CRC from the fingerprint
      */
+    @Nullable
     public String getCRCFromFingerprint(String fingerprint) {
         return megaApi.getCRCFromFingerprint(fingerprint);
     }
@@ -8752,6 +8763,7 @@ public class MegaApiJava {
      * @param node Node for which we want to get the CRC
      * @return Base64-encoded CRC of the node
      */
+    @Nullable
     public String getCRC(MegaNode node) {
         return megaApi.getCRC(node);
     }
@@ -8769,6 +8781,7 @@ public class MegaApiJava {
      * @return Node with the selected CRC in the selected folder, or NULL
      * if it's not found.
      */
+    @Nullable
     public MegaNode getNodeByCRC(String crc, MegaNode parent) {
         return megaApi.getNodeByCRC(crc, parent);
     }
@@ -8837,6 +8850,7 @@ public class MegaApiJava {
      *
      * @return Root node of the account
      */
+    @Nullable
     public MegaNode getRootNode() {
         return megaApi.getRootNode();
     }
@@ -8849,6 +8863,7 @@ public class MegaApiJava {
      *
      * @return Inbox node of the account.
      */
+    @Nullable
     public MegaNode getInboxNode() {
         return megaApi.getInboxNode();
     }
@@ -8861,6 +8876,7 @@ public class MegaApiJava {
      *
      * @return Rubbish node of the account.
      */
+    @Nullable
     public MegaNode getRubbishNode() {
         return megaApi.getRubbishNode();
     }
@@ -9871,6 +9887,7 @@ public class MegaApiJava {
      * @param node MegaNode to authorize
      * @return Authorized node, or NULL if the node can't be authorized
      */
+    @Nullable
     public MegaNode authorizeNode(MegaNode node) {
         return megaApi.authorizeNode(node);
     }
@@ -9893,6 +9910,7 @@ public class MegaApiJava {
      * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
      * @return Authorized node, or NULL if the node can't be authorized
      */
+    @Nullable
     public MegaNode authorizeChatNode(MegaNode node, String cauth) {
         return megaApi.authorizeChatNode(node, cauth);
     }
