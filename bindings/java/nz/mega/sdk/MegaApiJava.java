@@ -9923,6 +9923,7 @@ public class MegaApiJava {
      *
      * @return SDK version
      */
+    @Nullable
     public String getVersion() {
         return megaApi.getVersion();
     }
@@ -9935,6 +9936,7 @@ public class MegaApiJava {
      *
      * @return User-Agent used by the SDK
      */
+    @Nullable
     public String getUserAgent() {
         return megaApi.getUserAgent();
     }
@@ -10133,6 +10135,7 @@ public class MegaApiJava {
      * @param dstPath  Destination path
      * @return Converted name (UTF8)
      */
+    @Nullable
     public String escapeFsIncompatible(String filename, String dstPath) {
         return megaApi.escapeFsIncompatible(filename, dstPath);
     }
@@ -10152,6 +10155,7 @@ public class MegaApiJava {
      * @param localPath Local path
      * @return Converted name (UTF8)
      */
+    @Nullable
     String unescapeFsIncompatible(String name, String localPath) {
         return megaApi.unescapeFsIncompatible(name, localPath);
     }
@@ -10190,6 +10194,7 @@ public class MegaApiJava {
      * @param base64 NULL-terminated Base64 character array
      * @return NULL-terminated Base32 character array
      */
+    @Nullable
     public static String base64ToBase32(String base64) {
         return MegaApi.base64ToBase32(base64);
     }
@@ -10206,6 +10211,7 @@ public class MegaApiJava {
      * @param base32 NULL-terminated Base32 character array
      * @return NULL-terminated Base64 character array
      */
+    @Nullable
     public static String base32ToBase64(String base32) {
         return MegaApi.base32ToBase64(base32);
     }
@@ -10595,6 +10601,7 @@ public class MegaApiJava {
      * @param node Node to generate the local HTTP link
      * @return URL to the node in the local HTTP proxy server, otherwise NULL
      */
+    @Nullable
     public String httpServerGetLocalLink(MegaNode node) {
         return megaApi.httpServerGetLocalLink(node);
     }
@@ -10688,6 +10695,7 @@ public class MegaApiJava {
      * @param extension File extension (with or without a leading dot)
      * @return MIME type associated with the extension
      */
+    @Nullable
     public static String getMimeType(String extension) {
         return MegaApi.getMimeType(extension);
     }
@@ -11230,6 +11238,7 @@ public class MegaApiJava {
      *
      * @return verified phone number.
      */
+    @Nullable
     public String smsVerifiedPhoneNumber() {
         return megaApi.smsVerifiedPhoneNumber();
     }
@@ -12340,6 +12349,7 @@ public class MegaApiJava {
      * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
      * - API_EARGS if there was an internal error composing the URL
      */
+    @Nullable
     public String getPublicLinkForExportedSet(long sid) {
         return megaApi.getPublicLinkForExportedSet(sid);
     }
