@@ -1176,7 +1176,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 
     retries++;
 
-    LOG_warn << "Streaming transfer retry due to error " << e;
+    LOG_warn << "[DirectReadNode::retry] Streaming transfer retry due to error " << e << " [this = " << this << "]";
     if (client->autodownport)
     {
         client->usealtdownport = !client->usealtdownport;
@@ -1401,12 +1401,17 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         size_t fastestConnection = connectionNum;
         size_t numReqs = mReqs.size();
         bool minComparableThroughputForOtherConnection = true;
-        for (size_t otherConnection = numReqs - 1; otherConnection > 0 && minComparableThroughputForOtherConnection; --otherConnection)
+        for (size_t otherConnection = numReqs; (otherConnection --> 0) && minComparableThroughputForOtherConnection;)
         {
             if ((otherConnection != connectionNum) &&
                 (otherConnection != mUnusedRaidConnection))
             {
-                if (mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput)
+                bool otherConnectionIsDone = (mReqs[otherConnection] &&
+                                                    (mReqs[otherConnection]->status == REQ_DONE ||
+                                                    (mReqs[otherConnection]->pos == mDr->drbuf.transferSize(static_cast<unsigned>(otherConnection)))));
+                bool otherConnectionHasEnoughDataToCompare = mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput;
+                bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
+                if (compareCondition)
                 {
                     m_off_t otherConnectionThroughput = getThroughput(otherConnection);
                     m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
@@ -1420,7 +1425,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
                         fastestConnection = otherConnection;
                     }
                 }
-                else // If we don't have enough throughput data for mThroughput to compare with (maybe it was disconnected right from the beggining), then we just skip this
+                else // If we don't have enough throughput data for one connection, or any connection is done (we shouldn't reset it at that point), then we just skip this
                 {
                     // Cannot compare... will need to wait
                     slowestConnection = numReqs;
