@@ -315,7 +315,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.outshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                     delete delshare;
                 }
@@ -338,7 +338,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.pendingshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                     delete delshare;
                 }
@@ -410,7 +410,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
-                                    notifynode(n);
+                                    mNodeManager.notifyNode(n);
                                 }
                                 delete delshare;
                             }
@@ -469,7 +469,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->changed.outshares = true;
                         }
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
             }
@@ -503,7 +503,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         if (notify)
                         {
                             n->changed.inshare = true;
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                     else
@@ -3608,7 +3608,7 @@ void MegaClient::dispatchTransfers()
                                     if (n)
                                     {
                                         n->size = s;
-                                        notifynode(n);
+                                        mNodeManager.notifyNode(n);
                                     }
                                 }
 
@@ -5496,7 +5496,7 @@ void MegaClient::sc_updatenode()
                                 // if this change by this client resulted in NO_KEY, report it
                                 n->changed.modifiedByThisClient = true;
                             }
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                 }
@@ -6043,7 +6043,7 @@ void MegaClient::sc_fileattr()
                 {
                     JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
-                    notifynode(n);
+                    mNodeManager.notifyNode(n);
                 }
                 return;
 
@@ -6641,7 +6641,7 @@ void MegaClient::sc_ph()
                 }
 
                 n->changed.publiclink = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else
             {
@@ -8921,7 +8921,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (notify)
             {
                 // node is save in DB at notifypurge
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else // Only need to save in DB if node is not notified
             {
@@ -11326,12 +11326,6 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
     reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
 }
 #endif
-
-// queue node for notification
-void MegaClient::notifynode(Node* n)
-{
-    mNodeManager.notifyNode(n);
-}
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {

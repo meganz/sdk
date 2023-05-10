@@ -1733,8 +1733,6 @@ public:
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
 
-    void notifynode(Node*);
-
     // update transfer in the persistent cache
     void transfercacheadd(Transfer*, TransferDbCommitter*);
 

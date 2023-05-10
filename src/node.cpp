@@ -1428,15 +1428,9 @@ NodeCounter Node::getCounter() const
     return mCounter;
 }
 
-void Node::setCounter(const NodeCounter &counter, bool notify)
+void Node::setCounter(const NodeCounter &counter)
 {
     mCounter = counter;
-
-    if (notify)
-    {
-        changed.counter = true;
-        client->notifynode(this);
-    }
 }
 
 // returns whether node was moved
