@@ -10008,6 +10008,17 @@ public class MegaApiJava {
     }
 
     /**
+     * Generate an unique ViewID
+     * <p>
+     * The caller gets the ownership of the object.
+     * <p>
+     * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+     */
+    public String generateViewId() {
+        return megaApi.generateViewId();
+    }
+
+    /**
      * Set the preferred language of the user
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish:
