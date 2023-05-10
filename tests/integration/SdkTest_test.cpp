@@ -466,20 +466,15 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
-            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
-            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getOutShares())->size() == 0; }, 20*1000)) << "some outshares were not removed";
 
-            unique_ptr<MegaShareList> pendingOutshares(megaApi[nApi]->getPendingOutShares());
-            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getPendingOutShares())->size() == 0; }, 20*1000)) << "some pending outshares were not removed";
 
-            unique_ptr<MegaShareList> unverifiedOutshares(megaApi[nApi]->getUnverifiedOutShares());
-            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedOutShares())->size() == 0; }, 20*1000)) << "some unverified outshares were not removed";
 
-            unique_ptr<MegaShareList> unverifiedInshares(megaApi[nApi]->getUnverifiedInShares());
-            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedInShares())->size() == 0; }, 20*1000)) << "some unverified inshares were not removed";
 
-            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
-            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getInSharesList())->size() == 0; }, 20*1000)) << "some inshares were not removed";
         }
     }
 
