@@ -6400,22 +6400,53 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the event message
      *
      * @param eventType Event type
+     *                  Event types are restricted to the following ranges:
+     *                  - MEGAcmd:   [98900, 99000)
+     *                  - MEGAchat:  [99000, 99199)
+     *                  - Android:   [99200, 99300)
+     *                  - iOS:       [99300, 99400)
+     *                  - MEGA SDK:  [99400, 99500)
+     *                  - MEGAsync:  [99500, 99600)
+     *                  - Webclient: [99600, 99800]
      * @param message   Event message
      * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
      * is sent to MEGA servers.
-     * </p>
-     * Event types are restricted to the following ranges:
-     * - MEGAcmd:   [98900, 99000)
-     * - MEGAchat:  [99000, 99150)
-     * - Android:   [99200, 99300)
-     * - iOS:       [99300, 99400)
-     * - MEGA SDK:  [99400, 99500)
-     * - MEGAsync:  [99500, 99600)
-     * - Webclient: [99600, 99800]
+     * This version of the function is deprecated. Please use the non-deprecated one below.
      */
     @Deprecated
     public void sendEvent(int eventType, String message) {
         megaApi.sendEvent(eventType, message);
+    }
+
+    /**
+     * Send events to the stats server
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the event type
+     * - MegaRequest::getText - Returns the event message
+     * - MegaRequest::getFlag - Returns the addJourneyId flag
+     * - MegaRequest::getSessionKey - Returns the ViewID
+     *
+     * @param eventType    Event type
+     *                     Event types are restricted to the following ranges:
+     *                     - MEGAcmd:   [98900, 99000)
+     *                     - MEGAchat:  [99000, 99199)
+     *                     - Android:   [99200, 99300)
+     *                     - iOS:       [99300, 99400)
+     *                     - MEGA SDK:  [99400, 99500)
+     *                     - MEGAsync:  [99500, 99600)
+     *                     - Webclient: [99600, 99800]
+     * @param message      Event message
+     * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+     * @param viewId       ViewID value (C-string null-terminated) to be sent with the event.
+     *                     This value should have been generated with MegaApi::generateViewId method.
+     * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+     * is sent to MEGA servers.
+     */
+    @Deprecated
+    public void sendEvent(int eventType, String message, boolean addJourneyId, @Nullable String viewId) {
+        megaApi.sendEvent(eventType, message, addJourneyId, viewId);
     }
 
     /**
