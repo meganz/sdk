@@ -57,8 +57,6 @@ struct MEGA_API NodeCore
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int OLDUPLOADTOKENLEN = 27;
-
     string nodekey;
 
     newnodesource_t source = NEW_NODE;
@@ -185,7 +183,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     static const vector<string> attributesToCopyIntoPreviousVersions;
-    
+
     // 'sen' attribute
     bool isMarkedSensitive() const;
     bool isSensitiveInherited() const;
@@ -259,11 +257,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     } changed;
 
-    void setkey(const byte* = NULL);
 
+    void setKey(const string& key);
+    void setkey(const byte*);
     void setkeyfromjson(const char*);
-
-    void setUndecryptedKey(const std::string &undecryptedKey);
 
     void setfingerprint();
 
@@ -311,7 +308,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
@@ -347,7 +344,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         FLAGS_SIZE = 3
     };
 
-    typedef std::bitset<FLAGS_SIZE> Flags; 
+    typedef std::bitset<FLAGS_SIZE> Flags;
 
     // check if any of the flags are set in any of the anesestors
     bool anyExcludeRecursiveFlag(Flags excludeRecursiveFlags) const;
@@ -512,7 +509,7 @@ struct MEGA_API LocalNode : public File
     LocalNode(Sync*);
     void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();

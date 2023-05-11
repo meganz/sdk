@@ -190,13 +190,13 @@ public:
     // Returns true if a node has versions
     bool hasVersion(NodeHandle nodeHandle);
 
-    NodeHandle getRootNodeFiles() {
+    NodeHandle getRootNodeFiles() const {
         return rootnodes.files;
     }
-    NodeHandle getRootNodeVault() {
+    NodeHandle getRootNodeVault() const {
         return rootnodes.vault;
     }
-    NodeHandle getRootNodeRubbish() {
+    NodeHandle getRootNodeRubbish() const {
         return rootnodes.rubbish;
     }
     void setRootNodeFiles(NodeHandle h) {
@@ -216,15 +216,6 @@ public:
     // This method is called when initial fetch nodes is finished
     // Initialize node counters and create indexes at DB
     void initCompleted();
-
-    // This method should be called when no recoverable error is detected
-    // This error are called mainly due an error in DB
-    // This method notify to app that an error has been detected
-    void fatalError(ReasonsToReload reloadReason);
-
-    // This flag is set true when failure at DB is detected and app reload
-    // has been requested
-    bool accountShouldBeReloaded() const;
 
 private:
     MegaClient& mClient;
@@ -309,8 +300,9 @@ private:
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
-    // This flag is set true when a failure in DB has been detected. Keep true until app is reload
-    bool mAccountReload = false;
+    // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
+    void putNodeInDb(Node* node) const;
+
 };
 
 } // namespace

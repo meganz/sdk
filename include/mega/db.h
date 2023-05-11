@@ -38,6 +38,17 @@ public:
     std::string mNodeCounter;
 };
 
+enum class DBError
+{
+    DB_ERROR_UNKNOWN = 0,
+    DB_ERROR_FULL = 1,
+    DB_ERROR_IO = 2,
+    DB_ERROR_INDEX_OVERFLOW = 3,
+};
+
+using DBErrorCallback = std::function<void(DBError)>;
+
+
 class MEGA_API DbTable
 {
     PrnGen &rng;
@@ -45,6 +56,7 @@ class MEGA_API DbTable
 protected:
     bool mCheckAlwaysTransacted = false;
     DBTableTransactionCommitter* mTransactionCommitter = nullptr;
+    DBErrorCallback mDBErrorCallBack;
     friend class DBTableTransactionCommitter;
     void checkTransaction();
     // should be called by the subclass' destructor
@@ -93,7 +105,7 @@ public:
     // autoincrement
     uint32_t nextid;
 
-    DbTable(PrnGen &rng, bool alwaysTransacted);
+    DbTable(PrnGen &rng, bool alwaysTransacted, DBErrorCallback dBErrorCallBack);
     virtual ~DbTable() { }
     DBTableTransactionCommitter *getTransactionCommitter() const;
 };
@@ -257,10 +269,10 @@ struct MEGA_API DbAccess
 
     virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
 
     // use this method to get a `DbTable` that also implements `DbTableNodes` interface
-    virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) = 0;
+    virtual DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 

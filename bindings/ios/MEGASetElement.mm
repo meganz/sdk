@@ -19,7 +19,7 @@
  * program.
  */
 
-#import "MegaSetElement.h"
+#import "MEGASetElement.h"
 #import "megaapi.h"
 
 using namespace mega;
@@ -54,6 +54,10 @@ using namespace mega;
     return self.setElement ? self.setElement->id() : ::mega::INVALID_HANDLE;
 }
 
+- (uint64_t)ownerId {
+    return self.setElement ? self.setElement->setId() : ::mega::INVALID_HANDLE;
+}
+
 - (uint64_t)nodeId {
     return self.setElement ? self.setElement->node() : ::mega::INVALID_HANDLE;
 }
@@ -74,6 +78,10 @@ using namespace mega;
 
 - (BOOL)hasChangedType:(MEGASetElementChangeType)changeType {
     return self.setElement ? self.setElement->hasChanged((int)changeType) : NO;
+}
+
+- (MEGASetElementChanges)changes {
+    return (MEGASetElementChanges) (self.setElement ? self.setElement->getChanges() : 0);
 }
 
 @end

@@ -237,45 +237,85 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
+        bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
+        MegaHandle schedId;         // last scheduled meeting added
 #endif
+
+        void receiveEvent(MegaEvent* e)
+        {
+            if (!e) return;
+
+            lock_guard<mutex> g(getResourceMutex());
+            lastEvent.reset(e->copy());
+            lastEvents.insert(e->getType());
+        }
+
+        void resetlastEvent()
+        {
+            lock_guard<mutex> g(getResourceMutex());
+            lastEvent.reset();
+            lastEvents.clear();
+        }
+
+        bool lastEventsContain(int type) const
+        {
+            lock_guard<mutex> g(getResourceMutex());
+            return lastEvents.find(type) != lastEvents.end();
+        }
+
+        void setSid(const string& s) { sid = s; }
+        const string& getSid() const { return sid; }
+
+        void setAttributeValue(const string& v) { attributeValue = v; }
+        const string& getAttributeValue() const { return attributeValue; }
+
+        void setChatLink(const string& c) { chatlink = c; }
+        const string& getChatLink() const { return chatlink; }
+
+        void setBackupId(MegaHandle b) { mBackupId = b; }
+        MegaHandle getBackupId() const { return mBackupId; }
+
+        void setFavNodes(const MegaHandleList* f) { mMegaFavNodeList.reset(f); }
+        unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
+        MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
+
+        void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
+        unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
+        const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
+
+        void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
+        int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
+        const MegaStringList* getStringTableRow(int i) { return stringTable ? stringTable->get(i) : nullptr; }
+
+    private:
+        mutex& getResourceMutex() const
+        {
+            if (!resourceMtx) resourceMtx.reset(new mutex);
+            return *resourceMtx.get();
+        } // a single mutex will do fine in tests
+        mutable shared_ptr<mutex> resourceMtx;
+
+        shared_ptr<MegaEvent> lastEvent; // not used though; should it be removed?
+        set<int> lastEvents;
+
+        // relevant values received in response of requests
+        string sid;
+        string attributeValue;
+        string chatlink;  // not really used anywhere, should it be removed ?
+        MegaHandle mBackupId = UNDEF;
+        shared_ptr<const MegaStringListMap> stringListMap;
+        shared_ptr<const MegaHandleList> mMegaFavNodeList;
+        shared_ptr<const MegaStringTable> stringTable;
     };
 
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
-    // relevant values received in response of requests
-    string chatlink;  // to be removed due to race conditions
-    string attributeValue;
-    string sid;
-    std::unique_ptr<MegaStringListMap> stringListMap;
-    std::unique_ptr<MegaStringTable> stringTable;
-
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
-
-    std::mutex lastEventMutex;
-    std::unique_ptr<MegaEvent> lastEvent;
-    std::set<int> lastEvents;
-
-    void resetlastEvent()
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        lastEvent.reset();
-        lastEvents.clear();
-    }
-
-    bool lastEventsContains(int type)
-    {
-        lock_guard<mutex> g(lastEventMutex);
-        return lastEvents.find(type) != lastEvents.end();
-    }
-
-
-    MegaHandle mBackupId = UNDEF;
-    unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:
     void SetUp() override;
@@ -288,6 +328,10 @@ protected:
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
+
+#ifdef ENABLE_CHAT
+    void delSchedMeetings();
+#endif
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
@@ -328,7 +372,7 @@ public:
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
     char* dumpSession();
-    void locallogout(int timeout = maxTimeout);
+    void locallogout(unsigned apiIndex = 0);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
@@ -350,8 +394,6 @@ public:
     template<typename ... Args> int synchronousSendSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SEND_SIGNUP_LINK, [this, apiIndex, args...]() { megaApi[apiIndex]->sendSignupLink(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousConfirmSignupLink(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CONFIRM_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->confirmAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFastLogin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_LOGIN, [this, apiIndex, args...]() { megaApi[apiIndex]->fastLogin(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousRemoveContact(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_REMOVE_CONTACT, [this, apiIndex, args...]() { megaApi[apiIndex]->removeContact(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousShare(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SHARE, [this, apiIndex, args...]() { megaApi[apiIndex]->share(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetRegisteredContacts(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_REGISTERED_CONTACTS, [this, apiIndex, args...]() { megaApi[apiIndex]->getRegisteredContacts(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetCountryCallingCodes(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, [this, apiIndex, args...]() { megaApi[apiIndex]->getCountryCallingCodes(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAvatar(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAvatar(args...); }); return mApi[apiIndex].lastError; }
@@ -378,6 +420,9 @@ public:
     template<typename ... Args> int synchronousGetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDriveName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
+    // do not add functions using this pattern, see comment at top of this stanza
+
 
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
@@ -396,6 +441,8 @@ public:
     template<typename ... requestArgs> int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startUpload(args..., &tt); auto e = tt.waitForResult(); if (newNodeHandleResult) *newNodeHandleResult = tt.resultNodeHandle; return e;}
     template<typename ... requestArgs> int doStartDownload(unsigned apiIndex, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startDownload(args..., &tt); auto e = tt.waitForResult(); return e;}
     template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRemoveVersion(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeVersion(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRemoveVersions(unsigned apiIndex) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeVersions(&rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doMoveNode(unsigned apiIndex, MegaHandle* movedNodeHandle, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveNode(args..., &rt); rt.waitForResult(); if (movedNodeHandle) *movedNodeHandle = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int doCopyNode(unsigned apiIndex, MegaHandle* newNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->copyNode(args..., &rt); rt.waitForResult(); if (newNodeResult) *newNodeResult = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int doRenameNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->renameNode(args..., &rt); return rt.waitForResult(); }
@@ -426,18 +473,10 @@ public:
     template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousVerifyCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->verifyCredentials(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousResetCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->resetCredentials(args..., &rt); return rt.waitForResult(); }
-    template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... requestArgs> int synchronousRemove(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->remove(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doCreateSet(unsigned apiIndex, MegaSet** s, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSet(args..., &rt); rt.waitForResult(); if (s && rt.request->getMegaSet()) *s = rt.request->getMegaSet()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetName(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetName(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doPutSetCover(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putSetCover(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doFetchSet(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
-    {
-        RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchSet(args..., &rt); rt.waitForResult();
-        if (s) *s = rt.request->getMegaSet()->copy();
-        if (els) *els = rt.request->getMegaSetElementList()->copy();
-        return rt.result;
-    }
     template<typename ... requestArgs> int doRemoveSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSet(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int doCreateBulkSetElements(unsigned apiIndex, MegaSetElementList** els, MegaIntegerList** errs, requestArgs... args)
     {
@@ -451,10 +490,58 @@ public:
     template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaSetElementList** ell, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (ell && rt.request->getMegaSetElementList()) *ell = rt.request->getMegaSetElementList()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doRemoveBulkSetElements(unsigned apiIndex, MegaIntegerList** errs, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->removeSetElements(args..., &rt);
+        rt.waitForResult();
+        if (errs && rt.request->getMegaIntegerList()) *errs = rt.request->getMegaIntegerList()->copy();
+        return rt.result;
+    }
     template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); return rt.result; }
+    template<typename ... requestArgs> int doExportSet(unsigned apiIndex, MegaSet** s, string& url, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->exportSet(args..., &rt); rt.waitForResult();
+        if (rt.result == API_OK)
+        {
+            if (s) *s = rt.request->getMegaSet()->copy();
+            if (rt.request->getLink()) url.assign(rt.request->getLink());
+        }
+        return rt.result;
+    }
+    template<typename ... requestArgs> int doDisableExportSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableExportSet(args..., &rt); rt.waitForResult(); return rt.result; }
+    template<typename ... requestArgs> int doFetchPublicSet(unsigned apiIndex, MegaSet** s, MegaSetElementList** els, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->fetchPublicSet(args..., &rt); rt.waitForResult();
+        if (rt.result == API_OK)
+        {
+            if (s) *s = rt.request->getMegaSet()->copy();
+            if (els) *els = rt.request->getMegaSetElementList()->copy();
+        }
+        return rt.result;
+    }
+    template<typename ... requestArgs> int doGetPreviewElementNode(unsigned apiIndex, MegaNode** n, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getPreviewElementNode(args..., &rt); rt.waitForResult();
+        if (n && rt.result == API_OK) *n = rt.request->getPublicMegaNode(); // ownership received (it's a copy)
+        return rt.result;
+    }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetUserAttribute(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setUserAttribute(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetAvatar(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setAvatar(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousRemoveContact(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeContact(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousShare(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->share(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->resetPassword(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmResetPassword(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousGetRecommendedProLevel(unsigned apiIndex, int& recommendedLevel, requestArgs... args) {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getRecommendedProLevel(args..., &rt);
+        int err = rt.waitForResult();
+        if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
+        return err;
+    }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
@@ -462,21 +549,28 @@ public:
     bool createFile(string filename, bool largeFile = true, string content = "test ");
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
+    void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
     void releaseMegaApi(unsigned int apiIndex);
 
-    void inviteContact(unsigned apiIndex, string email, string message, int action);
+    void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
+    void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);
     void replyContact(MegaContactRequest *cr, int action);
-    void removeContact(string email, int timeout = maxTimeout);
+    int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);
     bool areCredentialsVerified(unsigned apiIndex, string email);
+    void shareFolder(MegaNode *n, const char *email, int action);
 
-    void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
+#ifdef ENABLE_CHAT
+    void createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid);
+    void deleteScheduledMeeting(unsigned apiIndex, MegaHandle& chatid);
+#endif
 
     string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     MegaHandle importPublicLink(unsigned apiIndex, string link, MegaNode *parent);

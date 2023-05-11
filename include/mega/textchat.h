@@ -41,181 +41,177 @@ typedef map <handle, set <handle> > attachments_map;
 
 class ScheduledFlags
 {
-    public:
-        typedef enum
-        {
-            FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
-            FLAGS_SIZE             = 1, // size in bits of flags bitmask
-        } scheduled_flags_t;            // 3 Bytes (maximum)
+public:
+    typedef enum
+    {
+        FLAGS_SEND_EMAILS      = 0, // API will send out calendar emails for this meeting if it's enabled
+        FLAGS_SIZE             = 1, // size in bits of flags bitmask
+    } scheduled_flags_t;            // 3 Bytes (maximum)
 
-        typedef std::bitset<FLAGS_SIZE> scheduledFlagsBitSet;
+    ScheduledFlags() = default;
+    ScheduledFlags (const unsigned long numericValue) : mFlags(numericValue) {};
+    ScheduledFlags (const ScheduledFlags* flags)      : mFlags(flags ? flags->getNumericValue() : 0) {};
+    virtual ~ScheduledFlags() = default;
+    ScheduledFlags(const ScheduledFlags&) = delete;
+    ScheduledFlags(const ScheduledFlags&&) = delete;
+    ScheduledFlags& operator=(const ScheduledFlags&) = delete;
+    ScheduledFlags& operator=(const ScheduledFlags&&) = delete;
 
-        ScheduledFlags() = default;
-        ScheduledFlags (unsigned long numericValue);
-        ScheduledFlags (const ScheduledFlags* flags);
-        ScheduledFlags* copy() const;
-        ~ScheduledFlags();
+    void reset()                                   { mFlags.reset(); }
+    void setSendEmails(const bool enabled)         { mFlags[FLAGS_SEND_EMAILS] = enabled; }
+    void importFlagsValue(const unsigned long val) { mFlags = val; }
 
-        // getters
-        unsigned long getNumericValue() const;
-        bool isEmpty() const;
-        bool equalTo(const ScheduledFlags*) const;
+    bool sendEmails() const                        { return mFlags[FLAGS_SEND_EMAILS]; }
+    unsigned long getNumericValue() const          { return mFlags.to_ulong(); }
+    bool isEmpty() const                           { return mFlags.none(); }
+    bool equalTo(const ScheduledFlags* sf) const
+    {
+        return sf && (getNumericValue() == sf->getNumericValue());
+    }
 
-        // serialization
-        bool serialize(string& out) const;
-        static ScheduledFlags* unserialize(const string& in);
+    virtual ScheduledFlags* copy() const { return new ScheduledFlags(this); }
 
-    private:
-        scheduledFlagsBitSet mFlags = 0;
+    bool serialize(string& out) const;
+    static ScheduledFlags* unserialize(const string& in);
+
+protected:
+    std::bitset<FLAGS_SIZE> mFlags = 0;
 };
 
 class ScheduledRules
 {
-    public:
-        typedef enum {
-            FREQ_INVALID    = -1,
-            FREQ_DAILY      = 0,
-            FREQ_WEEKLY     = 1,
-            FREQ_MONTHLY    = 2,
-        } freq_type_t;
+public:
+    typedef enum {
+        FREQ_INVALID    = -1,
+        FREQ_DAILY      = 0,
+        FREQ_WEEKLY     = 1,
+        FREQ_MONTHLY    = 2,
+    } freq_type_t;
 
-        // just for SDK core usage
-        typedef vector<int8_t> rules_vector;
-        typedef multimap<int8_t, int8_t> rules_map;
+    // just for SDK core usage (matching mega::SmallInt{Vector|Map})
+    typedef vector<int8_t> rules_vector;
+    typedef multimap<int8_t, int8_t> rules_map;
 
-        constexpr static int INTERVAL_INVALID = 0;
+    constexpr static int INTERVAL_INVALID = 0;
 
-        ScheduledRules(int freq,
-                       int interval = INTERVAL_INVALID,
-                       m_time_t until = mega_invalid_timestamp,
-                       const rules_vector* byWeekDay = nullptr,
-                       const rules_vector* byMonthDay = nullptr,
-                       const rules_map* byMonthWeekDay = nullptr);
+    ScheduledRules(const int freq,
+                   const int interval = INTERVAL_INVALID,
+                   const m_time_t until = mega_invalid_timestamp,
+                   const rules_vector* byWeekDay = nullptr,
+                   const rules_vector* byMonthDay = nullptr,
+                   const rules_map* byMonthWeekDay = nullptr);
 
-        ScheduledRules(const ScheduledRules* rules);
-        ScheduledRules* copy() const;
-        ~ScheduledRules();
+    ScheduledRules(const ScheduledRules* rules);
+    virtual ~ScheduledRules() = default;
+    ScheduledRules(const ScheduledRules&) = delete;
+    ScheduledRules(const ScheduledRules&&) = delete;
+    ScheduledRules& operator=(const ScheduledRules&) = delete;
+    ScheduledRules& operator=(const ScheduledRules&&) = delete;
 
-        // getters
-        ScheduledRules::freq_type_t freq() const;
-        int interval() const;
-        m_time_t until() const;
-        const rules_vector* byWeekDay() const;
-        const rules_vector* byMonthDay() const;
-        const rules_map* byMonthWeekDay() const;
-        bool isValid() const;
-        const char* freqToString() const;
-        bool equalTo(const ScheduledRules*) const;
-        static int stringToFreq (const char* freq);
-        static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
-        static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
-        static bool isValidUntil(m_time_t interval) { return interval > mega_invalid_timestamp; }
+    ScheduledRules::freq_type_t freq() const { return mFreq; }
+    int interval() const                     { return mInterval; }
+    m_time_t until() const                   { return mUntil;}
+    const rules_vector* byWeekDay() const    { return mByWeekDay.get(); }
+    const rules_vector* byMonthDay() const   { return mByMonthDay.get(); }
+    const rules_map* byMonthWeekDay() const  { return mByMonthWeekDay.get(); }
 
-        // serialization
-        bool serialize(string& out) const;
-        static ScheduledRules* unserialize(const string& in);
+    virtual ScheduledRules* copy() const { return new ScheduledRules(this); }
+    bool equalTo(const ScheduledRules*) const;
+    const char* freqToString() const;
+    static int stringToFreq (const char* freq);
+    bool isValid() const                              { return isValidFreq(mFreq); }
+    static bool isValidFreq(const int freq)           { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
+    static bool isValidInterval(const int interval)   { return interval > INTERVAL_INVALID; }
+    static bool isValidUntil(const m_time_t interval) { return interval > mega_invalid_timestamp; }
 
-    private:
-        // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
-        freq_type_t mFreq;
+    bool serialize(string& out) const;
+    static ScheduledRules* unserialize(const string& in);
 
-        // repetition interval in relation to the frequency
-        int mInterval = 0;
+protected:
+    // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
+    freq_type_t mFreq;
 
-        // specifies when the repetitions should end (unix timestamp)
-        m_time_t mUntil = mega_invalid_timestamp;
+    // repetition interval in relation to the frequency
+    int mInterval = 0;
 
-        // allows us to specify that an event will only occur on given week day/s
-        std::unique_ptr<rules_vector> mByWeekDay;
+    // specifies when the repetitions should end (unix timestamp)
+    m_time_t mUntil = mega_invalid_timestamp;
 
-        // allows us to specify that an event will only occur on a given day/s of the month
-        std::unique_ptr<rules_vector> mByMonthDay;
+    // allows us to specify that an event will only occur on given week day/s
+    std::unique_ptr<rules_vector> mByWeekDay;
 
-        // allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
-        std::unique_ptr<rules_map> mByMonthWeekDay;
+    // allows us to specify that an event will only occur on a given day/s of the month
+    std::unique_ptr<rules_vector> mByMonthDay;
+
+    // allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
+    std::unique_ptr<rules_map> mByMonthWeekDay;
 };
 
 class ScheduledMeeting
 {
 public:
-    ScheduledMeeting(handle chatid, const string& timezone, m_time_t startDateTime, m_time_t endDateTime,
-                     const string& title, const string& description, handle organizerUserId, handle schedId = UNDEF,
-                     handle parentSchedId = UNDEF, int cancelled = -1, const string& attributes = std::string(),
-                     m_time_t overrides = mega_invalid_timestamp, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
+    ScheduledMeeting(const handle chatid,
+                     const string& timezone,
+                     const m_time_t startDateTime,
+                     const m_time_t endDateTime,
+                     const string& title,
+                     const string& description,
+                     const handle organizerUserId,
+                     const handle schedId = UNDEF,
+                     const handle parentSchedId = UNDEF,
+                     const int cancelled = -1,
+                     const string& attributes = std::string(),
+                     const m_time_t overrides = mega_invalid_timestamp,
+                     const ScheduledFlags* flags = nullptr,
+                     const ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(const ScheduledMeeting *scheduledMeeting);
-    ScheduledMeeting* copy() const;
-    ~ScheduledMeeting();
+    virtual ~ScheduledMeeting() = default;
+    ScheduledMeeting(const ScheduledMeeting&) = delete;
+    ScheduledMeeting(const ScheduledMeeting&&) = delete;
+    ScheduledMeeting& operator=(const ScheduledMeeting&) = delete;
+    ScheduledMeeting& operator=(const ScheduledMeeting&&) = delete;
 
-    // setters
-    void setSchedId(handle schedId);
-    void setChatid(handle chatid);
+    void setSchedId(const handle schedId)        { mSchedId = schedId; }
+    void setChatid(const handle chatid)          { mChatid = chatid; }
 
-    // getters
-    handle chatid() const;
-    handle organizerUserid() const;
-    handle schedId() const;
-    handle parentSchedId() const;
-    const std::string &timezone() const;
-    m_time_t startDateTime() const;
-    m_time_t endDateTime() const;
-    const std::string &title() const;
-    const std::string &description() const;
-    const std::string &attributes() const;
-    m_time_t overrides() const;
-    int cancelled() const;
-    const ScheduledFlags* flags() const;
-    const ScheduledRules* rules() const;
+    handle chatid() const                        { return mChatid; }
+    handle organizerUserid() const               { return mOrganizerUserId; }
+    handle schedId() const                       { return mSchedId; }
+    handle parentSchedId() const                 { return mParentSchedId; }
+    const std::string &timezone() const          { return mTimezone; }
+    m_time_t startDateTime() const               { return mStartDateTime; }
+    m_time_t endDateTime() const                 { return mEndDateTime; }
+    const std::string &title() const             { return mTitle; }
+    const std::string &description() const       { return mDescription; }
+    const std::string &attributes() const        { return mAttributes; }
+    m_time_t overrides() const                   { return mOverrides; }
+    int cancelled() const                        { return mCancelled; }
+    virtual const ScheduledFlags* flags() const  { return mFlags.get(); }
+    virtual const ScheduledRules* rules() const  { return mRules.get(); }
+
+
+    virtual ScheduledMeeting* copy() const { return new ScheduledMeeting(this); }
+    bool equalTo(const ScheduledMeeting* sm) const;
     bool isValid() const;
 
-    // check if 2 scheduled meetings objects are equal or not
-    bool equalTo(const ScheduledMeeting* sm) const;
-
-    // serialization
     bool serialize(string& out) const;
-    static ScheduledMeeting* unserialize(const std::string &in, handle chatid);
+    static ScheduledMeeting* unserialize(const std::string &in, const handle chatid);
 
 private:
-    // chat handle
     handle mChatid;
-
-    // organizer user handle
     handle mOrganizerUserId;
-
-    // scheduled meeting handle
     handle mSchedId;
-
-    // parent scheduled meeting handle
     handle mParentSchedId;
-
-    // timeZone
     std::string mTimezone;
-
-    // start dateTime (unix timestamp)
-    m_time_t mStartDateTime;
-
-    // end dateTime (unix timestamp)
-    m_time_t mEndDateTime;
-
-    // meeting title
+    m_time_t mStartDateTime; // (unix timestamp)
+    m_time_t mEndDateTime; // (unix timestamp)
     std::string mTitle;
-
-    // meeting description
     std::string mDescription;
-
-    // attributes to store any additional data
-    std::string mAttributes;
-
-    // start dateTime of the original meeting series event to be replaced (unix timestamp)
-    m_time_t mOverrides;
-
-    // cancelled flag
+    std::string mAttributes; // attributes to store any additional data
+    m_time_t mOverrides; // start dateTime of the original meeting series event to be replaced (unix timestamp)
     int mCancelled;
-
-    // flags bitmask (used to store additional boolean settings as a bitmask)
-    std::unique_ptr<ScheduledFlags> mFlags;
-
-    // scheduled meetings rules
+    std::unique_ptr<ScheduledFlags> mFlags; // flags bitmask (used to store additional boolean settings as a bitmask)
     std::unique_ptr<ScheduledRules> mRules;
 };
 
@@ -264,7 +260,7 @@ public:
     TextChat();
     ~TextChat();
 
-    bool serialize(string *d);
+    bool serialize(string *d) const override;
     static TextChat* unserialize(class MegaClient *client, string *d);
 
     void setTag(int tag);

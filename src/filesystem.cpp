@@ -26,6 +26,7 @@
 #include "mega/logging.h"
 #include "mega/mega_utf8proc.h"
 #include "mega/sync.h"
+#include "mega/base64.h"
 
 #include "megafs.h"
 
@@ -38,6 +39,16 @@
 namespace mega {
 
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
+
+FSLogging FSLogging::noLogging(eNoLogging);
+FSLogging FSLogging::logOnError(eLogOnError);
+FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
+
+bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
+{
+    return setting == eLogOnError ||
+          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
+}
 
 namespace detail {
 
@@ -634,6 +645,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SMB";
         case FS_SMB2:
             return "SMB2";
+        case FS_LIFS:
+            return "LIFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -720,7 +733,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         assert(utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
-            sprintf(buf, "%%%02x", c);
+            snprintf(buf, sizeof(buf), "%%%02x", c);
             name->replace(i, 1, buf);
             // Logging these at such a low level is too frequent and verbose
             //LOG_debug << "Escape incompatible character for filesystem type "
@@ -803,11 +816,11 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck)
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcasecheck, FSLogging fsl)
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false, nullptr, false, skipcasecheck))
+    if (fileAccess->fopen(path, true, false, fsl, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -909,31 +922,32 @@ FileAccess::~FileAccess()
 }
 
 // open file for reading
-bool FileAccess::fopen(const LocalPath& name)
+bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
 {
     updatelocalname(name, true);
 
-    bool r = sysstat(&mtime, &size);
-    if (!r) 
+    bool r = sysstat(&mtime, &size, FSLogging::noLogging);
+    if (!r && fsl.doLog(errorcode, *this))
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return r;
 }
 
 bool FileAccess::isfile(const LocalPath& path)
 {
-    return fopen(path) && type == FILENODE;
+    return fopen(path, FSLogging::noLogging) && type == FILENODE;
 }
 
 bool FileAccess::isfolder(const LocalPath& path)
 {
-    fopen(path);
+    updatelocalname(path, true);
+    sysstat(&mtime, &size, FSLogging::noLogging);
     return type == FOLDERNODE;
 }
 
 // check if size and mtime are unchanged, then open for reading
-bool FileAccess::openf()
+bool FileAccess::openf(FSLogging fsl)
 {
     if (nonblocking_localname.empty())
     {
@@ -943,10 +957,13 @@ bool FileAccess::openf()
 
     m_time_t curr_mtime;
     m_off_t curr_size;
-    if (!sysstat(&curr_mtime, &curr_size))
+    if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysstat) '"
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Error opening file handle (sysstat) '"
                 << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+        }
         return false;
     }
 
@@ -958,10 +975,10 @@ bool FileAccess::openf()
         return false;
     }
 
-    bool r = sysopen();
-    if (!r) {
+    bool r = sysopen(false, FSLogging::noLogging);
+    if (!r && fsl.doLog(errorcode, *this)) {
         // file may have been deleted just now
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening file handle (sysopen) '"
+        LOG_err << "Error opening file handle (sysopen) '"
                 << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return r;
@@ -984,7 +1001,7 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f)
+AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f, FSLogging fsl)
 {
     updatelocalname(f, true);
 
@@ -999,14 +1016,14 @@ AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f)
     context->posOfBuffer = size;
     context->fa = this;
 
-    context->failed = !sysstat(&mtime, &size);
+    context->failed = !sysstat(&mtime, &size, fsl);
     context->retry = this->retry;
     context->finished = true;
     context->userCallback(context->userData);
     return context;
 }
 
-bool FileAccess::asyncopenf()
+bool FileAccess::asyncopenf(FSLogging fsl)
 {
     numAsyncReads++;
     if (nonblocking_localname.empty())
@@ -1021,9 +1038,12 @@ bool FileAccess::asyncopenf()
 
     m_time_t curr_mtime = 0;
     m_off_t curr_size = 0;
-    if (!sysstat(&curr_mtime, &curr_size))
+    if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        }
         return false;
     }
 
@@ -1036,14 +1056,14 @@ bool FileAccess::asyncopenf()
     }
 
     LOG_debug << "Opening async file handle for reading";
-    bool result = sysopen(true);
+    bool result = sysopen(true, FSLogging::noLogging);
     if (result)
     {
         isAsyncOpened = true;
     }
-    else
+    else if (fsl.doLog(errorcode, *this))
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1090,7 +1110,7 @@ void FileAccess::asyncsysopen(AsyncIOContext *context)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, m_off_t pos)
+AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, m_off_t pos, FSLogging fsl)
 {
     LOG_verbose << "Async read start";
     dst->resize(len + pad);
@@ -1106,7 +1126,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     context->userData = waiter;
     context->fa = this;
 
-    if (!asyncopenf())
+    if (!asyncopenf(fsl))
     {
         LOG_err << "Error in asyncopenf";
         context->failed = true;
@@ -1165,9 +1185,9 @@ AsyncIOContext *FileAccess::newasynccontext()
     return new AsyncIOContext();
 }
 
-bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
+bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos, FSLogging fsl)
 {
-    if (!openf())
+    if (!openf(fsl))
     {
         return false;
     }
@@ -1186,9 +1206,9 @@ bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
     return r;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened)
+bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened, FSLogging fsl)
 {
-    if (!caller_opened && !openf())
+    if (!caller_opened && !openf(fsl))
     {
         return false;
     }
@@ -1259,7 +1279,7 @@ bool FileInputStream::read(byte *buffer, unsigned size)
         return false;
     }
 
-    if (fileAccess->frawread(buffer, size, offset, true))
+    if (fileAccess->frawread(buffer, size, offset, true, FSLogging::logOnError))
     {
         offset += size;
         return true;
@@ -1743,9 +1763,9 @@ LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
 #ifdef WIN32
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
 #else
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
 #endif
     return LocalPath::fromRelativePath(buf);
 }
@@ -2048,6 +2068,72 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
 
     return result;
 }
+
+unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
+{
+    unique_ptr<FSNode> result(new FSNode);
+    result->type = fa.type;
+    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
+    result->isSymlink = fa.mIsSymLink;
+    result->fingerprint.mtime = fa.mtime;
+    result->fingerprint.size = fa.size;
+
+    result->localname = fullPath.leafName();
+
+    if (auto sn = fsa.fsShortname(fullPath))
+    {
+        if (*sn != result->localname)
+        {
+            result->shortname = std::move(sn);
+        }
+    }
+    return result;
+}
+
+unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path, bool skipCaseCheck, FSLogging fsl)
+{
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    LocalPath actualLeafNameIfDifferent;
+
+    if (!fileAccess->fopen(path, true, false, fsl, nullptr, false, skipCaseCheck, &actualLeafNameIfDifferent))
+        return nullptr;
+
+    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
+
+    if (!actualLeafNameIfDifferent.empty())
+    {
+        fsNode->localname = actualLeafNameIfDifferent;
+    }
+
+    if (fsNode->type != FILENODE)
+        return fsNode;
+
+    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
+        return nullptr;
+
+    return fsNode;
+}
+
+bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, const LocalPath& path, const FileFingerprint& ff)
+{
+    if (unique_ptr<FSNode> od = fromPath(fsAccess, path, false, FSLogging::logOnError))
+    {
+        if (od->fingerprint == ff) return true;
+
+        LOG_debug << "fingerprint mismatch at path: " << path;
+        LOG_debug << "size: " << od->fingerprint.size << " should have been " << ff.size;
+        LOG_debug << "mtime: " << od->fingerprint.mtime << " should have been " << ff.mtime;
+        LOG_debug << "crc: " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&od->fingerprint.crc)
+                  << " should have been " << Base64Str<sizeof(FileFingerprint::crc)>((byte*)&ff.crc);
+    }
+    else
+    {
+        LOG_debug << "failed to get fingerprint for path " << path;
+    }
+    return false;
+}
+
 
 
 } // namespace

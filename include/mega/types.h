@@ -121,7 +121,6 @@ struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
 struct GenericHttpReq;
-struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
 class NodeManager;
@@ -340,18 +339,21 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
-
-    // these first two are for sync rework, and should not be used before that branch is merged (directoyScan is from sync rework)
     TYPE_DONOTSYNC = -3,
     TYPE_SPECIAL = -2,
-
     TYPE_UNKNOWN = -1,
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
     VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
-    RUBBISHNODE      // RUBBISH - rubbish bin
+    RUBBISHNODE,     // RUBBISH - rubbish bin
 } nodetype_t;
+
+enum class TypeOfLink {
+    FOLDER,
+    FILE,
+    SET,
+};
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
@@ -369,6 +371,7 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
+const int SETNODEKEYLENGTH = SymmCipher::KEYLENGTH;
 
 // Max nodes per putnodes command
 const unsigned MAXNODESUPLOAD = 1000;
@@ -397,7 +400,7 @@ class Cacheable
 public:
     virtual ~Cacheable() = default;
 
-    virtual bool serialize(string*) = 0;
+    virtual bool serialize(string*) const = 0;
 
     uint32_t dbid = 0;
     bool notified = false;
@@ -549,9 +552,6 @@ const handle UNDEF = ~(handle)0;
 
 typedef list<struct TransferSlot*> transferslot_list;
 
-// FIXME: use forward_list instad (C++11)
-typedef list<HttpReqCommandPutFA*> putfa_list;
-
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_multimap;
 
@@ -681,15 +681,18 @@ typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
-typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
+// these correspond to MegaApi::STATE_SYNCED etc
+typedef enum { TREESTATE_NONE = 0,
+               TREESTATE_SYNCED,
+               TREESTATE_PENDING,
+               TREESTATE_SYNCING,
+               TREESTATE_IGNORED,
+               } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
                TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
-
-// FIXME: use forward_list instad (C++11)
-typedef list<HttpReqCommandPutFA*> putfa_list;
 
 typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 
@@ -740,6 +743,7 @@ typedef enum {
     //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
+    ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -835,11 +839,13 @@ typedef enum {
 typedef std::map<attr_t, AuthRing> AuthRingsMap;
 
 typedef enum {
-    REASON_ERROR_UNSERIALIZE_NODE = 0,
-    REASON_ERROR_WRITE_DB = 1,
-    REASON_ERROR_NODE_INCONSISTENCY = 2,
-    REASON_ERROR_UNKNOWN = 3,
-} ReasonsToReload;
+    REASON_ERROR_UNKNOWN            = -1,
+    REASON_ERROR_NO_ERROR           = 0,
+    REASON_ERROR_UNSERIALIZE_NODE   = 1,
+    REASON_ERROR_DB_IO              = 2,
+    REASON_ERROR_DB_FULL            = 3,
+    REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
+} ErrorReason;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
@@ -970,7 +976,7 @@ public:
     CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
-    bool serialize(string* data) override;
+    bool serialize(string* data) const override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
@@ -984,9 +990,6 @@ public:
     static string typeToStr(Type type);
 
 private:
-
-    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
-    bool serialize(std::string& data) const;
 
     Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;

@@ -57,6 +57,7 @@ namespace mega {
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
+std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;
@@ -423,6 +424,21 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+    /**
+     * @brief Converts a hexadecimal string to a uint64_t value. The input string may or may not have the hex prefix "0x".
+     *
+     * @param input The hexadecimal string to be converted (ex: "78b1bbbda5f32526", "0x10FF, "0x0001")
+     * @return The uint64_t value corresponding to the input hexadecimal string.
+    */
+    static uint64_t hexStringToUint64(const std::string &input);
+    /**
+     * @brief Converts a 8-byte numeric value to a 16-character lowercase hexadecimal string, with zero-padding if necessary.
+     *
+     * @param input The uint64_t value to be converted to a hexadecimal string.
+     * @return A 16-character lowercase hexadecimal string representation of the input value (ex: "78b1bbbda5f32526").
+     *
+    */
+    static std::string uint64ToHexString(uint64_t input);
 
     static int32_t toLower(const int32_t c)
     {
@@ -589,6 +605,7 @@ struct CacheableWriter
     void serializeu8(uint8_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
+    void serializeNodeHandle(NodeHandle field);
     void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
@@ -626,9 +643,12 @@ struct CacheableReader
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
+    bool unserializeNodeHandle(NodeHandle& s);
     bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
+    bool unserializefingerprint(FileFingerprint& fp);
+    bool unserializedirection(direction_t& field);  // historic; size varies by compiler.  todo: Remove when we next roll the transfer db version
 
     bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
 
@@ -989,10 +1009,10 @@ struct SyncTransferCount
     bool operator!=(const SyncTransferCount& rhs) const;
     void operator-=(const SyncTransferCount& rhs);
 
-    size_t mCompleted = 0;
-    size_t mCompletedBytes = 0;
-    size_t mPending = 0;
-    size_t mPendingBytes = 0;
+    uint32_t mCompleted = 0;
+    uint32_t mPending = 0;
+    uint64_t mCompletedBytes = 0;
+    uint64_t mPendingBytes = 0;
 };
 
 struct SyncTransferCounts
@@ -1007,6 +1027,9 @@ struct SyncTransferCounts
     SyncTransferCount mDownloads;
     SyncTransferCount mUploads;
 };
+
+// creates a new id filling `id` with random bytes, up to `length`
+void resetId(char *id, size_t length, PrnGen& rng);
 
 } // namespace mega
 

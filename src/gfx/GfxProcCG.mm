@@ -20,48 +20,34 @@
  */
 
 #include "mega.h"
-#include <CoreGraphics/CGBitmapContext.h>
-#include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
-#include <ImageIO/CGImageProperties.h>
-#import <Foundation/NSString.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIImage.h>
 #import <MobileCoreServices/UTType.h>
+#import <QuickLookThumbnailing/QuickLookThumbnailing.h>
+
+const CGFloat COMPRESSION_QUALITY = 0.8f;
+const int THUMBNAIL_MIN_SIZE = 200;
+const int64_t WAIT_60_SECONDS = 60;
 
 using namespace mega;
 
 #ifndef USE_FREEIMAGE
 
-GfxProviderCG::GfxProviderCG()
-    : imageSource(NULL)
-{
+GfxProviderCG::GfxProviderCG(): sourceURL(NULL) {
     w = h = 0;
-    thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
-                                                &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailWithTransform, kCFBooleanTrue);
-    CFDictionaryAddValue(thumbnailParams, kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue);
-
-    float comp = 0.75f;
-    CFNumberRef compression = CFNumberCreate(kCFAllocatorDefault, kCFNumberFloatType, &comp);
-    imageParams = CFDictionaryCreate(kCFAllocatorDefault, (const void **)&kCGImageDestinationLossyCompressionQuality, (const void **)&compression, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFRelease(compression);
+    semaphore = dispatch_semaphore_create(0);
 }
 
 GfxProviderCG::~GfxProviderCG() {
     freebitmap();
-    if (thumbnailParams) {
-        CFRelease(thumbnailParams);
-    }
-    if (imageParams) {
-        CFRelease(imageParams);
+    if (sourceURL) {
+        CFRelease(sourceURL);
+        sourceURL = NULL;
     }
 }
 
 const char* GfxProviderCG::supportedformats() {
-    if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqualToString:@"MEGAFiles"]) {
-        return "";
-    }
     return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
 }
 
@@ -84,82 +70,56 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
         return false;
     }
     
-    NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
-    if (sourceURL == nil) {
+    sourceURL = (CFURLRef)CFBridgingRetain([NSURL fileURLWithPath:sourcePath isDirectory:NO]);
+    if (sourceURL == NULL) {
         return false;
     }
 
     w = h = 0;
 
-    CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
-
-    CFStringRef fileExtension = (__bridge CFStringRef)[sourcePath pathExtension];
-    CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
-    if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
-        AVURLAsset *asset = [[AVURLAsset alloc] initWithURL:sourceURL options:nil];
-        AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
-        generator.appliesPreferredTrackTransform = TRUE;
-        CMTime requestedTime = CMTimeMake(1, 60);
-        CGImageRef imgRef = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:NULL];
-        if (imgRef) {
-            NSData *imgData = UIImageJPEGRepresentation([UIImage imageWithCGImage:imgRef], 1);
-            if (imgData) {
-                imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imgData, imageOptions);
+    NSString *fileExtension = [sourcePath pathExtension];
+    if (fileExtension) {
+        UTType *type = [UTType typeWithFilenameExtension:fileExtension];
+        
+        if ([type conformsToType:UTTypeMovie]) {
+            AVAsset *asset = [AVAsset assetWithURL:(__bridge NSURL *)sourceURL];
+            AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+            CGSize naturalSize = videoTrack.naturalSize;
+            w = naturalSize.width;
+            h = naturalSize.height;
+        } else if ([type conformsToType:UTTypeImage]) {
+            CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
+            CGImageSourceRef imageSource = CGImageSourceCreateWithURL(sourceURL, imageOptions);
+            if (imageSource) {
+                CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
+                if (imageProperties) {
+                    CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
+                    CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
+                    if (width && heigth) {
+                        CGFloat value;
+                        if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
+                            w = value;
+                        }
+                        if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                            h = value;
+                        }
+                    }
+                    CFRelease(imageProperties);
+                }
+                CFRelease(imageSource);
             }
-            CGImageRelease(imgRef);
-        }
-    } else {
-        imageSource = CGImageSourceCreateWithURL((__bridge CFURLRef)sourceURL, imageOptions);
-    }
-
-    if (fileUTI) {
-        CFRelease(fileUTI);
-    }
-
-    if (!imageSource) {
-        CFRelease(imageOptions);
-        return false;
-    }
-
-    CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
-    if (imageProperties) { // trying to get width and heigth from properties
-        CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
-        CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
-        if (width && heigth) {
-            CGFloat value;
-            if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
-                w = value;
-            }
-            if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
-                h = value;
+            
+            if (imageOptions) {
+                CFRelease(imageOptions);
             }
         }
-        CFRelease(imageProperties);
     }
 
-    if (imageOptions) {
-        CFRelease(imageOptions);
-    }
-
-    if (!(w && h)) { // trying to get fake size from thumbnail
-        CGImageRef thumbnail = createThumbnailWithMaxSize(size);
-        if (!thumbnail) {
-            return false;
-        }
-        w = (int) CGImageGetWidth(thumbnail);
-        h = (int) CGImageGetHeight(thumbnail);
-        CGImageRelease(thumbnail);
+    if (!(w && h)) {
+        w = h = size;
     }
     return w && h;
-}
-
-CGImageRef GfxProviderCG::createThumbnailWithMaxSize(int size) {
-    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
-    CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
-    CFRelease(maxSize);
-
-    return CGImageSourceCreateThumbnailAtIndex(imageSource, 0, thumbnailParams);
 }
 
 static inline CGRect tileRect(size_t w, size_t h)
@@ -189,46 +149,53 @@ int GfxProviderCG::maxSizeForThumbnail(const int rw, const int rh) {
 }
 
 bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
-    if (!imageSource) {
-        return false;
-    }
-
     jpegout->clear();
-
-    CGImageRef image = createThumbnailWithMaxSize(maxSizeForThumbnail(rw, rh));
-    if (!rh) { // Make square image
-        CGImageRef newImage = CGImageCreateWithImageInRect(image, tileRect(CGImageGetWidth(image), CGImageGetHeight(image)));
-        if (image) {
-            CGImageRelease(image);
+    
+    bool isThumbnail = !rh;
+    
+    if (isThumbnail) {
+        if (w > h) {
+            rh = THUMBNAIL_MIN_SIZE;
+            rw = THUMBNAIL_MIN_SIZE * w / h;
+        } else if (h > w) {
+            rh = THUMBNAIL_MIN_SIZE * h / w;
+            rw = THUMBNAIL_MIN_SIZE;
+        } else {
+            rw = rh = THUMBNAIL_MIN_SIZE;
         }
-        image = newImage;
     }
-    CFMutableDataRef data = CFDataCreateMutable(kCFAllocatorDefault, 0);
-    if (!data) {
-        CGImageRelease(image);
-        return false;
-    }
-    CGImageDestinationRef destination = CGImageDestinationCreateWithData(data, kUTTypeJPEG, 1, NULL);
-    if (!destination) {
-        CGImageRelease(image);
-        CFRelease(data);
-        return false;
-    }
-    CGImageDestinationAddImage(destination, image, imageParams);
-    bool success = CGImageDestinationFinalize(destination);
-    CGImageRelease(image);
-    CFRelease(destination);
 
-    jpegout->assign((char*)CFDataGetBytePtr(data), CFDataGetLength(data));
-    CFRelease(data);
-    return success;
+    CGSize size = CGSizeMake(rw, rh);
+    __block NSData *data;
+
+    QLThumbnailGenerationRequest *request = [[QLThumbnailGenerationRequest alloc] initWithFileAtURL:(__bridge NSURL *)sourceURL size:size scale:1.0 representationTypes:QLThumbnailGenerationRequestRepresentationTypeThumbnail];
+
+    [QLThumbnailGenerator.sharedGenerator generateBestRepresentationForRequest:request completionHandler:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
+        if (error) {
+            LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
+        } else {
+            if (isThumbnail) {
+                CGImageRef newImage = CGImageCreateWithImageInRect(thumbnail.CGImage, tileRect(CGImageGetWidth(thumbnail.CGImage), CGImageGetHeight(thumbnail.CGImage)));
+                data = UIImageJPEGRepresentation([UIImage imageWithCGImage:newImage], COMPRESSION_QUALITY);
+                if (newImage) {
+                    CFRelease(newImage);
+                }
+            } else {
+                data = UIImageJPEGRepresentation(thumbnail.UIImage, COMPRESSION_QUALITY);
+            }
+        }
+        if (this->semaphore) {
+            dispatch_semaphore_signal(this->semaphore);
+        }
+    }];
+    
+    dispatch_time_t waitTime = dispatch_time(DISPATCH_TIME_NOW, WAIT_60_SECONDS * NSEC_PER_SEC);
+    dispatch_semaphore_wait(semaphore, waitTime);
+    jpegout->assign((char*) data.bytes, data.length);
+    return data;
 }
 
 void GfxProviderCG::freebitmap() {
-    if (imageSource) {
-        CFRelease(imageSource);
-        imageSource = NULL;
-    }
     w = h = 0;
 }
 

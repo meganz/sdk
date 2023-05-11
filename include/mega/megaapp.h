@@ -28,6 +28,7 @@ struct Notification;
 struct UnifiedSync;
 class Set;
 class SetElement;
+struct PerSyncStats;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -288,6 +289,7 @@ struct MEGA_API MegaApp
 
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
+    virtual void syncupdate_stats(handle backupId, const PerSyncStats&) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_lockretry(bool) { }
@@ -326,8 +328,8 @@ struct MEGA_API MegaApp
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
 
-    // suggest reload due to possible race condition with other clients
-    virtual void reload(const char*, ReasonsToReload) { }
+    // Notify fatal errors (ie. DB, node unserialization, ...) to apps
+    virtual void notifyError(const char*, ErrorReason) { }
 
     // reload forced automatically by server
     virtual void reloading() { }

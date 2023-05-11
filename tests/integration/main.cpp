@@ -18,6 +18,7 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
 bool gOutputToCout = false;
+bool gManualVerification=false;
 
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 

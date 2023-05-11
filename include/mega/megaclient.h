@@ -257,9 +257,7 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
     }
 };
 
-
 class MegaClient;
-
 
 class MEGA_API KeyManager
 {
@@ -296,7 +294,6 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
-    bool removeShare(handle sharehandle);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -323,6 +320,9 @@ public:
 
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
+
+    // this method allows to change the manual verification feature-flag for testing purposes
+    void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
 protected:
     std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
@@ -363,6 +363,9 @@ private:
 
     // client is considered to exchange keys in a secure way (requires credential's verification)
     bool mSecure = true;
+
+    // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
+    bool mManualVerification = false;
 
     // enable / disable logs related to the contents of ^!keys
     static const bool mDebugContents = false;
@@ -434,8 +437,11 @@ private:
     // update the corresponding authring with `value`, both in KeyManager and MegaClient::mAuthrings
     void updateAuthring(attr_t at, std::string &value);
 
-    //update sharekeys (incl. trust). It doesn't purge non-existing items
+    // update sharekeys (incl. trust). It doesn't purge non-existing items
     void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+
+    // true if the credentials of this user require verification
+    bool verificationRequired(handle userHandle);
 };
 
 
@@ -494,7 +500,8 @@ public:
     bool ephemeralSession = false;
     bool ephemeralSessionPlusPlus = false;
 
-    static string publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+    static TypeOfLink validTypeForPublicURL(nodetype_t type);
+    static string publicLinkURL(bool newLinkFormat, TypeOfLink type, handle ph, const char *key);
 
     string getWritableLinkAuthKey(handle node);
 
@@ -534,7 +541,7 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    string sendsignuplink2(const char*, const char *, const char*);
+    string sendsignuplink2(const char*, const char *, const char*, int ctag = 0);
     void resendsignuplink2(const char*, const char *);
 
     void confirmsignuplink2(const byte*, unsigned);
@@ -609,7 +616,7 @@ public:
     void killallsessions();
 
     // extract public handle and key from a public file/folder link
-    error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
+    error parsepubliclink(const char *link, handle &ph, byte *key, TypeOfLink type);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
@@ -637,9 +644,6 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();
-
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
@@ -657,6 +661,9 @@ public:
 
     // track the signature of a public key in the authring for a given user
     error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+
+    // update the authring if needed on the server and manage the deactivation of the temporal authring
+    error updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh);
 
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
     error verifyCredentials(handle uh);
@@ -754,6 +761,9 @@ public:
 
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
+
+    // move as many as possible from pendingfa to activefa
+    void activatefa();
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
@@ -1014,8 +1024,8 @@ public:
     void userfeedbackstore(const char *);
 
     // send event
-    void sendevent(int, const char *);
-    void sendevent(int, const char *, int tag);
+    void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
+    void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
 
     // create support ticket
     void supportticket(const char *message, int type);
@@ -1095,7 +1105,7 @@ public:
 
     // parse scheduled meeting or scheduled meeting occurrences
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
-                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 bool parsingOccurrences, JSON *j, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
@@ -1299,16 +1309,12 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
-private:
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
 
 public:
     // notify URL for new server-client commands
     string scnotifyurl;
-
-    // unique request ID
-    char reqid[10];
 
     // lang URI component for API requests
     string lang;
@@ -1454,7 +1460,6 @@ public:
 
     void dodiscarduser(User* u, bool discardnotified);
 
-public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
 
@@ -1500,6 +1505,18 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
+    void handleDbError(DBError error);
+
+    // notify the app about a fatal error (ie. DB critical error like disk is full)
+    void fatalError(ErrorReason errorReason);
+
+    // This method returns true when fatal failure has been detected
+    // None actions has been taken yet (reload, restart app, ...)
+    bool accountShouldBeReloadedOrRestarted() const;
+
+    // This flag keeps the last error detected. It's overwritten by new errors and reset upon logout.It's cleaned after reload or other error is generated
+    ErrorReason mLastErrorDetected = ErrorReason::REASON_ERROR_NO_ERROR;
+
     // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
@@ -1513,8 +1530,8 @@ public:
     //  - app requests to attach a thumbnail/preview to a node
     //  - app requests for media upload (which return the fa handle)
     // initially added to queuedfa, and up to 10 moved to activefa.
-    putfa_list queuedfa;
-    putfa_list activefa;
+    list<shared_ptr<HttpReqFA>> queuedfa;
+    list<shared_ptr<HttpReqFA>> activefa;
 
     // API request queue double buffering:
     // reqs[r] is open for adding commands
@@ -1555,9 +1572,6 @@ public:
     // flag to pause / resume the processing of action packets
     bool scpaused;
 
-    // MegaClient-Server response JSON
-    JSON json;
-
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
@@ -1582,7 +1596,7 @@ public:
     // out-shares: populated from 'ok0' element from `f` command
     // in-shares: populated from readnodes() for `f` command
     // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
-    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+    std::map<NodeHandle, std::vector<byte>> mNewKeyRepository;
 
     // current request tag
     int reqtag;
@@ -1722,7 +1736,7 @@ public:
     Node* nodeByHandle(NodeHandle);
     Node* nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr);
+    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1974,6 +1988,7 @@ public:
     static const int CHATLINKHANDLE = 6;
     static const int SETHANDLE = Set::HANDLESIZE;
     static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
+    static const int PUBLICSETHANDLE = Set::PUBLICHANDLESIZE;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2012,11 +2027,8 @@ public:
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
 
-    // number of authrings being fetched
-    unsigned short mFetchingAuthrings = 0;
-
-    // actual state of keys
-    bool fetchingkeys;
+    // Pending contact keys during initialization
+    std::map<attr_t, set<handle>> mPendingContactKeys;
 
     // invalidate received keys (when fail to load)
     void clearKeys();
@@ -2265,6 +2277,42 @@ private:
     m_time_t mProUntil = -1;
 } mMyAccount;
 
+// JourneyID for cs API requests and log events. Populated from "ug"/"gmf" commands response.
+// It is kept in memory and persisted in disk until a full logout.
+struct JourneyID
+{
+private:
+    // The JourneyID value - a 16-char hex string (or an empty string if it hasn't been retrieved yet)
+    string mJidValue;
+    // The tracking flag: used to attach the JourneyID to cs requests
+    bool mTrackValue;
+    // Local cache file
+    unique_ptr<FileSystemAccess>& mClientFsaccess;
+    LocalPath mCacheFilePath;
+    bool storeValuesToCache(bool storeJidValue, bool storeTrackValue) const;
+
+public:
+    static constexpr size_t HEX_STRING_SIZE = 16;
+    JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath);
+    // Updates the JourneyID and the tracking flag based on the provided jidValue, which must be a 16-char hex string.
+    // When jidValue is not empty:
+    // - Sets mJidValue to jidValue only if it is currently unset (empty).
+    // - Sets mTrackValue if it is currently unset (false).
+    // When jidValue is empty:
+    // - Keeps mJidValue unchanged.
+    // - Unsets mTrackValue if it is currently set (true).
+    // Returns true if either the JourneyID (mJidValue) or the tracking flag (mTrackValue) have been updated.
+    bool setValue(const string& jidValue);
+    // Get the JourneyID (empty if still unset)
+    string getValue() const;
+    // Check if the tracking flag is set, i.e.: the JourneyID must be tracked (used in cs API reqs)
+    bool isTrackingOn() const;
+    // Load the JourneyID and the tracking flag stored in the cache file.
+    bool loadValuesFromCache();
+    // Remove local cache file and reset the JourneyID so a new one can be set from the next "ug"/"gmf" command.
+    bool resetCacheAndValues();
+};
+
 private:
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
@@ -2272,20 +2320,41 @@ private:
     // Since it's quite expensive to create a SymmCipher, this is provided to use for quick operation - just set the key and use.
     SymmCipher tmptransfercipher;
 
-    // creates a new id filling `id` with random bytes, up to `length`
-    void resetId(char *id, size_t length);
-
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
 
-    static vector<byte> deriveKey(const char* password, const string& salt);
+    static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
+//
+// JourneyID and ViewID
+//
+    // JourneyID for cs API requests and log events
+    JourneyID mJourneyId;
+
+public:
+
+    // Checks if there is a valid JourneyID and tracking flag is set
+    bool trackJourneyId() const;
+
+    // Retrieves the JourneyID value, which is a 16-character hexadecimal string (for submission to the API)
+    // If the JourneyID is still unset, it returns an empty string.
+    string getJourneyId() const;
+
+    // Load the JourneyID values from the local cache.
+    bool loadJourneyIdCacheValues();
+
+    // Set the JourneyID value from a 16-character hexadecimal string (obtained from API commands "ug"/"gmf")
+    // See JourneyID::setValue() for full doc
+    bool setJourneyId(const string& jid);
+
+    // Generates a unique ViewID that the caller should store and can optionally use in subsequent sendevent() calls.
+    // ViewID is employed by apps for event logging. It is generated by the SDK to ensure consistent and shared logic across applications.
+    static string generateViewId(PrnGen& rng);
 
 //
 // Sets and Elements
 //
 
-public:
     // generate "asp" command
     void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
@@ -2293,7 +2362,7 @@ public:
     void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+    void fetchSetInPreviewMode(std::function<void(Error, Set*, elementsmap_t*)> completion);
 
     // generate "aepb" command
     void putSetElements(vector<SetElement>&& els, std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
@@ -2301,14 +2370,17 @@ public:
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
+    // generate "aerb" command
+    void removeSetElements(handle sid, vector<handle>&& eids, std::function<void(Error, const vector<int64_t>*)> completion);
+
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool procaesp();
+    bool procaesp(JSON& j);
 
     // load Sets and Elements from json
-    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
 
     // return Set with given sid or nullptr if it was not found
     const Set* getSet(handle sid) const;
@@ -2332,7 +2404,7 @@ public:
     const SetElement* getSetElement(handle sid, handle eid) const;
 
     // return all available Elements in a Set, indexed by eid
-    const map<handle, SetElement>* getSetElements(handle sid) const;
+    const elementsmap_t* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
     const SetElement* addOrUpdateSetElement(SetElement&& el);
@@ -2340,12 +2412,36 @@ public:
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
-private:
+    // return true if Set with given sid is exported (has a public link)
+    bool isExportedSet(handle sid) const;
 
+    void exportSet(handle sid, bool makePublic, std::function<void(Error)> completion);
+
+    // returns result of the operation and the link created
+    pair<error, string> getPublicSetLink(handle sid) const;
+
+    // returns error code and public handle for the link provided as a param
+    error fetchPublicSet(const char* publicSetLink, std::function<void(Error, Set*, elementsmap_t*)>);
+
+    void stopSetPreview() { if (mPreviewSet) mPreviewSet.reset(); }
+
+    bool inPublicSetPreview() const { return !!mPreviewSet; }
+
+    const SetElement* getPreviewSetElement(handle eid) const
+    { return isElementInPreviewSet(eid) ? &mPreviewSet->mElements[eid] : nullptr; }
+
+    const Set* getPreviewSet() const { return inPublicSetPreview() ? &mPreviewSet->mSet : nullptr; }
+    const elementsmap_t* getPreviewSetElements() const
+    { return inPublicSetPreview() ? &mPreviewSet->mElements : nullptr; }
+
+private:
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
-    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
+    error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
+    error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
+    error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
@@ -2356,6 +2452,7 @@ private:
     void sc_asr(); // AP after removed Set
     void sc_aep(); // AP after new or updated Set Element
     void sc_aer(); // AP after removed Set Element
+    void sc_ass(); // AP after exported set update
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
@@ -2372,8 +2469,20 @@ private:
     void notifysetelement(SetElement*);
     void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
-    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+    map<handle, elementsmap_t> mSetElements; // indexed by Set id, then Element id
 
+    struct SetLink
+    {
+        handle mPublicId = UNDEF; // same as mSet.mPublicId once fetched
+        string mPublicKey;
+        string mPublicLink;
+        Set mSet;
+        elementsmap_t mElements;
+    };
+    unique_ptr<SetLink> mPreviewSet;
+
+    bool isElementInPreviewSet(handle eid) const
+    { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
 // -------- end of Sets and Elements
 
 };

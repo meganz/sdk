@@ -90,7 +90,6 @@ bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, int cpart)
     part = cpart;
     rr = crr;
     partStartPos = rr->reqStartPos / (RAIDPARTS-1);
-    
     std::cout << "[PartFetcher::setsource] partStartPos = " << partStartPos << ", MOD RAIDSECTOR(16) = " << (partStartPos % RAIDSECTOR) << " MOD RAIDLINE(80) = " << (partStartPos % RAIDLINE) << " [rr->reqStartPos = " << rr->reqStartPos << "]" << std::endl;
     assert(partStartPos % RAIDSECTOR == 0);
 
@@ -470,7 +469,7 @@ bool PartFetcher::directTrigger(bool addDirectio)
 // perform I/O on socket (which is assumed to exist)
 int PartFetcher::io()
 {
-	std::cout << "[PartFetcher::io] part = " << std::to_string(part) << " [currtime="<<currtime<<", megaTime="<<Waiter::ds<<"] [finished = " << finished << "] [postCompleted="<<postCompleted<<"]" << std::to_string(part) << " [finished = " << finished << ", rr = " << rr << "]" << std::endl;
+    std::cout << "[PartFetcher::io] part = " << std::to_string(part) << " [currtime="<<currtime<<", megaTime="<<Waiter::ds<<"] [finished = " << finished << "] [postCompleted="<<postCompleted<<"]" << std::to_string(part) << " [finished = " << finished << ", rr = " << rr << "]" << std::endl;
 
     if (currtime < delayuntil) std::cout << "[PartFetcher::io] part = " << std::to_string(part) << " currtime < delayuntil -> return -1 [currtime = " << currtime << ", delayuntil = " << delayuntil << "]" << std::endl;
     // prevent spurious epoll events from triggering a delayed reconnect early
@@ -540,10 +539,10 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
         if (inbuf)
             inbuf.reset(nullptr);
 
-	//size_t chunkSize = rem >= sourcesize ? (rem/2) : rem;
+        //size_t chunkSize = rem >= sourcesize ? (rem/2) : rem;
         //size_t chunkSize = std::min<size_t>(50*1024*1024, rem);
-	size_t chunkSize = rem;
-	size_t npos = pos + chunkSize;
+        size_t chunkSize = rem;
+        size_t npos = pos + chunkSize;
         assert(npos <= rr->paddedpartsize);
         std::cout << "[PartFetcher::io] [part=" << std::to_string(part) << "] (REQ_READY) -> rr->cloudRaid->prepareRequest(s=" << s << ", url='"<</*<<url<<"*/"', pos=" << pos << ", npos=" << npos << ") size = " << (npos-pos) << " [sourcesize = " << sourcesize << ", rr->paddedpartsize = " << rr->paddedpartsize << ", reqBytesReceived = " << reqBytesReceived << "] [rem=" << rem << ", rr->completed=" << rr->completed << "] [partStartPos = " << partStartPos << ", maxRequestSize = " << rr->maxRequestSize << ", numPartsUnfinished = " << rr->numPartsUnfinished() << ", rr->pool.rrcount = " << rr->pool.rrcount() << "] [feedlag = " << rr->feedlag[part] << "]" << std::endl;
         rr->cloudRaid->prepareRequest(s, url, pos + partStartPos, npos + partStartPos);

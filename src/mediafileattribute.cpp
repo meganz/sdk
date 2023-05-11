@@ -175,12 +175,12 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     }
 }
 
-void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, JSON& json, int codecListVersion)
 {
-    client->mediaFileInfo.onCodecMappingsReceipt(client, codecListVersion);
+    client->mediaFileInfo.onCodecMappingsReceipt(client, json, codecListVersion);
 }
 
-void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVersion)
+void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, JSON& json, int codecListVersion)
 {
     if (codecListVersion < 0)
     {
@@ -195,12 +195,12 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
 
         downloadedCodecMapsVersion = codecListVersion;
         assert(downloadedCodecMapsVersion < 10000);
-        client->json.enterarray();
-        ReadIdRecords(mediaCodecs.containers, client->json);
-        ReadIdRecords(mediaCodecs.videocodecs, client->json);
-        ReadIdRecords(mediaCodecs.audiocodecs, client->json);
-        ReadShortFormats(mediaCodecs.shortformats, client->json);
-        client->json.leavearray();
+        json.enterarray();
+        ReadIdRecords(mediaCodecs.containers, json);
+        ReadIdRecords(mediaCodecs.videocodecs, json);
+        ReadIdRecords(mediaCodecs.audiocodecs, json);
+        ReadShortFormats(mediaCodecs.shortformats, json);
+        json.leavearray();
         mediaCodecsReceived = true;
 
         // update any download transfers we already processed
@@ -739,14 +739,14 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 
 bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
 {
-    if (!fa->fopen(filename, true, false))
+    if (!fa->fopen(filename, true, false, FSLogging::logOnError))
     {
         LOG_err << "could not open local file for mediainfo";
         return false;
     }
 
     m_off_t filesize = fa->size;
-    size_t totalBytesRead = 0, jumps = 0;
+    size_t totalBytesRead = 0;
     mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
     m_time_t startTime = 0;
@@ -776,7 +776,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             return false;
         }
 
-        if (!fa->frawread(buf, n, readpos, true))
+        if (!fa->frawread(buf, n, readpos, true, FSLogging::logOnError))
         {
             LOG_err << "could not read local file";
             mi.Open_Buffer_Finalize();
@@ -819,7 +819,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
         {
             readpos = requestPos;
             mi.Open_Buffer_Init(filesize, readpos);
-            jumps += 1;
         }
     }
 
