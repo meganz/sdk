@@ -173,11 +173,12 @@ namespace mega {
         }
     }
 
-    bool Set::serialize(string* d)
+    bool Set::serialize(string* d) const
     {
         CacheableWriter r(*d);
 
         r.serializehandle(mId);
+        r.serializehandle(mPublicId);
         r.serializehandle(mUser);
         r.serializecompressedi64(mTs);
         r.serializestring(mKey);
@@ -193,20 +194,22 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags();
+        r.serializeexpansionflags(true);
+        r.serializecompressedi64(mCTs);
 
         return true;
     }
 
     unique_ptr<Set> Set::unserialize(string* d)
     {
-        handle id = 0, u = 0;
+        handle id = 0, publicId = 0, u = 0;
         m_time_t ts = 0;
         string k;
         uint32_t attrCount = 0;
 
         CacheableReader r(*d);
         if (!r.unserializehandle(id) ||
+            !r.unserializehandle(publicId) ||
             !r.unserializehandle(u) ||
             !r.unserializecompressedi64(ts) ||
             !r.unserializestring(k) ||
@@ -229,13 +232,16 @@ namespace mega {
         }
 
         unsigned char expansionsS[8];
-        if (!r.unserializeexpansionflags(expansionsS, 0))
+        m_time_t cts = 0;
+        if (!r.unserializeexpansionflags(expansionsS, 1) ||
+            (expansionsS[0] && !r.unserializecompressedi64(cts))) // creation timestamp
         {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, move(k), u, move(attrs));
+        auto s = ::mega::make_unique<Set>(id, publicId, move(k), u, move(attrs));
         s->setTs(ts);
+        s->setCTs(cts);
 
         return s;
     }
@@ -244,9 +250,17 @@ namespace mega {
     {
         setTs(s.ts());
 
-        if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
-        if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
-        mAttrs.swap(s.mAttrs);
+        if (s.publicId() != mPublicId)
+        {
+            setChanged(CH_EXPORTED);
+            setPublicId(s.publicId());
+        }
+        else
+        {
+            if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+            if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
+            mAttrs.swap(s.mAttrs);
+        }
 
         return changes();
     }
@@ -285,7 +299,7 @@ namespace mega {
         }
     }
 
-    bool SetElement::serialize(string* d)
+    bool SetElement::serialize(string* d) const
     {
         CacheableWriter r(*d);
 
