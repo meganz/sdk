@@ -151,7 +151,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
         }
 
         connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
-        if (transferbuf.isNewRaid()) connections *= 8;
+        if (transferbuf.isNewRaid()) connections *= 16; //8;
         else { std::cout << "ALERT: NO ES RAID!!!!!!!!!!!!!!!!!!" << std::endl; }
         std::cout << "Num connections: " << connections << " JEJE" << std::endl;
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
@@ -172,6 +172,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    std::cout << "[TransferSlot::~TransferSlot] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
@@ -342,15 +343,18 @@ void TransferSlot::toggleport(HttpReqXfer *req)
            }
        }
     }
+    std::cout << "[TransferSlot::~TransferSlot] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // abort all HTTP connections
 void TransferSlot::disconnect()
 {
+    std::cout << "[TransferSlot::disconnect] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;	
     for (int i = connections; i--;)
     {
         disconnect(i);
     }
+    std::cout << "[TransferSlot::disconnect] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // abort one HTTP connection
@@ -576,6 +580,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         // Resume connections after httpio::doio
         std::cout << "CALL RESUME FUNC: cloudRaid->resumeTransferSlotFunctionality()" << std::endl;
        cloudRaid->resumeTransferSlotFunctionality();
+       static int contiVal2 = 0;
+       contiVal2 = (contiVal2 + 1) % 1000000;
+       std::cout << "[TransferSlot::doio] continue 2 [" << contiVal2 << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     }
 
     dstime backoff = 0;
@@ -1349,6 +1356,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         // Resume connections after httpio::doio
         std::cout << "CALL PAUSE FUNC: cloudRaid->pauseTransferSlotFunctionality()" << std::endl;
        cloudRaid->pauseTransferSlotFunctionality();
+	static int contiVal = 0;
+	contiVal = (contiVal + 1) % 1000000;
+       std::cout << "[TransferSlot::doio] continue [" << contiVal << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     }
 }
 

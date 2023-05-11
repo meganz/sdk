@@ -540,7 +540,10 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
         if (inbuf)
             inbuf.reset(nullptr);
 
-        size_t npos = pos + rem;
+	//size_t chunkSize = rem >= sourcesize ? (rem/2) : rem;
+        //size_t chunkSize = std::min<size_t>(50*1024*1024, rem);
+	size_t chunkSize = rem;
+	size_t npos = pos + chunkSize;
         assert(npos <= rr->paddedpartsize);
         std::cout << "[PartFetcher::io] [part=" << std::to_string(part) << "] (REQ_READY) -> rr->cloudRaid->prepareRequest(s=" << s << ", url='"<</*<<url<<"*/"', pos=" << pos << ", npos=" << npos << ") size = " << (npos-pos) << " [sourcesize = " << sourcesize << ", rr->paddedpartsize = " << rr->paddedpartsize << ", reqBytesReceived = " << reqBytesReceived << "] [rem=" << rem << ", rr->completed=" << rr->completed << "] [partStartPos = " << partStartPos << ", maxRequestSize = " << rr->maxRequestSize << ", numPartsUnfinished = " << rr->numPartsUnfinished() << ", rr->pool.rrcount = " << rr->pool.rrcount() << "] [feedlag = " << rr->feedlag[part] << "]" << std::endl;
         rr->cloudRaid->prepareRequest(s, url, pos + partStartPos, npos + partStartPos);
@@ -855,7 +858,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 
     downloadStartTime = std::chrono::system_clock::now();
 
-    int firstExcluded = -1;
+    int firstExcluded = 5;
     std::vector<int> partOrder = { 5, 4, 3, 2, 1, 0 };
 
     unsigned seed = (std::chrono::system_clock::now().time_since_epoch().count() + (unsigned)reqStartPos);

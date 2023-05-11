@@ -923,39 +923,53 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((11*1024*1024) * 5)); // 11MB * 5 raid parts
                 m_off_t maxReqSize2 = static_cast<m_off_t>(transfer->size / transfer->slot->connections);
                 maxReqSize = std::max(maxReqSize, maxReqSize2);
-                maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((5*1024*1024) * 5));
+                maxReqSize = static_cast<m_off_t>((2*1024*1024) * 5);
+		
+		//maxReqSize = maxReqSize2;
+		//maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((5*1024*1024) * 5));
+		//maxReqSize = std::max(maxReqSize2, static_cast<m_off_t>((5*1024*1024) * 5));
+		//maxReqSize = maxReqSize2;
+		//maxReqSize = static_cast<m_off_t>(transfer->size / 12);
 
                 if ((transfer->pos + ChunkedHash::chunkceil(maxReqSize)) < transfer->size)
                 {
                 std::cout << "[TransferBufferManager::nextNPosForConnection] ALERT !!!! NOT THE LAST CHUNK, PADDING TO RAIDLINE -> (isNewRaid() && ((transfer->pos + maxReqSize) < transfer->size)) -> changing maxReqSize to be multiple of RAIDLINE and RAIDSECTOR [maxReqSize = " << maxReqSize << ", RAIDLINE = " << (int)RAIDLINE << ", RAIDSECTOR = " << (int)RAIDSECTOR << "] [pos = " << transfer->pos << ", npos = " << npos << "]" << std::endl;
-                }
+		}
                 else
                 {
                     std::cout << "[TransferBufferManager::nextNPosForConnection] ALERT !!!! THIS IS THE LAST CHUNK, NOT PADDING TO RAIDLINE -> (isNewRaid() && ((transfer->pos + maxReqSize) < transfer->size)) -> changing maxReqSize to be multiple of RAIDLINE and RAIDSECTOR [maxReqSize = " << maxReqSize << ", RAIDLINE = " << (int)RAIDLINE << ", RAIDSECTOR = " << (int)RAIDSECTOR << "] [pos = " << transfer->pos << ", npos = " << npos << "]" << std::endl;
                 }
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
-                while ((nextChunk < transfer->size) && ((nextChunk % RAIDLINE) != 0))
-                {
+                while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
+                //while ((maxReqSize < transfer->size) && ((maxReqSize % RAIDLINE) != 0))
+		{
                     maxReqSize=ChunkedHash::chunkceil(maxReqSize, transfer->size);
                     nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 }
-                std::cout << "[TransferBufferManager::nextNPosForConnection] [end while] MaxReqSize = " << maxReqSize << ", ChunkFloor = " << ChunkedHash::chunkfloor(maxReqSize) << ", ChunkCeil = " << ChunkedHash::chunkceil(maxReqSize) << ", transfer->size = " << transfer->size << std::endl;
-            }
+		m_off_t exMaxReqSize = maxReqSize;
+		maxReqSize += 1;
+		//maxReqSize = ChunkedHash::chunkceil(maxReqSize, transfer->size);
+                std::cout << "[TransferBufferManager::nextNPosForConnection] [end while] MaxReqSize = " << maxReqSize << ", exMaxReqSize = " << exMaxReqSize << ", ChunkFloor = " << ChunkedHash::chunkfloor(maxReqSize) << ", ChunkCeil = " << ChunkedHash::chunkceil(maxReqSize) << ", nextChunk = " << nextChunk << ", nextChunkFlor = " << ChunkedHash::chunkfloor(nextChunk) << ", transfer->size = " << transfer->size << std::endl;
+	    }
 
-
-            npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-            std::cout << "[TransferBufferManager::nextNPosForConnection] AFTER expandUnprocessedPiece -> transfer->pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos -transfer->pos) << ", maxReqSize = " << maxReqSize << "" << std::endl;
-            if (isNewRaid() && ((transfer->size - npos) < (TransferSlot::MAX_REQ_SIZE / 2)))
-            {
-                std::cout << "[TransferBufferManager::nextNPosForConnection] ALERT -> Last chunk would be of size " << (transfer->size - npos) << ", smaller than " << (TransferSlot::MAX_REQ_SIZE / 2) << ", set npos to the end [pos = " << transfer->pos << ", npos = " << npos << ", transfer->size = " << transfer->size << "]" << std::endl;
-                npos = transfer->size;
-            }
-            LOG_debug << "Downloading chunk of size " << npos - transfer->pos;
-            assert(npos > transfer->pos);
-        }
-        // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
+	}
+	// Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
         npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-        LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
+        std::cout << "[TransferBufferManager::nextNPosForConnection] AFTER expandUnprocessedPiece -> transfer->pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos -transfer->pos) << ", maxReqSize = " << maxReqSize << "" << std::endl;
+        if (false) //(isNewRaid() && ((transfer->size - npos) < (TransferSlot::MAX_REQ_SIZE / 2)))
+        {
+            std::cout << "[TransferBufferManager::nextNPosForConnection] ALERT -> Last chunk would be of size " << (transfer->size - npos) << ", smaller than " << (TransferSlot::MAX_REQ_SIZE / 2) << ", set npos to the end [pos = " << transfer->pos << ", npos = " << npos << ", transfer->size = " << transfer->size << "]" << std::endl;
+            npos = transfer->size;
+        }
+	if ((npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
+	{
+		std::cout << "KAKAKAAAAAAAA [pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE) << "] prepareRequest" << std::endl;
+		assert(false);
+		std::cout << "Kaka2 prepareRequest" << std::endl;
+		exit(0);
+	}
+
+	LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")
                     << " chunk of size " << npos - transfer->pos;
         assert(npos > transfer->pos);
@@ -1070,11 +1084,11 @@ public:
     void waitForTransferSlot()
     {
         if (!started.load()) std::cout << "[CloudRaidImpl::waitForTransferSlot] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        //std::cout << "[CloudRaidImpl::waitForTransferSlot] pre wftSLock [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+        std::cout << "[CloudRaidImpl::waitForTransferSlot] pre wftSLock [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::unique_lock<std::mutex> wftSLock(wfts_m);
-        //std::cout << "[CloudRaidImpl::waitForTransferSlot] post wftSLock -> wait [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+        std::cout << "[CloudRaidImpl::waitForTransferSlot] post wftSLock -> wait [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         cvWaitForTS.wait(wftSLock, [this]{ return !waitForTs.load(); });
-        //std::cout << "[CloudRaidImpl::waitForTransferSlot] post wait -> continue [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+        std::cout << "[CloudRaidImpl::waitForTransferSlot] post wait -> continue [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     }
 
     bool addWaitForTransferSlot()
@@ -1258,6 +1272,7 @@ public:
 
     bool resumeAllConnections()
     {
+	std::cout << "[CloudRaidImpl::resumeAllConnections] BEGIN" << std::endl;
         if (started.load())
         {
             int i = connections;
@@ -1265,6 +1280,7 @@ public:
             {
                 raidReqToken[i].rr->resumeall();
             }
+	    std::cout << "[CloudRaidImpl::resumeAllConnections] END" << std::endl;
             return true;
         }
         return false;

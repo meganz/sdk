@@ -5456,7 +5456,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url120MB, rootnode.get());
     //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideoraided, rootnode.get());
     //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideounraided, rootnode.get());
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100GB, rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url1GB, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
