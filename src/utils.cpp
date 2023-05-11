@@ -1775,6 +1775,23 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+uint64_t Utils::hexStringToUint64(const std::string &input)
+{
+    uint64_t output;
+    std::stringstream outputStream;
+    outputStream << std::hex << input;
+    outputStream >> output;
+    return output;
+}
+
+std::string Utils::uint64ToHexString(uint64_t input)
+{
+    std::stringstream outputStream;
+    outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
+    std::string output = outputStream.str();
+    return output;
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)
