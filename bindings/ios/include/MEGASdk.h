@@ -9666,7 +9666,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * - [MEGARequest number] - Returns the event type
  * - [MEGARequest text] - Returns the event message
  * - [MEGARequest flag] - Returns the addJourneyId flag
- * - [MegaRequest sessionKey] - Returns the ViewID
+ * - [MEGARequest sessionKey] - Returns the ViewID
  *
  * @param eventType Event type
  * @param message Event message
@@ -9697,7 +9697,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * - [MEGARequest number] - Returns the event type
  * - [MEGARequest text] - Returns the event message
  * - [MEGARequest flag] - Returns the addJourneyId flag
- * - [MegaRequest sessionKey] - Returns the ViewID
+ * - [MEGARequest sessionKey] - Returns the ViewID
  *
  * @param eventType Event type
  * @param message Event message
@@ -9721,12 +9721,12 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 
 /**
  * Generate an unique ViewID
- * <p>
+ *
  * The caller gets the ownership of the object.
- * <p>
+ * 
  * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
  */
-- (NSString *)generateViewId;
+- (nullable NSString *)generateViewId;
 
 /**
  * @brief Create a new ticket for support with attached description
