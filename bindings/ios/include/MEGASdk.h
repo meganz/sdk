@@ -9628,9 +9628,9 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *  - MEGAsync:  [99500, 99600)
  *  - Webclient: [99600, 99800]
  *
- * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
+ * @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate].
  */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate] instead of this function.")));
 
 /**
 * @brief Send events to the stats server
@@ -9654,9 +9654,9 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 *  - MEGAsync:  [99500, 99600)
 *  - Webclient: [99600, 99800]
 *
-* @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
+* @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId].
 */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId] instead of this function.")));
 
 /**
  * @brief Send events to the stats server
@@ -9665,14 +9665,15 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest number] - Returns the event type
  * - [MEGARequest text] - Returns the event message
- * - [MEGARequest getFlag] - Returns the addJourneyId flag
- * - [MegaRequest getSessionKey] - Returns the ViewID
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MegaRequest sessionKey] - Returns the ViewID
  *
  * @param eventType Event type
  * @param message Event message
  * @param addJourneyId True if JourneyID should be included. Otherwise, false.
  * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
- *               This value should have been generated with MegaApi::generateViewId method.
+ *               This value should have been generated with [MEGASdk generateViewId] method.
+ * @param delegate Delegate to track this request
  *
  * @warning This function is for internal usage of MEGA apps for debug purposes. This info
  * is sent to MEGA servers.
@@ -9695,15 +9696,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest number] - Returns the event type
  * - [MEGARequest text] - Returns the event message
- * - [MEGARequest getFlag] - Returns the addJourneyId flag
- * - [MegaRequest getSessionKey] - Returns the ViewID
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MegaRequest sessionKey] - Returns the ViewID
  *
  * @param eventType Event type
  * @param message Event message
  * @param addJourneyId True if JourneyID should be included. Otherwise, false.
  * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
- *               This value should have been generated with MegaApi::generateViewId method.
- * @param delegate Delegate to track this request
+ *               This value should have been generated with [MEGASdk generateViewId] method.
  *
  * @warning This function is for internal usage of MEGA apps for debug purposes. This info
  * is sent to MEGA servers.
