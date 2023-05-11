@@ -1318,24 +1318,35 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW                   = 0x00
+     * - MegaSet::CHANGE_TYPE_NEW     = 0
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME                  = 0x01
+     * - MegaSet::CHANGE_TYPE_NAME    = 1
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER                 = 0x02
+     * - MegaSet::CHANGE_TYPE_COVER   = 2
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
+     * - MegaSet::CHANGE_TYPE_REMOVED = 3
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT                = 0x04
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
+     * current MegaSet
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSet::CHANGE_TYPE_*
+     *
+     * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1457,7 +1468,42 @@ public:
      */
     virtual const char* name() const { return nullptr; }
 
+    /**
+     * @brief Returns true if this SetElement has a specific change
+     *
+     * This value is only useful for Sets notified by MegaListener::onSetElementsUpdate or
+     * MegaGlobalListener::onSetElementsUpdate that can notify about SetElements modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * Check if the SetElement was new
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * Check if SetElement name has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * Check if SetElement order has changed
+     *
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * Check if the SetElement was removed
+     *
+     * @return true if this Set has a specific change
+     */
     virtual bool hasChanged(int changeType) const { return false; }
+
+    /**
+     * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
+     * current MegaSetElement
+     *
+     * Note that the position of each bit matches the type of each according to the values
+     * for MegaSetElement::CHANGE_TYPE_ELEM_*
+     *
+     * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
+     */
+    virtual long long getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
@@ -1631,6 +1677,7 @@ class MegaUser
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
+            CHANGE_APPS_PREFS                       = 0x40000000,
         };
 
         /**
@@ -1733,6 +1780,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
          *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1827,6 +1877,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
+         *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
          *
          * Check if backup names have changed         */
         virtual int getChanges();
@@ -2991,7 +3044,7 @@ class MegaScheduledFlags
 public:
     enum
     {
-        FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
+        FLAGS_SEND_EMAILS      = 0, // API will send out calendar emails for this meeting if it's enabled
         FLAGS_SIZE             = 1, // size in bits of flags bitmask
     };
 
@@ -4252,7 +4305,8 @@ class MegaRequest
             TYPE_REMOVE_SET_ELEMENTS                                        = 165,
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
-            TOTAL_OF_REQUEST_TYPES                                          = 168,
+            TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
+            TOTAL_OF_REQUEST_TYPES                                          = 169,
         };
 
         virtual ~MegaRequest();
@@ -4424,6 +4478,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::fastLogin - Returns session key used to access the account
+         * - MegaApi::sendEvent - Returns the ViewID key used to track the view
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4743,6 +4798,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5146,6 +5202,7 @@ public:
         REASON_ERROR_FAILURE_UNSERIALIZE_NODE   = 1,    // Failure when node is unserialized from DB
         REASON_ERROR_DB_IO_FAILURE              = 2,    // Input/output error at DB layer
         REASON_ERROR_DB_FULL                    = 3,    // Failure at DB layer because disk is full
+        REASON_ERROR_DB_INDEX_OVERFLOW          = 4,    // Index used to primary key at db overflow
     };
 
     virtual ~MegaEvent();
@@ -8971,6 +9028,7 @@ class MegaApi
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
+            USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
         };
 
         enum {
@@ -12385,6 +12443,12 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type
          * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
          *
+         * You can remove existing records/keypairs from the following attributes:
+         *  - MegaApi::ATTR_ALIAS
+         *  - MegaApi::ATTR_DEVICE_NAMES
+         *  - MegaApi::USER_ATTR_APPS_PREFS
+         * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+         *
          * @param type Attribute type
          *
          * Valid values are:
@@ -12405,6 +12469,8 @@ class MegaApi
          * Set the list of users's aliases (private)
          * MegaApi::ATTR_DEVICE_NAMES = 30
          * Set the list of device names (private)
+         * MegaApi::ATTR_APPS_PREFS = 38
+         * Set the apps prefs (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -12907,6 +12973,25 @@ class MegaApi
          * @see MegaApi::getPaymentId
          */
         void getPricing(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
+         * and has enough space.
+         * 
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber: the recommended PRO level:
+         *     Valid values are (there are other account types):
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROI = 1
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
+         *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
+         *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         * 
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the payment URL for an upgrade
@@ -13871,6 +13956,40 @@ class MegaApi
          * @param message Event message
          * @param listener MegaRequestListener to track this request
          *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
+         *  - MEGAchat:  [99000, 99199)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         *             is sent to MEGA servers.
+         * This version of the function is deprecated. Please use the non-deprecated one below.
+        */
+        MEGA_DEPRECATED
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         * - MegaRequest::getFlag - Returns the addJourneyId flag
+         * - MegaRequest::getSessionKey - Returns the ViewID
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+         * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+         *               This value should have been generated with MegaApi::generateViewId method.
+         * @param listener MegaRequestListener to track this request
+         *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
          *
@@ -13883,7 +14002,7 @@ class MegaApi
          *  - MEGAsync:  [99500, 99600)
          *  - Webclient: [99600, 99800]
          */
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new ticket for support with attached description
@@ -15087,7 +15206,10 @@ class MegaApi
          * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
          * @param businessStatus business status. Pass 999 if not valid
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function is deprecated. It was used years ago to migrate data from MegaSync to SDK cache.
          */
+        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**
@@ -17845,6 +17967,15 @@ class MegaApi
          * @return True if the language code is known for the SDK, otherwise false
          */
         bool setLanguage(const char* languageCode);
+
+        /**
+         * @brief Generate an unique ViewID
+         *
+         * The caller gets the ownership of the object.
+         *
+         * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+         */
+        const char* generateViewId();
 
         /**
          * @brief Set the preferred language of the user

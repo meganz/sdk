@@ -1131,7 +1131,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     auto localfilename = LocalPath::fromAbsolutePath(inputFilepath);
 
-    if (fain->fopen(localfilename, true, false) || fain->type != FILENODE)
+    if (fain->fopen(localfilename, true, false, FSLogging::logOnError) || fain->type != FILENODE)
     {
         if (*length == -1)
         {
@@ -1162,7 +1162,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
                 auto localencryptedfilename = LocalPath::fromAbsolutePath(outputFilepath);
 
                 std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
-                if (faout->fopen(localencryptedfilename, false, true))
+                if (faout->fopen(localencryptedfilename, false, true, FSLogging::logOnError))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
@@ -1210,7 +1210,7 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
 
     buffer.resize(bufsize + SymmCipher::BLOCKSIZE);
     memset((void*)(buffer.data() + bufsize), 0, SymmCipher::BLOCKSIZE);
-    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos))
+    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos, false, FSLogging::logOnError))
     {
         return NULL;
     }
@@ -1777,6 +1777,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if (user->changed.cookieSettings)
     {
         changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
+    }
+    if (user->changed.aPrefs)
+    {
+        changed |= MegaUser::CHANGE_APPS_PREFS;
     }
 }
 
@@ -3332,7 +3336,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->number = 0;
     this->timeZoneDetails = NULL;
 
-    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
         this->accountDetails = std::make_shared<AccountDetails>();
     }
@@ -3350,9 +3354,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
         this->achievementsDetails = NULL;
     }
 
-    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT)
+    if ((type == MegaRequest::TYPE_GET_PRICING) || (type == MegaRequest::TYPE_GET_PAYMENT_ID) || type == MegaRequest::TYPE_UPGRADE_ACCOUNT || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
     {
-        this->megaPricing = new MegaPricingPrivate();
+        megaPricing = new MegaPricingPrivate();
         megaCurrency = new MegaCurrencyPrivate();
     }
     else
@@ -3495,8 +3499,6 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
 {
     return mStringList.get();
 }
-
-
 
 MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
@@ -4243,6 +4245,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_EXPORTED_SET_ELEMENT: return "GET_EXPORTED_SET_ELEMENT";
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
+        case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
     }
     return "UNKNOWN";
 }
@@ -6189,6 +6192,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_APPS_PREFS:
             scope = '*';
             break;
 
@@ -6718,7 +6722,7 @@ bool MegaApiImpl::createLocalFolder(const char *path)
 Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
 {
     auto da = fsaccess.newfileaccess();
-    if (!da->fopen(localPath, true, false))
+    if (!da->fopen(localPath, true, false, FSLogging::logOnError))
     {
         if (!fsaccess.mkdirlocal(localPath, false, false))
         {
@@ -7556,6 +7560,24 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
     request->performRequest = [this, request]()
     {
         return performRequest_enumeratequotaitems(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getRecommendedProLevel(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN, listener);
+    
+    request->performRequest = [this, request]() {
+        if (client->loggedin() != FULLACCOUNT)
+        {
+            return API_EACCESS;
+        }
+
+        client->getaccountdetails(request->getAccountDetails(), true /*storage*/, false, false, false, false, false, -1);
+        return API_OK;
     };
 
     requestQueue.push(request);
@@ -8572,7 +8594,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
         auto fa = fingerprintingFsAccess.newfileaccess();
 
         if (!localPath ||
-            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false))
+            !fa->fopen(LocalPath::fromAbsolutePath(localPath), true, false, FSLogging::logOnError))
         {
             transfer->fingerprint_error = API_EREAD;
         }
@@ -8857,7 +8879,7 @@ int MegaApiImpl::syncPathState(string* pathParam)
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(localpath, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
+                    if (fa->fopen(localpath, false, false, FSLogging::logOnError) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
                     }
@@ -9326,7 +9348,9 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
 
 void MegaApiImpl::setDefaultFilePermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfilepermissions(permissions);
+    client->fsaccess->setdefaultfilepermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFilePermissions()
@@ -9336,7 +9360,9 @@ int MegaApiImpl::getDefaultFilePermissions()
 
 void MegaApiImpl::setDefaultFolderPermissions(int permissions)
 {
+    SdkMutexGuard lock(sdkMutex);
     fsAccess->setdefaultfolderpermissions(permissions);
+    client->fsaccess->setdefaultfolderpermissions(permissions);
 }
 
 int MegaApiImpl::getDefaultFolderPermissions()
@@ -11318,6 +11344,11 @@ bool MegaApiImpl::setLanguage(const char *languageCode)
     return client->setlang(&code);
 }
 
+string MegaApiImpl::generateViewId()
+{
+    return MegaClient::generateViewId(client->rng);
+}
+
 void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_LANGUAGE, languageCode, listener);
@@ -11562,6 +11593,72 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
     }
 }
 
+// map to an ACCOUNT_* value to an int that can be compared:
+// free -> lite -> proi -> proii -> proiii
+// the ACCOUNT_* values are out of order
+// int proLevel is a MegaAccountDetails::ACCOUNT_*
+static inline int orderProLevel(int proLevel)
+{
+    switch (proLevel)
+    {
+    case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
+        return -1;
+    case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
+        return 0;
+    default:
+        return proLevel; // 1..3
+    }
+}
+
+int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& details)
+{
+    // if this algorithm changes also have the webclient implementation updated
+    int currProLevel = details.getProLevel();
+    if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
+        return currProLevel; 
+        // business can not upgrade, flexi can only change to free so we do not recommend that
+    int orderedCurrProLevel = orderProLevel(currProLevel); 
+    uint64_t usedStorageBytes = details.getStorageUsed();
+    int bestProLevel = -1;
+    uint64_t bestStorageBytes = UINT64_MAX;
+    for (int i = 0; i <= pricing.getNumProducts(); ++i)
+    {
+        // only upgrade to lite, pro1, pro2 and pro3
+        int planProLevel = pricing.getProLevel(i);
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_LITE)
+            continue;
+        // only monthly plans
+        int planMonths = pricing.getMonths(i);
+        if (planMonths != 1)
+            continue;
+        // must have enough space for user's data
+        int planStorageGb = pricing.getGBStorage(i);
+        if (planStorageGb < 0)
+        {
+            assert(!"business plan, should never happen");
+            continue;
+        }
+        uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
+        if (usedStorageBytes > planStorageBytes)
+            continue;
+        // must be an upgrade free->lite->proi->proii->proiii
+        int orderedPlanProLevel = orderProLevel(planProLevel);
+        if (orderedCurrProLevel >= orderedPlanProLevel)
+            continue;
+        // get smallest storage
+        if (planStorageBytes >= bestStorageBytes)
+            continue;
+        bestProLevel = planProLevel;
+        bestStorageBytes = planStorageBytes;
+    }
+    if (bestStorageBytes != UINT64_MAX)
+    {
+        assert(bestProLevel != -1);
+        return bestProLevel;
+    }
+    // too much storage required
+    return MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI;
+}
 
 #if defined(_WIN32) || defined(__APPLE__)
 
@@ -11830,7 +11927,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -12008,7 +12105,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false))
+    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -13089,7 +13186,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
             mSyncable_fa = fsAccess->newfileaccess();
         }
         if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
+                && mSyncable_fa->fopen(localpath, FSLogging::logOnError) && !is_syncable(mSyncable_fa->size)))
         {
             return false;
         }
@@ -13416,7 +13513,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
                 string fullname = firstname + lastname;
-                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
+                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str(), client->restag); // Use the tag where the request belongs
                 string b64derivedKey;
                 Base64::btoa(derivedKey, b64derivedKey);
                 request->setPrivateKey(b64derivedKey.c_str());
@@ -13632,7 +13729,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         auto localPath = LocalPath::fromAbsolutePath(filePath);
         fsAccess->unlinklocal(localPath);
 
-        bool success = f->fopen(localPath, false, true)
+        bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                     && f->fwrite((const byte*)data, len, 0);
 
         f.reset();
@@ -13686,7 +13783,8 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13700,7 +13798,8 @@ void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyDa
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
         return;
     }
@@ -13714,8 +13813,24 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_PRICING) &&
                     (request->getType() != MegaRequest::TYPE_GET_PAYMENT_ID) &&
-                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT)))
+                    (request->getType() != MegaRequest::TYPE_UPGRADE_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)))
     {
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
+    {
+        if (e != API_OK)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            return;
+        }
+        unique_ptr<MegaAccountDetails> details(request->getMegaAccountDetails());
+        unique_ptr<MegaPricing> pricing(request->getPricing());
+        int recommended = calcRecommendedProLevel(*pricing.get(), *details.get());
+        request->setNumber(recommended);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -14005,7 +14120,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             auto localPath = LocalPath::fromAbsolutePath(filePath);
 
             fsAccess->unlinklocal(localPath);
-            if (!f->fopen(localPath, false, true))
+            if (!f->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 e = API_EWRITE;
             }
@@ -14535,7 +14650,14 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
+
+    if (request->getType() == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
+    {
+        // only ever one message
+        client->purchase_enumeratequotaitems();
+        return;
+    }
 
     long long numPending = request->getNumber();
     numPending--;
@@ -14554,7 +14676,7 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS && request->getType() != MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -14647,7 +14769,8 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -14743,7 +14866,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 fsAccess->unlinklocal(localPath);
 
-                bool success = f->fopen(localPath, false, true)
+                bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
                             && f->fwrite((const byte*)data, len, 0);
 
                 f.reset();
@@ -15818,6 +15941,20 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 #ifdef ENABLE_SYNC
     assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
 #endif
+
+    // call from other threads like sync thread. Push to requestQueue with performFireOnRequestFinish assigned,
+    // all fireOneRequestFinish is therefore handled in sendPendingRequests processed by a single thread.
+    if (threadId != std::this_thread::get_id())
+    {
+        auto ePtr = e.release();
+        request->performFireOnRequestFinish = [this, request, ePtr]()
+        {
+            fireOnRequestFinish(request, std::unique_ptr<MegaErrorPrivate>(ePtr), false);
+        };
+        requestQueue.push(request);
+        waiter->notify();
+        return;
+    }
 
     if(e->getErrorCode())
     {
@@ -18396,11 +18533,19 @@ void MegaApiImpl::sendPendingRequests()
         client->syncs.syncConfigStoreFlush();
 #endif
 
-        request = requestQueue.pop();
-        if (!request) break;
-
         e = API_OK;
 
+        if (!(request = requestQueue.pop()))
+        {
+            break;
+        }
+
+        if (request->performFireOnRequestFinish)
+        {
+            request->performFireOnRequestFinish();
+            request = nullptr;
+            continue;
+        }
 
         // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
         if ((lastRequestType == -1 || lastRequestType == request->getType()) && lastRequestConsecutive < 1024)
@@ -18447,7 +18592,7 @@ void MegaApiImpl::sendPendingRequests()
             e = request->performRequest();
             continue;
         }
-        
+
         if (request->performTransferRequest)
         {
             // the action has same requirement as the above performRequest
@@ -19801,7 +19946,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode* node, int type, const char* dstFile
                     req->setNumber(request->getTag());
                 }
             }
-        
+
             return e;
         };
 
@@ -19913,12 +20058,12 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     auto localpath = LocalPath::fromAbsolutePath(file);
 
                     auto f = fsAccess->newfileaccess();
-                    if (!f->fopen(localpath, 1, 0))
+                    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
 
-                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0))
+                    if (!f->fread(&attrvalue, unsigned(f->size), 0, 0, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
@@ -19975,7 +20120,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 std::unique_ptr<TLVstore> tlv;
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES)
+                        || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_APPS_PREFS)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -20176,14 +20322,14 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 std::unique_ptr<string> attributedata(new string);
                 std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-                if (!f->fopen(localpath, 1, 0))
+                if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
 
                 // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
                 attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
+                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0, FSLogging::logOnError))
                 {
                     return API_EREAD;
                 }
@@ -20282,7 +20428,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                         value = request->getNumDetails();
                         if (value < LBL_UNKNOWN || value > LBL_GREY)
                         {
-                            return API_EARGS;                    
+                            return API_EARGS;
                         }
 
                         nid = AttrMap::string2nameid("lbl");
@@ -20713,7 +20859,7 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
                     client->createephemeral();
                 }
             }
-    
+
             return API_OK;
 }
 
@@ -22288,11 +22434,13 @@ void MegaApiImpl::submitFeedback(int rating, const char* comment, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListener* listener)
+void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);
     request->setText(message);
+    request->setFlag(addJourneyId);
+    request->setSessionKey(viewId);
 
     request->performRequest = [this, request]()
         {
@@ -22304,7 +22452,9 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, MegaRequestListe
                 return API_EARGS;
             }
 
-            client->sendevent(number, text);
+            const char* viewId = request->getSessionKey();
+            bool addJourneyId = request->getFlag();
+            client->sendevent(number, text, viewId, addJourneyId);
             return API_OK;
         };
 
@@ -26867,7 +27017,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(localPath, true, false))
+            if (fa->fopen(localPath, true, false, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
@@ -27712,7 +27862,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if(fa->fopen(localPath, true, false))
+                if(fa->fopen(localPath, true, false, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -28176,6 +28326,8 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, Meg
     , fsaccess(new FSACCESS_CLASS())
 {
     megaApi = api;
+    fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
+    fsaccess->setdefaultfolderpermissions(megaApi->getDefaultFolderPermissions()); // Grant default folder permissions
     transfer = t;
     listener = t->getListener();
     recursive = 0;
@@ -30007,7 +30159,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             LocalPath localPath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
             httpctx->server->fsAccess->unlinklocal(localPath);
-            if (!httpctx->tmpFileAccess->fopen(localPath, false, true))
+            if (!httpctx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
                 return 0;
@@ -31065,7 +31217,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 auto tmpFileNamePath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
                 httpctx->server->fsAccess->unlinklocal(tmpFileNamePath);
-                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true))
+                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true, FSLogging::logOnError))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
@@ -33773,7 +33925,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LocalPath localPath = LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName);
             fds->fsAccess->unlinklocal(localPath);
 
-            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true))
+            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -34565,10 +34717,10 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
-void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)     { mScheduledFlags->setEmailsDisabled(enabled); }
+void MegaScheduledFlagsPrivate::setSendEmails(bool enabled)         { mScheduledFlags->setSendEmails(enabled); }
 void MegaScheduledFlagsPrivate::importFlagsValue(unsigned long val) { mScheduledFlags->importFlagsValue(val); }
 
-bool MegaScheduledFlagsPrivate::emailsDisabled() const              { return mScheduledFlags->emailsDisabled(); }
+bool MegaScheduledFlagsPrivate::sendEmails() const                  { return mScheduledFlags->sendEmails(); }
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const    { return mScheduledFlags->getNumericValue();}
 
 bool MegaScheduledFlagsPrivate::isEmpty() const                     { return mScheduledFlags->isEmpty(); }

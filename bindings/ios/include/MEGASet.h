@@ -31,6 +31,14 @@ typedef NS_ENUM (NSInteger, MEGASetChangeType) {
     MEGASetChangeTypeExported  = 4
 };
 
+typedef NS_OPTIONS (NSUInteger, MEGASetChanges) {
+    MEGASetChangesNew           = 1 << MEGASetChangeTypeNew,
+    MEGASetChangesName          = 1 << MEGASetChangeTypeName,
+    MEGASetChangesCover         = 1 << MEGASetChangeTypeCover,
+    MEGASetChangesRemoved       = 1 << MEGASetChangeTypeRemoved,
+    MEGASetChangesExported      = 1 << MEGASetChangeTypeExported
+};
+
 NS_ASSUME_NONNULL_BEGIN
 
 /**
@@ -124,6 +132,15 @@ NS_ASSUME_NONNULL_BEGIN
  * @return YES if this Set has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetChangeType)changeType;
+
+/**
+ * @brief Returns changes  for MEGASet
+ *
+ * Note that the position of each bit matches the MEGASetChangeType value
+ *
+ * @return combination of changes in
+ */
+- (MEGASetChanges)changes;
 
 /**
  * @brief Returns true if this Set is exported (can be accessed via public link)

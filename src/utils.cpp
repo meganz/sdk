@@ -1775,6 +1775,23 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+uint64_t Utils::hexStringToUint64(const std::string &input)
+{
+    uint64_t output;
+    std::stringstream outputStream;
+    outputStream << std::hex << input;
+    outputStream >> output;
+    return output;
+}
+
+std::string Utils::uint64ToHexString(uint64_t input)
+{
+    std::stringstream outputStream;
+    outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
+    std::string output = outputStream.str();
+    return output;
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)
@@ -2771,13 +2788,13 @@ error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, hand
 
     auto fileAccess = fsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    if (!fileAccess->fopen(path, true, false, FSLogging::logExceptFileNotFound))
     {
         // This case is valid when only checking for file existence
         return API_ENOENT;
     }
 
-    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to read drive-id from file: " << path;
         return API_EREAD;
@@ -2805,7 +2822,7 @@ error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle d
 
     // Open the file for writing
     auto fileAccess = fsAccess.newfileaccess(false);
-    if (!fileAccess->fopen(path, false, true))
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
     {
         LOG_err << "Unable to open file to write drive-id: " << path;
         return API_EWRITE;
