@@ -330,7 +330,7 @@ AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" =
 
 # MEGA_USE_C_ARES symbol for c-ares
 AC_ARG_ENABLE(mega-c-ares,
-    AS_HELP_STRING([--disable-mega-c-ares], [don't define MEGA_USE_C_ARES symbol]),
+    AS_HELP_STRING([--disable-mega-c-ares], [do not define MEGA_USE_C_ARES symbol]),
     [enable_mega_c_ares=${enableval}],
     [enable_mega_c_ares=yes])
 AS_IF([test "x$enable_mega_c_ares" != "xno"], [
@@ -365,16 +365,14 @@ if test "x$enable_megaapirpc" != "xno"; then
     AC_DEFINE(HAVE_MEGAAPI_RPC, 1, [Defined if MEGA API enabled])
 fi
 
-# Rotative Performance Logger
-AC_ARG_ENABLE(rotative-performance-logger,
-    AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
-    [enable_rotative_performance_logger=${enableval}],
-    [enable_rotative_performance_logger=no])
-if test "x$enable_rotative_performance_logger" = "xyes"; then
-    AC_DEFINE(USE_ROTATIVEPERFORMANCELOGGER, 1, [Defined if Rotative Performance Logger enabled])
-    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if Rotative Performance Logger enabled])
+# Log performance
+AC_ARG_ENABLE(log-performance,
+    AS_HELP_STRING([--enable-log-performance], [enable log performance [default=no]]),
+    [enable_log_performance=${enableval}],
+    [enable_log_performance=no])
+if test "x$enable_log_performance" = "xyes"; then
+    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if log performance enabled])
 fi
-AM_CONDITIONAL([USE_ROTATIVEPERFORMANCELOGGER], [test "x$enable_rotative_performance_logger" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -1803,6 +1801,73 @@ AC_DEFINE(HAVE_PDFIUM, [1], [Define to use PDFium library.])
 fi
 AM_CONDITIONAL([USE_PDFIUM], [test "x$pdfium" = "xtrue"])
 
+
+# ICU
+AC_MSG_CHECKING(for icu)
+icu=false
+AC_ARG_WITH(icu,
+  AS_HELP_STRING(--with-icu=PATH, base of ICU installation),
+  [
+   case $with_icu in
+   no)
+    AC_MSG_ERROR([icu library is required. Please specify the installation path.])
+    ;;
+   yes)
+    AC_CHECK_HEADERS([unicode/uchar.h],, [
+        AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    icu=true
+     ;;
+   *)
+    # determine if library is installed in the provided path
+    if test -d "$with_icu/lib"; then
+        LDFLAGS="-L$with_icu/lib $LDFLAGS"
+        CXXFLAGS="-I$with_icu/include $CXXFLAGS"
+        CPPFLAGS="-I$with_icu/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS("unicode/uchar.h",
+         ICU_CXXFLAGS="-I$with_icu/include"
+         ICU_CPPFLAGS="-I$with_icu/include"
+         ICU_LDFLAGS="-L$with_icu/lib",
+         AC_MSG_ERROR([unicode/uchar.h header not found or not usable])
+        )
+    fi
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+
+    icu=true
+     ;;
+   esac
+  ],
+   [AC_MSG_RESULT([--with-icu not specified])
+    AC_CHECK_HEADERS([unicode/uchar.h], [icu=true], [
+        AC_MSG_ERROR([unicode/uchar.h header not found or not usable])])
+    AC_CHECK_LIB(icuuc, [main], [ICUUC_LIBS="-licuuc"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+    AC_CHECK_LIB(icudata, [main], [ICU_LIBS="-licudata $ICUUC_LIBS"], [
+        AC_MSG_ERROR([Could not find ICU lib])])
+   ]
+)
+AC_SUBST(ICU_CXXFLAGS)
+AC_SUBST(ICU_CPPFLAGS)
+AC_SUBST(ICU_LDFLAGS)
+AC_SUBST(ICU_LIBS)
+
+if test "x$icu" = "xtrue" ; then
+    AC_DEFINE(HAVE_ICU, [1], [Define to have icu ])
+fi
+
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
@@ -2212,7 +2277,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   MEGA API          $enable_megaapi
   MEGA API RPC      $enable_megaapirpc
   example apps:     $enable_examples
-  Rot Perf Logger:  $enable_rotative_performance_logger
+  Perf Logger:      $enable_log_performance
   Drive Notif:      $enable_drive_notifications
   MEGA_USE_C_ARES:  $enable_mega_c_ares
 
@@ -2235,6 +2300,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   PDFium:           $PDF_CXXFLAGS $PDF_LDFLAGS $PDF_LIBS
+  ICU:              $ICU_CXXFLAGS $ICU_LDFLAGS $ICU_LIBS $ICU_MSG
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS

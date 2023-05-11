@@ -204,14 +204,14 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         setrootnode(node);
     }
 
-    // mClient.mNodeManager.getRootNodeFiles() is always set for folder links before adding any node (upon login)
-    bool isFolderLink = mClient.mNodeManager.getRootNodeFiles() == node->nodeHandle();
+    // getRootNodeFiles() is always set for folder links before adding any node (upon login)
+    bool isFolderLink = getRootNodeFiles() == node->nodeHandle();
 
     bool keepNodeInMemory = rootNode
             || isFolderLink
             || !isFetching
             || notify
-            || node->parentHandle() == mClient.mNodeManager.getRootNodeFiles(); // first level of children for CloudDrive
+            || node->parentHandle() == getRootNodeFiles(); // first level of children for CloudDrive
     // Note: incoming shares are not kept in ram during fetchnodes from API. Instead, they are loaded
     // upon mergenewshares(), when fetchnodes is completed
 
@@ -245,7 +245,7 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    mTable->put(node);
+    putNodeInDb(node);
 
     return true;
 }
@@ -424,7 +424,7 @@ uint64_t NodeManager::getNodeCount()
     {
         // Root nodes aren't taken into consideration as part of node counters
         count += 3;
-        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeVault().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
+        assert(!getRootNodeFiles().isUndef() && !getRootNodeVault().isUndef() && !getRootNodeRubbish().isUndef());
     }
 
 #ifdef DEBUG
@@ -681,17 +681,17 @@ node_vector NodeManager::getRootNodes()
 
     if (mNodes.size()) // nodes already loaded from DB
     {
-        Node* rootNode = getNodeByHandle(mClient.mNodeManager.getRootNodeFiles());
+        Node* rootNode = getNodeByHandle(getRootNodeFiles());
         assert(rootNode);
         nodes.push_back(rootNode);
 
         if (!mClient.loggedIntoFolder())
         {
-            Node* inBox = getNodeByHandle(mClient.mNodeManager.getRootNodeVault());
+            Node* inBox = getNodeByHandle(getRootNodeVault());
             assert(inBox);
             nodes.push_back(inBox);
 
-            Node* rubbish = getNodeByHandle(mClient.mNodeManager.getRootNodeRubbish());
+            Node* rubbish = getNodeByHandle(getRootNodeRubbish());
             assert(rubbish);
             nodes.push_back(rubbish);
         }
@@ -701,7 +701,7 @@ node_vector NodeManager::getRootNodes()
         if (mClient.loggedIntoFolder())
         {
             NodeSerialized nodeSerialized;
-            mTable->getNode(mClient.mNodeManager.getRootNodeFiles(), nodeSerialized);
+            mTable->getNode(getRootNodeFiles(), nodeSerialized);
             Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
@@ -977,6 +977,10 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
 
+    rootnodes.files.setUndef();
+    rootnodes.rubbish.setUndef();
+    rootnodes.vault.setUndef();
+
     if (mTable) mTable->removeNodes();
 }
 
@@ -1234,7 +1238,7 @@ void NodeManager::notifyPurge()
             {
                 // make this just a warning to avoid auto test failure
                 // this can happen if another client adds a folder in our share and the key for us is not available yet
-                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << toNodeHandle(n->nodehandle) << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
@@ -1298,7 +1302,7 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                mTable->put(n);
+                putNodeInDb(n);
 
                 added += 1;
             }
@@ -1392,9 +1396,9 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 
 bool NodeManager::isRootNode(NodeHandle h) const
 {
-    return h == mClient.mNodeManager.getRootNodeFiles()
-            || h == mClient.mNodeManager.getRootNodeVault()
-            || h == mClient.mNodeManager.getRootNodeRubbish();
+    return h == getRootNodeFiles()
+            || h == getRootNodeVault()
+            || h == getRootNodeRubbish();
 }
 
 int NodeManager::getNumVersions(NodeHandle nodeHandle)
@@ -1405,7 +1409,7 @@ int NodeManager::getNumVersions(NodeHandle nodeHandle)
         return 0;
     }
 
-    return static_cast<int>(node->getCounter().versions);
+    return static_cast<int>(node->getCounter().versions) + 1;
 }
 
 bool NodeManager::hasVersion(NodeHandle nodeHandle)
@@ -1476,9 +1480,9 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     // if not logged in yet, node counters are not available
     if (mNodes.empty())
     {
-        assert((mClient.mNodeManager.getRootNodeFiles().isUndef()
-                && mClient.mNodeManager.getRootNodeVault().isUndef()
-                && mClient.mNodeManager.getRootNodeRubbish().isUndef())
+        assert((getRootNodeFiles().isUndef()
+                && getRootNodeVault().isUndef()
+                && getRootNodeRubbish().isUndef())
                || (mClient.loggedIntoFolder()));
 
         return c;
@@ -1565,7 +1569,7 @@ void NodeManager::dumpNodes()
     {
         if (it.second.mNode)
         {
-            mTable->put(it.second.mNode.get());
+            putNodeInDb(it.second.mNode.get());
         }
     }
 
@@ -1580,7 +1584,7 @@ void NodeManager::saveNodeInDb(Node *node)
         return;
     }
 
-    mTable->put(node);
+    putNodeInDb(node);
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
@@ -1680,6 +1684,29 @@ node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<No
     }
 
     return nodes;
+}
+
+void NodeManager::putNodeInDb(Node* node) const
+{
+    if (!node)
+    {
+        return;
+    }
+
+    if (node->attrstring)
+    {
+        // Last attempt to decrypt the node before storing it.
+        LOG_debug << "Trying to store an encrypted node";
+        node->applykey();
+        node->setattr();
+
+        if (node->attrstring)
+        {
+            LOG_debug << "Storing an encrypted node.";
+        }
+    }
+
+    mTable->put(node);
 }
 
 size_t NodeManager::nodeNotifySize() const

@@ -1,1 +1,3 @@
-addFilter("devel-file-in-non-devel-package") 
+addFilter("devel-file-in-non-devel-package")
+addFilter("spurious-executable-perm")
+

@@ -65,6 +65,24 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+std::pair<bool, TypeOfLink> toTypeOfLink(nodetype_t type)
+{
+    bool error = false;
+    TypeOfLink lType = TypeOfLink::FOLDER;
+    switch(type)
+    {
+    case FOLDERNODE: break;
+    case FILENODE:
+        lType = TypeOfLink::FILE;
+        break;
+    default:
+        error = true;
+        break;
+    }
+
+    return std::make_pair(error, lType);
+}
+
 std::ostream& operator<<(std::ostream& s, NodeHandle h)
 {
     return s << toNodeHandle(h);
@@ -1757,6 +1775,23 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+uint64_t Utils::hexStringToUint64(const std::string &input)
+{
+    uint64_t output;
+    std::stringstream outputStream;
+    outputStream << std::hex << input;
+    outputStream >> output;
+    return output;
+}
+
+std::string Utils::uint64ToHexString(uint64_t input)
+{
+    std::stringstream outputStream;
+    outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
+    std::string output = outputStream.str();
+    return output;
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)
@@ -2370,13 +2405,6 @@ CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value
 { }
 
 
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool CacheableStatus::serialize(std::string* data)
-{
-    return const_cast<const CacheableStatus*>(this)->serialize(*data);
-}
-
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
     int64_t typeBuf;
@@ -2397,9 +2425,9 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
     return client->mCachedStatus.getPtr(type);
 }
 
-bool CacheableStatus::serialize(std::string& data) const
+bool CacheableStatus::serialize(std::string* data) const
 {
-    CacheableWriter writer{data};
+    CacheableWriter writer{*data};
     writer.serializei64(mType);
     writer.serializei64(mValue);
     return true;
@@ -2760,13 +2788,13 @@ error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, hand
 
     auto fileAccess = fsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    if (!fileAccess->fopen(path, true, false, FSLogging::logExceptFileNotFound))
     {
         // This case is valid when only checking for file existence
         return API_ENOENT;
     }
 
-    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to read drive-id from file: " << path;
         return API_EREAD;
@@ -2794,7 +2822,7 @@ error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle d
 
     // Open the file for writing
     auto fileAccess = fsAccess.newfileaccess(false);
-    if (!fileAccess->fopen(path, false, true))
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
     {
         LOG_err << "Unable to open file to write drive-id: " << path;
         return API_EWRITE;

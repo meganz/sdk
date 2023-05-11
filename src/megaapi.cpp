@@ -1830,6 +1830,8 @@ void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{ }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
@@ -1936,6 +1938,11 @@ void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
+}
+
+void MegaApi::getRecommendedProLevel(MegaRequestListener* listener)
+{
+    pImpl->getRecommendedProLevel(listener);
 }
 
 int64_t MegaApi::getAccountCreationTs()
@@ -2066,18 +2073,6 @@ long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
 }
-
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-void MegaApi::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
-{
-    MegaApiImpl::setUseRotativePerformanceLogger(logPath, logFileName, logToStdOut, archivedFilesAgeSeconds);
-}
-
-void MegaApi::setCurrentThreadNameForRotativePerformanceLogger(const char * threadName)
-{
-    MegaApiImpl::setCurrentThreadNameForRotativePerformanceLogger(threadName);
-}
-#endif
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
@@ -2684,6 +2679,11 @@ void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
     pImpl->setAvatar(dstFilePath, listener);
 }
 
+char* MegaApi::getPrivateKey(int type)
+{
+    return pImpl->getPrivateKey(type);
+}
+
 bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
 {
     return pImpl->testAllocation(allocCount, allocSize);
@@ -3215,7 +3215,12 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
-    pImpl->sendEvent(eventType, message, listener);
+    pImpl->sendEvent(eventType, message, false, nullptr, listener);
+}
+
+void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, const char *viewId, MegaRequestListener *listener)
+{
+    pImpl->sendEvent(eventType, message, addJourneyId, viewId, listener);
 }
 
 void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
@@ -4061,6 +4066,11 @@ bool MegaApi::setLanguage(const char *languageCode)
     return pImpl->setLanguage(languageCode);
 }
 
+const char* MegaApi::generateViewId()
+{
+    return strdup(pImpl->generateViewId().c_str());
+}
+
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
 {
     pImpl->setLanguagePreference(languageCode, listener);
@@ -4305,31 +4315,6 @@ void MegaApi::removeTransferListener(MegaTransferListener* listener)
 void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
 {
     pImpl->removeGlobalListener(listener);
-}
-
-MegaRequest *MegaApi::getCurrentRequest()
-{
-    return pImpl->getCurrentRequest();
-}
-
-MegaTransfer *MegaApi::getCurrentTransfer()
-{
-    return pImpl->getCurrentTransfer();
-}
-
-MegaError *MegaApi::getCurrentError()
-{
-    return pImpl->getCurrentError();
-}
-
-MegaNodeList *MegaApi::getCurrentNodes()
-{
-    return pImpl->getCurrentNodes();
-}
-
-MegaUserList *MegaApi::getCurrentUsers()
-{
-    return pImpl->getCurrentUsers();
 }
 
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
@@ -5800,11 +5785,6 @@ void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
     pImpl->removeSet(sid, listener);
 }
 
-void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
-{
-    pImpl->fetchSet(sid, listener);
-}
-
 void MegaApi::createSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener)
 {
     pImpl->putSetElements(sid, nodes, names, listener);
@@ -5864,6 +5844,57 @@ MegaSetElementList* MegaApi::getSetElements(MegaHandle sid, bool includeElements
 MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     return pImpl->getSetElement(sid, eid);
+}
+
+bool MegaApi::isExportedSet(MegaHandle sid)
+{
+    return pImpl->isExportedSet(sid);
+}
+
+void MegaApi::exportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->exportSet(sid, listener);
+}
+
+void MegaApi::disableExportSet(MegaHandle sid, MegaRequestListener *listener)
+{
+    return pImpl->disableExportSet(sid, listener);
+}
+
+void MegaApi::fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener)
+{
+    pImpl->fetchPublicSet(publicSetLink, listener);
+}
+
+void MegaApi::stopPublicSetPreview()
+{
+    return pImpl->stopPublicSetPreview();
+}
+
+bool MegaApi::inPublicSetPreview()
+{
+    return pImpl->inPublicSetPreview();
+}
+
+MegaSet* MegaApi::getPublicSetInPreview()
+{
+    return pImpl->getPublicSetInPreview();
+}
+
+
+MegaSetElementList* MegaApi::getPublicSetElementsInPreview()
+{
+    return pImpl->getPublicSetElementsInPreview();
+}
+
+void MegaApi::getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener)
+{
+    return pImpl->getPreviewElementNode(eid, listener);
+}
+
+const char* MegaApi::getPublicLinkForExportedSet(MegaHandle sid)
+{
+    return pImpl->getPublicLinkForExportedSet(sid);
 }
 
 void MegaApi::enableRequestStatusMonitor(bool enable)

@@ -42,13 +42,11 @@ namespace mega {
         const handle& id() const { return mId; }
 
         // get key used for encrypting attrs
+        // SETNODEKEYLENGTH at types.h (128 = SymmCipher::KEYLENGTH)
         const std::string& key() const { return mKey; }
 
         // get timestamp
         const m_time_t& ts() const { return mTs; }
-
-        // get creation timestamp
-        const m_time_t& cts() const { return mCTs; }
 
         // get own name
         const std::string& name() const { return getAttr(nameTag); }
@@ -62,9 +60,6 @@ namespace mega {
 
         // set timestamp
         void setTs(m_time_t ts) { mTs = ts; }
-
-        // set creation timestamp
-        void setCTs(m_time_t ts) { mCTs = ts; }
 
         // set own name
         void setName(std::string&& name);
@@ -85,16 +80,21 @@ namespace mega {
         std::string encryptAttributes(std::function<std::string(const string_map&, const std::string&)> f) const;
 
         static const int HANDLESIZE = 8;
+        static const int PUBLICHANDLESIZE = 6;
 
     protected:
         CommonSE() = default;
         CommonSE(handle id, std::string&& key, string_map&& attrs) : mId(id), mKey(move(key)), mAttrs(new string_map(move(attrs))) {}
+        CommonSE(const CommonSE& src) { replaceCurrent(src); }
+        CommonSE& operator=(const CommonSE& src) { replaceCurrent(src); return *this; }
+        CommonSE(CommonSE&&) = default;
+        CommonSE& operator=(CommonSE&&) = default;
+        ~CommonSE() = default;
 
         handle mId = UNDEF;
         std::string mKey;
         std::unique_ptr<string_map> mAttrs;
         m_time_t mTs = 0;  // timestamp
-        m_time_t mCTs = 0; // creation timestamp
 
         void setAttr(const std::string& tag, std::string&& value); // set any non-standard attr
         const std::string& getAttr(const std::string& tag) const;
@@ -106,6 +106,16 @@ namespace mega {
         std::unique_ptr<std::string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
         static const std::string nameTag; // "n", used for 'name' attribute
+
+    private:
+        void replaceCurrent(const CommonSE& src)
+        {
+            this->mId = src.mId;
+            this->mKey = src.mKey;
+            this->mAttrs.reset(src.mAttrs ? new string_map(*src.mAttrs) : nullptr);
+            this->mTs = src.mTs;
+            this->mEncryptedAttrs.reset(src.mEncryptedAttrs ? new std::string(*src.mEncryptedAttrs) : nullptr);
+        }
     };
 
     /**
@@ -117,6 +127,11 @@ namespace mega {
         SetElement() = default;
         SetElement(handle sid, handle node, handle elemId, std::string&& key, string_map&& attrs)
             : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
+        SetElement(const SetElement& src) : CommonSE(src) { replaceCurrent(src); }
+        SetElement& operator=(const SetElement& src) { CommonSE::operator=(src); replaceCurrent(src); return *this; }
+        SetElement(SetElement&&) = default;
+        SetElement& operator=(SetElement&&) = default;
+        ~SetElement() = default;
 
         // return id of the set that owns this Element
         const handle& set() const { return mSetId; }
@@ -166,7 +181,7 @@ namespace mega {
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
         bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
-        bool serialize(std::string*) override;
+        bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
 
         enum // match MegaSetElement::CHANGE_TYPE_ELEM_XXX values
@@ -186,6 +201,15 @@ namespace mega {
         bool mAttrsClearedByLastUpdate = false;
 
         std::bitset<CH_EL_SIZE> mChanges;
+
+        void replaceCurrent(const SetElement& src)
+        {
+            this->mSetId = src.mSetId;
+            this->mNodeHandle = src.mNodeHandle;
+            this->mOrder.reset(src.mOrder ? new int64_t(*src.mOrder) : nullptr);
+            this->mAttrsClearedByLastUpdate = src.mAttrsClearedByLastUpdate;
+            this->mChanges = src.mChanges;
+        }
     };
 
     /**
@@ -195,8 +219,11 @@ namespace mega {
     {
     public:
         Set() = default;
-        Set(handle id, std::string&& key, handle user, string_map&& attrs)
-            : CommonSE(id, move(key), move(attrs)), mUser(user) {}
+        Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs)
+            : CommonSE(id, move(key), move(attrs)), mPublicId(publicId), mUser(user) {}
+
+        // return public id of the set
+        const handle& publicId() const { return mPublicId; }
 
         // return id of the user that owns this Set
         const handle& user() const { return mUser; }
@@ -204,11 +231,20 @@ namespace mega {
         // return id of the Element that was set as cover, or UNDEF if none was set
         handle cover() const;
 
+        // get creation timestamp
+        const m_time_t& cts() const { return mCTs; }
+
+        // set public id of the set (Set exported); UNDEF received when disabled
+        void setPublicId(handle pid) { mPublicId = pid; }
+
         // set id of the user that owns this Set
         void setUser(handle uh) { mUser = uh; }
 
         // set id of the Element that will act as cover; pass UNDEF to remove cover
         void setCover(handle h);
+
+        // set creation timestamp
+        void setCTs(m_time_t ts) { mCTs = ts; }
 
         // replace internal parameters with the ones of 's', and mark any CH_XXX change
         bool updateWith(Set&& s);
@@ -228,7 +264,9 @@ namespace mega {
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
         bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
-        bool serialize(std::string*) override;
+        bool isExported() const { return mPublicId != UNDEF; }
+
+        bool serialize(std::string*) const override;
         static std::unique_ptr<Set> unserialize(std::string* d);
 
         enum // match MegaSet::CHANGE_TYPE_XXX values
@@ -237,18 +275,22 @@ namespace mega {
             CH_NAME,    // point out that 'name' attr has changed
             CH_COVER,   // point out that 'cover' attr has changed
             CH_REMOVED, // point out that this Set has been removed
+            CH_EXPORTED,// point out that this Set has been exported (shared) or disabled (stopped being shared)
 
             CH_SIZE
         };
 
     private:
+        handle mPublicId = UNDEF;
         handle mUser = UNDEF;
+        m_time_t mCTs = 0; // creation timestamp
 
         std::bitset<CH_SIZE> mChanges;
 
         static const std::string coverTag; // "c", used for 'cover' attribute
     };
 
+    using elementsmap_t = std::map<handle, SetElement>;
 } //namespace
 
 #endif

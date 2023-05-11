@@ -658,7 +658,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode *copy() override;
 
         char *serialize() override;
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
 
     protected:
@@ -712,9 +712,13 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+
+    MegaSetPrivate(const Set& s)
+        : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
+          mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
+    MegaHandle publicId() const override { return mPublicId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     int64_t cts() const override { return mCTs; }
@@ -722,11 +726,14 @@ public:
     MegaHandle cover() const override { return mCover; }
 
     bool hasChanged(int changeType) const override;
+    long long getChanges() const override { return mChanges.to_ulong(); }
+    bool isExported() const override { return mPublicId != UNDEF; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
 private:
     MegaHandle mId;
+    MegaHandle mPublicId;
     MegaHandle mUser;
     m_time_t mTs;
     m_time_t mCTs;
@@ -769,6 +776,7 @@ public:
     const char* name() const override { return mName.c_str(); }
 
     bool hasChanged(int changeType) const override;
+    long long getChanges() const override { return mChanges.to_ulong(); }
 
     virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
@@ -787,7 +795,7 @@ class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
-    MegaSetElementListPrivate(const map<handle, SetElement>* elements, const std::function<bool(handle)>& filterOut = nullptr);
+    MegaSetElementListPrivate(const elementsmap_t* elements, const std::function<bool(handle)>& filterOut = nullptr);
 
     void add(MegaSetElementPrivate&& el);
     MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
@@ -1067,7 +1075,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         long long getNotificationNumber() const override;
         bool getTargetOverride() const override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(shared_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
@@ -1368,6 +1376,22 @@ protected:
     handle mBackupId = UNDEF;
 };
 
+class MegaSyncStatsPrivate : public MegaSyncStats
+{
+    handle backupId;
+    PerSyncStats stats;
+public:
+    MegaSyncStatsPrivate(handle bid, const PerSyncStats& s) : backupId(bid), stats(s) {}
+    MegaHandle getBackupId() const override { return backupId; }
+    bool isScanning() const override { return stats.scanning; }
+    bool isSyncing() const override { return stats.syncing; }
+    int getFolderCount() const override { return stats.numFolders; }
+    int getFileCount() const override { return stats.numFiles; }
+    int getUploadCount() const override { return stats.numUploads; }
+    int getDownloadCount() const override { return stats.numDownloads; }
+    MegaSyncStatsPrivate *copy() const override { return new MegaSyncStatsPrivate(*this); }
+};
+
 
 class MegaSyncListPrivate : public MegaSyncList
 {
@@ -1402,6 +1426,11 @@ class MegaRequestPrivate : public MegaRequest
         // Set the function to be executed in sendPendingRequests()
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
+        std::function<error(TransferDbCommitter&)> performTransferRequest;
+        
+        // perform fireOnRequestFinish in sendPendingReqeusts()
+        // See fireOnRequestFinish
+        std::function<void()> performFireOnRequestFinish;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -2265,7 +2294,7 @@ struct MegaFile : public File
 
     void setTransfer(MegaTransferPrivate *transfer);
     MegaTransferPrivate *getTransfer();
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
 
     static MegaFile* unserialize(string*);
 
@@ -2284,7 +2313,7 @@ struct MegaFileGet : public MegaFile
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -2298,7 +2327,7 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static MegaFilePut* unserialize(string*);
 
 protected:
@@ -2377,12 +2406,6 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
-
-        MegaRequest *getCurrentRequest();
-        MegaTransfer *getCurrentTransfer();
-        MegaError *getCurrentError();
-        MegaNodeList *getCurrentNodes();
-        MegaUserList *getCurrentUsers();
 
         //Utils
         long long getSDKtime();
@@ -2495,10 +2518,6 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
-        static void setCurrentThreadNameForRotativePerformanceLogger(const char * threadName);
-#endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
@@ -2545,6 +2564,7 @@ class MegaApiImpl : public MegaApp
         static char *getUserAvatarColor(const char *userhandle);
         static char* getUserAvatarSecondaryColor(MegaUser *user);
         static char *getUserAvatarSecondaryColor(const char *userhandle);
+        char* getPrivateKey(int type);
         bool testAllocation(unsigned allocCount, size_t allocSize);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
@@ -2573,6 +2593,7 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
@@ -2601,7 +2622,7 @@ class MegaApiImpl : public MegaApp
         int getPasswordStrength(const char *password);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
@@ -2662,11 +2683,12 @@ class MegaApiImpl : public MegaApp
         //Sets and Elements
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElements(MegaHandle sid, const MegaHandleList* eids, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void exportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void disableExportSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
@@ -2674,6 +2696,18 @@ class MegaApiImpl : public MegaApp
         unsigned getSetElementCount(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElementList* getSetElements(MegaHandle sid, bool includeElementsInRubbishBin);
         MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
+        const char* getPublicLinkForExportedSet(MegaHandle sid);
+        void fetchPublicSet(const char* publicSetLink, MegaRequestListener* listener = nullptr);
+        MegaSet* getPublicSetInPreview();
+        MegaSetElementList* getPublicSetElementsInPreview();
+        void getPreviewElementNode(MegaHandle eid, MegaRequestListener* listener = nullptr);
+        void stopPublicSetPreview();
+        bool isExportedSet(MegaHandle sid);
+        bool inPublicSetPreview();
+
+        // returns the Pro level based on the current plan and storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
+        static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
+
     private:
         bool nodeInRubbishCheck(handle) const;
 
@@ -2867,6 +2901,7 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
+        string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
@@ -3110,7 +3145,7 @@ class MegaApiImpl : public MegaApp
         static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
         static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
 
-        error processAbortBackupRequest(MegaRequestPrivate *request, error e);
+        error processAbortBackupRequest(MegaRequestPrivate *request);
         void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
         void fireOnBackupStart(MegaScheduledCopyController *backup);
         void fireOnBackupFinish(MegaScheduledCopyController *backup, unique_ptr<MegaErrorPrivate> e);
@@ -3146,6 +3181,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
+        void fireOnSyncStatsUpdated(MegaSyncStatsPrivate*);
         void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
@@ -3165,7 +3201,7 @@ protected:
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
-
+        
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
@@ -3248,13 +3284,6 @@ protected:
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
         std::atomic<bool> syncPathStateLockTimeout{ false };
         MegaTransferPrivate *currentTransfer;
-        MegaRequestPrivate *activeRequest;
-        MegaTransferPrivate *activeTransfer;
-        MegaError *activeError;
-        MegaNodeList *activeNodes;
-        MegaUserList *activeUsers;
-        MegaUserAlertList *activeUserAlerts;
-        MegaContactRequestList *activeContactRequests;
         string appKey;
 
         MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
@@ -3272,7 +3301,7 @@ protected:
         // login result
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
-        void logout_result(error);
+        void logout_result(error, MegaRequestPrivate*);
         void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 
@@ -3483,6 +3512,8 @@ protected:
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
 
+        void syncupdate_stats(handle backupId, const PerSyncStats& stats) override;
+
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
         void sync_added(const SyncConfig& config) override;
 
@@ -3576,6 +3607,8 @@ protected:
 
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
+        void exportSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
         friend class MegaFolderUploadController;
@@ -3593,7 +3626,30 @@ private:
 #ifdef ENABLE_CHAT
         error performRequest_chatStats(MegaRequestPrivate* request);
 #endif
+        error performRequest_getUserData(MegaRequestPrivate* request);
+        error performRequest_enumeratequotaitems(MegaRequestPrivate* request);
+        error performRequest_getChangeEmailLink(MegaRequestPrivate* request);
+        error performRequest_getCancelLink(MegaRequestPrivate* request);
+        error performRequest_confirmAccount(MegaRequestPrivate* request);
+        error performRequest_sendSignupLink(MegaRequestPrivate* request);
+        error performRequest_createAccount(MegaRequestPrivate* request);
+        error performRequest_retryPendingConnections(MegaRequestPrivate* request);
+        error performRequest_setAttrNode(MegaRequestPrivate* request);
+        error performRequest_setAttrFile(MegaRequestPrivate* request);
+        error performRequest_setAttrUser(MegaRequestPrivate* request);
+        error performRequest_getAttrUser(MegaRequestPrivate* request);
+        error performRequest_logout(MegaRequestPrivate* request);
+        error performRequest_changePw(MegaRequestPrivate* request);
+        error performRequest_export(MegaRequestPrivate* request);
+        error performRequest_passwordLink(MegaRequestPrivate* request);
+        error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
+        error performRequest_copy(MegaRequestPrivate* request);
+        error performRequest_login(MegaRequestPrivate* request);
 
+        error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
+        error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
+
+        void multiFactorAuthEnableOrDisable(const char* pin, bool enable, MegaRequestListener* listener);
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
@@ -4199,10 +4255,10 @@ public:
     MegaScheduledFlagsPrivate& operator=(const MegaScheduledFlagsPrivate&&) = delete;
 
     void reset() override;
-    void setEmailsDisabled(bool enabled);
+    void setSendEmails(bool enabled);
     void importFlagsValue(unsigned long val) override;
 
-    bool emailsDisabled() const;
+    bool sendEmails() const;
     unsigned long getNumericValue() const override;
 
     MegaScheduledFlagsPrivate* copy() const override { return new MegaScheduledFlagsPrivate(this); }
