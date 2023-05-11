@@ -74,9 +74,6 @@ namespace mega {
         // call this before starting a transfer. Extracts the vector content
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize, bool isNewRaid = ISNEWRAID_DEFVALUE);
 
-        // indicate if we already know if transfer is raid or not
-        bool isRaidKnown() const;
-
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid() const;
 

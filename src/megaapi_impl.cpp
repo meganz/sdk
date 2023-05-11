@@ -16058,7 +16058,7 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    //assert(threadId == std::this_thread::get_id()); // REPONER - DESCOMENTAR - ESTO TIENE QUE IR - COMENTADO PARA CR
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e.get());

@@ -145,7 +145,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
     // delay creating these until we know if it's raid or non-raid
     if (!(connections || reqs.size() || asyncIO))
     {
-        if (!transferbuf.isRaidKnown())
+        if (transferbuf.tempUrlVector().empty())
         {
             return false;   // too soon, we don't know raid / non-raid yet
         }
