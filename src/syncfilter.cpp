@@ -298,11 +298,8 @@ bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& f
     if (!fileAccess->fopen(filePath, false, true, FSLogging::logOnError))
         return false;
 
-    // Generate the ignore file's content.
-    auto content = generate(targetPath, fsAccess);
-
-    // write the Utf-8 BOM at the front, to assist text editors to use the right encoding
-    content.insert(0, string("\xEF\xBB\xBF", 3));
+    // Generate the ignore file's content (including BOM).
+    auto content = generate(targetPath, fsAccess, true);
 
     // Write the content to disk.
     return fileAccess->fwrite((const byte*)content.data(),
@@ -408,11 +405,17 @@ vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) cons
     return paths;
 }
 
-string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const
+string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM) const
 {
     lock_guard<mutex> guard(mLock);
 
     ostringstream ostream;
+
+    if (includeBOM)
+    {
+        // utf8-BOM
+        ostream << string("\xEF\xBB\xBF", 3);
+    }
 
     // Size filters.
     if (mLowerLimit)
