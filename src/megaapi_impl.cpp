@@ -12432,6 +12432,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, m_off_t meanSpeed, void* param)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+    LOG_verbose << "Read new data received from transfer: len = " << len << ", speed = " << (speed/1024) << " KB/s, meanSpeed = " << (meanSpeed/1024) << " KB/s, total transferred bytes = " << transfer->getTransferredBytes() << "";
     dstime currentTime = Waiter::ds;
     transfer->setStartTime(currentTime);
     transfer->setState(MegaTransfer::STATE_ACTIVE);
@@ -13578,6 +13579,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
         transfer->setNodeHandle(h);
         transfer->setTargetOverride(targetOverride);
+        LOG_verbose << "Set transferred bytes to transfer total bytes: " << transfer->getTotalBytes() << " (prev transferredBytes = " << transfer->getTransferredBytes() << ")";
         transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
@@ -14191,6 +14193,7 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
+    LOG_verbose << "Request response progress: current progress = " << currentProgress << ", total progress = " << totalProgress;
     if (!client->isFetchingNodesPendingCS())
     {
         return;
@@ -16510,6 +16513,7 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     {
         m_off_t prevTransferredBytes = transfer->getTransferredBytes();
         m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
+        LOG_verbose << "Transfer update: progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes() << ", progress reported = " << tr->slot->progressreported;
         transfer->setStartTime(currentTime);
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
@@ -16527,6 +16531,7 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     }
     else
     {
+        LOG_verbose << "No TransferSlot. Reset last progress, speed and mean speed.";
         transfer->setDeltaSize(0);
         transfer->setSpeed(0);
         transfer->setMeanSpeed(0);
@@ -16542,6 +16547,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 {
     dstime currentTime = Waiter::ds;
     m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
+    LOG_verbose << "Transfer complete: final progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes();
     transfer->setStartTime(currentTime);
     transfer->setUpdateTime(currentTime);
     transfer->setTransferredBytes(tr->size);
@@ -17930,6 +17936,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
                             {
+                                LOG_debug << "Previous node exists and the upload is not forced: copy node handle";
                                 pendingUploads++;
                                 totalUploads++;
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -26916,6 +26923,7 @@ void MegaRecursiveOperation::onTransferUpdate(MegaApi *, MegaTransfer *t)
     assert(transfer);
     if (transfer)
     {
+        LOG_verbose << "MegaRecursiveOperation: on transfer update -> adding new progress " << t->getDeltaSize() << " to previous transferred bytes " << transfer->getTransferredBytes() << " -> updated transferred bytes = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setState(t->getState());
         transfer->setPriority(t->getPriority());
         transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
@@ -26933,6 +26941,7 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     assert(transfer);
     if (transfer)
     {
+        LOG_verbose << "MegaRecursiveOperation: on transfer finish -> adding new progress " << t->getDeltaSize() << " to previous transferred bytes " << transfer->getTransferredBytes() << " -> updated transferred bytes = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setState(MegaTransfer::STATE_ACTIVE);
         transfer->setPriority(t->getPriority());
         transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
@@ -28625,14 +28634,21 @@ StreamingBuffer::~StreamingBuffer()
 void StreamingBuffer::init(size_t capacity)
 {
     assert(capacity > 0);
+    // Recalculate maxBufferSize and maxOutputSize.
+    calcMaxBufferAndMaxOutputSize();
+    // Truncate capacity if needed
     if (capacity > maxBufferSize)
     {
-        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
+        size_t bytesPerSecond = getBytesPerSecond();
+        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
                  << " Capacity requested = " << capacity << " bytes"
-                 << ", truncated to  = " << maxBufferSize << " bytes"
+                 << ", truncated to = " << maxBufferSize << " bytes"
                  << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(partialDuration(maxBufferSize)).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / bytesPerSecond)).append(" secs")
+                                    .append(", max length to be served: ").append(std::to_string(maxOutputSize / bytesPerSecond)).append(" secs")
+                                    .append(", bytes per second: ").append(std::to_string(bytesPerSecond / 1024)).append(" KB/s")
+                                : "")
                  << "]";
         capacity = maxBufferSize;
     }
@@ -28652,6 +28668,53 @@ void StreamingBuffer::init(size_t capacity)
     this->outpos = 0;
     this->size = 0;
     this->free = this->capacity;
+}
+
+void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
+{
+    size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
+    constexpr size_t BUFFER_PAUSE_RESUME_FACTOR = 4; // Take into account pausing/resuming actions: we need that margin.
+    size_t minNeededBufferSize = maxReadChunkSize * BUFFER_PAUSE_RESUME_FACTOR;
+    size_t maxDeliveryChunksPerByteRate;
+    if (duration)
+    {
+        size_t bytesPerSecond = getBytesPerSecond();
+        // Desirable min buffer capacity: 10 seconds at least. Limit: 2x max buffer size requested by the client.
+        size_t minDesirableBufferSize = std::min(10 * bytesPerSecond, maxBufferSize * 2);
+        // Min buffer capacity needed to prevent data from shrinking: minNeededBufferSize at least.
+        minNeededBufferSize = std::max(minNeededBufferSize, minDesirableBufferSize);
+        // Calc multiplication factor for maxOutputSize depending on the byteRate and the maxReadChunkSize from DirectReadSlot.
+        maxDeliveryChunksPerByteRate = std::max<size_t>((bytesPerSecond / maxReadChunkSize) + ((bytesPerSecond % maxReadChunkSize != 0) ? 1 : 0), 1ul);
+    }
+    else
+    {
+        // Default multiplication factor for maxOutputSize (there is no byteRate to adapt the value).
+        maxDeliveryChunksPerByteRate = 1;
+    }
+     // Set maxBufferSize taking into account minNeededBufferSize, truncating the value to be divisible by maxReadChunkSize.
+    maxBufferSize = (std::max(maxBufferSize, minNeededBufferSize) / maxReadChunkSize) * maxReadChunkSize;
+    // Set max outputSize depending on maxDeliveryChunksPerByteRate. Limit is maxBufferSize.
+    maxOutputSize = std::min(maxDeliveryChunksPerByteRate * maxReadChunkSize, maxBufferSize);
+}
+
+void StreamingBuffer::reset(bool freeData, size_t sizeToReset)
+{
+    if (!sizeToReset || sizeToReset > size)
+    {
+        sizeToReset = size;
+    }
+    LOG_warn << "[Streaming] Reset streaming buffer. Actual size: " << size << ", free: " << free << ", capacity = " << capacity << ", size to reset: " << sizeToReset << "] [inpos = " << inpos << ", outpos = " << outpos << "]";
+    this->inpos = this->inpos >= sizeToReset ?
+                        this->inpos - sizeToReset :
+                        this->capacity - (sizeToReset - this->inpos);
+    this->outpos = this->outpos >= sizeToReset ?
+                        this->outpos - sizeToReset :
+                        this->capacity - (sizeToReset - this->outpos);
+    this->size -= sizeToReset;
+    if (freeData)
+    {
+        this->free += sizeToReset;
+    }
 }
 
 size_t StreamingBuffer::append(const char *buf, size_t len)
@@ -28687,6 +28750,8 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     else
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
+        LOG_debug << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of " << num << " bytes to the end and the others " << remaining << " bytes from the beginning"
+                    << " [current index = " << currentIndex << ", len = " << len << ", capacity = " << capacity << "]";
         memcpy(buffer + currentIndex, buf, num);
         memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
@@ -28722,6 +28787,9 @@ uv_buf_t StreamingBuffer::nextBuffer()
     size_t len = size < maxOutputSize ? size : maxOutputSize;
     if (outpos + len > capacity)
     {
+        LOG_debug << "[Streaming] Available length exceeds limits of circular buffer: "
+                    << "Truncating output buffer length to " << (capacity-outpos) << " bytes"
+                    << " [outpos = " << outpos << ", len = " << len << ", capacity = " << capacity << "]";
         len = capacity - outpos;
     }
 
@@ -28736,12 +28804,14 @@ uv_buf_t StreamingBuffer::nextBuffer()
 
 void StreamingBuffer::freeData(size_t len)
 {
+    LOG_verbose << "[Streaming] Streaming buffer free data: len = " << len << ", actual free = " << free << ", new free = " << (free+len) << ", size = " << size << " [capacity = " << capacity << "]"; 
     // update the internal state
     free += len;
 }
 
 void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 {
+    LOG_debug << "[Streaming] Set new max buffer size for StreamingBuffer: " << bufferSize;
     if (bufferSize)
     {
         this->maxBufferSize = bufferSize;
@@ -28754,6 +28824,7 @@ void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 
 void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 {
+    LOG_debug << "[Streaming] Set new max output size for StreamingBuffer: " << outputSize;
     if (outputSize)
     {
         this->maxOutputSize = outputSize;
@@ -28798,6 +28869,20 @@ m_off_t StreamingBuffer::partialDuration(m_off_t partialSize) const
     partialSize = std::min(partialSize, fileSize);
     m_off_t bytesPerSecond = getBytesPerSecond();
     return bytesPerSecond ? (partialSize / bytesPerSecond) : 0;
+}
+
+unsigned StreamingBuffer::getMaxBufferSize()
+{
+    return this->maxBufferSize ?
+                static_cast<unsigned>(this->maxBufferSize) :
+                StreamingBuffer::MAX_BUFFER_SIZE;
+}
+
+unsigned StreamingBuffer::getMaxOutputSize()
+{
+    return this->maxOutputSize ?
+                static_cast<unsigned>(this->maxOutputSize) :
+                StreamingBuffer::MAX_OUTPUT_SIZE;
 }
 
 std::string StreamingBuffer::bufferStatus() const
@@ -29836,8 +29921,7 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
 
     if (httpctx->pause)
     {
-        size_t resumeCapacity = httpctx->lastBufferLen * 2; // If httpctx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
-        if (httpctx->streamingBuffer.availableSpace() > resumeCapacity)
+        if (httpctx->streamingBuffer.availableSpace() >= DirectReadSlot::MAX_DELIVERY_CHUNK)
         {
             httpctx->pause = false;
             m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
@@ -31509,7 +31593,9 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
-        httpctx->streamingBuffer.init(len + resstr.size());
+        httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
+        httpctx->server->setMaxBufferSize(httpctx->streamingBuffer.getMaxBufferSize());
+        httpctx->server->setMaxOutputSize(httpctx->streamingBuffer.getMaxOutputSize());
         httpctx->size = len;
     }
 
@@ -31523,6 +31609,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->rangeWritten = 0;
     if (start || len)
     {
+        httpctx->streamingBuffer.reset(!httpctx->lastBufferLen, resstr.size());
         httpctx->megaApi->startStreaming(node, start, len, httpctx);
     }
     else
@@ -31661,7 +31748,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
+        LOG_debug << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 
@@ -31765,7 +31852,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
+    if ((remaining > availableSpace) && ((availableSpace - size) < static_cast<long long>(DirectReadSlot::MAX_DELIVERY_CHUNK)))
     {
         LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
