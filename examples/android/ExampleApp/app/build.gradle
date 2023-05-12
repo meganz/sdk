@@ -16,6 +16,7 @@ android {
     sourceSets.main {
         java {
             srcDirs += '../../../../bindings/java/nz/mega/sdk'
+            srcDirs += '../../../../../../../../main/java/'
             exclude '**/MegaApiSwing.java'
         }
         jni.srcDirs = [] //disable automatic ndk-build
