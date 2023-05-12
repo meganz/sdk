@@ -15402,9 +15402,7 @@ class MegaApi
          * @param businessStatus business status. Pass 999 if not valid
          * @param listener MegaRequestListener to track this request
          *
-         * @deprecated This function is deprecated. It was used years ago to migrate data from MegaSync to SDK cache.
          */
-        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**

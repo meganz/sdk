@@ -1562,11 +1562,13 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
+            LOG_debug << "Low maxspeed, set curl buffer size to 4 KB";
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
         if (req->minspeed)
         {
+            LOG_debug << "Setting low speed limit (<30 Bytes/s) and how much time the speed is allowed to be lower than the limit before aborting (30 secs)";
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
@@ -1976,6 +1978,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
+    req->postStartTime = std::chrono::steady_clock::now();
 
     if (proxyip.size() && req->method != METHOD_NONE)
     {
