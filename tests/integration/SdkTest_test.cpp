@@ -11520,8 +11520,6 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Update Set name and verify Set is still exported";
     userIdx = 0;
     differentApiDtlsPtr->setUpdated = false;
-    PerApi& target = mApi[0];
-    target.resetlastEvent();     // So we can detect when the node database has been committed.
     const string updatedName = name + u8" 手";
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
@@ -11529,6 +11527,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
     // reset to previous name to keep using existing original cached Set for validation
     differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[0];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Failed to receive shared Set name reset updated AP on U1's secondary client";
