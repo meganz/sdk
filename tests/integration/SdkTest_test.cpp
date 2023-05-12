@@ -10946,7 +10946,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     PerApi pa; // make a copy
     pa.email = mApi.back().email;
     pa.pwd = mApi.back().pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     auto& differentApiDtls = mApi.back();
     differentApiDtls.megaApi = &differentApi;
     int differentApiIdx = int(megaApi.size() - 1);
@@ -11418,7 +11418,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     auto& aux = mApi[userIdx];
     pa.email = aux.email;
     pa.pwd = aux.pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
     int difApiIdx = static_cast<int>(megaApi.size() - 1);
@@ -11778,7 +11778,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     PerApi pa; // make a copy
     pa.email = mApi.back().email;
     pa.pwd = mApi.back().pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     auto& B2dtls = mApi.back();
     B2dtls.megaApi = &B2;
 #endif
