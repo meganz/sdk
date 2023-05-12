@@ -11520,6 +11520,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Update Set name and verify Set is still exported";
     userIdx = 0;
     differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[0];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
     const string updatedName = name + u8" 手";
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
@@ -11530,6 +11532,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Failed to receive shared Set name reset updated AP on U1's secondary client";
+    // Wait for the database to be updated.
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000));
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
