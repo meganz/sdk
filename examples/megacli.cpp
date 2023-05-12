@@ -3290,9 +3290,10 @@ void exec_getuserquota(autocomplete::ACState& s)
     client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
-void exec_getuserdata(autocomplete::ACState& s)
+void exec_getuserdata(autocomplete::ACState&)
 {
-    client->getuserdata(client->reqtag);
+    if (client->loggedin()) client->getuserdata(client->reqtag);
+    else client->getmiscflags();
 }
 
 void exec_querytransferquota(autocomplete::ACState& ac)

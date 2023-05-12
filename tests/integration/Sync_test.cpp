@@ -12941,7 +12941,7 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
     localFS.addfile("dp/fi", randomData(MINSIZE));
     localFS.generate(root);
-    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess));
+    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true));
 
     // Prepare remote model.
     RemoteNodeModel remoteTree = localFS;
@@ -12999,7 +12999,7 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     // Make sure everything's uploaded as it should be.
     Model model = localFS;
 
-    model.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess));
+    model.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess, true));
 
     ASSERT_TRUE(confirm(*cu, id, model));
 }

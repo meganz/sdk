@@ -134,7 +134,10 @@ public:
     void applyKeys(uint32_t appliedKeys);
 
     // add node to the notification queue
-    void notifyNode(Node* node);
+    void notifyNode(Node* node, node_vector* nodesToReport = nullptr);
+
+    // for consistently notifying when updating node counters
+    void setNodeCounter(Node* n, const NodeCounter &counter, bool notify, node_vector* nodesToReport);
 
     // process notified/changed nodes from 'mNodeNotify': dump changes to DB
     void notifyPurge();
@@ -279,7 +282,7 @@ private:
 
     // Update a node counter for 'origin' and its subtree (recursively)
     // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
-    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation, node_vector* nodesToReport);
 
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
     Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
@@ -348,7 +351,7 @@ private:
     void cleanNodes_internal();
     Node* getNodeFromBlob_internal(const string* nodeSerialized);
     void applyKeys_internal(uint32_t appliedKeys);
-    void notifyNode_internal(Node* node);
+    void notifyNode_internal(Node* node, node_vector* nodesToReport);
     bool loadNodes_internal();
     uint64_t getNodeCount_internal();
     NodeCounter getCounterOfRootNodes_internal();

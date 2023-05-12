@@ -88,13 +88,13 @@ bool NodeManager::setrootnode_internal(Node* node)
     }
 }
 
-void NodeManager::notifyNode(Node* n)
+void NodeManager::notifyNode(Node* n, node_vector* nodesToReport)
 {
     LockGuard g(mMutex);
-    notifyNode_internal(n);
+    notifyNode_internal(n, nodesToReport);
 }
 
-void NodeManager::notifyNode_internal(Node* n)
+void NodeManager::notifyNode_internal(Node* n, node_vector* nodesToReport)
 {
     assert(mMutex.locked());
     n->applykey();
@@ -144,7 +144,14 @@ void NodeManager::notifyNode_internal(Node* n)
     if (!n->notified)
     {
         n->notified = true;
-        mNodeNotify.push_back(n);
+        if (nodesToReport)
+        {
+            nodesToReport->push_back(n);
+        }
+        else
+        {
+            mNodeNotify.push_back(n);
+        }
     }
 }
 
@@ -926,7 +933,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         return nullptr;
     }
 
-    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter), false);
+    setNodeCounter(node, NodeCounter(nodeSerialized.mNodeCounter), false, nullptr);
 
     // do not automatically try to reload the account if we can't unserialize.
     // (1) we might go around in circles downloading the account over and over, DDOSing MEGA, because we get the same data back each time
@@ -938,7 +945,20 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
     return node;
 }
 
-void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
+void NodeManager::setNodeCounter(Node* n, const NodeCounter &counter, bool notify, node_vector* nodesToReport)
+{
+    assert(mMutex.locked());
+
+    n->setCounter(counter);
+
+    if (notify)
+    {
+        n->changed.counter = true;
+        notifyNode_internal(n, nodesToReport);
+    }
+}
+
+void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation, node_vector* nodesToReport)
 {
     assert(mMutex.locked());
 
@@ -956,7 +976,7 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
             break;
         }
 
-        origin->setCounter(ancestorCounter, true);
+        setNodeCounter(origin, ancestorCounter, true, nodesToReport);
         origin = origin->parent;
     }
 }
@@ -1028,7 +1048,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     if (node)
     {
-        node->setCounter(nc, false);
+        setNodeCounter(node, nc, false, nullptr);
     }
 
     mTable->updateCounterAndFlags(nodehandle, flags, nc.serialize());
@@ -1301,7 +1321,9 @@ void NodeManager::notifyPurge()
             {
                 NodeHandle h = n->nodeHandle();
 
-                updateTreeCounter(n->parent, n->getCounter(), DECREASE);
+                // This will also require notifying/updating parents back to the root.  Report and
+                // update them in this same operation, to ensure consistency in case of commit
+                updateTreeCounter(n->parent, n->getCounter(), DECREASE, &nodesToReport);
 
                 if (n->parent)
                 {
@@ -1593,7 +1615,7 @@ void NodeManager::updateCounter_internal(Node& n, Node* oldParent)
     assert(mMutex.locked());
 
     NodeCounter nc = n.getCounter();
-    updateTreeCounter(oldParent, nc, DECREASE);
+    updateTreeCounter(oldParent, nc, DECREASE, nullptr);
 
     // if node is a new version
     if (n.parent && n.parent->type == FILENODE)
@@ -1606,7 +1628,7 @@ void NodeManager::updateCounter_internal(Node& n, Node* oldParent)
             nc.storage -= n.size;
             nc.versions++;
             nc.versionStorage += n.size;
-            n.setCounter(nc, true);
+            setNodeCounter(&n, nc, true, nullptr);
         }
     }
     // newest element at chain versions has been removed, the second one element is the newest now. Update node counter properly
@@ -1616,10 +1638,10 @@ void NodeManager::updateCounter_internal(Node& n, Node* oldParent)
         nc.storage += n.size;
         nc.versions--;
         nc.versionStorage -= n.size;
-        n.setCounter(nc, true);
+        setNodeCounter(&n, nc, true, nullptr);
     }
 
-    updateTreeCounter(n.parent, nc, INCREASE);
+    updateTreeCounter(n.parent, nc, INCREASE, nullptr);
 }
 
 FingerprintPosition NodeManager::insertFingerprint(Node *node)

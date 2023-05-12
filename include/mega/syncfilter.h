@@ -76,7 +76,7 @@ public:
     void excludePath(const string& path);
 
     // Generates the content for an ignore file.
-    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const;
+    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM) const;
 
     // Specify the lower size limit.
     //
