@@ -1119,6 +1119,7 @@ enum class PathProblem : unsigned short {
     WaitingForAnotherMoveToComplete,
     SourceWasMovedElsewhere,
     FilesystemCannotStoreThisName,
+    CloudNodeInvalidFingerprint,
 
     PathProblem_LastPlusOne
 };

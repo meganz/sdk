@@ -8712,6 +8712,21 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
 
+        if (!row.cloudNode->fingerprint.isvalid)
+        {
+            // if the cloud fingerprint is not valid, then the local mtime can't be set properly
+            // and we'll have all sorts of matching problems, probably re-upload, etc
+            // or the download will get cancelled for different fingerprint, and cycle, etc
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
+                SyncWaitReason::DownloadIssue, false, true,
+                {fullPath.cloudPath, PathProblem::CloudNodeInvalidFingerprint},
+                {},
+                {},
+                {}));
+
+            return false;
+        }
+
         row.syncNode->transferResetUnlessMatched(GET, row.cloudNode->fingerprint);
 
         if (!row.syncNode->transferSP)

@@ -1520,6 +1520,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
     static_assert((int)PathProblem::FilesystemCannotStoreThisName == (int)MegaSyncStall::SyncPathProblem::FilesystemCannotStoreThisName, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
+    static_assert((int)PathProblem::CloudNodeInvalidFingerprint == (int)MegaSyncStall::SyncPathProblem::CloudNodeInvalidFingerprint, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
 }
@@ -7718,7 +7719,7 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
 void MegaApiImpl::getRecommendedProLevel(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN, listener);
-    
+
     request->performRequest = [this, request]() {
         if (client->loggedin() != FULLACCOUNT)
         {
@@ -11613,9 +11614,9 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     // if this algorithm changes also have the webclient implementation updated
     int currProLevel = details.getProLevel();
     if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
-        return currProLevel; 
+        return currProLevel;
         // business can not upgrade, flexi can only change to free so we do not recommend that
-    int orderedCurrProLevel = orderProLevel(currProLevel); 
+    int orderedCurrProLevel = orderProLevel(currProLevel);
     uint64_t usedStorageBytes = details.getStorageUsed();
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;

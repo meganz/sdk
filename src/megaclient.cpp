@@ -294,7 +294,7 @@ bool MegaClient::JourneyID::resetCacheAndValues()
     }
     if (!mClientFsaccess->unlinklocal(mCacheFilePath))
     {
-        LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file"; 
+        LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file";
         return false;
     }
     return true;
@@ -15835,8 +15835,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         {
             if (!f->isvalid)
             {
+                LOG_warn << "Downloading a file with invalid fingerprint, was: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
                 // no valid fingerprint: use filekey as its replacement
                 memcpy(f->crc.data(), f->filekey, sizeof f->crc);
+                LOG_warn << "Downloading a file with invalid fingerprint, adjusted to: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
             }
         }
 
