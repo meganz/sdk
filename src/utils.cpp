@@ -2798,6 +2798,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
     case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
+    case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }
