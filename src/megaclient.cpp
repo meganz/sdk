@@ -10316,41 +10316,6 @@ void MegaClient::sendkeyrewrites()
 // user/contact list
 bool MegaClient::readusers(JSON* j, bool actionpackets)
 {
-    auto getValueVersion = [&j](string& value, string& version)
-    {
-        value.clear();
-        version.clear();
-        if (j->enterobject())
-        {
-            nameid name;
-            while ((name = j->getnameid()) != EOO)
-            {
-                switch(name)
-                {
-                    case MAKENAMEID2('a','v'):
-                        j->storebinary(&value);
-                        break;
-                    case 'v':
-                        j->storeobject(&version);
-                        break;
-                    default:
-                        if (!j->storeobject())
-                        {
-                            LOG_warn << "Failed while parsing user attribute.";
-                            return;
-                        }
-                        break;
-                }
-            }
-            j->leaveobject();
-        }
-
-        if (!value.size() && !version.size())
-        {
-            LOG_err << "Failed to parse user attribute value and version.";
-        }
-    };
-
     if (!j->enterarray())
     {
         return 0;
@@ -10365,11 +10330,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         nameid name;
         string fieldName;
         BizMode bizMode = BIZ_MODE_UNKNOWN;
-        string pubk;
-        string puEd255, versionPuEd255;
-        string puCu255, versionPuCu255;
-        string sigPubk, versionSigPubk;
-        string sigCu255, versionSigCu255;
+        string pubk, puEd255, puCu255, sigPubk, sigCu255;
 
         fieldName = j->getnameWithoutAdvance();
         while ((name = j->getnameid()) != EOO)
@@ -10422,22 +10383,22 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     break;
 
                 case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
-                    getValueVersion(puEd255, versionPuEd255);
+                    j->storebinary(&puEd255);
                     break;
 
                 case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
-                    getValueVersion(puCu255, versionPuCu255);
+                    j->storebinary(&puCu255);
                     break;
 
                 case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
-                    getValueVersion(sigPubk, versionSigPubk);
+                    j->storebinary(&sigPubk);
                     break;
 
                 default:
                     switch (User::string2attr(fieldName.c_str()))
                     {
                         case ATTR_SIG_CU255_PUBK:
-                            getValueVersion(sigCu255, versionSigCu255);
+                            j->storebinary(&sigCu255);
                             break;
 
                         default:
@@ -10450,6 +10411,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     break;
             }
 
+            // next field name for the while loop
             fieldName = j->getnameWithoutAdvance();
         }
 
@@ -10487,22 +10449,22 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
                 if (puEd255.size())
                 {
-                    u->setattr(ATTR_ED25519_PUBK, &puEd255, &versionPuEd255);
+                    u->setattr(ATTR_ED25519_PUBK, &puEd255, nullptr);
                 }
 
                 if (puCu255.size())
                 {
-                    u->setattr(ATTR_CU25519_PUBK, &puCu255, &versionPuCu255);
+                    u->setattr(ATTR_CU25519_PUBK, &puCu255, nullptr);
                 }
 
                 if (sigPubk.size())
                 {
-                    u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, &versionSigPubk);
+                    u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, nullptr);
                 }
 
                 if (sigCu255.size())
                 {
-                    u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                    u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, nullptr);
                 }
 
                 if (v != VISIBILITY_UNKNOWN)
