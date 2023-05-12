@@ -2359,6 +2359,9 @@ bool MegaSharePrivate::isVerified()
 
 
 MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listener)
+    : mDownloadOption(DownloadDecider::Option::SKipIfSameFingerprint)
+    , mSaveOption(SaveOption::RenameNewWithSuffixN)
+    , mDownloadDecision(DownloadDecider::Decision::NotYet)
 {
     this->type = type;
     this->tag = -1;
@@ -2444,6 +2447,9 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setNotificationNumber(transfer->getNotificationNumber());
     mCancelToken = transfer->mCancelToken;
     this->setStage(transfer->getStage());
+    this->setDownloadOption(transfer->getDownloadOption());
+    this->setSaveOption(transfer->getSaveOption());
+    mDownloadDecision = transfer->mDownloadDecision;
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -2683,6 +2689,21 @@ long long MegaTransferPrivate::getNotificationNumber() const
 bool MegaTransferPrivate::getTargetOverride() const
 {
     return mTargetOverride;
+}
+
+DownloadDecider::Option MegaTransferPrivate::getDownloadOption() const
+{
+    return mDownloadOption;
+}
+
+DownloadDecider::Decision MegaTransferPrivate::getDownloadDecision() const
+{
+    return mDownloadDecision;
+}
+
+SaveOption MegaTransferPrivate::getSaveOption() const
+{
+    return mSaveOption;
 }
 
 bool MegaTransferPrivate::serialize(string *d) const
@@ -3012,6 +3033,45 @@ void MegaTransferPrivate::setTargetOverride(bool targetOverride)
 void MegaTransferPrivate::setCancelToken(CancelToken cancelToken)
 {
     mCancelToken = MegaCancelTokenPrivate(cancelToken);
+}
+
+void MegaTransferPrivate::setDownloadOption(DownloadDecider::Option downloadOption)
+{
+    mDownloadOption = downloadOption;
+}
+
+void MegaTransferPrivate::setDownloadOption(int downloadOption)
+{
+    if (downloadOption >= static_cast<int>(DownloadDecider::Option::End) || downloadOption < static_cast<int>(DownloadDecider::Option::Begin))
+    {
+        mDownloadOption = DownloadDecider::Option::SKipIfSameFingerprint;
+    }
+    else
+    {
+        mDownloadOption = static_cast<DownloadDecider::Option>(downloadOption);
+    }
+}
+
+void MegaTransferPrivate::setDownloadDecision(DownloadDecider::Decision downloadDecision)
+{
+    mDownloadDecision = downloadDecision;
+}
+
+void MegaTransferPrivate::setSaveOption(SaveOption saveOption)
+{
+    mSaveOption = saveOption;
+}
+
+void MegaTransferPrivate::setSaveOption(int saveOption)
+{
+    if (saveOption >= static_cast<int>(SaveOption::End) || saveOption < static_cast<int>(SaveOption::Begin))
+    {
+        mSaveOption = SaveOption::RenameNewWithSuffixN;
+    }
+    else
+    {
+        mSaveOption = static_cast<SaveOption>(saveOption);
+    }
 }
 
 void MegaTransferPrivate::startRecursiveOperation(shared_ptr<MegaRecursiveOperation> op, MegaNode* node)
@@ -8648,15 +8708,15 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFile
     waiter->notify();
 }
 
-void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener)
+void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int downloadOption, int saveOption, MegaTransferListener *listener)
 {
     FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, listener, fsType);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, downloadOption, saveOption, listener, fsType);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener, FileSystemType fsType)
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int downloadOption, int saveOption, MegaTransferListener *listener, FileSystemType fsType)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -8686,6 +8746,8 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setAppData(appData);
     transfer->setStartFirst(startFirst);
     transfer->setCancelToken(cancelToken);
+    transfer->setDownloadOption(downloadOption);
+    transfer->setSaveOption(saveOption);
 
     if (customName)
     {
@@ -8777,7 +8839,9 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
+        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), 
+            static_cast<int>(t->getDownloadOption()), static_cast<int>(t->getSaveOption()), listener);
+
         delete node;
     }
     else
@@ -17795,6 +17859,85 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
+bool DownloadDecider::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode)
+{
+    if (fileNode->getNodeKey() == nullptr)
+    {
+        return false;
+    }
+
+    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
+}
+
+DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option)
+{
+    auto decision = DownloadDecider::Decision::Download;
+
+    switch (option)
+    {
+    case Option::SkipIfExisting:
+    {
+        decision = Decision::Skip;
+        break;
+    }
+    case Option::ErrorIfExisting:
+    {
+        decision = Decision::ReportError;
+        break;
+    }
+    case Option::SKipIfSameFingerprint:
+    {
+        FileFingerprint nodeFp = nodeFingerprintF();
+        FileFingerprint fp;
+        if (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp)
+        {
+            decision = Decision::Skip;
+        }
+        break;
+    }
+    case Option::SkipIfSameMetamac:
+    {
+        if (metamacEqualF())
+        {
+            decision = Decision::Skip;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+
+    return decision;
+
+}
+
+DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, MegaNode* fileNode, Option option)
+{
+    return decide(
+        fa,
+        [fileNode]() {
+            return *MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint());
+        },
+        [fileNode, fa]() {
+            return CompareLocalFileMetaMac(fa, fileNode);
+        },
+        option);
+}
+
+DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, Node* node, Option option)
+{
+    return decide(
+        fa,
+        [node]() {
+            FileFingerprint nodeFp = *node;
+            return nodeFp;
+        },
+        [node, fa]() {
+            return CompareLocalFileMetaMacWithNode(fa, node);
+        },
+        option);
+}
+
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
@@ -18178,58 +18321,31 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     }
                     wLocalPath.appendWithSeparator(name, true);
 
-                    FileFingerprint nodeFingerprint;
-                    if (node)
+                    auto fa = fsAccess->newfileaccess();
+                    if (fa->isfile(wLocalPath)) // a local file exists
                     {
-                        nodeFingerprint = *node;
-                    }
-                    else
-                    {
-                        unique_ptr<FileFingerprint> fp(getFileFingerprintInternal(publicNode->getFingerprint()));
-                        if (fp) nodeFingerprint = *fp;
-                    }
-
-                    // Is there already a file at the download location that matches that node?
-                    // If so, report the transfer as complete and successful, instantly (as it did before)
-                    string ext;
-                    if (nodeFingerprint.isvalid &&
-                        fsAccess->getextension(wLocalPath, ext))
-                    {
-                        if (!ext.empty() && ext[0] == '.') ext.erase(0, 1);
-
-                        if (client->treatAsIfFileDataEqual(nodeFingerprint, wLocalPath, ext))
+                        if (transfer->getDownloadDecision() == DownloadDecider::Decision::NotYet)
                         {
-                            transfer->setState(MegaTransfer::STATE_QUEUED);
-                            transferMap[nextTag] = transfer;
-                            transfer->setTag(nextTag);
-                            transfer->setTotalBytes(nodeFingerprint.size);
-                            transfer->setTransferredBytes(0);
-                            transfer->setPath(wLocalPath.toPath(false).c_str());
-                            transfer->setStartTime(Waiter::ds);
-                            transfer->setUpdateTime(Waiter::ds);
-                            totalDownloads++;
-                            pendingDownloads++;
-                            fireOnTransferStart(transfer);
-                            if (node)
-                            {
-                                transfer->setNodeHandle(node->nodehandle);
-                            }
-                            else
-                            {
-                                transfer->setNodeHandle(publicNode->getHandle());
-                            }
-                            transfer->setDeltaSize(nodeFingerprint.size);
-                            transfer->setSpeed(0);
-                            transfer->setMeanSpeed(0);
-                            transfer->setState(MegaTransfer::STATE_COMPLETED);
-                            pendingDownloads--;
-                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK));
+                            node 
+                                ?  transfer->setDownloadDecision(DownloadDecider::decide(fa.get(), node, transfer->getDownloadOption()))
+                                :  transfer->setDownloadDecision(DownloadDecider::decide(fa.get(), publicNode, transfer->getDownloadOption()));
+                        }
+
+                        auto decision = transfer->getDownloadDecision();
+                        if (decision == DownloadDecider::Decision::ReportError)
+                        {
+                            e = API_EEXIST;
                             break;
                         }
-                    }
-                    else
-                    {
-                        LOG_debug << "Could not get fingerprint or extension to evaluate whether the on-disk file is the same as the node";
+                        else if (decision == DownloadDecider::Decision::Skip) // complete with OK
+                        {
+                            CompleteFileDownloadBySkip(transfer,
+                                node ? node->size : publicNode->getSize(),
+                                node ? node->nodehandle : publicNode->getHandle(),
+                                nextTag,
+                                wLocalPath);
+                            break;
+                        }
                     }
 
                     currentTransfer = transfer;
@@ -18352,6 +18468,28 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
         }
     }
     return count;
+}
+
+void MegaApiImpl::CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath)
+{
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(size);
+    transfer->setTransferredBytes(0);
+    transfer->setPath(localPath.toPath(false).c_str());
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    totalDownloads++;
+    pendingDownloads++;
+    fireOnTransferStart(transfer);
+    transfer->setNodeHandle(nodehandle);
+    transfer->setDeltaSize(size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    pendingDownloads--;
+    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 void MegaApiImpl::removeRecursively(const char *path)
@@ -28303,7 +28441,7 @@ void MegaRecursiveOperation::ensureThreadStopped()
     }
 }
 
-bool MegaRecursiveOperation::isCancelledByFolderTransferToken()
+bool MegaRecursiveOperation::isCancelledByFolderTransferToken() const
 {
     return transfer->accessCancelToken().isCancelled();
 }
@@ -28410,9 +28548,15 @@ void MegaFolderDownloadController::start(MegaNode *node)
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
             Error e = createFolder();
 
+            std::shared_ptr<TransferQueue> transferQueue;
+            if (e == API_OK)
+            {
+                transferQueue = genDownloadTransfersForFiles(fsType);
+            }
+
             // the thread always queues a function to execute on MegaApi thread for onFinish()
             // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue]() {
 
                 // these next parts must run on MegaApiImpl's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28431,12 +28575,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
                 else
                 {
                     // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
-                    TransferQueue transferQueue;
-                    if (!genDownloadTransfersForFiles(fsType, transferQueue))
+                    if (!transferQueue)
                     {
                         complete(API_EINCOMPLETE, true);
                     }
-                    else if (transferQueue.empty())
+                    else if (transferQueue->empty())
                     {
                         complete(API_OK);
                     }
@@ -28444,8 +28587,8 @@ void MegaFolderDownloadController::start(MegaNode *node)
                     {
                         // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
-                        transfersTotalCount = transferQueue.size();
-                        megaApi->sendPendingTransfers(&transferQueue, this);
+                        transfersTotalCount = transferQueue->size();
+                        megaApi->sendPendingTransfers(transferQueue.get(), this);
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
                         // complete() will finally be called when the last sub-transfer finishes
@@ -28530,6 +28673,21 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     return scanFolder_succeeded;
 }
 
+bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name) const
+{
+    if (mWorkerThreadStopFlag)
+    {
+        LOG_debug << name << " thread stopped by flag";
+        return true;
+    }
+    if (isCancelledByFolderTransferToken())
+    {
+        LOG_debug << name << " thread stopped by cancel token";
+        return true;
+    }
+    return false;
+}
+
 Error MegaFolderDownloadController::createFolder()
 {
     // Create all local directories in one shot (on the download worker thread)
@@ -28538,14 +28696,8 @@ Error MegaFolderDownloadController::createFolder()
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (mWorkerThreadStopFlag)
+        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolder"))
         {
-            LOG_debug << "MegaFolderDownloadController::createFolder thread stopped by flag";
-            return API_EINCOMPLETE;
-        }
-        if (isCancelledByFolderTransferToken())
-        {
-            LOG_debug << "MegaFolderDownloadController::createFolder thread stopped by cancel token";
             return API_EINCOMPLETE;
         }
 
@@ -28565,34 +28717,45 @@ Error MegaFolderDownloadController::createFolder()
     return API_OK;
 }
 
-bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue& transferQueue)
+std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
 {
-    // Add all download transfers in one shot
-    for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
-    {
-        if (isCancelledByFolderTransferToken())
-        {
-            return false;
-        }
+    auto transferQueue = std::make_unique<TransferQueue>();
 
-        LocalPath &localpath = it->localPath;
-        const std::vector<unique_ptr<MegaNode>> &childrenNodes = it->childrenNodes;
-        for (size_t i = 0; i < childrenNodes.size(); i++)
+    // Add all download transfers in one shot
+    for (auto &folder : mLocalTree)
+    {
+        for (auto& fileNode : folder.childrenNodes)
         {
-            if (isCancelledByFolderTransferToken())
+            if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
             {
-                return false;
+                return nullptr;
             }
 
-             MegaNode &node = *(childrenNodes.at(i).get());
-             ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
-             string utf8path = localpath.toPath(false);
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, nullptr /*appData()*/, transfer->accessCancelToken(), this, fsType);
-             transferQueue.push(transferDownload);
-         }
+            // get file local path
+            auto& fileLocalPath = folder.localPath;
+            ScopedLengthRestore restoreLen(fileLocalPath);
+            fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
+
+            // make the download decision
+            auto fa = fsaccess->newfileaccess();
+            auto decision = DownloadDecider::Decision::Download;
+            if (fa->isfile(fileLocalPath))
+            {
+                decision = DownloadDecider::decide(fa.get(), fileNode.get(), transfer->getDownloadOption());
+            }
+
+            MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
+                false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
+                transfer->accessCancelToken(), static_cast<int>(transfer->getDownloadOption()),
+                static_cast<int>(transfer->getSaveOption()), this, fsType);
+
+            transferDownload->setDownloadDecision(decision);
+
+            transferQueue->push(transferDownload);
+        }
     }
-    return true;
+
+    return transferQueue;
 }
 
 #ifdef HAVE_LIBUV

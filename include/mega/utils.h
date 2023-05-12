@@ -657,6 +657,10 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAcces
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
+
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
 // The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is

@@ -5319,6 +5319,20 @@ class MegaTransfer
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
         };
 
+        enum
+        {                                               // Download options if the file name conflicting
+            DOWNLOAD_SKIP_IF_EXISTING           = 1,    // Skip downloading
+            DOWNLOAD_ERROR_IF_EXISTING          = 2,    // Report error and exist
+            DOWNLOAD_SKIP_IF_SAME_FINGERPRINT   = 3,    // Check fingerprint. Skip downloading if they are same         (quick)
+            DOWNLOAD_SKIP_IF_SAME_METAMAC       = 4,    // Check MetaMac. Skip downloading if they are same             (slow, a lot of disk + CPU)
+        };
+
+        enum
+        {                                               // Saving options if the file name conflicting
+            SAVE_OVERWRITE = 1,                         // Overwrite the existing one
+            SAVE_RENAME_NEW_WITH_SUFFIX_N = 2,          // Rename the new one with suffix (1), (2), and etc.
+        };
+
         virtual ~MegaTransfer();
 
         /**
@@ -9169,6 +9183,7 @@ class MegaApi
             OPTION_SET_NAME             = (1 << 1),
             OPTION_SET_COVER            = (1 << 2),
         };
+
         enum
         {
             CREATE_ELEMENT              = (1 << 0),
@@ -14191,9 +14206,19 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
          * This param is required to be able to cancel transfers safely.
          * App retains the ownership of this param.
+         * @param downloadOption Indicates the download option on name conflicting, valid values are:
+         *      - MegaTransfer::DOWNLOAD_SKIP_IF_EXISTING           = 1,
+         *      - MegaTransfer::DOWNLOAD_ERROR_IF_EXISTING          = 2,
+         *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT   = 3,
+         *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_METAMAC       = 4,
+         *
+         * @param saveOption Indicates the saving option on name conflicting, valid values are:
+         *      - MegaTransfer::SAVE_OVERWRITE                      = 1,
+         *      - MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N       = 2,
+         *
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int downloadOption, int saveOption, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
