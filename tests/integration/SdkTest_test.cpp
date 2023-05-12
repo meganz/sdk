@@ -11533,7 +11533,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Failed to receive shared Set name reset updated AP on U1's secondary client";
     // Wait for the database to be updated.
-    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000));
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
+        << "Failed to receive commit to DB event related to Set name update";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
