@@ -28719,7 +28719,7 @@ Error MegaFolderDownloadController::createFolder()
 
 std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
 {
-    auto transferQueue = std::make_unique<TransferQueue>();
+    auto transferQueue = ::mega::make_unique<TransferQueue>();
 
     // Add all download transfers in one shot
     for (auto &folder : mLocalTree)
