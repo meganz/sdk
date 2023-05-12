@@ -10442,29 +10442,34 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
                 u->mBizMode = bizMode;
 
-                if (pubk.size())
+                // The attributes received during the "ug" also include the version.
+                // Keep them instead of the ones with no version from the fetch nodes.
+                if (!(uh == me && fetchingnodes))
                 {
-                    u->pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubk.data(), (int)pubk.size());
-                }
+                    if (pubk.size())
+                    {
+                        u->pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubk.data(), (int)pubk.size());
+                    }
 
-                if (puEd255.size())
-                {
-                    u->setattr(ATTR_ED25519_PUBK, &puEd255, nullptr);
-                }
+                    if (puEd255.size())
+                    {
+                        u->setattr(ATTR_ED25519_PUBK, &puEd255, nullptr);
+                    }
 
-                if (puCu255.size())
-                {
-                    u->setattr(ATTR_CU25519_PUBK, &puCu255, nullptr);
-                }
+                    if (puCu255.size())
+                    {
+                        u->setattr(ATTR_CU25519_PUBK, &puCu255, nullptr);
+                    }
 
-                if (sigPubk.size())
-                {
-                    u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, nullptr);
-                }
+                    if (sigPubk.size())
+                    {
+                        u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, nullptr);
+                    }
 
-                if (sigCu255.size())
-                {
-                    u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, nullptr);
+                    if (sigCu255.size())
+                    {
+                        u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, nullptr);
+                    }
                 }
 
                 if (v != VISIBILITY_UNKNOWN)
