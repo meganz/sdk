@@ -20181,10 +20181,8 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
 
         // len of the "name"
         byte len = 0;
