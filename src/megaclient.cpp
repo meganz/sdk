@@ -22143,11 +22143,8 @@ bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
     // [nodeHandle.6 shareKey.16 trust.1]*
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
-
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
         byte trust = 0;
@@ -22199,11 +22196,8 @@ bool KeyManager::deserializePendingOutshares(KeyManager& km, const string &blob)
     // if len!=0 -> uid is an email address
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
-
         byte len = 0;
         handle h = UNDEF;
         string uid;
@@ -22312,11 +22306,8 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
-
         // len of the "name"
         byte len = 0;
         if (!r.unserializebyte(len))
