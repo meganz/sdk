@@ -390,13 +390,14 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    if (appxfer_it != appfile_list::iterator())
+    if (appxfer_it != appxferq[GET].end())
         appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
 {
-    appxferq[PUT].erase(appxfer_it);
+    if (appxfer_it != appxferq[PUT].end())
+        appxferq[PUT].erase(appxfer_it);
 }
 
 void AppFilePut::displayname(string* dname)
@@ -618,6 +619,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
+    appxfer_it = appxferq[GET].end();
+
     if (n)
     {
         h = n->nodeHandle();
@@ -657,6 +660,8 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
+    appxfer_it = appxferq[PUT].end();
+
     // full local path
     setLocalname(clocalname);
 
