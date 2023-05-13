@@ -2069,6 +2069,61 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     }
 }
 
+static int dumpfoldertree(Node* n, int depth = 0, string identation = "", bool lastItem = true)
+{
+    // \u2500 ─
+    // \u2514 └
+    // \u251C ├
+    // \u2502 │
+    // Output example:
+    // MEGAcli> tree
+    // ├ folder
+    // └ folder
+    //   ├ subfolder
+    //   │└ ssubfolder
+    //   ├ subfolder
+    //   │└ ssubfolder
+    //   │ └ sssubsubfolder
+    //   ├ subfolder
+    //   └ subfolder
+
+    if (depth)
+    {
+        if(n->type == FOLDERNODE)
+        {
+            cout << identation;
+
+            if (lastItem) cout << "\u2514 ";
+            else cout << "\u251C ";
+
+            cout << n->displayname() << endl;
+        }
+    }
+    if (n->type != FILENODE)
+    {
+        auto children = client->getChildren(n);
+        node_list folders;
+        std::copy_if(children.begin(), children.end(), std::inserter(folders, folders.end()), [](Node* n) {
+            return n->type == FOLDERNODE;
+        });
+        auto size = folders.size();
+        auto counter = size;
+        for (Node* node : folders)
+        {
+            if(lastItem)
+            {
+                counter += dumpfoldertree(node, depth + 1, identation + " ", (--size == 0));
+            }
+            else
+            {
+                counter += dumpfoldertree(node, depth + 1, identation + "\u2502", (--size == 0));
+            }
+        }
+        return counter;
+    }
+    return 0;
+}
+
 #ifdef USE_FILESYSTEM
 static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
@@ -4107,6 +4162,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_tree, sequence(text("tree")));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -4737,6 +4793,12 @@ void exec_ls(autocomplete::ACState& s)
     {
         dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
+}
+
+void exec_tree(autocomplete::ACState& s)
+{
+    auto numberOfFolders = dumpfoldertree(client->nodeByHandle(cwd));
+    cout << endl << "Total directories: " << numberOfFolders << endl;
 }
 
 void exec_cd(autocomplete::ACState& s)
