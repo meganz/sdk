@@ -13251,6 +13251,8 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         nullptr /*appData*/,
         false   /*startFirst*/,
         nullptr /*cancelToken*/,
+        MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
+        MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
         &dt     /*listener*/);
 
     while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
