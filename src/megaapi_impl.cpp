@@ -18330,6 +18330,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                     }
                     wLocalPath.appendWithSeparator(name, true);
+                    transfer->setPath(wLocalPath.toPath(false).c_str()); // retry requires path set
 
                     auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE) // a local file exists
@@ -18369,8 +18370,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     {
                         f.reset(new MegaFileGet(client, publicNode, wLocalPath));
                     }
-
-                    transfer->setPath(wLocalPath.toPath(false).c_str());
 
                     f->setTransfer(transfer);
                     f->cancelToken = transfer->accessCancelToken();
