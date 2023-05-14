@@ -18332,7 +18332,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     wLocalPath.appendWithSeparator(name, true);
 
                     auto fa = fsAccess->newfileaccess();
-                    if (fa->isfile(wLocalPath)) // a local file exists
+                    if (fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE) // a local file exists
                     {
                         if (transfer->getDownloadDecision() == DownloadDecider::Decision::NotYet)
                         {
@@ -28755,7 +28755,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfer
             // make the download decision
             auto fa = fsaccess->newfileaccess();
             auto decision = DownloadDecider::Decision::Download;
-            if (fa->isfile(fileLocalPath))
+            if (fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
             {
                 decision = DownloadDecider::decide(fa.get(), fileNode.get(), transfer->getDownloadOption());
             }
