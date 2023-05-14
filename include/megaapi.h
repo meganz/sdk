@@ -4478,6 +4478,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::fastLogin - Returns session key used to access the account
+         * - MegaApi::sendEvent - Returns the ViewID key used to track the view
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4797,6 +4798,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -13969,6 +13971,40 @@ class MegaApi
          * @param message Event message
          * @param listener MegaRequestListener to track this request
          *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
+         *  - MEGAchat:  [99000, 99199)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         *             is sent to MEGA servers.
+         * This version of the function is deprecated. Please use the non-deprecated one below.
+        */
+        MEGA_DEPRECATED
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         * - MegaRequest::getFlag - Returns the addJourneyId flag
+         * - MegaRequest::getSessionKey - Returns the ViewID
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+         * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+         *               This value should have been generated with MegaApi::generateViewId method.
+         * @param listener MegaRequestListener to track this request
+         *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
          *
@@ -13981,7 +14017,7 @@ class MegaApi
          *  - MEGAsync:  [99500, 99600)
          *  - Webclient: [99600, 99800]
          */
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new ticket for support with attached description
@@ -15195,6 +15231,7 @@ class MegaApi
          * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
          * @param businessStatus business status. Pass 999 if not valid
          * @param listener MegaRequestListener to track this request
+         *
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
@@ -17953,6 +17990,15 @@ class MegaApi
          * @return True if the language code is known for the SDK, otherwise false
          */
         bool setLanguage(const char* languageCode);
+
+        /**
+         * @brief Generate an unique ViewID
+         *
+         * The caller gets the ownership of the object.
+         *
+         * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+         */
+        const char* generateViewId();
 
         /**
          * @brief Set the preferred language of the user

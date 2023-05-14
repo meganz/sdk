@@ -466,20 +466,15 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
-            unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
-            EXPECT_EQ(0, outshares->size()) << "some outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getOutShares())->size() == 0; }, 20*1000)) << "some outshares were not removed";
 
-            unique_ptr<MegaShareList> pendingOutshares(megaApi[nApi]->getPendingOutShares());
-            EXPECT_EQ(0, pendingOutshares->size()) << "some pending outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getPendingOutShares())->size() == 0; }, 20*1000)) << "some pending outshares were not removed";
 
-            unique_ptr<MegaShareList> unverifiedOutshares(megaApi[nApi]->getUnverifiedOutShares());
-            EXPECT_EQ(0, unverifiedOutshares->size()) << "some unverified outshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedOutShares())->size() == 0; }, 20*1000)) << "some unverified outshares were not removed";
 
-            unique_ptr<MegaShareList> unverifiedInshares(megaApi[nApi]->getUnverifiedInShares());
-            EXPECT_EQ(0, unverifiedInshares->size()) << "some unverified inshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getUnverifiedInShares())->size() == 0; }, 20*1000)) << "some unverified inshares were not removed";
 
-            unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
-            EXPECT_EQ(0, inshares->size()) << "some inshares were not removed";
+            EXPECT_TRUE(WaitFor([this, nApi]() { return unique_ptr<MegaShareList>(megaApi[nApi]->getInSharesList())->size() == 0; }, 20*1000)) << "some inshares were not removed";
         }
     }
 
@@ -5712,8 +5707,11 @@ namespace mega
         {
 
             unsigned oldvalue = tbm->raidLinesPerChunk;
-            tbm->raidLinesPerChunk /= 4;
-            LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
+            unsigned minDivisorSize = 4 * 1024 * 1024; //  raidLinesPerChunk is defined by MAX_REQ_SIZE value, which depends on the system -> division factor of 4 for different max_req_sizes
+            unsigned divideBy = std::max<unsigned>(static_cast<unsigned>(TransferSlot::MAX_REQ_SIZE / minDivisorSize), static_cast<unsigned>(1));
+            tbm->raidLinesPerChunk /= divideBy;
+            tbm->setAvoidSmallLastRequest(false);
+            LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
 
         static bool  onHttpReqPost509(HttpReq* req)
@@ -5774,6 +5772,7 @@ namespace mega
         {
             isRaid = tbm->isRaid();
             isRaidKnown = true;
+            onSetIsRaid_morechunks(tbm);
         }
 
         static bool resetForTests()
@@ -11427,6 +11426,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Check if Set is exported
     // U1: Enable Set export (creates public link)
     // U1: Check if Set is exported
+    // U1: Update Set name and verify Set is still exported
     // U1: Logout / login to retrieve Set
     // U1: Check if Set is exported
     // U1: Get public Set URL
@@ -11525,26 +11525,41 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(isExported, s->isExported());
         ASSERT_NE(s->ts(), 0);
     };
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     s1pEnabledExport.reset(megaApi[userIdx]->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Set export updated not received after " << maxTimeout << " seconds";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tChecking export enable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doExportSet(userIdx, &exportedSet, exportedSetURL, sh));
     s1pEnabledExport.reset(exportedSet);
-    lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
     ASSERT_TRUE(megaApi[0]->isExportedSet(sh)) << "Set should already be public";
+
+
+    LOG_debug << "# U1: Update Set name and verify Set is still exported";
+    userIdx = 0;
+    differentApiDtlsPtr->setUpdated = false;
+    const string updatedName = name + u8" 手";
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name updated not received after " << maxTimeout << " seconds in different client";
+    ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
+    // reset to previous name to keep using existing original cached Set for validation
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Shared Set name reset not received after " << maxTimeout << " seconds in different client";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
@@ -11566,7 +11581,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(el->order(), elp->order());
     };
     unique_ptr<MegaSetElement> reloadedSessionElement(megaApi[userIdx]->getSetElement(sh, eh));
-    lIsSameElement(reloadedSessionElement.get());
+    ASSERT_NO_FATAL_FAILURE(lIsSameElement(reloadedSessionElement.get()));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11582,7 +11597,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         else                   ASSERT_EQ(publicSetLink.get(), nullptr);
     };
 
-    lCheckSetLink(API_OK);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_OK));
 
 
     LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
@@ -11592,7 +11607,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     {
         ASSERT_NE(ell, nullptr);
         ASSERT_EQ(ell->size(), els->size());
-        lIsSameElement(ell->get(0));
+        ASSERT_NO_FATAL_FAILURE(lIsSameElement(ell->get(0)));
     };
     const auto lFetchCurrentSetInPreviewMode =
     [this, &lIsSameSet, &lIsSameElementList] (int apiIdx, int isSuccessExpected)
@@ -11602,8 +11617,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
         if (isSuccessExpected)
         {
-            lIsSameSet(s.get(), true);
-            lIsSameElementList(ell.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), true));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(ell.get()));
         }
         else
         {
@@ -11624,8 +11639,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         if (isSetExportExpected)
         {
             ASSERT_EQ(reqResult, API_OK);
-            lIsSameSet(s.get(), isSetExportExpected);
-            lIsSameElementList(els.get());
+            ASSERT_NO_FATAL_FAILURE(lIsSameSet(s.get(), isSetExportExpected));
+            ASSERT_NO_FATAL_FAILURE(lIsSameElementList(els.get()));
         }
         else
         {
@@ -11635,25 +11650,25 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         }
 
         ASSERT_EQ(megaApi[apiIdx]->inPublicSetPreview(), isSetExportExpected);
-        lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected);
+        ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(apiIdx, isSetExportExpected));
     };
 
-    lFetchPublicSet(0, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(0, isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Stop Public Set preview mode";
     userIdx = 0;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
     userIdx = 1;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     // test shortcut
     LOG_debug << "\tTesting fetch shortcut (same public Set in a row)";
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
 
 
     LOG_debug << "# U2: Download foreign Set Element in preview set mode";
@@ -11685,20 +11700,20 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         fs::remove(downloadPath);
     };
 
-    lFetchForeignNode(API_OK);
-    lDownloadForeignElement(API_OK, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_OK));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_OK, foreignNode.get()));
 
 
     LOG_debug << "# U2: Stop Public Set preview mode";
     userIdx = 1;
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
-    lFetchCurrentSetInPreviewMode(userIdx, false);
+    ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
 
 
     LOG_debug << "# U2: Download foreign Set Element not in preview set mode (-11 and -9 expected)";
-    lFetchForeignNode(API_EACCESS);
-    lDownloadForeignElement(API_ENOENT, foreignNode.get());
+    ASSERT_NO_FATAL_FAILURE(lFetchForeignNode(API_EACCESS));
+    ASSERT_NO_FATAL_FAILURE(lDownloadForeignElement(API_ENOENT, foreignNode.get()));
 
 
     LOG_debug << "# U1: Disable Set export (invalidates public link)";
@@ -11708,18 +11723,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     isExpectedToBeExported = false;
     unique_ptr<MegaSet> s1pDisabledExport(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // wait for action packets on both APIs (disable updates through APs)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // test shortcut on disable export
     LOG_debug << "\tChecking export disable shortcut";
     exportedSet = nullptr;
     ASSERT_EQ(API_OK, doDisableExportSet(userIdx, sh));
     s1pDisabledExport.reset(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11727,12 +11742,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL (expect -9)";
-    lCheckSetLink(API_ENOENT);
+    ASSERT_NO_FATAL_FAILURE(lCheckSetLink(API_ENOENT));
 
 
     LOG_debug << "# U1: Fetch public Set on non-exported Set (using previously valid link)";
     userIdx = 0;
-    lFetchPublicSet(userIdx, isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lFetchPublicSet(userIdx, isExpectedToBeExported));
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview()) << "Public Set preview mode should not be active";
 
 
@@ -13137,6 +13152,137 @@ TEST_F(SdkTest, SdkGetNodesByName)
 }
 
 /**
+ * @brief TEST_F SdkResumableTrasfers
+ *
+ * Tests resumption for file upload and download.
+ */
+TEST_F(SdkTest, SdkResumableTrasfers)
+{
+    LOG_info << "___TEST Resumable Trasfers___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    //  1. Create ~16 MB file
+    //  2. Upload file, with speed limit
+    //  3. Logout / Login
+    //  4. Check upload resumption
+    //  5. Finish upload
+    //  6. Download file, with speed limit
+    //  7. Logout / Login
+    //  8. Check download resumption
+
+    //  1. Create ~16 MB file
+    std::ofstream file(fs::u8path(UPFILE), ios::out);
+    ASSERT_TRUE(file) << "Couldn't create " << UPFILE;
+    for (int i = 0; i < 1000000; i++)
+    {
+        file << "16 MB test file "; // 16 characters
+    }
+    ASSERT_EQ(file.tellp(), 16000000) << "Wrong size for test file";
+    file.close();
+
+    //  2. Upload file, with speed limit
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or took more than 1 minute";
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    megaApi[0]->setMaxUploadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    TransferTracker ut(megaApi[0].get());
+    megaApi[0]->startUpload(UPFILE.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &ut     /*listener*/);
+
+
+    second_timer timer;
+    m_off_t pauseThreshold = 9000000;
+    while (!ut.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  3. Logout / Login
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    int result = ut.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    //  4. Check upload resumption
+    timer.reset();
+    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    MegaTransfer* upl = transfers->get(0);
+    long long uplBytes = upl->getTransferredBytes();
+    ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
+
+    //  5. Finish upload
+    megaApi[0]->setMaxUploadSpeed(-1);
+    timer.reset();
+    unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    while (!cloudNode && timer.elapsed() < 20)
+    {
+        WaitMillisec(500);
+        cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    }
+
+    //  6. Download file, with speed limit
+    string downloadedFile = DOTSLASH + DOWNFILE;
+    megaApi[0]->setMaxDownloadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    timer.reset();
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudNode.get(),
+        downloadedFile.c_str(),
+        nullptr /*fileName*/,
+        nullptr /*appData*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/,
+        &dt     /*listener*/);
+
+    while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    //  7. Logout / Login
+    session.reset(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    result = dt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    //  8. Check download resumption
+    timer.reset();
+    transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    MegaTransfer* dnl = transfers->get(0);
+    long long dnlBytes = dnl->getTransferredBytes();
+    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+
+    megaApi[0]->setMaxDownloadSpeed(-1);
+}
+
+/**
  * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
  *
  * - Test 1: Control test. Default file permissions (0600).
@@ -13386,4 +13532,152 @@ TEST_F(SdkTest, GetRecommendedProLevel)
     int err = synchronousGetRecommendedProLevel(0, level);
     ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
     ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+}
+
+/**
+ * @brief Test JourneyID Tracking support and ViewID generation
+ *
+ * - Test JourneyID functionality (obtained from "ug"/"gmf" commands)
+ *   and ViewID generation - Values used for tracking on API requests.
+ * - Ref: SDK-2768 - User Journey Tracking Support
+ *
+ * TEST ViewID: Generate a ViewID and check the hex string obtained.
+ *
+ * Tests JourneyID:
+ * Test 1: JourneyID before login (retrieved from "gmf" command)
+ * Test 2: JourneyID after login (must be the same as the one loaded and cached from "gmf" command)
+ * TEST 3: Full logout and login from a fresh instance - cache file is deleted - new JourneyID retrieved from "ug" command
+ * TEST 4:  Unset tracking flag.
+ * TEST 5:  Update journeyID with a new hex string - must keep the previous one - must set tracking flag.
+ * TEST 6:  Update journeyID with another hex string - must keep the previous one - no values must be updated.
+ * TEST 7:  Update journeyID with an empty string - tracking flag must be unset.
+ * TEST 8:  Local logout, resume session and do a fetch nodes request - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+ * TEST 9:  Full logout and login from the same instance - JourneyID is reset -
+ *          A new JourneyID should be retrieved from the next "ug" command after login: must be different from the original retrieved on TEST 1A.
+ *
+ */
+TEST_F(SdkTest, SdkTestJourneyTracking)
+{
+    LOG_info << "___TEST SdkTestJourneyTracking___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // This UGLY cast is used so we can access the MegaClient.
+    // We need to access the MegaClient to test JourneyID functionality according to specifications.
+    // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
+    // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
+    // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
+    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaClient* client = impl->getMegaClient();
+
+    //==================||
+    //    Test ViewID   ||
+    //==================||
+
+    // Generate a ViewID (16-char hex string)
+    auto viewIdCstr = megaApi[0]->generateViewId();
+    auto viewId = string(viewIdCstr);
+    ASSERT_FALSE (viewId.empty()) << "Invalid hex string for generated viewId - it's empty";
+    constexpr size_t HEX_STRING_SIZE = 16;
+    ASSERT_TRUE (viewId.size() == HEX_STRING_SIZE) << "Invalid hex string size for generated viewId (" << viewId.size() << ") - expected (" << HEX_STRING_SIZE << ") [ViewID: '" << viewId << "']";
+    delete viewIdCstr;
+
+    //=====================||
+    //    Test JourneyID   ||
+    //=====================||
+
+    // TEST 1: JourneyID before login (retrieved from "gmf" command)
+    auto initialJourneyId = client->getJourneyId(); // Check the actual JourneyID before the logout
+    ASSERT_FALSE(initialJourneyId.empty()) << "There should be a valid initial JourneyID from the first login";;
+
+    // Logout and GetMiscFlags()
+    logout(0, false, maxTimeout);
+    ASSERT_TRUE(client->getJourneyId().empty()) << "There shouldn't be any valid journeyId value after a full logout - values must be reset and cache file deleted";
+    gSessionIDs[0] = "invalid";
+    auto err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // Get a new JourneyId from "gmf" command
+    auto journeyIdGmf = client->getJourneyId();
+    ASSERT_FALSE(initialJourneyId == journeyIdGmf) << "The initial JourneyId (loaded from cache) cannot be equal to the new Journeyid (obtained from \"gmf\" command)";
+
+    // TEST 2: JourneyID after login - must be the same than the one loaded and cached after "gmf" command
+    auto trackerLogin1 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin1->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    auto journeyIdAfterFirstLogin = client->getJourneyId();
+    ASSERT_TRUE(journeyIdGmf == journeyIdAfterFirstLogin) << "JourneyId value after login must be the same than the previous journeyId loaded from cache";
+
+    // Full logout and login from a fresh instance
+    logout(0, false, maxTimeout);
+    auto journeyIdAfterLogout = client->getJourneyId();
+    ASSERT_TRUE(journeyIdAfterLogout.empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
+    gSessionIDs[0] = "invalid";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // New impl and client - we need to update pointers
+    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    client = impl->getMegaClient();
+
+    // TEST 3: Check JourneyID after login from a fresh instance with no cache file
+    // A new JourneyID should have been retrieved from the initial "ug" command
+    auto journeyId = client->getJourneyId();
+    ASSERT_FALSE (journeyId.empty()) << "Invalid hex string for generated journeyId - it's empty";
+    ASSERT_TRUE (journeyId.size() == MegaClient::JourneyID::HEX_STRING_SIZE) << "Invalid hex string size for generated journeyId (" << journeyId.size() << ") - expected (" << MegaClient::JourneyID::HEX_STRING_SIZE << ")";
+    ASSERT_TRUE (client->trackJourneyId()) << "Wrong value for client->trackJourneyId() (false) - expected true: it has a value and tracking flag is ON";
+    ASSERT_FALSE(journeyId == journeyIdAfterFirstLogin) << "JourneyId value after second login (obtained from \"ug\" command) cannot be the same as the previous journeyId value (obtained from \"gmf\" command - reset from cache)";
+
+        // Lambda function for checking JourneyID values after updates
+        // ref_id: A numeric value to identify the call
+        // trackJourneyId: Whether client->trackJourneyId() should return true (stored value, tracking flag is set) or false (tracking flag is unset)
+        auto checkJourneyId = [client, &journeyId] (int ref_id, bool trackJourneyId)
+        {
+            auto actualJourneyId = client->getJourneyId();
+            ASSERT_TRUE (actualJourneyId == journeyId) << "[Jid " << ref_id << "] Wrong value for actual journeyId" << "(" << actualJourneyId << "). Expected to be equal to original journeyID (" << journeyId << ")";
+            if (trackJourneyId)
+            {
+                ASSERT_TRUE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected TRUE: it has a value and tracking flag must be set";
+            }
+            else
+            {
+                ASSERT_FALSE (client->trackJourneyId()) << "[Jid " << ref_id << "] Wrong value for client->trackJourneyId() - expected FALSE: it has a value, but tracking flag must be unset";
+            }
+        };
+
+    // TEST 4: Unset tracking flag
+    // JourneyID must still be valid, but tracking flag must be set
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong returned value for setJourneyId(\"\") - expected TRUE (updated): tracking flag should've been unset";
+    checkJourneyId(4, false);
+
+    // TEST 5: Update journeyID with a new hex string - must keep the previous one - must set tracking flag
+    ASSERT_TRUE (client->setJourneyId("FF00FF00FF00FF00")) << "Wrong result for client->setJourneyId(\"FF00FF00FF00FF00\") - expected TRUE (updated): tracking flag should've been set";
+    checkJourneyId(5, true);
+
+    // TEST 6: Update journeyID with a another hex string - must keep the previous one - no changes, no cache updates -> setJourneyId should return false
+    ASSERT_FALSE (client->setJourneyId("0000000000000001")) << "Wrong result for client->setJourneyId(\"0000000000000001\") - expected FALSE (not updated): neither journeyId value nor tracking flag should've been updated";
+    checkJourneyId(6, true);
+
+    // TEST 7: Update journeyID with an empty string - tracking flag must be unset
+    ASSERT_TRUE (client->setJourneyId("")) << "Wrong result for client->setJourneyId(\"\") - expected TRUE: tracking flag should've been unset";
+    checkJourneyId(7, false);
+
+    // TEST 8: Locallogout, resume session and request to fetch nodes - New JID value from Api: JourneyID must be the same, but now tracking flag must be set
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    checkJourneyId(8, true);
+
+    // TEST 9: Full logout and login from the same instance - values must be reset and cache file deleted
+    // A new JourneyID value should be retrieved from the next "ug" command after login
+    ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
+    gSessionIDs[0] = "invalid";
+    auto trackerLogin2 = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin2->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_TRUE(client->getJourneyId().empty()) << "Wrong value returned from client->getJourneyId(). It should be empty, as JourneyID values are reset and cached file is deleted";
+
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // This will get a new JourneyID
+    auto newJourneyId = client->getJourneyId();
+
+    // New value should be different from the original JourneyID
+    ASSERT_FALSE(newJourneyId == journeyId) << "Wrong result when comparing newJourneyId and old JourneyId. They should be different after a full logout - values are reset and cached file is deleted";
+    journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
+    checkJourneyId(9, true);
 }

@@ -2673,7 +2673,7 @@ class MegaApiImpl : public MegaApp
         int getPasswordStrength(const char *password);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
@@ -2952,6 +2952,7 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
+        string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
@@ -3738,6 +3739,8 @@ public:
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t capacity);
+    // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer) [Default: 0 -> the whole buffer]
+    void reset(bool freeData, size_t sizeToReset = 0);
     // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
     // Get buffered data size
@@ -3760,6 +3763,10 @@ public:
     void setDuration(int duration);
     // Rate between file size and its duration (only for media files)
     m_off_t getBytesPerSecond() const;
+    // Get upper bound limit for capacity
+    unsigned getMaxBufferSize();
+    // Get upper bound limit for chunk size to write to the consumer
+    unsigned getMaxOutputSize();
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
@@ -3769,6 +3776,8 @@ public:
 private:
     // Rate between partial file size and its duration (only for media files)
     m_off_t partialDuration(m_off_t partialSize) const;
+    // Recalculate maxBufferSize and maxOutputSize taking into accout the byteRate (for media files) and DirectReadSlot read chunk size.
+    void calcMaxBufferAndMaxOutputSize();
 
 protected:
     // Circular buffer to store data to feed the consumer
