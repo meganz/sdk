@@ -178,13 +178,13 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeCloseExternalDriveBackups,
     MEGARequestTypeGetDownloadUrls,
     MEGARequestTypeStartChatCall,
-    MEGARequestTypeJoinChatCall
-    MEGARequestTypeEndChatCall
+    MEGARequestTypeJoinChatCall,
+    MEGARequestTypeEndChatCall,
     MEGARequestTypeGetFAUploadUrl,
     MEGARequestTypeExecuteOnThread,
     MEGARequestTypeGetChatOptions,
     MEGARequestTypeGetRecentActions,
-    MEGARequestTypeCheckRecoveryKey
+    MEGARequestTypeCheckRecoveryKey,
     MEGARequestTypeSetMyBackups,
     MEGARequestTypePutSet,
     MEGARequestTypeRemoveSet,
@@ -194,7 +194,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRemoveOldBackupNodes,
     MEGARequestTypeSetSyncRunstate,
     MEGARequestTypeAddUpdateScheduledMeeting,
-    MEGARequestTypeDelScheduledMeeting
+    MEGARequestTypeDelScheduledMeeting,
     MEGARequestTypeFetchScheduledMeeting,
     MEGARequestTypeFetchScheduledMeetingOccurrences,
     MEGARequestTypeOpenShareDialog,
