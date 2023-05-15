@@ -294,7 +294,7 @@ bool MegaClient::JourneyID::resetCacheAndValues()
     }
     if (!mClientFsaccess->unlinklocal(mCacheFilePath))
     {
-        LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file"; 
+        LOG_err << "[MegaClient::JourneyID::resetCacheAndValues] Unable to remove local cache file";
         return false;
     }
     return true;
@@ -15835,8 +15835,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         {
             if (!f->isvalid)
             {
+                LOG_warn << "Downloading a file with invalid fingerprint, was: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
                 // no valid fingerprint: use filekey as its replacement
                 memcpy(f->crc.data(), f->filekey, sizeof f->crc);
+                LOG_warn << "Downloading a file with invalid fingerprint, adjusted to: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
             }
         }
 
@@ -20010,11 +20012,8 @@ bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
     // [nodeHandle.6 shareKey.16 trust.1]*
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
-
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
         byte trust = 0;
@@ -20066,11 +20065,8 @@ bool KeyManager::deserializePendingOutshares(KeyManager& km, const string &blob)
     // if len!=0 -> uid is an email address
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
-
         byte len = 0;
         handle h = UNDEF;
         string uid;
@@ -20179,10 +20175,8 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 
     CacheableReader r(blob);
 
-    unsigned int count = 0;
     while(r.hasdataleft())
     {
-        ++count;
 
         // len of the "name"
         byte len = 0;

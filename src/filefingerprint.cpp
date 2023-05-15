@@ -61,6 +61,15 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !(lhs == rhs);
 }
 
+
+bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
+{
+    // same as == but not checking valid
+    if (size != rhs.size) return false;
+    if (abs(mtime-rhs.mtime) > 2) return false;
+    return !memcmp(crc.data(), rhs.crc.data(), sizeof crc);
+}
+
 bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
@@ -383,7 +392,7 @@ int FileFingerprint::unserializefingerprint(string* d)
 
 string FileFingerprint::fingerprintDebugString() const
 {
-    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data()) + (isvalid ? ":1" : ":0");
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

@@ -6878,6 +6878,7 @@ class MegaSyncStall
             WaitingForAnotherMoveToComplete,
             SourceWasMovedElsewhere,
             FilesystemCannotStoreThisName,
+            CloudNodeInvalidFingerprint,
 
             SyncPathProblem_LastPlusOne
         };
@@ -11761,7 +11762,7 @@ class MegaApi
          * With this feature flag set, the client will require manual verification of
          * contact credentials of users (both sharers AND sharees) in order to decrypt
          * shared folders correctly if the "secure" flag is set to true.
-         * 
+         *
          * The default value is "false".
          *
          * @note If the "secure" flag is disabled, "Manual Verification" flag has no
@@ -13169,9 +13170,9 @@ class MegaApi
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
+         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
          * and has enough space.
-         * 
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13182,7 +13183,7 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
-         * 
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getRecommendedProLevel(MegaRequestListener* listener = NULL);
@@ -15401,9 +15402,7 @@ class MegaApi
          * @param businessStatus business status. Pass 999 if not valid
          * @param listener MegaRequestListener to track this request
          *
-         * @deprecated This function is deprecated. It was used years ago to migrate data from MegaSync to SDK cache.
          */
-        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**
