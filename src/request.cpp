@@ -96,24 +96,24 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
     return cachedJSON;
 }
 
-bool Request::processCmdJSON(Command* cmd, bool couldBeError)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
 {
     Error e;
-    if (couldBeError && cmd->checkError(e, cmd->client->json))
+    if (couldBeError && cmd->checkError(e, json))
     {
-        return cmd->procresult(Command::Result(Command::CmdError, e));
+        return cmd->procresult(Command::Result(Command::CmdError, e), json);
     }
-    else if (cmd->client->json.enterobject())
+    else if (json.enterobject())
     {
-        return cmd->procresult(Command::CmdObject) && cmd->client->json.leaveobject();
+        return cmd->procresult(Command::CmdObject, json) && json.leaveobject();
     }
-    else if (cmd->client->json.enterarray())
+    else if (json.enterarray())
     {
-        return cmd->procresult(Command::CmdArray) && cmd->client->json.leavearray();
+        return cmd->procresult(Command::CmdArray, json) && json.leavearray();
     }
     else
     {
-        return cmd->procresult(Command::CmdItem);
+        return cmd->procresult(Command::CmdItem, json);
     }
 }
 
@@ -122,7 +122,7 @@ void Request::process(MegaClient* client)
     TransferDbCommitter committer(client->tctable);
     client->mTctableRequestCommitter = &committer;
 
-    client->json = json;
+    JSON processingJson = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
         Command* cmd = cmds[processindex].get();
@@ -131,27 +131,27 @@ void Request::process(MegaClient* client)
 
         cmd->client = client;
 
-        auto cmdJSON = client->json;
+        auto cmdJSON = processingJson;
         bool parsedOk = true;
 
-        if (*client->json.pos == ',') ++client->json.pos;
+        if (*processingJson.pos == ',') ++processingJson.pos;
 
         Error e;
-        if (cmd->checkError(e, client->json))
+        if (cmd->checkError(e, processingJson))
         {
-            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e));
+            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e), processingJson);
         }
         else
         {
             // straightforward case - plain JSON response, no seqtag
-            parsedOk = processCmdJSON(cmd, true);
+            parsedOk = processCmdJSON(cmd, true, processingJson);
         }
 
         if (!parsedOk)
         {
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
-            client->json = cmdJSON;
-            client->json.storeobject();
+            processingJson = cmdJSON;
+            processingJson.storeobject();
 
             // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
             assert(false);
@@ -161,9 +161,9 @@ void Request::process(MegaClient* client)
 #ifdef DEBUG
             // double check the command consumed the right amount of JSON
             cmdJSON.storeobject();
-            if (client->json.pos != cmdJSON.pos)
+            if (processingJson.pos != cmdJSON.pos)
             {
-                assert(client->json.pos == cmdJSON.pos);
+                assert(processingJson.pos == cmdJSON.pos);
             }
 #endif
         }
@@ -172,8 +172,7 @@ void Request::process(MegaClient* client)
         cmds[processindex].reset();
     }
 
-    json = client->json;
-    client->json.pos = nullptr;
+    json = processingJson;
     if (processindex == cmds.size() || stopProcessing)
     {
         clear();
