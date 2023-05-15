@@ -11527,12 +11527,13 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
     // reset to previous name to keep using existing original cached Set for validation
     differentApiDtlsPtr->setUpdated = false;
-    PerApi& target = mApi[0];
+    PerApi& target = mApi[userIdx];
     target.resetlastEvent();     // So we can detect when the node database has been committed.
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
         << "Failed to receive shared Set name reset updated AP on U1's secondary client";
-    // Wait for the database to be updated.
+    // Wait for the database to be updated (note: even if commit is triggered by 1st update, the 2nd update
+    // has been applied already, so the DB will store the final value)
     ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
         << "Failed to receive commit to DB event related to Set name update";
 
