@@ -72,7 +72,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
 
         // this local version still valid even after we self-delete
-        std::promise<ErrorCodes> local_promise = move(promiseResult);
+        std::promise<ErrorCodes> local_promise = std::move(promiseResult);
 
         if (selfDeleteOnFinalCallback)
         {

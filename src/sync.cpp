@@ -3190,10 +3190,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                       << "...";
 
             // Completion chain.
-            auto completion = bind(&putComplete, move(context), _1, _2);
+            auto completion = bind(&putComplete, std::move(context), _1, _2);
 
             // Create and initiate request.
-            auto* request = new CommandBackupPut(&client, info, move(completion));
+            auto* request = new CommandBackupPut(&client, info, std::move(completion));
             client.reqs.add(request);
         }
 
@@ -4132,7 +4132,7 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, std::move(completion)); });
                 }));
     }, true);
 
@@ -4227,7 +4227,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
             {
                 // this is the last one, so we'll arrange clientCompletion
                 // to run after it completes.  Earlier de-registers must finish first
-                onFinalDeregister = move(clientCompletion);
+                onFinalDeregister = std::move(clientCompletion);
                 clientCompletion = nullptr;
             }
 

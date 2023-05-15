@@ -252,7 +252,7 @@ Model::ModelNode* Model::ModelNode::addkid()
 Model::ModelNode* Model::ModelNode::addkid(unique_ptr<ModelNode>&& p)
 {
     p->parent = this;
-    kids.emplace_back(move(p));
+    kids.emplace_back(std::move(p));
 
     return kids.back().get();
 }
@@ -420,7 +420,7 @@ unique_ptr<Model::ModelNode> Model::buildModelSubdirs(const string& prefix, int 
         {
             unique_ptr<ModelNode> sn = buildModelSubdirs(prefix + "_" + to_string(i), n, recurselevel - 1, filesperdir);
             sn->parent = nn.get();
-            nn->addkid(move(sn));
+            nn->addkid(std::move(sn));
         }
     }
     return nn;
@@ -457,7 +457,7 @@ unique_ptr<Model::ModelNode> Model::removenode(const string& path)
     {
         unique_ptr<ModelNode> extracted;
         ModelNode* parent = n->parent;
-        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&extracted, n](unique_ptr<ModelNode>& v) { if (v.get() == n) return extracted = move(v), true; else return false; });
+        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&extracted, n](unique_ptr<ModelNode>& v) { if (v.get() == n) return extracted = std::move(v), true; else return false; });
         parent->kids.erase(newend, parent->kids.end());
         return extracted;
     }
@@ -474,11 +474,11 @@ bool Model::movenode(const string& sourcepath, const string& destpath)
 
         unique_ptr<ModelNode> n;
         ModelNode* parent = source->parent;
-        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = move(v), true; else return false; });
+        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = std::move(v), true; else return false; });
         parent->kids.erase(newend, parent->kids.end());
         if (n)
         {
-            dest->addkid(move(n));
+            dest->addkid(std::move(n));
             return true;
         }
     }
@@ -498,7 +498,7 @@ bool Model::movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncroot
     {
         auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
         trash = uniqueptr.get();
-        syncroot->addkid(move(uniqueptr));
+        syncroot->addkid(std::move(uniqueptr));
     }
 
     char today[50];
@@ -510,10 +510,10 @@ bool Model::movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncroot
     {
         auto uniqueptr = makeModelSubfolder(today);
         dayfolder = uniqueptr.get();
-        trash->addkid(move(uniqueptr));
+        trash->addkid(std::move(uniqueptr));
     }
 
-    dayfolder->addkid(move(node));
+    dayfolder->addkid(std::move(node));
 
     return true;
 }
@@ -521,7 +521,7 @@ bool Model::movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncroot
 bool Model::movetosynctrash(const string& path, const string& syncrootpath)
 {
     if (auto node = removenode(path))
-        return movetosynctrash(move(node), syncrootpath);
+        return movetosynctrash(std::move(node), syncrootpath);
 
     return false;
 }
@@ -537,7 +537,7 @@ void Model::ensureLocalDebrisTmpLock(const string& syncrootpath)
             auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
             trash = uniqueptr.get();
             trash->fsOnly = true;
-            syncroot->addkid(move(uniqueptr));
+            syncroot->addkid(std::move(uniqueptr));
         }
 
         ModelNode* tmpfolder;
@@ -545,7 +545,7 @@ void Model::ensureLocalDebrisTmpLock(const string& syncrootpath)
         {
             auto uniqueptr = makeModelSubfolder("tmp");
             tmpfolder = uniqueptr.get();
-            trash->addkid(move(uniqueptr));
+            trash->addkid(std::move(uniqueptr));
         }
 
         ModelNode* lockfile;
@@ -759,7 +759,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
         lock_guard<recursive_mutex> g(mtx);
         auto& perTypeTags = m[rpe];
         assert(perTypeTags.find(tag) == perTypeTags.end());
-        perTypeTags.emplace(tag, id_callback(move(f), tag, h));
+        perTypeTags.emplace(tag, id_callback(std::move(f), tag, h));
     }
 
     std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
@@ -1478,7 +1478,7 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, false, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
         },
         nullptr);
 }
@@ -1542,7 +1542,7 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
 
 void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo)
 {
-    unique_ptr<File> file(new FilePut(move(completion)));
+    unique_ptr<File> file(new FilePut(std::move(completion)));
 
     file->h = parent->nodeHandle();
     file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
@@ -1560,7 +1560,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
                             [&]()
                             {
                                 TransferDbCommitter committer(client.tctable);
-                                uploadFile(path, name, parent, committer, move(completion), vo);
+                                uploadFile(path, name, parent, committer, std::move(completion), vo);
                             },
                             nullptr);
 }
@@ -1904,7 +1904,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){
-                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, false, nullptr);
+                    client.putnodes(root->nodeHandle(), NoVersioning, std::move(nn), nullptr, client.reqtag, false, nullptr);
                 },
                 [pb, this](error e){
                     out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
@@ -1986,7 +1986,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
         int tag = ++next_request_tag;
         resultproc.prepresult(COMPLETION, tag,
             [&]() {
-                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, tag, false, std::move(completion));
+                client.putnodes(atnode->nodeHandle(), NoVersioning, std::move(nodearray), nullptr, tag, false, std::move(completion));
             },
             nullptr);
     }
@@ -2164,7 +2164,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         }
         else
         {
-            client.addsync(move(sc), false, [revertOnError, result, this](error e, SyncError se, handle h){
+            client.addsync(std::move(sc), false, [revertOnError, result, this](error e, SyncError se, handle h){
                 if (e && revertOnError) revertOnError(nullptr);
                 result->set_value(e ? UNDEF : h);
 
@@ -2338,7 +2338,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                       << config.mExternalDrivePath.toPath(false);
         }
 
-        client.addsync(move(config),
+        client.addsync(std::move(config),
                        true,
                        std::move(completion),
                        rootPath + " ");
@@ -5381,7 +5381,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     // check everything matches (model has expected state of remote and local)
     auto f = model.makeModelSubfolder("new");
     f->addkid(model.removenode("f/f_2")); // / f_2_0 / f_2_0_0"));
-    model.findnode("f")->addkid(move(f));
+    model.findnode("f")->addkid(std::move(f));
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
@@ -6135,7 +6135,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient->client.reqtag, false); },
+        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, std::move(newnodes), nullptr, standardclient->client.reqtag, false); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -9430,7 +9430,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), nullptr, false);
+        auto e = changeClient().client.setattr(n, std::move(updates), nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -9482,7 +9482,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -9517,7 +9517,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -10197,7 +10197,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
                                 if (tests.empty() || tests.count(testcase.name()) > 0)
                                 {
                                     auto name = testcase.name();
-                                    cases.emplace(name, move(testcase));
+                                    cases.emplace(name, std::move(testcase));
                                 }
                             }
                         }

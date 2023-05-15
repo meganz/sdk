@@ -81,7 +81,7 @@ std::pair<DriveInfo::StringType, bool> DriveNotify::get()
 
     // get the oldest entry
     const DriveInfo& drive = mInfoQueue.front();
-    pair<DriveInfo::StringType, bool> info(move(drive.mountPoint), drive.connected);
+    pair<DriveInfo::StringType, bool> info(std::move(drive.mountPoint), drive.connected);
     mInfoQueue.pop();
 
     return info;
@@ -100,7 +100,7 @@ void DriveNotify::add(DriveInfo&& info)
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // save the new info
-        mInfoQueue.emplace(move(info));
+        mInfoQueue.emplace(std::move(info));
     }
 
     // notify that new info was received

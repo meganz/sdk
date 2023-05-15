@@ -1897,7 +1897,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Can we avoid recomputing this file's fingerprint?
         if (it != known.end() && reuse(result, it->second))
         {
-            result.fingerprint = move(it->second.fingerprint);
+            result.fingerprint = std::move(it->second.fingerprint);
             continue;
         }
 
