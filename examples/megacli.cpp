@@ -3833,7 +3833,7 @@ void exec_backupcentre(autocomplete::ACState& s)
 
     if (s.words.size() == 1)
     {
-        client->reqs.add(new CommandBackupSyncFetch([purgeFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        client->getBackupInfo([purgeFlag](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e)
             {
@@ -3884,7 +3884,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
                 }
              }
-        }));
+        });
     }
     else if (s.words.size() >= 2 && (delFlag || stopFlag))
     {
@@ -3905,7 +3905,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }
 
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
