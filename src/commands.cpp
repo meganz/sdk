@@ -9101,7 +9101,7 @@ bool CommandBackupRemove::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)> f)
     : completion(std::move(f))
 {
     cmd("sf");

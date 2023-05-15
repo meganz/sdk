@@ -1147,6 +1147,11 @@ MegaSetElementList* MegaRequest::getMegaSetElementList() const
     return nullptr;
 }
 
+MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -5717,6 +5722,11 @@ void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targe
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::getBackupInfo(MegaRequestListener* listener)
+{
+    pImpl->getBackupInfo(listener);
 }
 
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
