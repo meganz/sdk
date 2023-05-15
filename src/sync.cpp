@@ -7283,7 +7283,10 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             SYNC_verbose << syncname << "Download complete, moved file to final destination." << logTriplet(row, fullPath);
 
             // Check for anomalous file names.
-            checkForFilenameAnomaly(fullPath, row.cloudNode->name);
+            if (row.cloudNode)
+            {
+                checkForFilenameAnomaly(fullPath, row.cloudNode->name);
+            }
 
             // Download was moved into place.
             downloadPtr->wasDistributed = true;
