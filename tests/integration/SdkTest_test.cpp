@@ -11432,10 +11432,13 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Create set";
     const string name = u8"qq-001";
     MegaSet* newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
     ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> s1p(newSet);
     const MegaHandle sh = s1p->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client";
 
 
     LOG_debug << "# U1: Upload test file";
@@ -11456,6 +11459,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Add Element to Set";
     userIdx = 0;
+    differentApiDtlsPtr->setElementUpdated = false;
     const string elattrs = u8"Element name emoji: 🐧";
     MegaSetElementList* newEll = nullptr;
     ASSERT_EQ(API_OK, doCreateSetElement(userIdx, &newEll, sh, uploadedNode, elattrs.c_str()));
@@ -11464,6 +11468,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const MegaHandle eh = els->get(0)->id();
     const unique_ptr<MegaSetElement> elp(megaApi[userIdx]->getSetElement(sh, eh));
     ASSERT_NE(elp, nullptr);
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setElementUpdated))
+        << "Failed to receive add Element update AP on U1's secondary";
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11495,7 +11501,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Set export updated not received after " << maxTimeout << " seconds";
+        << "Failed to receive export Set update AP on U1's secondary client";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
@@ -11517,13 +11523,19 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const string updatedName = name + u8" 手";
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Shared Set name updated not received after " << maxTimeout << " seconds in different client";
+        << "Failed to receive shared Set name updated AP on U1's secondary client";
     ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
     // reset to previous name to keep using existing original cached Set for validation
     differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[userIdx];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Shared Set name reset not received after " << maxTimeout << " seconds in different client";
+        << "Failed to receive shared Set name reset updated AP on U1's secondary client";
+    // Wait for the database to be updated (note: even if commit is triggered by 1st update, the 2nd update
+    // has been applied already, so the DB will store the final value)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
+        << "Failed to receive commit to DB event related to Set name update";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
@@ -11535,7 +11547,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
 
     unique_ptr<MegaSet> reloadedSessionSet(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported));
     const auto lIsSameElement = [&elp](const MegaSetElement* el)
     {
         ASSERT_EQ(el->id(), elp->id());
@@ -11688,7 +11700,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // wait for action packets on both APIs (disable updates through APs)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
+        << "Failed to receive disable export Set update AP on U1's secondary client";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // test shortcut on disable export
@@ -11718,11 +11730,14 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
     for (unsigned i = 0; i < sets->size(); ++i)
     {
+        differentApiDtlsPtr->setUpdated = false;
         handle setId = sets->get(i)->id();
         ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
 
         unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
         ASSERT_EQ(s, nullptr);
+        ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+            << "Failed to receive deleted Set AP on U1's secondary client";
     }
     sets.reset(megaApi[userIdx]->getSets());
     ASSERT_EQ(sets->size(), 0u);
