@@ -52,14 +52,11 @@ public:
 #endif // ENABLE_SYNC
 
 private:
+    // What queue executes our notification callbacks?
+    dispatch_queue_t mDispatchQueue;
+    
     // Tracks how many notifiers are active.
     std::atomic_size_t mNumNotifiers;
-
-    // Receives and dispatches events.
-    CFRunLoopRef mRunLoop;
-
-    // Dedicated to processing events sent to the run loop.
-    std::thread mWorker;
 }; // MacFileSystemAccess
 
 #ifdef ENABLE_SYNC
