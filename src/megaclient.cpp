@@ -931,6 +931,89 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
+{
+    shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+
+    // step 4: move or delete backup contents
+    auto moveOrDeleteBackup = [this, bkpId, bkpRoot, targetDest, finalCompletion](NodeHandle, Error setAttrErr)
+    {
+        if (setAttrErr != API_OK)
+        {
+            LOG_err << "Backup remove: failed to set sds for backup " << bkpId << ": " << setAttrErr;
+            finalCompletion(setAttrErr);
+            return;
+        }
+
+        else
+        {
+            NodeHandle bkpRootNH;
+            bkpRootNH.set6byte(*bkpRoot);
+            NodeHandle targetDestNH;
+            targetDestNH.set6byte(targetDest ? targetDest : UNDEF); // allow 0 as well
+
+            unlinkOrMoveBackupNodes(bkpRootNH, targetDestNH, finalCompletion);
+        }
+    };
+
+    // step 3: set sds attribute
+    auto updateSds = [this, bkpId, bkpRoot, moveOrDeleteBackup, finalCompletion](const Error& bkpRmvErr) mutable
+    {
+        if (bkpRmvErr != API_OK)
+        {
+            LOG_err << "Backup remove: failed to remove backup " << bkpId;
+            finalCompletion(bkpRmvErr); // should there be a specific error here?
+            return;
+        }
+
+        Node* bkpRootNode = nodebyhandle(*bkpRoot);
+        if (!bkpRootNode)
+        {
+            LOG_err << "Remove backup: backup root not found";
+            finalCompletion(API_ENOENT);
+            return;
+        }
+
+        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+        sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
+        const string& sdsValue = Node::toSdsString(sdsBkps);
+        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
+        if (e != API_OK)
+        {
+            LOG_err << "Remove backup: backup root not found";
+            finalCompletion(e); // should there be a specific error here?
+        }
+    };
+
+    // step 1: fetch Backup data from Backup Centre
+    getBackupInfo([this, bkpId, bkpRoot, updateSds, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "Remove backup: getBackupInfo failed with " << e;
+                finalCompletion(e);
+                return;
+            }
+
+            for (auto& d : data)
+            {
+                if (d.backupId == bkpId && d.backupType == BackupType::BACKUP_UPLOAD)
+                {
+                    *bkpRoot = d.rootNode;
+
+                    // step 2: remove backup
+                    reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
+                    return;
+                }
+            }
+
+            LOG_err << "Remove backup: Backup " << bkpId << " not returned by 'sr' command";
+            finalCompletion(API_ENOENT);
+        });
+}
+
 void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
 {
     reqs.add(new CommandBackupSyncFetch(f));

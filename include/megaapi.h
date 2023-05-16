@@ -4479,7 +4479,8 @@ class MegaRequest
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
-            TOTAL_OF_REQUEST_TYPES                                          = 170,
+            TYPE_BACKUP_REMOVE_MD                                           = 170,
+            TOTAL_OF_REQUEST_TYPES                                          = 171,
         };
 
         virtual ~MegaRequest();
@@ -20574,6 +20575,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Mark a backup already registered in Backup Centre, for removal, and
+         * move or delete its contents.
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre, and completely remove its contents, either by moving them to
+         * moveDestinationor (when the latter has a valid value) by deleting them (when
+         * destination is INVALID_HANDLE). @see \c MegaApi::setScheduledCopy.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be removed
+         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
+         * backup contents will be deleted
+         * @param listener MegaRequestListener to track this request
+        */
+        void removeBackupMD(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about all registered backups for Backup Centre

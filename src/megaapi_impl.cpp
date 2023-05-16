@@ -4258,6 +4258,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
         case TYPE_BACKUP_INFO: return "BACKUP_INFO";
+        case TYPE_BACKUP_REMOVE_MD: return "BACKUP_REMOVE_MD";
     }
     return "UNKNOWN";
 }
@@ -24169,6 +24170,24 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener* listene
                 [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             return API_OK;
         };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeBackupMD(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE_MD, listener);
+    request->setParentHandle(backupId);
+    request->setNodeHandle(moveDestination);
+
+    request->performRequest = [this, request]()
+    {
+        auto finalCompletion = [this, request](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); };
+
+        client->removeBackupMD(request->getParentHandle(), request->getNodeHandle(), finalCompletion);
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
