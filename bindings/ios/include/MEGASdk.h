@@ -318,6 +318,19 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
     AccountActionTypeResumeEphemeralPlusPlus = 4,
 };
 
+typedef NS_ENUM(NSInteger, DownloadOption) {
+    DownloadOptionSkipIfExisting        = 1,
+    DownloadOptionErrorIfExisting       = 2,
+    DownloadOptionSkipIfSameFingerprint = 3,
+    DownloadOptionSkipIfSameMetaMac     = 4,
+};
+
+typedef NS_ENUM(NSInteger, SaveOption) {
+    SaveOptionOverwrite      = 1,
+    SaveOptionNewWithN       = 2,
+    SaveOptionExistingToOldN = 3,
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -6760,8 +6773,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param downloadOption Indicates the download option on name conflicting, valid values are:
+ * @param saveOption Indicates the saving option on name conflicting, valid values are:
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken downloadOption:(DownloadOption)downloadOption saveOption:(SaveOption)saveOption;
 
 /**
  * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -6793,9 +6808,11 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param downloadOption Indicates the download option on name conflicting, valid values are:
+ * @param saveOption Indicates the saving option on name conflicting, valid values are:
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken downloadOption:(DownloadOption)downloadOption saveOption:(SaveOption)saveOption delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download for a file in MEGA

@@ -2526,15 +2526,15 @@ using namespace mega;
     }
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken downloadOption:(DownloadOption)downloadOption saveOption:(SaveOption)saveOption {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)downloadOption, (int)saveOption);
     }
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken downloadOption:(DownloadOption)downloadOption saveOption:(SaveOption)saveOption delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)downloadOption, (int)saveOption, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
