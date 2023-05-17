@@ -13264,11 +13264,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was uploaded";
+
     //  3. Logout / Login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     int result = ut.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Upload interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -13294,6 +13297,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(500);
         cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
+    ASSERT_TRUE(cloudNode) << "Upload did not finish after 20 seconds";
 
     //  6. Download file, with speed limit
     string downloadedFile = DOTSLASH + DOWNFILE;
@@ -13314,11 +13318,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(dt.finished) << "Download ended too early, with " << dt.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
+
     //  7. Logout / Login
     session.reset(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     result = dt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
