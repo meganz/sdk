@@ -2325,6 +2325,37 @@ bool Sync::checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, S
     return false;
 }
 
+bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient> upload)
+{
+    // we already checked that the upload including putnodes completed before calling here.
+    assert(row.syncNode && upload && upload->wasPutnodesCompleted);
+
+    if (upload->putnodesResultHandle.isUndef())
+    {
+        assert(upload->putnodesFailed);
+
+        SYNC_verbose << syncname << "Upload from here failed, reset for reevaluation" << logTriplet(row, fullPath);
+    }
+    else
+    {
+        assert(!upload->putnodesFailed);
+
+        // connect up the original cloud-sync-fs triplet, so that we can detect any
+        // further moves that happened in the meantime.
+
+        SYNC_verbose << syncname << "Upload from here completed, considering this file synced to original: " << toHandle(upload->sourceFsid) << logTriplet(row, fullPath);
+        row.syncNode->setSyncedFsid(upload->sourceFsid, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
+        row.syncNode->syncedFingerprint = *upload;
+        row.syncNode->setSyncedNodeHandle(upload->putnodesResultHandle);
+        statecacheadd(row.syncNode);
+    }
+
+    // either way, we reset and revisit.  Following the signature pattern for similar functions
+    row.syncNode->transferSP.reset();
+    rowResult = false;
+    return true;
+}
+
 bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult)
 {
     // if this cloud move was a sync decision, don't look to make it locally too
@@ -7036,13 +7067,24 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(s->transferSP))
         {
             // Is it waiting for a putnodes request to complete?
-            if (u->putnodesStarted && !u->wasPutnodesCompleted)
+            if (u->putnodesStarted)
             {
-                LOG_debug << "Waiting for putnodes to complete, defer move checking: "
-                          << logTriplet(row, fullPath);
+                if (!u->wasPutnodesCompleted)
+                {
+                    LOG_debug << "Waiting for putnodes to complete, defer move checking: "
+                              << logTriplet(row, fullPath);
 
-                // Then come back later.
-                return false;
+                    // Then come back later.
+                    return false;
+                }
+                else
+                {
+                    bool rowResult = false;
+                    if (processCompletedUploadFromHere(row, parentRow, fullPath, rowResult, u))
+                    {
+                        return rowResult;
+                    }
+                }
             }
         }
     }
@@ -8440,25 +8482,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath;
 
-                if (row.syncNode->syncedCloudNodeHandle.isUndef() && !row.fsNode)
-                {
-                    // Set the fs-side synced id.
-                    // Once the upload completes, potentially the local fs item may have moved.
-                    // If that's the case, having this synced fsid set lets us track the local move
-                    // and move the uploadPtr from the old LN to the new one.
-
-                    // todo:
-                    // Note that the case where the row was already synced is more complex
-                    // We may need to generate a 2nd LocalNode for the same Localnode
-                    // and these two could operate in parallel - after all, one might
-                    // be a move away from this location, and then simulataneous
-                    // upload of a replacement file.
-
-                    SYNC_verbose << syncname << "Considering this file synced on the fs side: " << toHandle(row.fsNode->fsid) << logTriplet(row, fullPath);
-                    row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
-                    row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
-                    statecacheadd(row.syncNode);
-                }
             }
             else
             {

@@ -567,7 +567,7 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
                 if (!s->putnodesFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle = nn.front().mAddedHandle;
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
@@ -616,7 +616,7 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
                 if (!s->putnodesFailed)
                 {
                     assert(!nn.empty());
-                    s->putnodesResultHandle = nn.front().mAddedHandle;
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
                 }
 
                 // Let the engine know the putnodes has completed.
