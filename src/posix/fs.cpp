@@ -1135,7 +1135,11 @@ int PosixFileSystemAccess::getdefaultfilepermissions()
 
 void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
+#ifdef DEBUG
+    defaultfilepermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
     defaultfilepermissions = permissions | 0600;
+#endif
 }
 
 int PosixFileSystemAccess::getdefaultfolderpermissions()
@@ -1145,7 +1149,11 @@ int PosixFileSystemAccess::getdefaultfolderpermissions()
 
 void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
+#ifdef DEBUG
+    defaultfolderpermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
     defaultfolderpermissions = permissions | 0700;
+#endif
 }
 
 bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
@@ -1889,7 +1897,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Can we avoid recomputing this file's fingerprint?
         if (it != known.end() && reuse(result, it->second))
         {
-            result.fingerprint = move(it->second.fingerprint);
+            result.fingerprint = std::move(it->second.fingerprint);
             continue;
         }
 

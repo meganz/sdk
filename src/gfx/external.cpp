@@ -49,10 +49,10 @@ bool GfxProviderExternal::isgfx(string* name)
 
     tolower_string(ext);
 
-    //Disable thumbnail creation temporarily for .tiff.tif
+    //Disable thumbnail creation temporarily for .tiff.tif.pict.pic.pct
     char* ptr =
             strstr((char*) ".jpg.png.bmp.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
-            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
+            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari"
             ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
             ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
             ".xbm.xpm.jp2.j2k.jpf.jpx.", ext.c_str());

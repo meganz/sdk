@@ -2593,6 +2593,7 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
+        void getRecommendedProLevel(MegaRequestListener* listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
         void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
@@ -2621,7 +2622,7 @@ class MegaApiImpl : public MegaApp
         int getPasswordStrength(const char *password);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
@@ -2703,6 +2704,9 @@ class MegaApiImpl : public MegaApp
         void stopPublicSetPreview();
         bool isExportedSet(MegaHandle sid);
         bool inPublicSetPreview();
+
+        // returns the Pro level based on the current plan and storage usage (MegaAccountDetails::ACCOUNT_TYPE_XYZ)
+        static int calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetails& accDetails);
 
     private:
         bool nodeInRubbishCheck(handle) const;
@@ -2897,6 +2901,7 @@ class MegaApiImpl : public MegaApp
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
+        string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
@@ -3196,7 +3201,7 @@ protected:
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
-
+        
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
@@ -3682,6 +3687,8 @@ public:
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t capacity);
+    // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer) [Default: 0 -> the whole buffer]
+    void reset(bool freeData, size_t sizeToReset = 0);
     // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
     // Get buffered data size
@@ -3704,6 +3711,10 @@ public:
     void setDuration(int duration);
     // Rate between file size and its duration (only for media files)
     m_off_t getBytesPerSecond() const;
+    // Get upper bound limit for capacity
+    unsigned getMaxBufferSize();
+    // Get upper bound limit for chunk size to write to the consumer
+    unsigned getMaxOutputSize();
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
@@ -3713,6 +3724,8 @@ public:
 private:
     // Rate between partial file size and its duration (only for media files)
     m_off_t partialDuration(m_off_t partialSize) const;
+    // Recalculate maxBufferSize and maxOutputSize taking into accout the byteRate (for media files) and DirectReadSlot read chunk size.
+    void calcMaxBufferAndMaxOutputSize();
 
 protected:
     // Circular buffer to store data to feed the consumer
