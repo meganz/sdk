@@ -10328,13 +10328,14 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         m_time_t ts = 0;
         const char* m = NULL;
         nameid name;
-        string fieldName;
         BizMode bizMode = BIZ_MODE_UNKNOWN;
         string pubk, puEd255, puCu255, sigPubk, sigCu255;
 
-        fieldName = j->getnameWithoutAdvance();
-        while ((name = j->getnameid()) != EOO)
+        bool exit = false;
+        while (!exit)
         {
+            string fieldName = j->getnameWithoutAdvance();
+            name = j->getnameid();
             switch (name)
             {
                 case 'u':   // new node: handle
@@ -10394,6 +10395,10 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     j->storebinary(&sigPubk);
                     break;
 
+                case EOO:
+                    exit = true;
+                    break;
+
                 default:
                     switch (User::string2attr(fieldName.c_str()))
                     {
@@ -10410,9 +10415,6 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     }
                     break;
             }
-
-            // next field name for the while loop
-            fieldName = j->getnameWithoutAdvance();
         }
 
         if (ISUNDEF(uh))
