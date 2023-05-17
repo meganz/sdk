@@ -33,6 +33,7 @@ namespace mega {
 mutex File::localname_mutex;
 
 File::File()
+    :mSaveOption(SaveOption::RenameNewWithN)
 {
     transfer = NULL;
     chatauth = NULL;
@@ -119,6 +120,8 @@ bool File::serialize(string *d) const
     char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
+    d->append((char*)&mSaveOption, 1);
+
     d->append("\0\0\0\0\0\0\0", 8);
 
     if (hasChatAuth)
@@ -203,8 +206,17 @@ File *File::unserialize(string *d)
 
     unsigned short pubauthlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(pubauthlen);
-    if (ptr + pubauthlen + sizeof(handle) + FILENODEKEYLENGTH + sizeof(bool)
-            + sizeof(bool) + sizeof(bool) + 10 > end)
+    if (ptr + pubauthlen 
+            + sizeof(handle) 
+            + FILENODEKEYLENGTH 
+            + sizeof(bool)      //hprivate
+            + sizeof(bool)      //hforeign
+            + sizeof(bool)      //syncxfer
+            + sizeof(bool)      //temporaryfile
+            + sizeof(char)      //hasChatAuth
+            + sizeof(uint8_t)   //saveOption
+            + 8                 //8 '0'
+            > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
         return NULL;
@@ -242,6 +254,16 @@ File *File::unserialize(string *d)
 
     char hasChatAuth = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
+
+    uint8_t saveOptionUint8 = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    if (saveOptionUint8 < static_cast<uint8_t>(SaveOption::Begin) || saveOptionUint8 >= static_cast<uint8_t>(SaveOption::End))
+    {
+        LOG_err << "File unserialization failed - save option " << saveOptionUint8 << " not valid";
+        delete file;
+        return NULL;
+    }
+    file->setSaveOption(static_cast<SaveOption>(saveOptionUint8));
 
     if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {

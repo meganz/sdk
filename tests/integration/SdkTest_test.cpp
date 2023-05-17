@@ -2730,7 +2730,7 @@ TEST_F(SdkTest, SdkTestTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download transfer failed after " << maxTimeout << " seconds";
@@ -2778,7 +2778,7 @@ TEST_F(SdkTest, SdkTestTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download 0-byte file failed after " << maxTimeout << " seconds";
@@ -3659,7 +3659,7 @@ TEST_F(SdkTest, SdkTestShares)
                                                  false    /*startFirst*/,
                                                  nullptr  /*cancelToken*/,
                                                  MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                                 MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                                 MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
 
     bool hasFailed = (transferError != API_OK);
@@ -3677,7 +3677,7 @@ TEST_F(SdkTest, SdkTestShares)
                                              false    /*startFirst*/,
                                              nullptr  /*cancelToken*/,
                                              MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                             MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                             MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     ASSERT_EQ(API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
     delete nNoAuth;
@@ -5845,7 +5845,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
         << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
@@ -5874,7 +5874,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                  MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                  MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
         m_off_t lastprogress = 0, pausecount = 0;
         second_timer t;
@@ -5914,7 +5914,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                  MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                  MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
         std::string sessionId = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
 
@@ -5943,7 +5943,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                           false    /*startFirst*/,
                                           nullptr  /*cancelToken*/,
                                           MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                          MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                          MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
             }
             else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
             {
@@ -6025,7 +6025,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                  MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                  MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6085,7 +6085,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                  MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                                  MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6154,7 +6154,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6230,7 +6230,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6397,7 +6397,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */);
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the initial file (error: " << mApi[0].lastError << ")";
@@ -7853,7 +7853,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                              MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+                              MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
                               &downloadListener);
 
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
@@ -8021,7 +8021,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
             MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-            MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+            MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
             &downloadListener1);
 
     ASSERT_TRUE(downloadListener1.waitForResult() == API_EEXIST);
@@ -8040,7 +8040,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
             MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-            MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+            MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
             &downloadListener2);
 
     for (int i = 1000; i-- && !downloadListener2.started; ) WaitMillisec(1);
@@ -9099,7 +9099,7 @@ TEST_F(SdkTest, SyncPaths)
                                                          false    /*startFirst*/,
                                                          nullptr  /*cancelToken*/,
                                                          MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                                         MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */));
+                                                         MegaTransfer::SAVE_NEW_WITH_N /* saveOption */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -9147,7 +9147,7 @@ TEST_F(SdkTest, SyncPaths)
                                                          false    /*startFirst*/,
                                                          nullptr  /*cancelToken*/,
                                                          MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                                         MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */));
+                                                         MegaTransfer::SAVE_NEW_WITH_N /* saveOption */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -11696,7 +11696,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                  MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */));
+                                  MegaTransfer::SAVE_NEW_WITH_N /* saveOption */));
         fs::remove(downloadPath);
     };
 
@@ -13252,7 +13252,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         false   /*startFirst*/,
         nullptr /*cancelToken*/,
         MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-        MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+        MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
         &dt     /*listener*/);
 
     while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
@@ -13334,7 +13334,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
                                 MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+                                MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };
@@ -13444,7 +13444,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
                                 MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /*downloadOption*/,
-                                MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N /* saveOption */,
+                                MegaTransfer::SAVE_NEW_WITH_N /* saveOption */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };

@@ -2360,7 +2360,7 @@ bool MegaSharePrivate::isVerified()
 
 MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listener)
     : mDownloadOption(DownloadDecider::Option::SKipIfSameFingerprint)
-    , mSaveOption(SaveOption::RenameNewWithSuffixN)
+    , mSaveOption(SaveOption::RenameNewWithN)
     , mDownloadDecision(DownloadDecider::Decision::NotYet)
 {
     this->type = type;
@@ -3066,7 +3066,7 @@ void MegaTransferPrivate::setSaveOption(int saveOption)
 {
     if (saveOption >= static_cast<int>(SaveOption::End) || saveOption < static_cast<int>(SaveOption::Begin))
     {
-        mSaveOption = SaveOption::RenameNewWithSuffixN;
+        mSaveOption = SaveOption::RenameNewWithN;
     }
     else
     {
@@ -5293,8 +5293,10 @@ MegaFile *MegaFile::unserialize(string *d)
     return megaFile;
 }
 
-MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType) : MegaFile()
+MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType, SaveOption saveOption) : MegaFile()
 {
+    setSaveOption(saveOption);
+
     h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
 
@@ -5325,8 +5327,10 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     hforeign = false;
 }
 
-MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath) : MegaFile()
+MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath, SaveOption saveOption) : MegaFile()
 {
+    setSaveOption(saveOption);
+
     h.set6byte(n->getHandle());
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
@@ -18364,11 +18368,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     unique_ptr<MegaFileGet> f;
                     if (node)
                     {
-                        f.reset(new MegaFileGet(client, node, wLocalPath, fsType));
+                        f.reset(new MegaFileGet(client, node, wLocalPath, fsType, transfer->getSaveOption()));
                     }
                     else
                     {
-                        f.reset(new MegaFileGet(client, publicNode, wLocalPath));
+                        f.reset(new MegaFileGet(client, publicNode, wLocalPath, transfer->getSaveOption()));
                     }
 
                     f->setTransfer(transfer);

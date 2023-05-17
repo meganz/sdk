@@ -980,14 +980,6 @@ inline CancelToken convertToCancelToken(MegaCancelToken* mct)
     return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;
 }
 
-enum class SaveOption
-{
-    Begin = 1,
-    Overwrite = 1,
-    RenameNewWithSuffixN = 2,
-    End = 3,
-};
-
 class DownloadDecider
 {
 public:
@@ -2360,8 +2352,8 @@ struct MegaFileGet : public MegaFile
     void progress() override;
     void completed(Transfer*, putsource_t source) override;
     void terminated(error e) override;
-    MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
-    MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
+    MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType, SaveOption saveOption);
+    MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath, SaveOption saveOption);
     ~MegaFileGet() {}
 
     bool serialize(string*) const override;

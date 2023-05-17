@@ -5331,8 +5331,9 @@ class MegaTransfer
 
         enum
         {                                               // Saving options if the file name conflicting
-            SAVE_OVERWRITE = 1,                         // Overwrite the existing one
-            SAVE_RENAME_NEW_WITH_SUFFIX_N = 2,          // Rename the new one with suffix (1), (2), and etc.
+            SAVE_OVERWRITE          = 1,                // Overwrite the existing one
+            SAVE_NEW_WITH_N         = 2,                // Rename the new one with suffix (1), (2), and etc.
+            SAVE_EXISTING_TO_OLDN   = 3,                // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
@@ -14250,7 +14251,8 @@ class MegaApi
          *
          * @param saveOption Indicates the saving option on name conflicting, valid values are:
          *      - MegaTransfer::SAVE_OVERWRITE                      = 1,
-         *      - MegaTransfer::SAVE_RENAME_NEW_WITH_SUFFIX_N       = 2,
+         *      - MegaTransfer::SAVE_NEW_WITH_N                     = 2,
+         *      - MegaTransfer::SAVE_EXISTING_TO_OLDN               = 3,
          *
          * @param listener MegaTransferListener to track this transfer
          */
