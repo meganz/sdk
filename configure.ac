@@ -156,6 +156,8 @@ if test "x$enable_debug" = "xyes" ; then
     # Limit -Werror to debug builds
     if test "x$enable_werror" = "xyes" ; then
        CXXFLAGS="$CXXFLAGS -Werror"
+       # Warnings which should not be promoted to errors, but still appear as warnings
+       CXXFLAGS="$CXXFLAGS -Wno-error=deprecated-declarations"
     fi
 else
     CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
