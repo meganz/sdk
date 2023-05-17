@@ -233,7 +233,7 @@ class MegaShell(cmd.Cmd, MegaListener):
             print('Node not found: {}'.format(args[0]))
             return
 
-        self._api.startDownload(node, './', None, None, False, None)
+        self._api.startDownload(node, './', None, None, False, None, MegaTransfer.DOWNLOAD_SKIP_IF_SAME_FINGERPRINT, MegaTransfer.SAVE_NEW_WITH_N)
 
 
     def do_put(self, arg):

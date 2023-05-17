@@ -6718,12 +6718,22 @@ public class MegaApiJava {
      * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
      *                    This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
      *                    You preserve the ownership of this param.
+     * @param downloadOption Indicates the download option on name conflicting, valid values are:
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_EXISTING           = 1,
+     *      - MegaTransfer::DOWNLOAD_ERROR_IF_EXISTING          = 2,
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT   = 3,
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_METAMAC       = 4,
+     *
+     * @param saveOption Indicates the saving option on name conflicting, valid values are:
+     *      - MegaTransfer::SAVE_OVERWRITE                      = 1,
+     *      - MegaTransfer::SAVE_NEW_WITH_N                     = 2,
+     *      - MegaTransfer::SAVE_EXISTING_TO_OLDN               = 3,
      * @param listener    MegaTransferListener to track this transfer
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
-                              boolean startFirst, MegaCancelToken cancelToken,
+                              boolean startFirst, MegaCancelToken cancelToken, int downloadOption, int saveOption,
                               MegaTransferListenerInterface listener) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken,
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, downloadOption, saveOption,
                 createDelegateTransferListener(listener));
     }
 
@@ -6757,10 +6767,20 @@ public class MegaApiJava {
      * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
      *                    This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
      *                    You preserve the ownership of this param.
+     * @param downloadOption Indicates the download option on name conflicting, valid values are:
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_EXISTING           = 1,
+     *      - MegaTransfer::DOWNLOAD_ERROR_IF_EXISTING          = 2,
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_FINGERPRINT   = 3,
+     *      - MegaTransfer::DOWNLOAD_SKIP_IF_SAME_METAMAC       = 4,
+     *
+     * @param saveOption Indicates the saving option on name conflicting, valid values are:
+     *      - MegaTransfer::SAVE_OVERWRITE                      = 1,
+     *      - MegaTransfer::SAVE_NEW_WITH_N                     = 2,
+     *      - MegaTransfer::SAVE_EXISTING_TO_OLDN               = 3,
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
-                              boolean startFirst, MegaCancelToken cancelToken) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken);
+                              boolean startFirst, MegaCancelToken cancelToken, int downloadOption, int saveOption) {
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, downloadOption, saveOption);
     }
 
     /**

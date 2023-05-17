@@ -463,6 +463,8 @@ class GetCommand extends Command
 		, null	 /*app data*/
 		, false	 /*start first*/
 		, null	 /*cancel token*/
+		, 3      /*download option DOWNLOAD_SKIP_IF_SAME_FINGERPRINT*/
+		, 2      /*save option SAVE_NEW_WITH_N*/
 		, null); /*listener*/
     }
 }
