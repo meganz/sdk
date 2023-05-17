@@ -14685,10 +14685,13 @@ void MegaClient::fetchContactKeys(User *user)
 
     // TODO: remove obsolete retrieval of public RSA keys and its signatures
     // (authrings for RSA are deprecated)
-    int creqtag = reqtag;
-    reqtag = 0;
-    getpubkey(user->uid.c_str());
-    reqtag = creqtag;
+    if (!user->pubk.isvalid())
+    {
+        int creqtag = reqtag;
+        reqtag = 0;
+        getpubkey(user->uid.c_str());
+        reqtag = creqtag;
+    }
 }
 
 error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
