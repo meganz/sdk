@@ -97,7 +97,8 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         
         switch request.type {
         case MEGARequestType.MEGARequestTypeGetAttrUser:
-            for tableViewCell in tableView.visibleCells as! [ContactTableViewCell] where request?.email == tableViewCell.nameLabel.text {
+            guard let cells = tableView.visibleCells as? [ContactTableViewCell] else { break }
+            for tableViewCell in cells where request?.email == tableViewCell.nameLabel.text {
                 let filename = request.email
                 let avatarURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 let avatarFilePath = avatarURL.appendingPathComponent("thumbs").appendingPathComponent(filename!)
