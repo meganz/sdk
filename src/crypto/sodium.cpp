@@ -21,6 +21,7 @@
 
 
 #include "mega.h"
+#include <cryptopp/hkdf.h>
 
 namespace mega
 {
@@ -149,6 +150,13 @@ ECDH::ECDH()
     initializationOK = true;
 }
 
+
+ECDH::ECDH (const ECDH& aux)
+{
+    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, privKey);
+    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, pubKey);
+}
+
 ECDH::ECDH(const string& privKey)
 {
     if (sodium_init() == -1)
@@ -189,5 +197,44 @@ int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
     return !crypto_box_open(msg, encmsg, encmsglen, nonce, pubKey, privKey);
 }
 
+bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const
+{
+    if (!pubkey || !salt || ! saltSize)
+    {
+        LOG_err << "derivePrivKeyWithSalt: eargs check input params";
+        return false;
+    }
+
+    if (!getPrivKey())
+    {
+        LOG_err << "derivePrivKeyWithSalt: invalid private key";
+        return false;
+    }
+
+    int err = 0;
+    std::string sharedSecret;
+    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
+    auto ssPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
+    err = crypto_scalarmult(const_cast<unsigned char*>(ssPtr), getPrivKey(), pubkey);
+    if (err)
+    {
+        LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;
+        return false;
+    }
+
+    try
+    {
+        output.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
+        auto outPtr = reinterpret_cast<const unsigned char *>(output.data());
+        CryptoPP::HKDF<CryptoPP::SHA256> hkdf;
+        hkdf.DeriveKey(const_cast<unsigned char*>(outPtr), output.size(), reinterpret_cast<const unsigned char*>(sharedSecret.data()), sharedSecret.size(), salt, saltSize, nullptr, 0);
+        return true;
+    }
+    catch (std::invalid_argument const& e)
+    {
+        LOG_err << "derivePrivKeyWithSalt: Invalid argument err: " << e.what();
+        return false;
+    }
+}
 } // namespace
 

@@ -3044,7 +3044,7 @@ MegaScheduledFlags::~MegaScheduledFlags()
 
 void MegaScheduledFlags::reset()                                {}
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
-unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
+unsigned long MegaScheduledFlags::getNumericValue() const       { return ScheduledFlags::schedEmptyFlags; }
 
 /* Class MegaScheduledRules */
 MegaScheduledRules* MegaScheduledRules::createInstance(int freq,

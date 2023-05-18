@@ -34783,11 +34783,11 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numeric
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }

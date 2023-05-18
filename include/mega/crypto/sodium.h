@@ -23,6 +23,7 @@
 #define SODIUM_H 1
 
 #include <sodium.h>
+#include <vector>
 
 namespace mega {
 
@@ -90,21 +91,24 @@ class MEGA_API ECDH
 public:
     static const int PRIVATE_KEY_LENGTH = crypto_box_SECRETKEYBYTES;
     static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
+    static const int DERIVED_KEY_LENGTH = crypto_scalarmult_BYTES;
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;
     bool initializationOK = false;
 
-    unsigned char privKey[PRIVATE_KEY_LENGTH];
-    unsigned char pubKey[PUBLIC_KEY_LENGTH];
-
-    // generate new key pair
-    ECDH();
-
-    // initialize the private key (and derive public key)
-    ECDH(const std::string &privKey);
-
+    ECDH(); // constructs an instance of ECDH and generates a new x25519 key pair
+    ECDH(const std::string &privKey); // initialize the private key (and derive public key)
+    ECDH(const ECDH& aux);
+    ECDH* copy() const { return new ECDH(*this); }
+    ECDH& operator=(const ECDH& aux) = delete;
+    ECDH(ECDH&& aux) = delete;
+    ECDH& operator=(ECDH&& aux) = delete;
     ~ECDH();
+
+    const unsigned char* getPrivKey() const { return privKey; }
+    const unsigned char* getPubKey()  const { return pubKey;  }
+    bool deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const;
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -145,8 +149,11 @@ public:
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
                  const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
-};
 
+private:
+    unsigned char privKey[PRIVATE_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
+};
 } // namespace
 
 #endif
