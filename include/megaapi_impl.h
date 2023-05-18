@@ -168,34 +168,6 @@ private:
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
 };
 
-class MegaFilenameAnomalyReporterProxy
-  : public FilenameAnomalyReporter
-{
-public:
-    explicit
-    MegaFilenameAnomalyReporterProxy(MegaFilenameAnomalyReporter& reporter)
-      : mReporter(reporter)
-    {
-    }
-
-    void anomalyDetected(FilenameAnomalyType type,
-                         const LocalPath& localPath,
-                         const string& remotePath) override
-    {
-        using MegaAnomalyType =
-          MegaFilenameAnomalyReporter::AnomalyType;
-
-        assert(type < FILENAME_ANOMALY_NONE);
-
-        mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.toPath(false).c_str(),
-                                  remotePath.c_str());
-    }
-
-private:
-    MegaFilenameAnomalyReporter& mReporter;
-}; // MegaFilenameAnomalyReporterProxy
-
 class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
@@ -2518,7 +2490,6 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
-        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);

@@ -1928,20 +1928,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         it->second->setnameparent(parent, localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
                     }
 
-                    // Has the move (rename) resulted in a filename anomaly?
-                    if (Node* node = it->second->node)
-                    {
-                        auto type = isFilenameAnomaly(*localpathNew, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto localPath = *localpathNew;
-                            auto remotePath = node->displaypath();
-
-                            client->filenameAnomalyDetected(type, localPath, remotePath);
-                        }
-                    }
-
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 

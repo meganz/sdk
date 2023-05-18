@@ -5957,19 +5957,6 @@ void MegaApiImpl::setLoggingName(const char* loggingName)
     }
 }
 
-void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    unique_ptr<FilenameAnomalyReporter> proxy;
-
-    if (reporter)
-    {
-        proxy.reset(new MegaFilenameAnomalyReporterProxy(*reporter));
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-    client->mFilenameAnomalyReporter = std::move(proxy);
-}
-
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
