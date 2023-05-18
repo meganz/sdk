@@ -736,7 +736,7 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 UserAlert::NewSharedNodes::NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
                                           vector<handle>&& fileHandles, vector<handle>&& folderHandles)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
-    , parentHandle(ph), fileNodeHandles(move(fileHandles)), folderNodeHandles(move(folderHandles))
+    , parentHandle(ph), fileNodeHandles(std::move(fileHandles)), folderNodeHandles(std::move(folderHandles))
 {
     assert(!ISUNDEF(uh));
 }
@@ -863,7 +863,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
                     return nullptr;
                 }
 
-                auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, move(vh1), move(vh2));
+                auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, std::move(vh1), std::move(vh2));
                 nsn->setRelevant(p->relevant);
                 nsn->setSeen(p->seen);
                 return nsn;
@@ -888,7 +888,7 @@ UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int i
 
 UserAlert::RemovedSharedNode::RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                                                 vector<handle>&& handles)
-    : Base(UserAlert::type_d, uh, string(), timestamp, id), nodeHandles(move(handles))
+    : Base(UserAlert::type_d, uh, string(), timestamp, id), nodeHandles(std::move(handles))
 {
 }
 
@@ -955,7 +955,7 @@ UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* 
             return nullptr;
         }
 
-        auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, std::move(vh));
         rsn->setRelevant(p->relevant);
         rsn->setSeen(p->seen);
         return rsn;
@@ -978,7 +978,7 @@ UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int i
 
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                                                 vector<handle>&& handles)
-    : Base(UserAlert::type_u, uh, string(), timestamp, id), nodeHandles(move(handles))
+    : Base(UserAlert::type_u, uh, string(), timestamp, id), nodeHandles(std::move(handles))
 {
 }
 
@@ -1037,7 +1037,7 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
             return nullptr;
         }
 
-        auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, std::move(vh));
         usn->setRelevant(p->relevant);
         usn->setSeen(p->seen);
         return usn;
@@ -2120,12 +2120,12 @@ void UserAlerts::convertNotedSharedNodes(bool added)
         if (added)
         {
             add(new NewSharedNodes(i->first.first, i->first.second, i->second.timestamp, nextId(),
-                                   move(fileHandles), move(folderHandles)));
+                                   std::move(fileHandles), std::move(folderHandles)));
         }
         else
         {
             std::move(folderHandles.begin(), folderHandles.end(), std::back_inserter(fileHandles));
-            add(new RemovedSharedNode(i->first.first, m_time(), nextId(), move(fileHandles)));
+            add(new RemovedSharedNode(i->first.first, m_time(), nextId(), std::move(fileHandles)));
         }
     }
 }

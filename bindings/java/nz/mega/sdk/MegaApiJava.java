@@ -113,6 +113,8 @@ public class MegaApiJava {
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
     public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
     public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
+    public final static int USER_ATTR_APPS_PREFS = MegaApi.USER_ATTR_APPS_PREFS;
+
     // deprecated: public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
     public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
@@ -4310,6 +4312,93 @@ public class MegaApiJava {
     }
 
     /**
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * You can remove existing records/keypairs from the following attributes:
+     *  - MegaApi::ATTR_ALIAS
+     *  - MegaApi::ATTR_DEVICE_NAMES
+     *  - MegaApi::USER_ATTR_APPS_PREFS
+     * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Set whether the user can send geolocation messages (private)
+     * MegaApi::ATTR_ALIAS = 27
+     * Set the list of users's aliases (private)
+     * MegaApi::ATTR_DEVICE_NAMES = 30
+     * Set the list of device names (private)
+     * MegaApi::ATTR_APPS_PREFS = 38
+     * Set the apps prefs (private)
+     *
+     * @param value New attribute value
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setUserAttribute(int type, MegaStringMap value, MegaRequestListenerInterface listener) {
+        megaApi.setUserAttribute(type, value, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * You can remove existing records/keypairs from the following attributes:
+     *  - MegaApi::ATTR_ALIAS
+     *  - MegaApi::ATTR_DEVICE_NAMES
+     *  - MegaApi::USER_ATTR_APPS_PREFS
+     * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Set whether the user can send geolocation messages (private)
+     * MegaApi::ATTR_ALIAS = 27
+     * Set the list of users's aliases (private)
+     * MegaApi::ATTR_DEVICE_NAMES = 30
+     * Set the list of device names (private)
+     * MegaApi::ATTR_APPS_PREFS = 38
+     * Set the apps prefs (private)
+     *
+     * @param value New attribute value
+     */
+    public void setUserAttribute(int type, MegaStringMap value) {
+        megaApi.setUserAttribute(type, value);
+    }
+
+    /**
      * Set a custom attribute for the node
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
@@ -5365,6 +5454,7 @@ public class MegaApiJava {
      *
      * @return Base64-encoded master key
      */
+    @Nullable
     public String exportMasterKey() {
         return megaApi.exportMasterKey();
     }
@@ -5898,6 +5988,7 @@ public class MegaApiJava {
      *
      * @return The id of this device
      */
+    @Nullable
     public String getDeviceId() {
         return megaApi.getDeviceId();
     }
@@ -6309,22 +6400,53 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the event message
      *
      * @param eventType Event type
+     *                  Event types are restricted to the following ranges:
+     *                  - MEGAcmd:   [98900, 99000)
+     *                  - MEGAchat:  [99000, 99199)
+     *                  - Android:   [99200, 99300)
+     *                  - iOS:       [99300, 99400)
+     *                  - MEGA SDK:  [99400, 99500)
+     *                  - MEGAsync:  [99500, 99600)
+     *                  - Webclient: [99600, 99800]
      * @param message   Event message
      * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
      * is sent to MEGA servers.
-     * </p>
-     * Event types are restricted to the following ranges:
-     * - MEGAcmd:   [98900, 99000)
-     * - MEGAchat:  [99000, 99150)
-     * - Android:   [99200, 99300)
-     * - iOS:       [99300, 99400)
-     * - MEGA SDK:  [99400, 99500)
-     * - MEGAsync:  [99500, 99600)
-     * - Webclient: [99600, 99800]
+     * This version of the function is deprecated. Please use the non-deprecated one below.
      */
     @Deprecated
     public void sendEvent(int eventType, String message) {
         megaApi.sendEvent(eventType, message);
+    }
+
+    /**
+     * Send events to the stats server
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the event type
+     * - MegaRequest::getText - Returns the event message
+     * - MegaRequest::getFlag - Returns the addJourneyId flag
+     * - MegaRequest::getSessionKey - Returns the ViewID
+     *
+     * @param eventType    Event type
+     *                     Event types are restricted to the following ranges:
+     *                     - MEGAcmd:   [98900, 99000)
+     *                     - MEGAchat:  [99000, 99199)
+     *                     - Android:   [99200, 99300)
+     *                     - iOS:       [99300, 99400)
+     *                     - MEGA SDK:  [99400, 99500)
+     *                     - MEGAsync:  [99500, 99600)
+     *                     - Webclient: [99600, 99800]
+     * @param message      Event message
+     * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+     * @param viewId       ViewID value (C-string null-terminated) to be sent with the event.
+     *                     This value should have been generated with MegaApi::generateViewId method.
+     * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+     * is sent to MEGA servers.
+     */
+    @Deprecated
+    public void sendEvent(int eventType, String message, boolean addJourneyId, @Nullable String viewId) {
+        megaApi.sendEvent(eventType, message, addJourneyId, viewId);
     }
 
     /**
@@ -7449,6 +7571,7 @@ public class MegaApiJava {
      * @param listener MegaTransferListener to start receiving information about transfers
      * @return Information about transfer queues
      */
+    @Nullable
     public MegaTransferData getTransferData(MegaTransferListenerInterface listener) {
         return megaApi.getTransferData(createDelegateTransferListener(listener, false));
     }
@@ -7501,6 +7624,7 @@ public class MegaApiJava {
      * @return List with all active transfers
      * @see MegaApi::startUpload, MegaApi::startDownload
      */
+    @Nullable
     public ArrayList<MegaTransfer> getTransfers() {
         return transferListToArray(megaApi.getTransfers());
     }
@@ -7516,6 +7640,7 @@ public class MegaApiJava {
      * @return MegaTransfer object with that tag, or NULL if there isn't any
      * active transfer with it
      */
+    @Nullable
     public MegaTransfer getTransferByTag(int transferTag) {
         return megaApi.getTransferByTag(transferTag);
     }
@@ -7531,6 +7656,7 @@ public class MegaApiJava {
      * @param type MegaTransfer::TYPE_DOWNLOAD or MegaTransfer::TYPE_UPLOAD
      * @return List with transfers of the desired type
      */
+    @Nullable
     public ArrayList<MegaTransfer> getTransfers(int type) {
         return transferListToArray(megaApi.getTransfers(type));
     }
@@ -7555,6 +7681,7 @@ public class MegaApiJava {
      * @return List of transfers in the context of the selected folder transfer
      * @see MegaTransfer::isFolderTransfer, MegaTransfer::getFolderTransferTag
      */
+    @Nullable
     public ArrayList<MegaTransfer> getChildTransfers(int transferTag) {
         return transferListToArray(megaApi.getChildTransfers(transferTag));
     }
@@ -8039,6 +8166,7 @@ public class MegaApiJava {
      * @param name   Name of the node
      * @return The MegaNode that has the selected parent and name
      */
+    @Nullable
     public MegaNode getChildNode(MegaNode parent, String name) {
         return megaApi.getChildNode(parent, name);
     }
@@ -8054,6 +8182,7 @@ public class MegaApiJava {
      * @param node MegaNode to get the parent
      * @return The parent of the provided node
      */
+    @Nullable
     public MegaNode getParentNode(MegaNode node) {
         return megaApi.getParentNode(node);
     }
@@ -8070,6 +8199,7 @@ public class MegaApiJava {
      * @param node MegaNode for which the path will be returned
      * @return The path of the node
      */
+    @Nullable
     public String getNodePath(MegaNode node) {
         return megaApi.getNodePath(node);
     }
@@ -8094,6 +8224,7 @@ public class MegaApiJava {
      * @param n    Base node if the path is relative
      * @return The MegaNode object in the path, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByPath(String path, MegaNode n) {
         return megaApi.getNodeByPath(path, n);
     }
@@ -8117,6 +8248,7 @@ public class MegaApiJava {
      * @param path Path to check
      * @return The MegaNode object in the path, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByPath(String path) {
         return megaApi.getNodeByPath(path);
     }
@@ -8136,6 +8268,7 @@ public class MegaApiJava {
      * @param h Node handle to check
      * @return MegaNode object with the handle, otherwise NULL
      */
+    @Nullable
     public MegaNode getNodeByHandle(long h) {
         return megaApi.getNodeByHandle(h);
     }
@@ -8150,6 +8283,7 @@ public class MegaApiJava {
      * @param handle Contact request handle to check
      * @return MegaContactRequest object with the handle, otherwise NULL
      */
+    @Nullable
     public MegaContactRequest getContactRequestByHandle(long handle) {
         return megaApi.getContactRequestByHandle(handle);
     }
@@ -8175,6 +8309,7 @@ public class MegaApiJava {
      * @param user Email or Base64 handle of the user
      * @return MegaUser that has the email address, otherwise NULL
      */
+    @Nullable
     public MegaUser getContact(String user) {
         return megaApi.getContact(user);
     }
@@ -8306,6 +8441,7 @@ public class MegaApiJava {
      * @param node Node to look for inshare user.
      * @return MegaUser relative to the incoming share
      */
+    @Nullable
     public MegaUser getUserFromInShare(MegaNode node) {
         return megaApi.getUserFromInShare(node);
     }
@@ -8326,6 +8462,7 @@ public class MegaApiJava {
      * @param recurse use root node corresponding to the node passed
      * @return MegaUser relative to the incoming share
      */
+    @Nullable
     public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
         return megaApi.getUserFromInShare(node, recurse);
     }
@@ -8511,6 +8648,7 @@ public class MegaApiJava {
      * @param filePath Local file path
      * @return Base64-encoded fingerprint for the file
      */
+    @Nullable
     public String getFingerprint(String filePath) {
         return megaApi.getFingerprint(filePath);
     }
@@ -8525,6 +8663,7 @@ public class MegaApiJava {
      * @param fingerprint Fingerprint to check
      * @return MegaNode object with the provided fingerprint
      */
+    @Nullable
     public MegaNode getNodeByFingerprint(String fingerprint) {
         return megaApi.getNodeByFingerprint(fingerprint);
     }
@@ -8542,6 +8681,7 @@ public class MegaApiJava {
      * @param parent      Preferred parent node
      * @return MegaNode object with the provided fingerprint
      */
+    @Nullable
     public MegaNode getNodeByFingerprint(String fingerprint, MegaNode parent) {
         return megaApi.getNodeByFingerprint(fingerprint, parent);
     }
@@ -8575,6 +8715,7 @@ public class MegaApiJava {
      * @param name        Name that the node should have (optional)
      * @return Exportable node that meet the requirements
      */
+    @Nullable
     public MegaNode getExportableNodeByFingerprint(String fingerprint, String name) {
         return megaApi.getExportableNodeByFingerprint(fingerprint, name);
     }
@@ -8592,6 +8733,7 @@ public class MegaApiJava {
      * @param fingerprint Fingerprint to check
      * @return Exportable node that meet the requirements
      */
+    @Nullable
     public MegaNode getExportableNodeByFingerprint(String fingerprint) {
         return megaApi.getExportableNodeByFingerprint(fingerprint);
     }
@@ -8621,6 +8763,7 @@ public class MegaApiJava {
      * @param filePath Local file path
      * @return Base64-encoded CRC of the file
      */
+    @Nullable
     public String getCRC(String filePath) {
         return megaApi.getCRC(filePath);
     }
@@ -8633,6 +8776,7 @@ public class MegaApiJava {
      * @param fingerprint fingerprint from which we want to get the CRC
      * @return Base64-encoded CRC from the fingerprint
      */
+    @Nullable
     public String getCRCFromFingerprint(String fingerprint) {
         return megaApi.getCRCFromFingerprint(fingerprint);
     }
@@ -8650,6 +8794,7 @@ public class MegaApiJava {
      * @param node Node for which we want to get the CRC
      * @return Base64-encoded CRC of the node
      */
+    @Nullable
     public String getCRC(MegaNode node) {
         return megaApi.getCRC(node);
     }
@@ -8667,6 +8812,7 @@ public class MegaApiJava {
      * @return Node with the selected CRC in the selected folder, or NULL
      * if it's not found.
      */
+    @Nullable
     public MegaNode getNodeByCRC(String crc, MegaNode parent) {
         return megaApi.getNodeByCRC(crc, parent);
     }
@@ -8735,6 +8881,7 @@ public class MegaApiJava {
      *
      * @return Root node of the account
      */
+    @Nullable
     public MegaNode getRootNode() {
         return megaApi.getRootNode();
     }
@@ -8747,6 +8894,7 @@ public class MegaApiJava {
      *
      * @return Inbox node of the account.
      */
+    @Nullable
     public MegaNode getInboxNode() {
         return megaApi.getInboxNode();
     }
@@ -8759,6 +8907,7 @@ public class MegaApiJava {
      *
      * @return Rubbish node of the account.
      */
+    @Nullable
     public MegaNode getRubbishNode() {
         return megaApi.getRubbishNode();
     }
@@ -9769,6 +9918,7 @@ public class MegaApiJava {
      * @param node MegaNode to authorize
      * @return Authorized node, or NULL if the node can't be authorized
      */
+    @Nullable
     public MegaNode authorizeNode(MegaNode node) {
         return megaApi.authorizeNode(node);
     }
@@ -9791,6 +9941,7 @@ public class MegaApiJava {
      * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
      * @return Authorized node, or NULL if the node can't be authorized
      */
+    @Nullable
     public MegaNode authorizeChatNode(MegaNode node, String cauth) {
         return megaApi.authorizeChatNode(node, cauth);
     }
@@ -9803,6 +9954,7 @@ public class MegaApiJava {
      *
      * @return SDK version
      */
+    @Nullable
     public String getVersion() {
         return megaApi.getVersion();
     }
@@ -9815,6 +9967,7 @@ public class MegaApiJava {
      *
      * @return User-Agent used by the SDK
      */
+    @Nullable
     public String getUserAgent() {
         return megaApi.getUserAgent();
     }
@@ -9852,6 +10005,17 @@ public class MegaApiJava {
      */
     public boolean setLanguage(String languageCode) {
         return megaApi.setLanguage(languageCode);
+    }
+
+    /**
+     * Generate an unique ViewID
+     * <p>
+     * The caller gets the ownership of the object.
+     * <p>
+     * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+     */
+    public String generateViewId() {
+        return megaApi.generateViewId();
     }
 
     /**
@@ -10013,6 +10177,7 @@ public class MegaApiJava {
      * @param dstPath  Destination path
      * @return Converted name (UTF8)
      */
+    @Nullable
     public String escapeFsIncompatible(String filename, String dstPath) {
         return megaApi.escapeFsIncompatible(filename, dstPath);
     }
@@ -10032,6 +10197,7 @@ public class MegaApiJava {
      * @param localPath Local path
      * @return Converted name (UTF8)
      */
+    @Nullable
     String unescapeFsIncompatible(String name, String localPath) {
         return megaApi.unescapeFsIncompatible(name, localPath);
     }
@@ -10070,6 +10236,7 @@ public class MegaApiJava {
      * @param base64 NULL-terminated Base64 character array
      * @return NULL-terminated Base32 character array
      */
+    @Nullable
     public static String base64ToBase32(String base64) {
         return MegaApi.base64ToBase32(base64);
     }
@@ -10086,6 +10253,7 @@ public class MegaApiJava {
      * @param base32 NULL-terminated Base32 character array
      * @return NULL-terminated Base64 character array
      */
+    @Nullable
     public static String base32ToBase64(String base32) {
         return MegaApi.base32ToBase64(base32);
     }
@@ -10475,6 +10643,7 @@ public class MegaApiJava {
      * @param node Node to generate the local HTTP link
      * @return URL to the node in the local HTTP proxy server, otherwise NULL
      */
+    @Nullable
     public String httpServerGetLocalLink(MegaNode node) {
         return megaApi.httpServerGetLocalLink(node);
     }
@@ -10568,6 +10737,7 @@ public class MegaApiJava {
      * @param extension File extension (with or without a leading dot)
      * @return MIME type associated with the extension
      */
+    @Nullable
     public static String getMimeType(String extension) {
         return MegaApi.getMimeType(extension);
     }
@@ -11110,6 +11280,7 @@ public class MegaApiJava {
      *
      * @return verified phone number.
      */
+    @Nullable
     public String smsVerifiedPhoneNumber() {
         return megaApi.smsVerifiedPhoneNumber();
     }
@@ -12166,6 +12337,7 @@ public class MegaApiJava {
      *
      * @return Current public/exported Set in preview mode or nullptr if there is none
      */
+    @Nullable
     public MegaSet getPublicSetInPreview() {
         return megaApi.getPublicSetInPreview();
     }
@@ -12219,6 +12391,7 @@ public class MegaApiJava {
      * - API_ENOENT if sid doesn't match any owned Set or the Set is not exported
      * - API_EARGS if there was an internal error composing the URL
      */
+    @Nullable
     public String getPublicLinkForExportedSet(long sid) {
         return megaApi.getPublicLinkForExportedSet(sid);
     }

@@ -593,7 +593,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
 
             if (actualFilename != namePath.leafName())
             {
-                *actualLeafNameIfDifferent = move(actualFilename);
+                *actualLeafNameIfDifferent = std::move(actualFilename);
             }
         }
 
@@ -729,7 +729,7 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
         buf.pop_back();
     }
 
-    path = LocalPath::fromPlatformEncodedAbsolute(move(buf));
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
 
     return nWritten > 0;
 }
@@ -1843,7 +1843,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     assert(wstr.back() != 0);
                     if (wstr != result.localname.localpath)
                     {
-                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(move(wstr))));
+                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(std::move(wstr))));
                     }
                 }
 
@@ -1892,7 +1892,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     }
                 }
 
-                results.push_back(move(result));
+                results.push_back(std::move(result));
             }
         }
         while (GetFileInformationByHandleEx( rightTypeHandle.get(),

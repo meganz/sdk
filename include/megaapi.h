@@ -102,64 +102,6 @@ class MegaIntegerList;
 #endif
 
 /**
- * @brief
- * Interface to receive filename anomaly notifications from the SDK.
- *
- * @see MegaApi::setFilenameAnomalyReporter
- */
-class MegaFilenameAnomalyReporter
-{
-public:
-    /**
-     * @brief
-     * Represents the type of anomaly reported by the SDK.
-     */
-    enum AnomalyType
-    {
-        /**
-         * @brief
-         * A file's local and remote names differ.
-         *
-         * An example of when this kind of anomaly can occur is when
-         * downloading a file from the cloud that contains characters in its
-         * name that are not valid on the local filesystem.
-         *
-         * Say, downloading a file called A:B on Windows.
-         */
-        ANOMALY_NAME_MISMATCH = 0,
-
-        /**
-         * @brief
-         * A file has a reserved name.
-         *
-         * This kind of anomaly is reported by the SDK when it attempts to
-         * download a file that has a name that is reserved on the local
-         * filesystem.
-         *
-         * Say, downloading a file called CON on Windows.
-         */
-        ANOMALY_NAME_RESERVED = 1
-    }; // AnomalyType
-
-    virtual ~MegaFilenameAnomalyReporter() { };
-
-    /**
-     * @brief
-     * Called by the SDK when it wants to report a filename anomaly.
-     *
-     * @param type
-     * The anomaly that was detected by the SDK.
-     *
-     * @param localPath
-     * The local path of the file with a filename anomaly.
-     *
-     * @param remotePath
-     * The remote path of the file with a filename anomaly.
-     */
-    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
-}; // MegaFilenameAnomalyReporter
-
-/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -1673,6 +1615,7 @@ class MegaUser
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
+            CHANGE_APPS_PREFS                       = 0x40000000,
         };
 
         /**
@@ -1775,6 +1718,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
          *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -1869,6 +1815,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
          * Check if option for iOS CallKit has changed
+         *
+         * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
+         * Check if apps prefs have changed
          *
          * Check if backup names have changed         */
         virtual uint64_t getChanges();
@@ -4467,6 +4416,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::fastLogin - Returns session key used to access the account
+         * - MegaApi::sendEvent - Returns the ViewID key used to track the view
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4786,6 +4736,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
+         * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9015,6 +8966,7 @@ class MegaApi
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
+            USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
         };
 
         enum {
@@ -11201,21 +11153,6 @@ class MegaApi
         static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
-         * @brief
-         * Specify a reporter to receive filename anomaly messages from the SDK.
-         *
-         * @param reporter
-         * The reporter that should receive filename anomaly messages.
-         *
-         * Note that null is a valid value for this parameter and if
-         * specified, will prevent the SDK from sending messages to the
-         * reporter previously specified using this function.
-         *
-         * @see MegaFilenameAnomalyReporter
-         */
-        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        /**
          * @brief Send a log to the logging system
          *
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
@@ -12429,6 +12366,12 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type
          * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
          *
+         * You can remove existing records/keypairs from the following attributes:
+         *  - MegaApi::ATTR_ALIAS
+         *  - MegaApi::ATTR_DEVICE_NAMES
+         *  - MegaApi::USER_ATTR_APPS_PREFS
+         * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+         *
          * @param type Attribute type
          *
          * Valid values are:
@@ -12449,6 +12392,8 @@ class MegaApi
          * Set the list of users's aliases (private)
          * MegaApi::ATTR_DEVICE_NAMES = 30
          * Set the list of device names (private)
+         * MegaApi::ATTR_APPS_PREFS = 38
+         * Set the apps prefs (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -13934,6 +13879,40 @@ class MegaApi
          * @param message Event message
          * @param listener MegaRequestListener to track this request
          *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
+         *  - MEGAchat:  [99000, 99199)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
+         *
+         * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+         *             is sent to MEGA servers.
+         * This version of the function is deprecated. Please use the non-deprecated one below.
+        */
+        MEGA_DEPRECATED
+        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Send events to the stats server
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the event type
+         * - MegaRequest::getText - Returns the event message
+         * - MegaRequest::getFlag - Returns the addJourneyId flag
+         * - MegaRequest::getSessionKey - Returns the ViewID
+         *
+         * @param eventType Event type
+         * @param message Event message
+         * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+         * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+         *               This value should have been generated with MegaApi::generateViewId method.
+         * @param listener MegaRequestListener to track this request
+         *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
          *
@@ -13946,7 +13925,7 @@ class MegaApi
          *  - MEGAsync:  [99500, 99600)
          *  - Webclient: [99600, 99800]
          */
-        void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new ticket for support with attached description
@@ -15150,6 +15129,7 @@ class MegaApi
          * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
          * @param businessStatus business status. Pass 999 if not valid
          * @param listener MegaRequestListener to track this request
+         *
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
@@ -17908,6 +17888,15 @@ class MegaApi
          * @return True if the language code is known for the SDK, otherwise false
          */
         bool setLanguage(const char* languageCode);
+
+        /**
+         * @brief Generate an unique ViewID
+         *
+         * The caller gets the ownership of the object.
+         *
+         * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+         */
+        const char* generateViewId();
 
         /**
          * @brief Set the preferred language of the user
