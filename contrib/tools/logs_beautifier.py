@@ -21,6 +21,9 @@ parser.set_defaults(onlyactionpackets=False)
 parser.add_argument('--only-client-requests', '-c', action='store_true', dest='onlyclientreqs', help='do not print sc requests/responses')
 parser.set_defaults(onlyclientreqs=False)
 
+parser.add_argument('--include-lines-matching', '-i', dest='includepattern', help='include lines matching some pattern')
+parser.set_defaults(includepattern=None)
+
 
 parser.add_argument('file', nargs=argparse.REMAINDER)
 
@@ -40,9 +43,9 @@ if not args.onlyclientreqs:
 for l in fToParse:
 
     if args.postcs and "cs POST target" in l:
-        print (l,)
+        print (l.strip(),)
     if args.postsc and "sc POST target" in l:
-        print (l,)
+        print (l.strip(),)
     if any(x in l for x in patterns) and "sc Received 1: 0" not in l and " sc Sending 0:" not in l:
 
         m = re.search('(.*): (\{.*\}|\[.*\])', l)
@@ -75,3 +78,7 @@ for l in fToParse:
                 print (l,)
         else:
             print (l,)
+    elif args.includepattern:
+        m = re.search(args.includepattern, l)
+        if m:
+            print (l.strip(),)

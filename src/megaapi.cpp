@@ -2065,11 +2065,6 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLog
     MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    pImpl->setFilenameAnomalyReporter(reporter);
-}
-
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
 {
     MegaApiImpl::log(logLevel, message, filename, line);
