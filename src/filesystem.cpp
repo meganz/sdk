@@ -1846,30 +1846,6 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
-{
-    // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath(true);
-
-    if (compareUtf(localName, false, remoteName, false, true))
-    {
-        return FILENAME_ANOMALY_NAME_MISMATCH;
-    }
-    else if (isReservedName(remoteName, type))
-    {
-        return FILENAME_ANOMALY_NAME_RESERVED;
-    }
-
-    return FILENAME_ANOMALY_NONE;
-}
-
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
-{
-    assert(node);
-
-    return isFilenameAnomaly(localPath, node->displayname(), node->type);
-}
-
 bool isNetworkFilesystem(FileSystemType type)
 {
     return type == FS_CIFS

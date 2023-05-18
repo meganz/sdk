@@ -3965,57 +3965,6 @@ void exec_backupcentre(autocomplete::ACState& s)
     }
 }
 
-class AnomalyReporter
-    : public FilenameAnomalyReporter
-{
-public:
-    void anomalyDetected(FilenameAnomalyType type,
-                            const LocalPath& localPath,
-                            const string& remotePath) override
-    {
-        string typeName;
-
-        switch (type)
-        {
-        case FILENAME_ANOMALY_NAME_MISMATCH:
-            typeName = "NAME_MISMATCH";
-            break;
-        case FILENAME_ANOMALY_NAME_RESERVED:
-            typeName = "NAME_RESERVED";
-            break;
-        default:
-            assert(!"Unknown anomaly type!");
-            typeName = "UNKNOWN";
-            break;
-        }
-
-        cout << "Filename anomaly detected: type: "
-                << typeName
-                << ": local path: "
-                << localPath.toPath(false)
-                << ": remote path: "
-                << remotePath
-                << endl;
-    }
-}; // AnomalyReporter
-
-void exec_logFilenameAnomalies(autocomplete::ACState& s)
-{
-    unique_ptr<FilenameAnomalyReporter> reporter;
-
-    if (s.words[1].s == "on")
-    {
-        reporter.reset(new AnomalyReporter());
-    }
-
-    cout << "Filename anomaly reporting is "
-         << (reporter ? "en" : "dis")
-         << "abled."
-         << endl;
-
-    client->mFilenameAnomalyReporter = std::move(reporter);
-}
-
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 void exec_simulatecondition(autocomplete::ACState& s)
 {
@@ -4371,9 +4320,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
-
-    p->Add(exec_logFilenameAnomalies,
-           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
@@ -9908,8 +9854,6 @@ int main(int argc, char* argv[])
 #endif
 
     clientFolder = NULL;    // additional for folder links
-
-    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
 
     megacli();
 
