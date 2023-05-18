@@ -15,11 +15,11 @@ MacFileSystemAccess::~MacFileSystemAccess()
 {
     // Make sure there are no notifiers active.
     assert(mNumNotifiers == 0);
-    
+
     // Bail if we don't have a dispatch queue.
     if (!mDispatchQueue)
         return;
-    
+
     // Release the dispatch queue.
     dispatch_release(mDispatchQueue);
 }
@@ -52,9 +52,6 @@ DirNotify* MacFileSystemAccess::newdirnotify(LocalNode& root,
                                              const LocalPath& rootPath,
                                              Waiter* waiter)
 {
-    // Make sure we've been initialized.
-    assert(mRunLoop);
-
     // Make sure we've been passed a sane waiter.
     assert(waiter);
 
@@ -201,7 +198,7 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
             scanFlags = Notification::FOLDER_NEEDS_SCAN_RECURSIVE;
             assert(flag & kFSEventStreamEventFlagItemIsDir);
         }
-        
+
         // log the unusual possiblities
         if (flag == kFSEventStreamEventFlagNone) LOG_debug << "FSEv flag none";
         if (flag & kFSEventStreamEventFlagMustScanSubDirs) LOG_debug << "FSEv scan subdirs";
@@ -227,7 +224,7 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
         if (flag & kFSEventStreamEventFlagItemIsHardlink) LOG_debug << "FSEv is hard link";
         if (flag & kFSEventStreamEventFlagItemIsLastHardlink) LOG_debug << "FSEv is last hard link";
         //if (flag & kFSEventStreamEventFlagItemCloned) LOG_debug << "FSEv item cloned";
-        
+
         // Pass the notification to the engine.
         notify(fsEventq,
                &mRoot,
