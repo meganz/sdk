@@ -542,7 +542,7 @@ bool MegaNode::isMarkedSensitive()
     return false;
 }
 
-bool MegaNode::hasChanged(int /*changeType*/)
+bool MegaNode::hasChanged(uint64_t /*changeType*/)
 {
     return false;
 }
@@ -703,7 +703,7 @@ int64_t MegaUser::getTimestamp()
     return 0;
 }
 
-bool MegaUser::hasChanged(int)
+bool MegaUser::hasChanged(uint64_t)
 {
     return false;
 }
@@ -810,7 +810,7 @@ MegaHandle MegaUserAlert::getSchedId() const
     return INVALID_HANDLE;
 }
 
-bool MegaUserAlert::hasSchedMeetingChanged(int) const
+bool MegaUserAlert::hasSchedMeetingChanged(uint64_t) const
 {
     return false;
 }
@@ -6855,7 +6855,7 @@ unsigned char MegaTextChat::getChatOptions() const
     return 0;
 }
 
-bool MegaTextChat::hasChanged(int) const
+bool MegaTextChat::hasChanged(uint64_t) const
 {
     return false;
 }

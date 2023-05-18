@@ -627,7 +627,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
-        bool hasChanged(int changeType) override;
+        bool hasChanged(uint64_t changeType) override;
         uint64_t getChanges() override;
         bool hasThumbnail() override;
         bool hasPreview() override;
@@ -725,7 +725,7 @@ public:
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
-    bool hasChanged(int changeType) const override;
+    bool hasChanged(uint64_t changeType) const override;
     uint64_t getChanges() const override { return mChanges.to_ullong(); }
     bool isExported() const override { return mPublicId != UNDEF; }
 
@@ -775,7 +775,7 @@ public:
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
 
-    bool hasChanged(int changeType) const override;
+    bool hasChanged(uint64_t changeType) const override;
     uint64_t getChanges() const override { return mChanges.to_ullong(); }
 
     virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
@@ -821,7 +821,7 @@ class MegaUserPrivate : public MegaUser
         virtual MegaHandle getHandle();
         virtual int getVisibility();
         virtual int64_t getTimestamp();
-        virtual bool hasChanged(int changeType);
+        bool hasChanged(uint64_t changeType) override;
         uint64_t getChanges() override;
         virtual int isOwnChange();
 
@@ -859,7 +859,7 @@ public:
     MegaHandle getHandle(unsigned index) const override;
 #ifdef ENABLE_CHAT
     MegaHandle getSchedId() const override;
-    bool hasSchedMeetingChanged(int changeType) const override;
+    bool hasSchedMeetingChanged(uint64_t changeType) const override;
     MegaStringList* getUpdatedTitle() const override;
     MegaStringList* getUpdatedTimeZone() const override;
     MegaIntegerList* getUpdatedStartDate() const override;
@@ -1911,7 +1911,7 @@ public:
     bool isPublicChat() const override;
     bool isMeeting() const override;
 
-    bool hasChanged(int changeType) const override;
+    bool hasChanged(uint64_t changeType) const override;
     uint64_t getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;

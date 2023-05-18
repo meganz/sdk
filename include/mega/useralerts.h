@@ -364,7 +364,7 @@ namespace UserAlert
             const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
             const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
             uint64_t getChanges() const                         { return mUpdatedFields.to_ullong(); }
-            bool hasChanged(int changeType) const
+            bool hasChanged(uint64_t changeType) const
             {
                 return getChanges() & changeType;
             }

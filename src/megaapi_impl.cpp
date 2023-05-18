@@ -989,7 +989,7 @@ bool MegaNodePrivate::isRemoved()
     return hasChanged(MegaNode::CHANGE_TYPE_REMOVED);
 }
 
-bool MegaNodePrivate::hasChanged(int changeType)
+bool MegaNodePrivate::hasChanged(uint64_t changeType)
 {
     return (changed & changeType);
 }
@@ -1829,7 +1829,7 @@ int64_t MegaUserPrivate::getTimestamp()
     return ctime;
 }
 
-bool MegaUserPrivate::hasChanged(int changeType)
+bool MegaUserPrivate::hasChanged(uint64_t changeType)
 {
     return (changed & changeType);
 }
@@ -1844,12 +1844,12 @@ int MegaUserPrivate::isOwnChange()
     return tag;
 }
 
-bool MegaSetPrivate::hasChanged(int changeType) const
+bool MegaSetPrivate::hasChanged(uint64_t changeType) const
 {
     return getChanges() & changeType;
 }
 
-bool MegaSetElementPrivate::hasChanged(int changeType) const
+bool MegaSetElementPrivate::hasChanged(uint64_t changeType) const
 {
     return getChanges() & changeType;
 }
@@ -2203,7 +2203,7 @@ MegaHandle MegaUserAlertPrivate::getSchedId() const
     return schedMeetingId;
 }
 
-bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
+bool MegaUserAlertPrivate::hasSchedMeetingChanged(uint64_t changeType) const
 {
     return schedMeetingChangeset.hasChanged(changeType);
 }
@@ -34596,7 +34596,7 @@ bool MegaTextChatPrivate::isMeeting() const
     return meeting;
 }
 
-bool MegaTextChatPrivate::hasChanged(int changeType) const
+bool MegaTextChatPrivate::hasChanged(uint64_t changeType) const
 {
     return (changed & changeType);
 }
