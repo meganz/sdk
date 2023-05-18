@@ -11654,8 +11654,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
 
         foreignNode.reset(fNode);
-        if (expectedResult == API_OK) { ASSERT_NE(foreignNode, nullptr); }
-        else                          { ASSERT_EQ(foreignNode, nullptr); }
+        if (expectedResult == API_OK)
+        {
+            ASSERT_NE(foreignNode, nullptr);
+            unique_ptr<MegaNode> sourceNode(megaApi[0]->getNodeByHandle(uploadedNode));
+            ASSERT_EQ(foreignNode->getCreationTime(), 0) << "\tAll foreign node's creation time must be 0";
+            ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
+                << "\tForeign node's mtime inconsistent";
+        }
+        else
+        {
+            ASSERT_EQ(foreignNode, nullptr);
+        }
     };
     const auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
     {
