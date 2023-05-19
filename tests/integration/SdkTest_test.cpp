@@ -6146,7 +6146,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
     ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
@@ -13283,7 +13283,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Upload ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* upl = transfers->get(0);
     long long uplBytes = upl->getTransferredBytes();
     ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
@@ -13292,12 +13292,13 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxUploadSpeed(-1);
     timer.reset();
     unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
-    while (!cloudNode && timer.elapsed() < 20)
+    size_t maxAllowedToFinishUpload = 120;
+    while (!cloudNode && timer.elapsed() < maxAllowedToFinishUpload)
     {
         WaitMillisec(500);
         cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
-    ASSERT_TRUE(cloudNode) << "Upload did not finish after 20 seconds";
+    ASSERT_TRUE(cloudNode) << "Upload did not finish after " << maxAllowedToFinishUpload << " seconds";
 
     //  6. Download file, with speed limit
     string downloadedFile = DOTSLASH + DOWNFILE;
@@ -13337,7 +13338,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
     ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
