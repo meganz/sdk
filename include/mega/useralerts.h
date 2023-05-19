@@ -369,8 +369,8 @@ namespace UserAlert
                 return getChanges() & changeType;
             }
 
-            string changeToString(int changeType) const;
-            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
+            string changeToString(uint64_t changeType) const;
+            void addChange(uint64_t changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
             Changeset() = default;
             Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
                       unique_ptr<StrChangeset>& _titleCS,
