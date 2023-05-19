@@ -356,7 +356,7 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     if (targetuser.size())
     {
         // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
-        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+        client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
     }
     else
     {
@@ -381,9 +381,9 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
         client->reqs.add(new CommandPutNodes(client,
                                              th, NULL,
                                              mVersioningOption,
-                                             move(newnodes),
+                                             std::move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion), canChangeVault));
+                                             source, nullptr, std::move(completion), canChangeVault));
     }
 }
 
@@ -429,7 +429,7 @@ void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
     if (targetuser.size())
     {
         // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
-        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+        client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
     }
     else
     {
@@ -439,9 +439,9 @@ void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
         client->reqs.add(new CommandPutNodes(client,
                                              th, NULL,
                                              mVersioningOption,
-                                             move(newnodes),
+                                             std::move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion), canChangeVault));
+                                             source, nullptr, std::move(completion), canChangeVault));
     }
 }
 

@@ -2038,24 +2038,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         newName.clear();
                     }
 
-                    // If renaming (or move-renaming), check for filename anomalies.
-                    // Only report if we really do succeed with the rename
-                    std::function<void(MegaClient&)> anomalyReport = nullptr;
-                    if (!newName.empty() && newName != nameOverwritten)
-                    {
-                        auto anomalyType = isFilenameAnomaly(fullPath.localPath.leafName(), newName, sourceCloudNode.type);
-                        if (anomalyType != FILENAME_ANOMALY_NONE)
-                        {
-                            auto local  = fullPath.localPath;
-                            auto remote =  targetCloudNodePath + "/" + newName;
-
-                            anomalyReport = [=](MegaClient& mc){
-                                assert(!mc.syncs.onSyncThread());
-                                mc.filenameAnomalyDetected(anomalyType, local, remote);
-                            };
-                        }
-                    }
-
                     std::function<void(MegaClient&)> signalMoveBegin;
 #ifndef NDEBUG
                     {
@@ -2078,7 +2060,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
                         auto renameHandle = sourceCloudNode.handle;
                         bool canChangeVault = threadSafeState->mCanChangeVault;
-                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
@@ -2093,14 +2075,12 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                     if (signalMoveBegin)
                                         signalMoveBegin(mc);
 
-                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
+                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
 
                                         LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
 
                                         movePtr->succeeded = !error(err);
                                         movePtr->failed = !!error(err);
-
-                                        if (!err && anomalyReport) anomalyReport(mc);
                                     }, canChangeVault);
                                 }
                             });
@@ -2130,7 +2110,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             canChangeVault = sourceSyncNode->sync->threadSafeState->mCanChangeVault;
                         }
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (signalMoveBegin)
                                 signalMoveBegin(mc);
@@ -2153,14 +2133,12 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                             sourceCloudNode.parentHandle,
                                             newName.empty() ? nullptr : newName.c_str(),
                                             canChangeVault,
-                                            [&mc, movePtr, anomalyReport](NodeHandle, Error err){
+                                            [&mc, movePtr](NodeHandle, Error err){
 
                                                 LOG_debug << mc.clientname << "SYNC Move completed. err:" << err;
 
                                                 movePtr->succeeded = !error(err);
                                                 movePtr->failed = !!error(err);
-
-                                                if (!err && anomalyReport) anomalyReport(mc);
                                             });
 
                                 if (err)
@@ -2758,21 +2736,6 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         }
 
         assert(!isBackup());
-
-        // Check for filename anomalies.
-        {
-            auto type = isFilenameAnomaly(fullPath.localPath, row.cloudNode->name);
-
-            if (type != FILENAME_ANOMALY_NONE)
-            {
-                auto remotePath = fullPath.cloudPath;
-                auto localPath = fullPath.localPath;
-                syncs.queueClient([type, localPath, remotePath](MegaClient& mc, TransferDbCommitter& committer)
-                    {
-                        mc.filenameAnomalyDetected(type, localPath, remotePath);
-                    });
-            }
-        }
 
         // we don't want the source LocalNode to be visited until after the move completes, and we revisit with rescanned folder data
         // because it might see a new file with the same name, and start a download, keeping the row instead of removing it
@@ -4484,10 +4447,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                       << "...";
 
             // Completion chain.
-            auto completion = bind(&putComplete, move(context), _1, _2);
+            auto completion = bind(&putComplete, std::move(context), _1, _2);
 
             // Create and initiate request.
-            auto* request = new CommandBackupPut(&client, info, move(completion));
+            auto* request = new CommandBackupPut(&client, info, std::move(completion));
             client.reqs.add(request);
         }
 
@@ -5608,7 +5571,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
             {
                 // this is the last one, so we'll arrange clientCompletion
                 // to run after it completes.  Earlier de-registers must finish first
-                onFinalDeregister = move(clientCompletion);
+                onFinalDeregister = std::move(clientCompletion);
                 clientCompletion = nullptr;
             }
 
@@ -7324,12 +7287,6 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             // Move was successful.
             SYNC_verbose << syncname << "Download complete, moved file to final destination." << logTriplet(row, fullPath);
 
-            // Check for anomalous file names.
-            if (row.cloudNode)
-            {
-                checkForFilenameAnomaly(fullPath, row.cloudNode->name);
-            }
-
             // Download was moved into place.
             downloadPtr->wasDistributed = true;
 
@@ -8525,25 +8482,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             }
 #endif // ! NDEBUG
 
-            // Check for filename anomalies.
-            std::function<void(MegaClient&)> signalFilenameAnomaly;
-
-            {
-                // So we can capture if necessary.
-                auto name = row.syncNode->toName_of_localname;
-                auto type = row.syncNode->type;
-                auto anomalyType = isFilenameAnomaly(fullPath.localPath, name, type);
-
-                if (anomalyType != FILENAME_ANOMALY_NONE)
-                {
-                    signalFilenameAnomaly = [anomalyType, fullPath](MegaClient& client) {
-                        client.filenameAnomalyDetected(anomalyType,
-                                                       fullPath.localPath,
-                                                       fullPath.cloudPath);
-                    };
-                }
-            }
-
             if (parentRow.cloudNode &&
                 existingUpload->h != parentRow.cloudNode->handle)
             {
@@ -8552,12 +8490,8 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             }
 
             bool canChangeVault = threadSafeState->mCanChangeVault;
-            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
+            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
-                    // Signal detected anomaly, if any.
-                    if (signalFilenameAnomaly)
-                        signalFilenameAnomaly(mc);
-
                     Node* displaceNode = mc.nodeByHandle(displaceHandle);
                     if (displaceNode && mc.versions_disabled)
                     {
@@ -8615,22 +8549,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             {
                 // there can't be a matching cloud node in this row (for folders), so just toName() is correct
                 string foldername = row.syncNode->toName_of_localname;
-
-                // Check for filename anomalies.
-                {
-                    auto type = isFilenameAnomaly(row.syncNode->localname, foldername);
-
-                    if (type != FILENAME_ANOMALY_NONE)
-                    {
-                        auto lp = fullPath.localPath;
-                        auto rp = fullPath.cloudPath;
-
-                        syncs.queueClient([type, lp, rp](MegaClient& mc, TransferDbCommitter& committer)
-                            {
-                                mc.filenameAnomalyDetected(type, lp, rp);
-                            });
-                    }
-                }
 
                 LOG_verbose << syncname << "Creating cloud node for: " << fullPath.localPath << " as " << foldername << logTriplet(row, fullPath);
                 // while the operation is in progress sync() will skip over the parent folder
@@ -8691,24 +8609,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
     }
     return false;
 }
-
-void Sync::checkForFilenameAnomaly(const SyncPath& path, const string& name)
-{
-    // Have we encountered an anomalous filename?
-    auto type = isFilenameAnomaly(path.localPath, name);
-
-    // Nope so we can bail early.
-    if (type == FILENAME_ANOMALY_NONE) return;
-
-    // Get our hands on the relevant paths.
-    auto localPath = path.localPath;
-    auto remotePath = path.cloudPath;
-
-    // Report the anomaly.
-    syncs.queueClient([=](MegaClient& client, TransferDbCommitter&) {
-        client.filenameAnomalyDetected(type, localPath, remotePath);
-    });
-};
 
 bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool alreadyExists, PerFolderLogSummaryCounts& pflsc)
 {
@@ -8846,9 +8746,6 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
 
         if (parentRow.fsNode)
         {
-            // Check for and report filename anomalies.
-            checkForFilenameAnomaly(fullPath, row.cloudNode->name);
-
             LOG_verbose << syncname << "Creating local folder at: " << fullPath.localPath << logTriplet(row, fullPath);
 
             assert(!isBackup());

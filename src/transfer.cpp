@@ -819,18 +819,6 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                 if (success)
                 {
-
-                    if (auto node = client->nodeByHandle((*it)->h))
-                    {
-                        auto path = (*it)->getLocalname();
-                        auto type = isFilenameAnomaly(path, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            client->filenameAnomalyDetected(type, path, node->displaypath());
-                        }
-                    }
-
                     // prevent deletion of associated Transfer object in completed()
                     client->filecachedel(*it, &committer);
                     client->app->file_complete(*it);
@@ -944,26 +932,6 @@ void Transfer::complete(TransferDbCommitter& committer)
         {
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
-
-            if (!f->syncxfer)
-            {
-                if (auto node = client->nodeByHandle(f->h))
-                {
-                    auto type = isFilenameAnomaly(localpath, f->name);
-
-                    if (type != FILENAME_ANOMALY_NONE)
-                    {
-                        // Construct remote path for reporting.
-                        ostringstream remotepath;
-
-                        remotepath << node->displaypath()
-                                   << (node->parent ? "/" : "")
-                                   << f->name;
-
-                        client->filenameAnomalyDetected(type, localpath, remotepath.str());
-                    }
-                }
-            }
 
             LOG_debug << "Verifying upload";
 
