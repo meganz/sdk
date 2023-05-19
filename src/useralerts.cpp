@@ -2453,7 +2453,19 @@ void UserAlerts::stashDeletedNotedSharedNodes(handle originatingUser)
 {
     if (isConvertReadyToAdd(originatingUser))
     {
-        deletedSharedNodesStash = notedSharedNodes;
+        for(auto it = notedSharedNodes.begin(); it!=notedSharedNodes.end(); it++)
+        {
+            ff& f = deletedSharedNodesStash[it->first];
+            for(auto filesIt = it->second.alertTypePerFileNode.begin(); filesIt!=it->second.alertTypePerFileNode.end(); filesIt++)
+            {
+                f.alertTypePerFileNode[filesIt->first] = filesIt->second;
+            }
+
+            for(auto foldersIt = it->second.alertTypePerFolderNode.begin(); foldersIt!=it->second.alertTypePerFolderNode.end(); foldersIt++)
+            {
+                f.alertTypePerFileNode[foldersIt->first] = foldersIt->second;
+            }
+        }
     }
 
     clearNotedSharedMembers();
