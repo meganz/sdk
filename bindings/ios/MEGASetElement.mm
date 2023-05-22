@@ -80,8 +80,8 @@ using namespace mega;
     return self.setElement ? self.setElement->hasChanged((int)changeType) : NO;
 }
 
-- (MEGASetElementChanges)changes {
-    return (MEGASetElementChanges) (self.setElement ? self.setElement->getChanges() : 0);
+- (MEGASetElementChangeType)changes {
+    return (MEGASetElementChangeType) (self.setElement ? self.setElement->getChanges() : 0);
 }
 
 @end

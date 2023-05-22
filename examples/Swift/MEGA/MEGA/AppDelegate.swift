@@ -40,7 +40,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
             
         } else {
             let loginVC = storyboard.instantiateViewController(withIdentifier: "LoginViewControllerID") 
-            window?.rootViewController = loginVC;
+            window?.rootViewController = loginVC
         }
         
         return true

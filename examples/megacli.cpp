@@ -11145,7 +11145,10 @@ void exec_setsandelements(autocomplete::ACState& s)
                 return true;
             }
 
-            cout << "\tName: " << *filename << ", size: " << size;
+            FileFingerprint ffp;
+            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+
+            cout << "\tName: " << *filename << ", size: " << size << ", ts: " << ts << ", tm: " << tm;
             if (fingerprint->size()) cout << ", fingerprint available";
             if (fileattrstring->size()) cout << ", has attributes";
             cout << endl;

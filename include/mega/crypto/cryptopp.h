@@ -93,6 +93,55 @@ private:
     CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
     CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
 
+    /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode.
+     *
+     * This method sets the encryption key and the initialization vector in the symetric cipher
+     *
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
+     *
+     * @param data Data to be encrypted.
+     * @param datasize Size of the data to be encrypted.
+     * @param key Encryption key
+     * @param keylength Length of encryption key
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce to use for encryption.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag.
+     * @param result outputData data, including the authentication tag.
+     * @param expectedSize expected size for the encrypted data
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     */
+    bool gcm_encrypt(const byte* data, const size_t datasize, const byte* key, const size_t keylen,
+                     const byte* additionalData, const size_t additionalDatalen, const byte* iv,
+                     const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
+
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param key Decryption key
+     * @param keylength Decryption key length
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param iv Initialization vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     */
+    bool gcm_decrypt(const byte* data, const size_t datalen, const byte* additionalData, const size_t additionalDatalen,
+                     const byte* key, const size_t keylength, const byte* tag, const size_t taglen, const byte* iv,
+                     const size_t ivlen, byte* result, const size_t resultSize);
+
 public:
     static byte zeroiv[CryptoPP::AES::BLOCKSIZE];
 
@@ -138,6 +187,22 @@ public:
     void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
+     * @brief Encrypt symmetrically using AES in CBC mode.
+     *
+     * This method also sets the encryption key and the initialization vector in the symetric cipher in one step
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param plain Data to be encrypted
+     * @param cipher Resulting encrypted data
+     * @param key Encryption key
+     * @param keylength Length of encryption key
+     * @param iv Initialization vector to use.
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     */
+    bool cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
+
+    /**
      * @brief Decrypt symmetrically using AES in CBC mode.
      *
      * The size of the IV is one block in AES-128 (16 bytes).
@@ -147,6 +212,22 @@ public:
      * @param iv Initialisation vector.
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
+
+    /**
+     * @brief Decrypt symmetrically using AES in CBC mode.
+     *
+     * This method also sets the encryption key and the initialization vector in the symetric cipher in one step
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param cipher Encrypted data to be decrypted
+     * @param plain Resulting decrypted data
+     * @param key Decryption key
+     * @param keylength Length of encryption key
+     * @param iv Initialization vector to use.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     */
+    bool cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
@@ -255,18 +336,23 @@ public:
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
      *
-     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     * The size of the IV limits the maximum length of data. A length of 12 bytes
+     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
+     * sizes.
      *
      * @param data Data to be encrypted.
+     * @param datasize Size of the data to be encrypted.
      * @param additionalData Additional data for extra authentication
      * @param additionalDatalen Length of additional data
-     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
-     * and never re-use. See note on size above.
+     * @param iv Initialisation vector or nonce to use for encryption.
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag
-     * @param result Encrypted data, including the additional data, and the authentication tag.
+     * @param taglen Length of expected authentication tag.
+     * @param result outputData data, including the authentication tag.
+     * @param expectedSize expected size for the encrypted data
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
-    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize);
+    bool gcm_encrypt_add(const byte* data, const size_t datasize, const byte* additionalData, const size_t additionalDatalen, const byte* iv,
+                         const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -280,6 +366,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
@@ -289,17 +376,42 @@ public:
      * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
      *
      * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
      * @param additionalData Additional data for extra authentication
      * @param additionalDatalen Length of additional data
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param iv Initialisation vector or nonce.
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
-    bool gcm_decrypt_aad(const byte *data, unsigned datalen,
-                         const byte *additionalData, unsigned additionalDatalen,
-                         const byte *tag, unsigned taglen,
-                         const byte *iv, unsigned ivlen, byte *result, size_t resultSize);
+    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+                         const size_t additionalDatalen, const byte* tag, const size_t taglen,
+                         const byte* iv, const size_t ivlen, byte* result, const size_t resultSize);
+
+    /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode
+     *
+     * This method sets the decryption key and the initialization vector in the symetric cipher
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param datalen Size of data to be decrypted.
+     * @param key Decryption key
+     * @param keylength Decryption key length
+     * @param tag authentication tag
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param iv Initialization vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     * @param resultSize size of Decrypted data, not including the authentication tag.
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     */
+    bool gcm_decrypt_with_key(const byte* data, const size_t datalen, const byte* key, const size_t keylength,
+                              const byte* tag, const size_t taglen, const byte* iv, const size_t ivlen, byte* result,
+                              const size_t resultSize);
 
     /**
      * @brief Serialize key for compatibility with the webclient
