@@ -6138,6 +6138,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
                               nullptr /*appData*/,
                               false   /*startFirst*/,
                               nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                               &rdt    /*listener*/);
 
     second_timer timer;
