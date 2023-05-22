@@ -5155,7 +5155,7 @@ void exec_get(autocomplete::ACState& s)
             cout << "Checking link..." << endl;
 
             client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
                 {
@@ -5195,7 +5195,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -10901,7 +10901,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle enode = element->node();
         memcpy(ekey.data(), element->key().c_str(), ekey.size());
         auto commandCB =
-            [ekey, enode] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+            [ekey, enode] (const Error &e, m_off_t size,
                           dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
                           std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
                           const std::vector<std::string> &/*ips*/)
@@ -10919,9 +10919,10 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
 
             FileFingerprint ffp;
+            m_time_t tm = 0;
             if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
 
-            cout << "\tName: " << *filename << ", size: " << size << ", ts: " << ts << ", tm: " << tm;
+            cout << "\tName: " << *filename << ", size: " << size << ", tm: " << tm;
             if (fingerprint->size()) cout << ", fingerprint available";
             if (fileattrstring->size()) cout << ", has attributes";
             cout << endl;
