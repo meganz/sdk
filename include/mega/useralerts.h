@@ -22,6 +22,10 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
+#include "json.h"
+#include "utils.h"
+#include <bitset>
+
 namespace mega {
 
 struct UserAlertRaw
@@ -342,15 +346,15 @@ namespace UserAlert
         public:
             enum
             {
-                CHANGE_TYPE_TITLE,
-                CHANGE_TYPE_DESCRIPTION,
-                CHANGE_TYPE_CANCELLED,
-                CHANGE_TYPE_TIMEZONE,
-                CHANGE_TYPE_STARTDATE,
-                CHANGE_TYPE_ENDDATE,
-                CHANGE_TYPE_RULES,
+                CHANGE_TYPE_TITLE       = 0x01,
+                CHANGE_TYPE_DESCRIPTION = 0x02,
+                CHANGE_TYPE_CANCELLED   = 0x04,
+                CHANGE_TYPE_TIMEZONE    = 0x08,
+                CHANGE_TYPE_STARTDATE   = 0x10,
+                CHANGE_TYPE_ENDDATE     = 0x20,
+                CHANGE_TYPE_RULES       = 0x40,
 
-                CHANGE_TYPE_SIZE
+                CHANGE_TYPE_SIZE        = 7 // remember to update this when adding new values
             };
             struct StrChangeset { string oldValue, newValue; };
             struct TsChangeset  { m_time_t oldValue, newValue; };
@@ -359,16 +363,14 @@ namespace UserAlert
             const StrChangeset* getUpdatedTimeZone() const      { return mUpdatedTimeZone.get(); }
             const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
             const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
-            unsigned long getChanges() const                    { return mUpdatedFields.to_ulong(); }
-            bool hasChanged(int changeType) const
+            uint64_t getChanges() const                         { return mUpdatedFields.to_ullong(); }
+            bool hasChanged(uint64_t changeType) const
             {
-                return isValidChange(changeType)
-                        ? mUpdatedFields[changeType]
-                        : false;
+                return getChanges() & changeType;
             }
 
-            string changeToString(int changeType) const;
-            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
+            string changeToString(uint64_t changeType) const;
+            void addChange(uint64_t changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
             Changeset() = default;
             Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
                       unique_ptr<StrChangeset>& _titleCS,
@@ -393,16 +395,12 @@ namespace UserAlert
              */
             bool invariant() const
             {
+                const auto changes = getChanges();
                 return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
-                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]     || !!mUpdatedTitle)
-                        && (!mUpdatedFields[CHANGE_TYPE_TIMEZONE]  || !!mUpdatedTimeZone)
-                        && (!mUpdatedFields[CHANGE_TYPE_STARTDATE] || !!mUpdatedStartDateTime)
-                        && (!mUpdatedFields[CHANGE_TYPE_ENDDATE]   || !!mUpdatedEndDateTime));
-            }
-
-            bool isValidChange(int changeType) const
-            {
-                return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE);
+                        && (!(changes & CHANGE_TYPE_TITLE)     || mUpdatedTitle)
+                        && (!(changes & CHANGE_TYPE_TIMEZONE)  || mUpdatedTimeZone)
+                        && (!(changes & CHANGE_TYPE_STARTDATE) || mUpdatedStartDateTime)
+                        && (!(changes & CHANGE_TYPE_ENDDATE)   || mUpdatedEndDateTime));
             }
 
             void replaceCurrent(const Changeset& src)

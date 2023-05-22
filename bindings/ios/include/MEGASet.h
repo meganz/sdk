@@ -23,20 +23,12 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM (NSInteger, MEGASetChangeType) {
-    MEGASetChangeTypeNew       = 0,
-    MEGASetChangeTypeName      = 1,
-    MEGASetChangeTypeCover     = 2,
-    MEGASetChangeTypeRemoved   = 3,
-    MEGASetChangeTypeExported  = 4
-};
-
-typedef NS_OPTIONS (NSUInteger, MEGASetChanges) {
-    MEGASetChangesNew           = 1 << MEGASetChangeTypeNew,
-    MEGASetChangesName          = 1 << MEGASetChangeTypeName,
-    MEGASetChangesCover         = 1 << MEGASetChangeTypeCover,
-    MEGASetChangesRemoved       = 1 << MEGASetChangeTypeRemoved,
-    MEGASetChangesExported      = 1 << MEGASetChangeTypeExported
+typedef NS_ENUM(NSUInteger, MEGASetChangeType) {
+    MEGASetChangeTypeNew           = 0x01,
+    MEGASetChangeTypeName          = 0x02,
+    MEGASetChangeTypeCover         = 0x04,
+    MEGASetChangeTypeRemoved       = 0x08,
+    MEGASetChangeTypeExported      = 0x10
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -114,19 +106,19 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param changeType The type of change to check. It can be one of the following values:
  *
- * - MEGASetChangeTypeNew                  = 0
+ * - MEGASetChangeTypeNew                  = 0x01
  * Check if the Set was new
  *
- * - MEGASetChangeTypeName                = 1
+ * - MEGASetChangeTypeName                = 0x02
  * Check if Set name has changed
  *
- * - MEGASetChangeTypeCover                = 2
+ * - MEGASetChangeTypeCover                = 0x04
  * Check if Set cover has changed
  *
- * - MEGASetChangeTypeRemoved          = 3
+ * - MEGASetChangeTypeRemoved          = 0x08
  * Check if the Set was removed
  *
- * - MEGASetChangeTypeExported           = 4
+ * - MEGASetChangeTypeExported           = 0x10
  * Check if the Set was exported or disabled (i.e. exporting ended)
  *
  * @return YES if this Set has a specific change
@@ -140,7 +132,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return combination of changes in
  */
-- (MEGASetChanges)changes;
+- (MEGASetChangeType)changes;
 
 /**
  * @brief Returns true if this Set is exported (can be accessed via public link)
