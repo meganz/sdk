@@ -26,7 +26,7 @@
 
 namespace mega {
 
-enum class SaveOption : uint8_t
+enum class CollisionResolution : uint8_t
 {
     Begin = 1,
     Overwrite = 1,
@@ -71,9 +71,9 @@ struct MEGA_API File: public FileFingerprint
                       std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
                       bool canChangeVault);
 
-    void setSaveOption(SaveOption saveOption) { mSaveOption = saveOption; }
+    void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
 
-    SaveOption getSaveOption() const { return mSaveOption; }
+    CollisionResolution getCollisionResolution() const { return mCollisionResolution; }
 
     // generic filename for this transfer
     void displayname(string*);
@@ -149,7 +149,7 @@ struct MEGA_API File: public FileFingerprint
     CancelToken cancelToken;
 
 private:
-    SaveOption mSaveOption;
+    CollisionResolution mCollisionResolution;
 };
 
 struct MEGA_API SyncFileGet: public File

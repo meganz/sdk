@@ -2359,9 +2359,9 @@ bool MegaSharePrivate::isVerified()
 
 
 MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listener)
-    : mDownloadOption(DownloadDecider::Option::SKipIfSameFingerprint)
-    , mSaveOption(SaveOption::RenameNewWithN)
-    , mDownloadDecision(DownloadDecider::Decision::NotYet)
+    : mCollisionCheck(CollisionChecker::Option::Fingerprint)
+    , mCollisionResolution(CollisionResolution::RenameNewWithN)
+    , mCollisionCheckResult(CollisionChecker::Result::NotYet)
 {
     this->type = type;
     this->tag = -1;
@@ -2447,9 +2447,9 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setNotificationNumber(transfer->getNotificationNumber());
     mCancelToken = transfer->mCancelToken;
     this->setStage(transfer->getStage());
-    this->setDownloadOption(transfer->getDownloadOption());
-    this->setSaveOption(transfer->getSaveOption());
-    mDownloadDecision = transfer->mDownloadDecision;
+    this->setCollisionCheck(transfer->getCollisionCheck());
+    this->setCollisionResolution(transfer->getCollisionResolution());
+    this->setCollisionCheckResult(transfer->getCollisionCheckResult());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -2691,19 +2691,19 @@ bool MegaTransferPrivate::getTargetOverride() const
     return mTargetOverride;
 }
 
-DownloadDecider::Option MegaTransferPrivate::getDownloadOption() const
+CollisionChecker::Option MegaTransferPrivate::getCollisionCheck() const
 {
-    return mDownloadOption;
+    return mCollisionCheck;
 }
 
-DownloadDecider::Decision MegaTransferPrivate::getDownloadDecision() const
+CollisionChecker::Result MegaTransferPrivate::getCollisionCheckResult() const
 {
-    return mDownloadDecision;
+    return mCollisionCheckResult;
 }
 
-SaveOption MegaTransferPrivate::getSaveOption() const
+CollisionResolution MegaTransferPrivate::getCollisionResolution() const
 {
-    return mSaveOption;
+    return mCollisionResolution;
 }
 
 bool MegaTransferPrivate::serialize(string *d) const
@@ -3035,42 +3035,42 @@ void MegaTransferPrivate::setCancelToken(CancelToken cancelToken)
     mCancelToken = MegaCancelTokenPrivate(cancelToken);
 }
 
-void MegaTransferPrivate::setDownloadOption(DownloadDecider::Option downloadOption)
+void MegaTransferPrivate::setCollisionCheck(CollisionChecker::Option collisionCheck)
 {
-    mDownloadOption = downloadOption;
+    mCollisionCheck = collisionCheck;
 }
 
-void MegaTransferPrivate::setDownloadOption(int downloadOption)
+void MegaTransferPrivate::setCollisionCheck(int collisionCheck)
 {
-    if (downloadOption >= static_cast<int>(DownloadDecider::Option::End) || downloadOption < static_cast<int>(DownloadDecider::Option::Begin))
+    if (collisionCheck >= static_cast<int>(CollisionChecker::Option::End) || collisionCheck < static_cast<int>(CollisionChecker::Option::Begin))
     {
-        mDownloadOption = DownloadDecider::Option::SKipIfSameFingerprint;
+        mCollisionCheck = CollisionChecker::Option::Fingerprint;
     }
     else
     {
-        mDownloadOption = static_cast<DownloadDecider::Option>(downloadOption);
+        mCollisionCheck = static_cast<CollisionChecker::Option>(collisionCheck);
     }
 }
 
-void MegaTransferPrivate::setDownloadDecision(DownloadDecider::Decision downloadDecision)
+void MegaTransferPrivate::setCollisionCheckResult(CollisionChecker::Result result)
 {
-    mDownloadDecision = downloadDecision;
+    mCollisionCheckResult = result;
 }
 
-void MegaTransferPrivate::setSaveOption(SaveOption saveOption)
+void MegaTransferPrivate::setCollisionResolution(CollisionResolution collisionResolution)
 {
-    mSaveOption = saveOption;
+    mCollisionResolution = collisionResolution;
 }
 
-void MegaTransferPrivate::setSaveOption(int saveOption)
+void MegaTransferPrivate::setCollisionResolution(int collisionResolution)
 {
-    if (saveOption >= static_cast<int>(SaveOption::End) || saveOption < static_cast<int>(SaveOption::Begin))
+    if (collisionResolution >= static_cast<int>(CollisionResolution::End) || collisionResolution < static_cast<int>(CollisionResolution::Begin))
     {
-        mSaveOption = SaveOption::RenameNewWithN;
+        mCollisionResolution = CollisionResolution::RenameNewWithN;
     }
     else
     {
-        mSaveOption = static_cast<SaveOption>(saveOption);
+        mCollisionResolution = static_cast<CollisionResolution>(collisionResolution);
     }
 }
 
@@ -5293,9 +5293,9 @@ MegaFile *MegaFile::unserialize(string *d)
     return megaFile;
 }
 
-MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType, SaveOption saveOption) : MegaFile()
+MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType, CollisionResolution collisionResolution) : MegaFile()
 {
-    setSaveOption(saveOption);
+    setCollisionResolution(collisionResolution);
 
     h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
@@ -5327,9 +5327,9 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     hforeign = false;
 }
 
-MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath, SaveOption saveOption) : MegaFile()
+MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath, CollisionResolution collisionResolution) : MegaFile()
 {
-    setSaveOption(saveOption);
+    setCollisionResolution(collisionResolution);
 
     h.set6byte(n->getHandle());
 
@@ -8710,15 +8710,15 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFile
     waiter->notify();
 }
 
-void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int downloadOption, int saveOption, MegaTransferListener *listener)
+void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
 {
     FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
-    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, downloadOption, saveOption, listener, fsType);
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, collisionCheck, collisionResolution, listener, fsType);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int downloadOption, int saveOption, MegaTransferListener *listener, FileSystemType fsType)
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener, FileSystemType fsType)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -8748,8 +8748,8 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setAppData(appData);
     transfer->setStartFirst(startFirst);
     transfer->setCancelToken(cancelToken);
-    transfer->setDownloadOption(downloadOption);
-    transfer->setSaveOption(saveOption);
+    transfer->setCollisionCheck(collisionCheck);
+    transfer->setCollisionResolution(collisionResolution);
 
     if (customName)
     {
@@ -8842,7 +8842,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
             node = getNodeByHandle(t->getNodeHandle());
         }
         this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), 
-            static_cast<int>(t->getDownloadOption()), static_cast<int>(t->getSaveOption()), listener);
+            static_cast<int>(t->getCollisionCheck()), static_cast<int>(t->getCollisionResolution()), listener);
 
         delete node;
     }
@@ -17872,7 +17872,7 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
-bool DownloadDecider::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode)
+bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode)
 {
     if (fileNode->getNodeKey() == nullptr)
     {
@@ -17882,38 +17882,43 @@ bool DownloadDecider::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode
     return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
 }
 
-DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option)
+CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option)
 {
-    auto decision = DownloadDecider::Decision::Download;
+    auto decision = CollisionChecker::Result::Download;
 
     switch (option)
     {
-    case Option::SkipIfExisting:
+    case Option::AssumeSame:
     {
-        decision = Decision::Skip;
+        decision = Result::Skip;
         break;
     }
-    case Option::ErrorIfExisting:
+    case Option::AlwaysError:
     {
-        decision = Decision::ReportError;
+        decision = Result::ReportError;
         break;
     }
-    case Option::SKipIfSameFingerprint:
+    case Option::Fingerprint:
     {
         FileFingerprint nodeFp = nodeFingerprintF();
         FileFingerprint fp;
         if (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp)
         {
-            decision = Decision::Skip;
+            decision = Result::Skip;
         }
         break;
     }
-    case Option::SkipIfSameMetamac:
+    case Option::Metamac:
     {
         if (metamacEqualF())
         {
-            decision = Decision::Skip;
+            decision = Result::Skip;
         }
+        break;
+    }
+    case Option::AssumeDifferent:
+    {
+        decision = Result::Download;
         break;
     }
     default:
@@ -17924,9 +17929,9 @@ DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, std::function<
 
 }
 
-DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, MegaNode* fileNode, Option option)
+CollisionChecker::Result CollisionChecker::check(FileAccess* fa, MegaNode* fileNode, Option option)
 {
-    return decide(
+    return check(
         fa,
         [fileNode]() {
             return *MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint());
@@ -17937,9 +17942,9 @@ DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, MegaNode* file
         option);
 }
 
-DownloadDecider::Decision DownloadDecider::decide(FileAccess* fa, Node* node, Option option)
+CollisionChecker::Result CollisionChecker::check(FileAccess* fa, Node* node, Option option)
 {
-    return decide(
+    return check(
         fa,
         [node]() {
             FileFingerprint nodeFp = *node;
@@ -18339,20 +18344,20 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE) // a local file exists
                     {
-                        if (transfer->getDownloadDecision() == DownloadDecider::Decision::NotYet)
+                        if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
                         {
                             node 
-                                ?  transfer->setDownloadDecision(DownloadDecider::decide(fa.get(), node, transfer->getDownloadOption()))
-                                :  transfer->setDownloadDecision(DownloadDecider::decide(fa.get(), publicNode, transfer->getDownloadOption()));
+                                ?  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), node, transfer->getCollisionCheck()))
+                                :  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), publicNode, transfer->getCollisionCheck()));
                         }
 
-                        auto decision = transfer->getDownloadDecision();
-                        if (decision == DownloadDecider::Decision::ReportError)
+                        auto decision = transfer->getCollisionCheckResult();
+                        if (decision == CollisionChecker::Result::ReportError)
                         {
                             e = API_EEXIST;
                             break;
                         }
-                        else if (decision == DownloadDecider::Decision::Skip) // complete with OK
+                        else if (decision == CollisionChecker::Result::Skip) // complete with OK
                         {
                             CompleteFileDownloadBySkip(transfer,
                                 node ? node->size : publicNode->getSize(),
@@ -18368,11 +18373,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     unique_ptr<MegaFileGet> f;
                     if (node)
                     {
-                        f.reset(new MegaFileGet(client, node, wLocalPath, fsType, transfer->getSaveOption()));
+                        f.reset(new MegaFileGet(client, node, wLocalPath, fsType, transfer->getCollisionResolution()));
                     }
                     else
                     {
-                        f.reset(new MegaFileGet(client, publicNode, wLocalPath, transfer->getSaveOption()));
+                        f.reset(new MegaFileGet(client, publicNode, wLocalPath, transfer->getCollisionResolution()));
                     }
 
                     f->setTransfer(transfer);
@@ -28757,18 +28762,18 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfer
 
             // make the download decision
             auto fa = fsaccess->newfileaccess();
-            auto decision = DownloadDecider::Decision::Download;
+            auto decision = CollisionChecker::Result::Download;
             if (fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
             {
-                decision = DownloadDecider::decide(fa.get(), fileNode.get(), transfer->getDownloadOption());
+                decision = CollisionChecker::check(fa.get(), fileNode.get(), transfer->getCollisionCheck());
             }
 
             MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
                 false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
-                transfer->accessCancelToken(), static_cast<int>(transfer->getDownloadOption()),
-                static_cast<int>(transfer->getSaveOption()), this, fsType);
+                transfer->accessCancelToken(), static_cast<int>(transfer->getCollisionCheck()),
+                static_cast<int>(transfer->getCollisionResolution()), this, fsType);
 
-            transferDownload->setDownloadDecision(decision);
+            transferDownload->setCollisionCheckResult(decision);
 
             transferQueue->push(transferDownload);
         }

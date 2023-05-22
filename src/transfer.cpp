@@ -614,15 +614,15 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
-bool Transfer::solveSaveConfliction(FileAccess* fa, File* file, LocalPath &dest)
+bool Transfer::resolveCollision(FileAccess* fa, File* file, LocalPath &dest)
 {
     bool transient_error = false;
-    switch (file->getSaveOption())
+    switch (file->getCollisionResolution())
     {
-    case SaveOption::Overwrite:
+    case CollisionResolution::Overwrite:
         LOG_debug << "The destination file exist (not synced). Overwrite";
         break;
-    case SaveOption::RenameExistingToOldN:
+    case CollisionResolution::RenameExistingToOldN:
         LOG_debug << "The destination file exist (not synced). Rename it";
         if (client->fsaccess->renamelocal(dest, FileNameGenerator::suffixWithOldN(fa, dest)))
         {
@@ -633,7 +633,7 @@ bool Transfer::solveSaveConfliction(FileAccess* fa, File* file, LocalPath &dest)
             transient_error = true;
         }
         break;
-    case SaveOption::RenameNewWithN: //fall throught
+    case CollisionResolution::RenameNewWithN: //fall through
     default:
         LOG_debug << "The destination file exist (not synced). Saving with a different name";
         file->setLocalname(dest = FileNameGenerator::suffixWithN(fa, dest));
@@ -842,7 +842,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                         else
         #endif
                         {
-                            transient_error = solveSaveConfliction(fa.get(), *it, localname);
+                            transient_error = resolveCollision(fa.get(), *it, localname);
                         }
                     }
                     else

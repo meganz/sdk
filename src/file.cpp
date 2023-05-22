@@ -33,7 +33,7 @@ namespace mega {
 mutex File::localname_mutex;
 
 File::File()
-    :mSaveOption(SaveOption::RenameNewWithN)
+    :mCollisionResolution(CollisionResolution::RenameNewWithN)
 {
     transfer = NULL;
     chatauth = NULL;
@@ -120,7 +120,7 @@ bool File::serialize(string *d) const
     char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
-    d->append((char*)&mSaveOption, 1);
+    d->append((char*)&mCollisionResolution, 1);
 
     d->append("\0\0\0\0\0\0\0", 8);
 
@@ -214,7 +214,7 @@ File *File::unserialize(string *d)
             + sizeof(bool)      //syncxfer
             + sizeof(bool)      //temporaryfile
             + sizeof(char)      //hasChatAuth
-            + sizeof(uint8_t)   //saveOption
+            + sizeof(uint8_t)   //collisionResolution
             + 8                 //8 '0'
             > end)
     {
@@ -255,15 +255,15 @@ File *File::unserialize(string *d)
     char hasChatAuth = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    uint8_t saveOptionUint8 = MemAccess::get<uint8_t>(ptr);
+    uint8_t collisionResolutionUint8 = MemAccess::get<uint8_t>(ptr);
     ptr += sizeof(uint8_t);
-    if (saveOptionUint8 < static_cast<uint8_t>(SaveOption::Begin) || saveOptionUint8 >= static_cast<uint8_t>(SaveOption::End))
+    if (collisionResolutionUint8 < static_cast<uint8_t>(CollisionResolution::Begin) || collisionResolutionUint8 >= static_cast<uint8_t>(CollisionResolution::End))
     {
-        LOG_err << "File unserialization failed - save option " << saveOptionUint8 << " not valid";
+        LOG_err << "File unserialization failed - collision resolution " << collisionResolutionUint8 << " not valid";
         delete file;
         return NULL;
     }
-    file->setSaveOption(static_cast<SaveOption>(saveOptionUint8));
+    file->setCollisionResolution(static_cast<CollisionResolution>(collisionResolutionUint8));
 
     if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {

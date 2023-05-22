@@ -159,7 +159,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool mOptimizedDelete = false;
 
 private:
-    bool solveSaveConfliction(FileAccess* fa, File* file, LocalPath& dest);
+    bool resolveCollision(FileAccess* fa, File* file, LocalPath& dest);
 };
 
 

@@ -195,8 +195,8 @@ public class CrudExample implements MegaRequestListenerInterface,
                 , null			/*app data*/
                 , false		/*start first*/
                 , null			/*cancel token*/
-                , MegaTransfer.DOWNLOAD_SKIP_IF_SAME_FINGERPRINT /* downloadOption*/
-                , MegaTransfer.SAVE_NEW_WITH_N /* saveOption*/
+                , MegaTransfer.COLLISION_CHECK_FINGERPRINT /* collisionCheck*/
+                , MegaTransfer.COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution*/
                 , myListener);
 
                 while (!myListener.wasSignalled) {
