@@ -7308,6 +7308,13 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                 parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
                 row.fsNode = &parentRow.fsAddedSiblings.back();
                 row.syncNode->slocalname = row.fsNode->cloneShortname();
+
+                // Mark the row as synced with the original Node downloaded, so that
+                // we can chain any cloud moves/renames that occurred in the meantime
+                row.syncNode->setSyncedFsid(fsNode->fsid, syncs.localnodeBySyncedFsid, fsNode->localname, fsNode->cloneShortname());
+                row.syncNode->syncedFingerprint = fsNode->fingerprint;
+                row.syncNode->setSyncedNodeHandle(downloadPtr->h);
+                statecacheadd(row.syncNode);
             }
             else
             {
