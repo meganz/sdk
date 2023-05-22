@@ -25237,6 +25237,12 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                         return true;
                     }
                 }
+                const auto getMtimeFromFingerprint = [&ekey, &fingerprint]() -> m_time_t
+                {
+                    FileFingerprint ffp;
+                    if(ffp.unserializefingerprint(fingerprint)) return ffp.mtime;
+                    return 0;
+                };
 
                 if (e)
                 {
@@ -25244,6 +25250,8 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
+                    ts = 0; // all foreign nodes' creation time must be set to 0
+                    tm = getMtimeFromFingerprint();
                     auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
@@ -34781,11 +34789,11 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numeric
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }

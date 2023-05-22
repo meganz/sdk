@@ -37,7 +37,7 @@ bool ScheduledFlags::serialize(string& out) const
 ScheduledFlags* ScheduledFlags::unserialize(const std::string &in)
 {
     if (in.empty())  { return nullptr; }
-    uint32_t flagsNum = 0;
+    uint32_t flagsNum = schedEmptyFlags;
     CacheableReader r(in);
     if (!r.unserializeu32(flagsNum))
     {
