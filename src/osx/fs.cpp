@@ -6,9 +6,8 @@ namespace mega {
 
 MacFileSystemAccess::MacFileSystemAccess()
   : PosixFileSystemAccess()
+  , mDispatchQueue(nullptr)
   , mNumNotifiers(0u)
-  , mRunLoop(nullptr)
-  , mWorker()
 {
 }
 
@@ -16,16 +15,13 @@ MacFileSystemAccess::~MacFileSystemAccess()
 {
     // Make sure there are no notifiers active.
     assert(mNumNotifiers == 0);
-
-    // Bail if we don't have a run loop.
-    if (!mRunLoop)
+    
+    // Bail if we don't have a dispatch queue.
+    if (!mDispatchQueue)
         return;
-
-    // Tell the worker's run loop to terminate.
-    CFRunLoopStop(mRunLoop);
-
-    // Wait for the worker to terminate.
-    mWorker.join();
+    
+    // Release the dispatch queue.
+    dispatch_release(mDispatchQueue);
 }
 
 void MacFileSystemAccess::addevents(Waiter*, int)
@@ -43,50 +39,13 @@ int MacFileSystemAccess::checkevents(Waiter*)
 
 bool MacFileSystemAccess::initFilesystemNotificationSystem()
 {
-    // So we can wait until the worker is initialized.
-    std::promise<CFRunLoopRef> ready;
+    static const char* name = "mega.FilesystemMonitor";
 
-    // Initialize the worker thread.
-    mWorker = std::thread([&ready]{
-        // Create a dummy event source.
-        auto dummy = ([]{
-            // Context describing our custom event source.
-            CFRunLoopSourceContext context{};
+    // Try and create a dispatch queue.
+    mDispatchQueue = dispatch_queue_create(name, DISPATCH_QUEUE_SERIAL);
 
-            // Only required callback is a no-op.
-            context.perform = [](void*){};
-
-            // Create the event source.
-            return CFRunLoopSourceCreate(nullptr, 0, &context);
-        })();
-
-        // Get our hands on this thread's run loop.
-        auto loop = CFRunLoopGetCurrent();
-
-        // Add our dummy event source to the run loop.
-        CFRunLoopAddSource(loop, dummy, kCFRunLoopDefaultMode);
-
-        // Let our owner know we're initialized.
-        ready.set_value(loop);
-
-        // Pass control to the run loop.
-        //
-        // It will relinquish control if:
-        // - There are no event sources for it to monitor.
-        // - It has been explicitly stopped.
-        CFRunLoopRun();
-
-        // Remove the dummy event source from the loop.
-        CFRunLoopSourceInvalidate(dummy);
-
-        // Release the dummy event source.
-        CFRelease(dummy);
-    });
-
-    // Wait until the worker is initialized.
-    mRunLoop = ready.get_future().get();
-
-    return true;
+    // We're successful if the queue was created.
+    return mDispatchQueue;
 }
 
 DirNotify* MacFileSystemAccess::newdirnotify(const LocalPath& rootPath,
@@ -94,9 +53,6 @@ DirNotify* MacFileSystemAccess::newdirnotify(const LocalPath& rootPath,
                                              Waiter* waiter,
                                              LocalNode* root)
 {
-    // Make sure we've been initialized.
-    assert(mRunLoop);
-
     // Make sure we've been passed a sane root.
     assert(root);
 
@@ -180,12 +136,8 @@ MacDirNotify::MacDirNotify(const LocalPath& ignoreName,
     if (rootPath.endsInSeparator())
         --mRootPathLength;
 
-    // Add the stream to the run loop's list of event sources.
-    FSEventStreamScheduleWithRunLoop(
-      mEventStream, mOwner.mRunLoop, kCFRunLoopDefaultMode);
-
-    // Let the owner know we've added a new input source.
-    CFRunLoopWakeUp(mOwner.mRunLoop);
+    // Specify who should process our filesystem events.
+    FSEventStreamSetDispatchQueue(mEventStream, mOwner.mDispatchQueue);
 
     // Start monitoring filesystem events.
     FSEventStreamStart(mEventStream);
@@ -209,16 +161,12 @@ MacDirNotify::~MacDirNotify()
     // Remove the stream from the owner's run loop.
     FSEventStreamInvalidate(mEventStream);
 
-    // Make sure the loop knows the stream's invalid.
-    CFRunLoopWakeUp(mOwner.mRunLoop);
-
     // Destroy the event stream.
     FSEventStreamRelease(mEventStream);
 
     // Let our owner know we are no longer active.
     --mOwner.mNumNotifiers;
 }
-
 
 void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
                             std::size_t numEvents,

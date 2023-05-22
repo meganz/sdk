@@ -1144,6 +1144,8 @@ else()
     if (ENABLE_WERROR)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug" )
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+            # Warnings which should not be promoted to errors, but still appear as warnings
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-declarations")
             if (APPLE)
               set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override -Wno-unused-variable -Wno-unused-private-field -Wno-string-conversion -Wno-unused-lambda-capture -Wno-implicit-int-conversion -Wno-shorten-64-to-32 -Wno-unused-value")
             endif()

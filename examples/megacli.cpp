@@ -390,13 +390,14 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    if (appxfer_it != appfile_list::iterator())
+    if (appxfer_it != appxferq[GET].end())
         appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
 {
-    appxferq[PUT].erase(appxfer_it);
+    if (appxfer_it != appxferq[PUT].end())
+        appxferq[PUT].erase(appxfer_it);
 }
 
 void AppFilePut::displayname(string* dname)
@@ -618,6 +619,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
+    appxfer_it = appxferq[GET].end();
+
     if (n)
     {
         h = n->nodeHandle();
@@ -657,6 +660,8 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
+    appxfer_it = appxferq[PUT].end();
+
     // full local path
     setLocalname(clocalname);
 
@@ -3777,7 +3782,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                e = client->unlink(backupRootNode, false, 0, true, move(completion));
+                e = client->unlink(backupRootNode, false, 0, true, std::move(completion));
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
@@ -3794,7 +3799,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, std::move(completion), true));
             }
         }
     };
@@ -3816,7 +3821,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                 sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
                 const string& sdsValue = Node::toSdsString(sdsBkps);
 
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), move(attrCompl), true);
+                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), std::move(attrCompl), true);
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
@@ -3958,57 +3963,6 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-}
-
-class AnomalyReporter
-    : public FilenameAnomalyReporter
-{
-public:
-    void anomalyDetected(FilenameAnomalyType type,
-                            const LocalPath& localPath,
-                            const string& remotePath) override
-    {
-        string typeName;
-
-        switch (type)
-        {
-        case FILENAME_ANOMALY_NAME_MISMATCH:
-            typeName = "NAME_MISMATCH";
-            break;
-        case FILENAME_ANOMALY_NAME_RESERVED:
-            typeName = "NAME_RESERVED";
-            break;
-        default:
-            assert(!"Unknown anomaly type!");
-            typeName = "UNKNOWN";
-            break;
-        }
-
-        cout << "Filename anomaly detected: type: "
-                << typeName
-                << ": local path: "
-                << localPath.toPath(false)
-                << ": remote path: "
-                << remotePath
-                << endl;
-    }
-}; // AnomalyReporter
-
-void exec_logFilenameAnomalies(autocomplete::ACState& s)
-{
-    unique_ptr<FilenameAnomalyReporter> reporter;
-
-    if (s.words[1].s == "on")
-    {
-        reporter.reset(new AnomalyReporter());
-    }
-
-    cout << "Filename anomaly reporting is "
-         << (reporter ? "en" : "dis")
-         << "abled."
-         << endl;
-
-    client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -4366,9 +4320,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
-
-    p->Add(exec_logFilenameAnomalies,
-           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
@@ -5064,7 +5015,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++, false);
+                client->putnodes(tn->nodeHandle(), vo, std::move(tc.nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -5072,7 +5023,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), move(tc.nn), gNextClientTag++);
+                    client->putnodes(targetuser.c_str(), std::move(tc.nn), gNextClientTag++);
                 }
                 else
                 {
@@ -5431,7 +5382,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
                 uploadLocalFolderContent(tmp, parent, vo, true);
             };
 
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+            client->putnodes(parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
         }
     }
 }
@@ -6190,7 +6141,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname, false);
-                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6200,7 +6151,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname, false);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -8871,7 +8822,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag, false);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, client->restag, false);
     }
     else
     {
@@ -9904,8 +9855,6 @@ int main(int argc, char* argv[])
 
     clientFolder = NULL;    // additional for folder links
 
-    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
-
     megacli();
 
     delete client;
@@ -10155,7 +10104,7 @@ void exec_syncadd(autocomplete::ACState& s)
             NodeHandle(),
             string(),
             0,
-            move(drivePath),
+            std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
@@ -10177,7 +10126,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(move(config), false, sync_completion, "");
+        client->addsync(std::move(config), false, sync_completion, "");
     }
 
     else // backup
@@ -10206,7 +10155,7 @@ void exec_syncadd(autocomplete::ACState& s)
             }
             else
             {
-                client->addsync(move(sc), false, [revertOnError](error e, SyncError se, handle h){
+                client->addsync(std::move(sc), false, [revertOnError](error e, SyncError se, handle h){
 
                     if (e != API_OK)
                     {
@@ -10745,7 +10694,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             newset.setName(name);
         }
 
-        client->putSet(move(newset), [](Error e, const Set* s)
+        client->putSet(std::move(newset), [](Error e, const Set* s)
             {
                 if (e == API_OK && s)
                 {
@@ -10769,7 +10718,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         string buf;
         if (s.extractflagparam("-n", buf) || s.extractflag("-n"))
         {
-            updset.setName(move(buf));
+            updset.setName(std::move(buf));
         }
         buf.clear();
         if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
@@ -10786,7 +10735,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
         }
 
-        client->putSet(move(updset), [id](Error e, const Set*)
+        client->putSet(std::move(updset), [id](Error e, const Set*)
             {
                 if (e == API_OK)
                 {
@@ -10969,7 +10918,10 @@ void exec_setsandelements(autocomplete::ACState& s)
                 return true;
             }
 
-            cout << "\tName: " << *filename << ", size: " << size;
+            FileFingerprint ffp;
+            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+
+            cout << "\tName: " << *filename << ", size: " << size << ", ts: " << ts << ", tm: " << tm;
             if (fingerprint->size()) cout << ", fingerprint available";
             if (fileattrstring->size()) cout << ", has attributes";
             cout << endl;
@@ -11025,7 +10977,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         string param;
         if (s.extractflagparam("-n", param) || s.extractflag("-n"))
         {
-            el.setName(move(param));
+            el.setName(std::move(param));
         }
         param.clear();
         if (s.extractflagparam("-o", param))
@@ -11038,7 +10990,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
         }
 
-        client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)
+        client->putSetElement(std::move(el), [createNew, setId, elemId](Error e, const SetElement* el)
             {
                 if (createNew)
                 {

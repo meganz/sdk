@@ -284,15 +284,14 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             SVProgressHUD.dismiss()
             
         case MEGARequestType.MEGARequestTypeGetAttrFile:
-            for tableViewCell in tableView.visibleCells as! [NodeTableViewCell] {
-                if request?.nodeHandle == tableViewCell.nodeHandle {
-                    let node = megaapi.node(forHandle: request.nodeHandle)
-                    let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
-                    let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
-                    
-                    if fileExists {
-                        tableViewCell.thumbnailImageView.image = UIImage(named: thumbnailFilePath)
-                    }
+            guard let cells = tableView.visibleCells as? [NodeTableViewCell] else { break }
+            for tableViewCell in cells where request?.nodeHandle == tableViewCell.nodeHandle {
+                let node = megaapi.node(forHandle: request.nodeHandle)
+                let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+                let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
+                
+                if fileExists {
+                    tableViewCell.thumbnailImageView.image = UIImage(named: thumbnailFilePath)
                 }
             }
             

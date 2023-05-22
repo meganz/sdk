@@ -102,64 +102,6 @@ class MegaIntegerList;
 #endif
 
 /**
- * @brief
- * Interface to receive filename anomaly notifications from the SDK.
- *
- * @see MegaApi::setFilenameAnomalyReporter
- */
-class MegaFilenameAnomalyReporter
-{
-public:
-    /**
-     * @brief
-     * Represents the type of anomaly reported by the SDK.
-     */
-    enum AnomalyType
-    {
-        /**
-         * @brief
-         * A file's local and remote names differ.
-         *
-         * An example of when this kind of anomaly can occur is when
-         * downloading a file from the cloud that contains characters in its
-         * name that are not valid on the local filesystem.
-         *
-         * Say, downloading a file called A:B on Windows.
-         */
-        ANOMALY_NAME_MISMATCH = 0,
-
-        /**
-         * @brief
-         * A file has a reserved name.
-         *
-         * This kind of anomaly is reported by the SDK when it attempts to
-         * download a file that has a name that is reserved on the local
-         * filesystem.
-         *
-         * Say, downloading a file called CON on Windows.
-         */
-        ANOMALY_NAME_RESERVED = 1
-    }; // AnomalyType
-
-    virtual ~MegaFilenameAnomalyReporter() { };
-
-    /**
-     * @brief
-     * Called by the SDK when it wants to report a filename anomaly.
-     *
-     * @param type
-     * The anomaly that was detected by the SDK.
-     *
-     * @param localPath
-     * The local path of the file with a filename anomaly.
-     *
-     * @param remotePath
-     * The remote path of the file with a filename anomaly.
-     */
-    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
-}; // MegaFilenameAnomalyReporter
-
-/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -11230,21 +11172,6 @@ class MegaApi
          * @param singleExclusiveLogger If an exclusive logger was previously set, use this flag to remove it.
          */
         static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
-
-        /**
-         * @brief
-         * Specify a reporter to receive filename anomaly messages from the SDK.
-         *
-         * @param reporter
-         * The reporter that should receive filename anomaly messages.
-         *
-         * Note that null is a valid value for this parameter and if
-         * specified, will prevent the SDK from sending messages to the
-         * reporter previously specified using this function.
-         *
-         * @see MegaFilenameAnomalyReporter
-         */
-        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
         /**
          * @brief Send a log to the logging system

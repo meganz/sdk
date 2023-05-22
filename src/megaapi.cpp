@@ -2054,11 +2054,6 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLog
     MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    pImpl->setFilenameAnomalyReporter(reporter);
-}
-
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
 {
     MegaApiImpl::log(logLevel, message, filename, line);
@@ -3049,7 +3044,7 @@ MegaScheduledFlags::~MegaScheduledFlags()
 
 void MegaScheduledFlags::reset()                                {}
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
-unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
+unsigned long MegaScheduledFlags::getNumericValue() const       { return ScheduledFlags::schedEmptyFlags; }
 
 /* Class MegaScheduledRules */
 MegaScheduledRules* MegaScheduledRules::createInstance(int freq,

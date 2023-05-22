@@ -692,7 +692,7 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
     {
         names.push_back(AttrMap::nameid2string(it->first));
     }
-    return new MegaStringListPrivate(move(names));
+    return new MegaStringListPrivate(std::move(names));
 }
 
 const char *MegaNodePrivate::getCustomAttr(const char *attrName)
@@ -3077,7 +3077,7 @@ void MegaTransferPrivate::setCollisionResolution(int collisionResolution)
 void MegaTransferPrivate::startRecursiveOperation(shared_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
-    recursiveOperation = move(op);
+    recursiveOperation = std::move(op);
 
     // for folder transfers, we must have a CancelToken even if the user did not supply one
     // so that we can cancel the remainder of the batch if the user cancels the folder transfer
@@ -4026,7 +4026,7 @@ void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLe
     {
         megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer,
                                 months, amount, amountMonth, localPrice,
-                                description, iosid, androidid, move(bizPlan));
+                                description, iosid, androidid, std::move(bizPlan));
     }
 }
 
@@ -4034,7 +4034,7 @@ void MegaRequestPrivate::setCurrency(std::unique_ptr<CurrencyData> currencyData)
 {
     if (megaCurrency)
     {
-        megaCurrency->setCurrency(move(currencyData));
+        megaCurrency->setCurrency(std::move(currencyData));
     }
 }
 
@@ -4091,7 +4091,7 @@ void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, s
 
     for (auto&& b : banners)
     {
-        mBannerList->add(MegaBannerPrivate(move(b)));
+        mBannerList->add(MegaBannerPrivate(std::move(b)));
     }
 }
 
@@ -4336,7 +4336,7 @@ const char *MegaRequestPrivate::__toString() const
 }
 
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
-                  :mDetails(move(details))
+                  :mDetails(std::move(details))
 {
 }
 
@@ -4455,7 +4455,7 @@ MegaStringList *MegaStringMapPrivate::getKeys() const
         keys.push_back(it.first);
     }
 
-    return new MegaStringListPrivate(move(keys));
+    return new MegaStringListPrivate(std::move(keys));
 }
 
 void MegaStringMapPrivate::set(const char *key, const char *value)
@@ -4569,7 +4569,7 @@ const integer_map* MegaIntegerMapPrivate::getMap() const
 }
 
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
-    : mList(move(v))
+    : mList(std::move(v))
 {
 }
 
@@ -4650,7 +4650,7 @@ MegaStringList *MegaStringListMapPrivate::getKeys() const
     {
         list.push_back(pair.first.get());
     }
-    return new MegaStringListPrivate(move(list));
+    return new MegaStringListPrivate(std::move(list));
 }
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
@@ -6019,19 +6019,6 @@ void MegaApiImpl::setLoggingName(const char* loggingName)
     {
         client->clientname.clear();
     }
-}
-
-void MegaApiImpl::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    unique_ptr<FilenameAnomalyReporter> proxy;
-
-    if (reporter)
-    {
-        proxy.reset(new MegaFilenameAnomalyReporterProxy(*reporter));
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-    client->mFilenameAnomalyReporter = std::move(proxy);
 }
 
 long long MegaApiImpl::getSDKtime()
@@ -8588,7 +8575,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     {
         listofpaths.push_back(itr->second);
     }
-    return new MegaStringListPrivate(move(listofpaths));
+    return new MegaStringListPrivate(std::move(listofpaths));
 }
 
 void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listener)
@@ -9792,7 +9779,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
         }
     }
 
-    return new MegaStringListPrivate(move(listoflinks));
+    return new MegaStringListPrivate(std::move(listoflinks));
 }
 
 MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
@@ -10129,7 +10116,7 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
         }
     }
 
-    return new MegaStringListPrivate(move(listoflinks));
+    return new MegaStringListPrivate(std::move(listoflinks));
 }
 
 MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
@@ -13859,7 +13846,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, move(bizPlan));
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, std::move(bizPlan));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -13874,7 +13861,7 @@ void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyDa
         return;
     }
 
-    request->setCurrency(move(currencyData));
+    request->setCurrency(std::move(currencyData));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -14663,7 +14650,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(parenthandle, UseLocalVersioningFlag, move(newnodes), nullptr, nextTag, false);
+        client->putnodes(parenthandle, UseLocalVersioningFlag, std::move(newnodes), nullptr, nextTag, false);
     }
     else
     {
@@ -15751,7 +15738,7 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                     list.emplace_back(std::get<0>(row));
                     list.emplace_back(std::get<1>(row));
                     list.emplace_back(std::get<2>(row));
-                    auto stringList = new MegaStringListPrivate(move(list));
+                    auto stringList = new MegaStringListPrivate(std::move(list));
                     stringTable->append(stringList);
                 }
                 request->setMegaStringTable(stringTable.get());
@@ -15779,7 +15766,7 @@ void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<stri
                     {
                         list.emplace_back(value);
                     }
-                    auto stringList = new MegaStringListPrivate(move(list));
+                    auto stringList = new MegaStringListPrivate(std::move(list));
                     stringListMap->set(pair.first.c_str(), stringList);
                 }
                 request->setMegaStringListMap(stringListMap.get());
@@ -15846,7 +15833,7 @@ void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, s
     MegaRequestPrivate* request = it->second;
     if (!request || (request->getType() != MegaRequest::TYPE_GET_BANNERS)) return;
 
-    request->setBanners(move(banners));
+    request->setBanners(std::move(banners));
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
@@ -18154,11 +18141,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             if (uploadToInbox)
                             {
                                 // obsolete feature, kept for sending logs to helpdesk
-                                client->putnodes(inboxTarget, move(tc.nn), nextTag);
+                                client->putnodes(inboxTarget, std::move(tc.nn), nextTag);
                             }
                             else
                             {
-                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
+                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, nextTag, false);
                             }
 
                             transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
@@ -18822,7 +18809,7 @@ void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, Mega
             {
                 s.setCover(request->getNodeHandle());
             }
-            client->putSet(move(s),
+            client->putSet(std::move(s),
                 [this, request](Error e, const Set* s)
                 {
                     if (request->getParentHandle() == UNDEF && s)
@@ -18881,7 +18868,7 @@ void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node,
             {
                 el.setName(request->getText() ? request->getText() : string());
             }
-            client->putSetElement(move(el),
+            client->putSetElement(std::move(el),
                 [this, request](Error e, const SetElement* el)
                 {
                     if (e == API_OK) // only return SetElement upon create, not update
@@ -19108,7 +19095,7 @@ void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestLi
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, request->getTag(), false);
+            client->putnodes(parent->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, request->getTag(), false);
             return API_OK;
         };
 
@@ -19279,7 +19266,7 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, request->getTag(), false);
+                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, request->getTag(), false);
                 e = API_OK;
                 return e;
             }
@@ -19388,7 +19375,7 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn), request->getTag());
+                    client->putnodes(email, std::move(tc.nn), request->getTag());
                 }
             }
             else
@@ -19467,11 +19454,11 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, request->getTag(), false);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, request->getTag(), false);
                 }
                 else
                 {
-                    client->putnodes(email, move(tc.nn), request->getTag());
+                    client->putnodes(email, std::move(tc.nn), request->getTag());
                 }
             }
             return API_OK;
@@ -19528,7 +19515,7 @@ void MegaApiImpl::restoreVersion(MegaNode* version, MegaRequestListener* listene
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, request->getTag(), false);
+            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, std::move(newnodes), nullptr, request->getTag(), false);
             return API_OK;
         };
 
@@ -20622,7 +20609,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                         }
                     }
 
-                    return client->setattr(current, move(attrUpdates),
+                    return client->setattr(current, std::move(attrUpdates),
                         [request, this](NodeHandle h, Error e)
                         {
                             request->setNodeHandle(h.as8byte());
@@ -24091,7 +24078,7 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return e;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr, false));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, std::move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr, false));
             return e;
 }
 
@@ -24662,7 +24649,7 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
 #ifdef ENABLE_SYNC
 void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
 {
-    client->addsync(move(syncConfig), false,
+    client->addsync(std::move(syncConfig), false,
         [this, request, revertOnError](error e, SyncError se, handle backupId)
         {
             request->setNumDetails(se);
@@ -25030,7 +25017,7 @@ void MegaApiImpl::putSetElements(MegaHandle sid, const MegaHandleList* nodes, co
             }
         }
 
-        client->putSetElements(move(els), [this, request](Error e, const vector<const SetElement*>* retEls, const vector<int64_t>* elErrs)
+        client->putSetElements(std::move(els), [this, request](Error e, const vector<const SetElement*>* retEls, const vector<int64_t>* elErrs)
             {
                 if (e == API_OK)
                 {
@@ -25073,7 +25060,7 @@ void MegaApiImpl::removeSetElements(MegaHandle sid, const MegaHandleList* eids, 
             eids[i] = eidsList->get(static_cast<int>(i));
         }
 
-        client->removeSetElements(request->getTotalBytes(), move(eids),
+        client->removeSetElements(request->getTotalBytes(), std::move(eids),
             [this, request](Error e, const vector<int64_t>* elErrs)
             {
                 if (e == API_OK && elErrs)
@@ -25188,7 +25175,7 @@ MegaSetListPrivate::MegaSetListPrivate(const map<handle, Set>& sets)
 
 void MegaSetListPrivate::add(MegaSetPrivate&& s)
 {
-    mSets.emplace_back(move(s));
+    mSets.emplace_back(std::move(s));
 }
 
 
@@ -25224,7 +25211,7 @@ MegaSetElementListPrivate::MegaSetElementListPrivate(const elementsmap_t* elemen
 
 void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
 {
-    mElements.emplace_back(move(el));
+    mElements.emplace_back(std::move(el));
 }
 
 bool MegaApiImpl::isExportedSet(MegaHandle sid)
@@ -25398,6 +25385,12 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                         return true;
                     }
                 }
+                const auto getMtimeFromFingerprint = [&ekey, &fingerprint]() -> m_time_t
+                {
+                    FileFingerprint ffp;
+                    if(ffp.unserializefingerprint(fingerprint)) return ffp.mtime;
+                    return 0;
+                };
 
                 if (e)
                 {
@@ -25405,6 +25398,8 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
+                    ts = 0; // all foreign nodes' creation time must be set to 0
+                    tm = getMtimeFromFingerprint();
                     auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
@@ -26215,7 +26210,7 @@ MegaPricing *MegaPricingPrivate::copy()
                                 months[i], amount[i], amountMonth[i],
                                 mLocalPrice[i],
                                 description[i], iosId[i], androidId[i],
-                                move(bizPlan));
+                                std::move(bizPlan));
     }
 
     return megaPricing;
@@ -26236,7 +26231,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
     this->androidId.push_back(MegaApi::strdup(androidid));
-    mBizPlan.push_back(move(bizPlan));
+    mBizPlan.push_back(std::move(bizPlan));
 }
 
 
@@ -34967,11 +34962,11 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numeric
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
@@ -35512,8 +35507,8 @@ MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList)
-    : folders(move(folderList))
-    , files(move(fileList))
+    : folders(std::move(folderList))
+    , files(std::move(fileList))
 {
 }
 
@@ -35647,7 +35642,7 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
                 data.push_back(*it);
                 it++;
             }
-            return new MegaStringListPrivate(move(data));
+            return new MegaStringListPrivate(std::move(data));
         }
     }
 
