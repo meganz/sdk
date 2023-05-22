@@ -33,7 +33,7 @@ namespace mega {
 
     void CommonSE::setName(string&& name)
     {
-        setAttr(nameTag, move(name));
+        setAttr(nameTag, std::move(name));
     }
 
     void CommonSE::setAttr(const string& tag, string&& value)
@@ -42,7 +42,7 @@ namespace mega {
         {
             mAttrs.reset(new string_map());
         }
-        (*mAttrs)[tag] = move(value);
+        (*mAttrs)[tag] = std::move(value);
     }
 
     void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
@@ -194,7 +194,8 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags();
+        r.serializeexpansionflags(true);
+        r.serializecompressedi64(mCTs);
 
         return true;
     }
@@ -227,17 +228,20 @@ namespace mega {
             {
                 return nullptr;
             }
-            attrs[move(ak)] = move(av);
+            attrs[std::move(ak)] = std::move(av);
         }
 
         unsigned char expansionsS[8];
-        if (!r.unserializeexpansionflags(expansionsS, 0))
+        m_time_t cts = 0;
+        if (!r.unserializeexpansionflags(expansionsS, 1) ||
+            (expansionsS[0] && !r.unserializecompressedi64(cts))) // creation timestamp
         {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, publicId, move(k), u, move(attrs));
+        auto s = ::mega::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs));
         s->setTs(ts);
+        s->setCTs(cts);
 
         return s;
     }
@@ -354,7 +358,7 @@ namespace mega {
             {
                 return nullptr;
             }
-            attrs[move(ak)] = move(av);
+            attrs[std::move(ak)] = std::move(av);
         }
 
         if (!r.unserializeexpansionflags(expansionsE, 0))
@@ -362,7 +366,7 @@ namespace mega {
             return nullptr;
         }
 
-        auto el = ::mega::make_unique<SetElement>(sid, h, eid, move(k), move(attrs));
+        auto el = ::mega::make_unique<SetElement>(sid, h, eid, std::move(k), std::move(attrs));
         el->setOrder(o);
         el->setTs(ts);
 

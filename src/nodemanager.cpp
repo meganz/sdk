@@ -1170,7 +1170,7 @@ void NodeManager::notifyPurge()
 
                 // Try and remove the sync.
                 mClient.syncs.deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                                 move(completion), true);
+                                                 std::move(completion), true);
             }
 
             //update sync root node location and trigger failing cases

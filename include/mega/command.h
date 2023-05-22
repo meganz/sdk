@@ -287,7 +287,7 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandSendSignupLink2(MegaClient*, const char*, const char*);
-    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
+    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*, int ctag);
 };
 
 class MEGA_API CommandConfirmSignupLink2 : public Command
@@ -930,7 +930,7 @@ class MEGA_API CommandSendEvent : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSendEvent(MegaClient*, int, const char *);
+    CommandSendEvent(MegaClient*, int, const char *, bool = false, const char * = nullptr);
 };
 
 class MEGA_API CommandSupportTicket : public Command
