@@ -7274,22 +7274,23 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                     return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
                 }
 
+                // Make this new fsNode part of our sync data structure
                 parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
                 row.fsNode = &parentRow.fsAddedSiblings.back();
                 row.syncNode->slocalname = row.fsNode->cloneShortname();
-
-                // Mark the row as synced with the original Node downloaded, so that
-                // we can chain any cloud moves/renames that occurred in the meantime
-                row.syncNode->setSyncedFsid(fsNode->fsid, syncs.localnodeBySyncedFsid, fsNode->localname, fsNode->cloneShortname());
-                row.syncNode->syncedFingerprint = fsNode->fingerprint;
-                row.syncNode->setSyncedNodeHandle(downloadPtr->h);
-                statecacheadd(row.syncNode);
             }
             else
             {
                 row.syncNode->localFSCannotStoreThisName = true;
                 return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
             }
+
+            // Mark the row as synced with the original Node downloaded, so that
+            // we can chain any cloud moves/renames that occurred in the meantime
+            row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+            row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+            row.syncNode->setSyncedNodeHandle(downloadPtr->h);
+            statecacheadd(row.syncNode);
         }
         else if (nameTooLong)
         {
