@@ -216,7 +216,7 @@ pipeline {
                             env.TRIGGERED_BUILD_DISPLAY_NAME_MACOS = triggeredBuild.getFullDisplayName()
 
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentbuild.currentResult = 'FAILURE'
                             } 
                         }
                     }
@@ -275,7 +275,7 @@ pipeline {
                             env.TRIGGERED_BUILD_DISPLAY_NAME_LINUX = triggeredBuild.getFullDisplayName()
 
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentbuild.currentResult = 'FAILURE'
                             }  
                         }
                     }
@@ -334,7 +334,7 @@ pipeline {
                             env.TRIGGERED_BUILD_DISPLAY_NAME_WINDOWS = triggeredBuild.getFullDisplayName()
 
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentbuild.currentResult = 'FAILURE'
                             }  
                         }
                     }
@@ -394,7 +394,7 @@ pipeline {
                             env.TRIGGERED_BUILD_DISPLAY_NAME_MEGACHAT = triggeredBuild.getFullDisplayName()
 
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentbuild.currentResult = 'FAILURE'
                             } 
                         }
                     }
@@ -454,7 +454,7 @@ pipeline {
                             env.TRIGGERED_BUILD_DISPLAY_NAME_ANDROID = triggeredBuild.getFullDisplayName()
                             
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentbuild.currentResult = 'FAILURE'
                             } 
                         }
                     }
@@ -513,7 +513,7 @@ pipeline {
                             env.TRIGGERED_PROJECT_NAME_IOS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_IOS = triggeredBuild.getFullDisplayName()
                             if (triggeredBuild.result != 'SUCCESS') {
-                                currentBuild.result = 'FAILURE'
+                                currentBuild.currentResult = 'FAILURE'
                             } 
                         }
                     }
