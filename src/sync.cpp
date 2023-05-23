@@ -7676,16 +7676,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             return true;
         }
 
-        // Any clashing names in the cloud?
-        if (!row.cloudClashingNames.empty())
-        {
-            // Then we should only get here if we're an ignore file.
-            assert(row.isIgnoreFile());
-
-            // Consider us synced.
-            return true;
-        }
-
         // cloud item absent
         if (isBackupAndMirroring())
         {
