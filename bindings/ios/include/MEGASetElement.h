@@ -23,18 +23,11 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM (NSInteger, MEGASetElementChangeType) {
-    MEGASetElementChangeTypeNew     = 0,
-    MEGASetElementChangeTypeName    = 1,
-    MEGASetElementChangeTypeOrder   = 2,
-    MEGASetElementChangeTypeRemoved = 3
-};
-
-typedef NS_OPTIONS (NSUInteger, MEGASetElementChanges) {
-    MEGASetElementChangesChangeNew   = 1 << MEGASetElementChangeTypeNew,
-    MEGASetElementChangesName        = 1 << MEGASetElementChangeTypeName,
-    MEGASetElementChangesOrder       = 1 << MEGASetElementChangeTypeOrder,
-    MEGASetElementChangesRemoved     = 1 << MEGASetElementChangeTypeRemoved
+typedef NS_ENUM(NSUInteger, MEGASetElementChangeType) {
+    MEGASetElementChangeTypeNew         = 0x01,
+    MEGASetElementChangeTypeName        = 0x02,
+    MEGASetElementChangeTypeOrder       = 0x04,
+    MEGASetElementChangeTypeRemoved     = 0x08
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -104,16 +97,16 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param changeType The type of change to check. It can be one of the following values:
  *
- * - MEGASetElementChangeTypeNew          = 0
+ * - MEGASetElementChangeTypeNew          = 0x01
  * Check if the Set was new
  *
- * - MEGASetElementChangeTypeName        = 1
+ * - MEGASetElementChangeTypeName        = 0x02
  * Check if Set name has changed
  *
- * - MEGASetElementChangeTypeOrder        = 2
+ * - MEGASetElementChangeTypeOrder        = 0x04
  * Check if Set cover has changed
  *
- * - MEGASetElementChangeTypeSize          = 3
+ * - MEGASetElementChangeTypeSize          = 0x08
  * Check if the Set was removed
  *
  * @return YES if this SetElement has a specific change
@@ -127,7 +120,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return combination of changes in
  */
-- (MEGASetElementChanges)changes;
+- (MEGASetElementChangeType)changes;
 
 @end
 

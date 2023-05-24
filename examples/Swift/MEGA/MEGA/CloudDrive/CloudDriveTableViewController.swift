@@ -252,7 +252,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             imageView.image = (info[convertFromUIImagePickerControllerInfoKey(UIImagePickerController.InfoKey.originalImage)] as! UIImage)
             let webData: Data = imageView.image!.jpegData(compressionQuality: 0.9)!
             
-            let localFileURL = URL(fileURLWithPath:NSTemporaryDirectory());
+            let localFileURL = URL(fileURLWithPath:NSTemporaryDirectory())
             let localFilePath = localFileURL.appendingPathComponent(name)
             try? webData.write(to: URL(fileURLWithPath: localFilePath.path), options: [.atomic])
             

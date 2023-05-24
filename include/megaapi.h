@@ -890,7 +890,7 @@ class MegaNode
          *
          * @return true if this node has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the node
@@ -943,7 +943,7 @@ class MegaNode
          * Check if counter for this node (its subtree) has changed
          *
          */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Returns true if the node has an associated thumbnail
@@ -1260,24 +1260,24 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW     = 0
+     * - MegaSet::CHANGE_TYPE_NEW     = 0x01
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME    = 1
+     * - MegaSet::CHANGE_TYPE_NAME    = 0x02
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER   = 2
+     * - MegaSet::CHANGE_TYPE_COVER   = 0x04
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED = 3
+     * - MegaSet::CHANGE_TYPE_REMOVED = 0x08
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 0x10
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1288,7 +1288,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1302,15 +1302,13 @@ public:
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
-    enum // match Set::CH_XXX values
+    enum // 1:1 with Set::CH_XXX values
     {
-        CHANGE_TYPE_NEW,
-        CHANGE_TYPE_NAME,
-        CHANGE_TYPE_COVER,
-        CHANGE_TYPE_REMOVED,
-        CHANGE_TYPE_EXPORT,
-
-        CHANGE_TYPE_SIZE
+        CHANGE_TYPE_NEW     = 0x01,
+        CHANGE_TYPE_NAME    = 0x02,
+        CHANGE_TYPE_COVER   = 0x04,
+        CHANGE_TYPE_REMOVED = 0x08,
+        CHANGE_TYPE_EXPORT  = 0x10,
     };
 };
 
@@ -1420,21 +1418,21 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0x01
      * Check if the SetElement was new
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 0x02
      * Check if SetElement name has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 0x04
      * Check if SetElement order has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 0x08
      * Check if the SetElement was removed
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1445,19 +1443,17 @@ public:
      *
      * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
 
-    enum // match SetElement::CH_EL_XXX values
+    enum // 1:1 with SetElement::CH_EL_XXX values
     {
-        CHANGE_TYPE_ELEM_NEW,
-        CHANGE_TYPE_ELEM_NAME,
-        CHANGE_TYPE_ELEM_ORDER,
-        CHANGE_TYPE_ELEM_REMOVED,
-
-        CHANGE_TYPE_ELEM_SIZE
+        CHANGE_TYPE_ELEM_NEW     = 0x01,
+        CHANGE_TYPE_ELEM_NAME    = 0x02,
+        CHANGE_TYPE_ELEM_ORDER   = 0x04,
+        CHANGE_TYPE_ELEM_REMOVED = 0x08,
     };
 };
 
@@ -1727,7 +1723,7 @@ class MegaUser
          *
          * @return true if this user has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the user
@@ -1824,7 +1820,7 @@ class MegaUser
          * Check if apps prefs have changed
          *
          * Check if backup names have changed         */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Indicates if the user is changed by yourself or by another client.
@@ -2166,7 +2162,7 @@ public:
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
-    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+    virtual bool hasSchedMeetingChanged(uint64_t /*changeType*/) const;
 
     /**
      * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
@@ -2678,7 +2674,7 @@ public:
      *
      * @return true if this chat has an specific change
      */
-    virtual bool hasChanged(int changeType) const;
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns a bit field with the changes of the chatroom
@@ -2710,7 +2706,7 @@ public:
      *
      * @return The returned value is an OR combination of these flags
      */
-    virtual int getChanges() const;
+    virtual uint64_t getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.
