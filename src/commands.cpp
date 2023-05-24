@@ -762,7 +762,7 @@ void CommandGetFile::callFailedCompletion(const Error &e)
     assert(mCompletion);
     if (mCompletion)
     {
-        mCompletion(e, -1, -1, -1, 0, nullptr, nullptr, nullptr, {}, {});
+        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {});
     }
 }
 
@@ -783,7 +783,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     m_off_t s = -1;
     dstime tl = 0;
     std::unique_ptr<byte[]> buf;
-    m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
     string fileattrstring;
@@ -827,14 +826,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
             case 's':
                 s = json.getint();
-                break;
-
-            case MAKENAMEID2('t', 's'):
-                ts = json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + json.getint();
                 break;
 
             case MAKENAMEID2('a', 't'):
@@ -912,7 +903,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
                         case EOO:
                             { //succeded, call completion function!
-                                return mCompletion ? mCompletion(e, s, ts, tm, tl,
+                                return mCompletion ? mCompletion(e, s, tl,
                                             &filenamestring, &filefingerprint, &fileattrstring,
                                             tempurls, tempips) : false;
                             }

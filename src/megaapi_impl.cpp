@@ -19555,7 +19555,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
 
             client->reqs.add(new CommandGetFile(client, (const byte*)node->nodekey().data(), node->nodekey().size(),
                 node->nodehandle, true, nullptr, nullptr, nullptr, singleUrl,
-                [this, request](const Error &e, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/, dstime /*timeleft*/,
+                [this, request](const Error &e, m_off_t /*size*/, dstime /*timeleft*/,
                 std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                 const std::vector<std::string> &urls, const std::vector<std::string> &ips)
                 {
@@ -25223,7 +25223,7 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
         handle enode = element->node();
         memcpy(ekey.data(), element->key().c_str(), ekey.size());
         auto commandCB =
-            [ekey, enode, request, this] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+            [ekey, enode, request, this] (const Error &e, m_off_t size,
             dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
             std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
             const std::vector<std::string> &/*ips*/)
@@ -25250,8 +25250,8 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
-                    ts = 0; // all foreign nodes' creation time must be set to 0
-                    tm = getMtimeFromFingerprint();
+                    m_time_t ts = 0; // all foreign nodes' creation time must be set to 0
+                    m_time_t tm = getMtimeFromFingerprint();
                     auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
