@@ -989,12 +989,12 @@ bool MegaNodePrivate::isRemoved()
     return hasChanged(MegaNode::CHANGE_TYPE_REMOVED);
 }
 
-bool MegaNodePrivate::hasChanged(int changeType)
+bool MegaNodePrivate::hasChanged(uint64_t changeType)
 {
     return (changed & changeType);
 }
 
-int MegaNodePrivate::getChanges()
+uint64_t MegaNodePrivate::getChanges()
 {
     return changed;
 }
@@ -1958,12 +1958,12 @@ int64_t MegaUserPrivate::getTimestamp()
     return ctime;
 }
 
-bool MegaUserPrivate::hasChanged(int changeType)
+bool MegaUserPrivate::hasChanged(uint64_t changeType)
 {
     return (changed & changeType);
 }
 
-int MegaUserPrivate::getChanges()
+uint64_t MegaUserPrivate::getChanges()
 {
     return changed;
 }
@@ -1973,16 +1973,14 @@ int MegaUserPrivate::isOwnChange()
     return tag;
 }
 
-bool MegaSetPrivate::hasChanged(int changeType) const
+bool MegaSetPrivate::hasChanged(uint64_t changeType) const
 {
-    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE);
-    return (unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE ? mChanges[changeType] : false;
+    return getChanges() & changeType;
 }
 
-bool MegaSetElementPrivate::hasChanged(int changeType) const
+bool MegaSetElementPrivate::hasChanged(uint64_t changeType) const
 {
-    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE);
-    return (unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE ? mChanges[changeType] : false;
+    return getChanges() & changeType;
 }
 
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
@@ -2334,7 +2332,7 @@ MegaHandle MegaUserAlertPrivate::getSchedId() const
     return schedMeetingId;
 }
 
-bool MegaUserAlertPrivate::hasSchedMeetingChanged(int changeType) const
+bool MegaUserAlertPrivate::hasSchedMeetingChanged(uint64_t changeType) const
 {
     return schedMeetingChangeset.hasChanged(changeType);
 }
@@ -25167,6 +25165,12 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                         return true;
                     }
                 }
+                const auto getMtimeFromFingerprint = [&ekey, &fingerprint]() -> m_time_t
+                {
+                    FileFingerprint ffp;
+                    if(ffp.unserializefingerprint(fingerprint)) return ffp.mtime;
+                    return 0;
+                };
 
                 if (e)
                 {
@@ -25174,6 +25178,8 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
                 }
                 else
                 {
+                    ts = 0; // all foreign nodes' creation time must be set to 0
+                    tm = getMtimeFromFingerprint();
                     auto ekeyStr = string((char*)ekey.data(), ekey.size());
                     unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
                                                                        enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
@@ -34614,12 +34620,12 @@ bool MegaTextChatPrivate::isMeeting() const
     return meeting;
 }
 
-bool MegaTextChatPrivate::hasChanged(int changeType) const
+bool MegaTextChatPrivate::hasChanged(uint64_t changeType) const
 {
     return (changed & changeType);
 }
 
-int MegaTextChatPrivate::getChanges() const
+uint64_t MegaTextChatPrivate::getChanges() const
 {
     return changed;
 }
@@ -34711,11 +34717,11 @@ MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numeric
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : 0))
+    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }

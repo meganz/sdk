@@ -6081,6 +6081,85 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 #endif
 
 
+/**
+ * @brief TEST_F SdkTestCloudraidTransferResume
+ *
+ * Tests resumption for raid file download.
+ */
+#ifdef DEBUG
+TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+{
+    LOG_info << "___TEST Cloudraid transfer resume___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    //  1. Download raid file, with speed limit
+    //  2. Logout / Login
+    //  3. Check download resumption
+
+    //  1. Download raided file, with speed limit
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    std::unique_ptr<MegaNode> cloudRaidNode{ megaApi[0]->getNodeByHandle(importRaidHandle) };
+
+    // prerequisite for having smaller (thus more) raid chunks, for increasing the chances of having
+    // contiguous progress to serialize - and resume - after logout+login
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
+#endif
+
+    string downloadedFile = DOTSLASH "cloudraid_downloaded_file.sdktest";
+    deleteFile(downloadedFile.c_str());
+    megaApi[0]->setMaxDownloadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    TransferTracker rdt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudRaidNode.get(),
+                              downloadedFile.c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false   /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              &rdt    /*listener*/);
+
+    second_timer timer;
+    m_off_t pauseThreshold = 9000000;
+    while (!rdt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    ASSERT_FALSE(rdt.finished) << "Download ended too early, with " << rdt.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
+
+    //  2. Logout / Login
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ErrorCodes result = rdt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    //  3. Check download resumption
+    timer.reset();
+    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
+    MegaTransfer* dnl = transfers->get(0);
+    long long dnlBytes = dnl->getTransferredBytes();
+    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+
+    megaApi[0]->setMaxDownloadSpeed(-1);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+#endif
+
 
 /**
 * @brief TEST_F SdkTestOverquotaNonCloudraid
@@ -11869,8 +11948,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
 
         foreignNode.reset(fNode);
-        if (expectedResult == API_OK) { ASSERT_NE(foreignNode, nullptr); }
-        else                          { ASSERT_EQ(foreignNode, nullptr); }
+        if (expectedResult == API_OK)
+        {
+            ASSERT_NE(foreignNode, nullptr);
+            unique_ptr<MegaNode> sourceNode(megaApi[0]->getNodeByHandle(uploadedNode));
+            ASSERT_EQ(foreignNode->getCreationTime(), 0) << "\tAll foreign node's creation time must be 0";
+            ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
+                << "\tForeign node's mtime inconsistent";
+        }
+        else
+        {
+            ASSERT_EQ(foreignNode, nullptr);
+        }
     };
     const auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
     {
@@ -13399,11 +13488,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was uploaded";
+
     //  3. Logout / Login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     int result = ut.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Upload interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -13415,7 +13507,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Upload ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* upl = transfers->get(0);
     long long uplBytes = upl->getTransferredBytes();
     ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
@@ -13424,11 +13516,13 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxUploadSpeed(-1);
     timer.reset();
     unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
-    while (!cloudNode && timer.elapsed() < 20)
+    size_t maxAllowedToFinishUpload = 120;
+    while (!cloudNode && timer.elapsed() < maxAllowedToFinishUpload)
     {
         WaitMillisec(500);
         cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
+    ASSERT_TRUE(cloudNode) << "Upload did not finish after " << maxAllowedToFinishUpload << " seconds";
 
     //  6. Download file, with speed limit
     string downloadedFile = DOTSLASH + DOWNFILE;
@@ -13449,11 +13543,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(dt.finished) << "Download ended too early, with " << dt.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
+
     //  7. Logout / Login
     session.reset(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     result = dt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -13465,7 +13562,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
     ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";

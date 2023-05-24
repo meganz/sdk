@@ -1491,19 +1491,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         return rowResult = false, true;
     }
-    else if (row.syncNode && row.syncNode->type != row.fsNode->type)
-    {
-        LOG_debug << syncname << "checked path does not have the same type, blocked: " << fullPath.localPath;
-
-        ProgressingMonitor monitor(*this, row, fullPath);
-        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::FolderMatchedAgainstFile, true, false,
-            {fullPath.cloudPath}, {},
-            {fullPath.localPath}, {}));
-
-        rowResult = false;
-        return true;
-    }
     else
     {
         // Convenience.
@@ -2051,6 +2038,8 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     }
 #endif // ! NDEBUG
 
+                    LOG_debug << syncname << "Sync - detected local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
+
                     if (sourceCloudNode.parentHandle == targetCloudNode.handle && !newName.empty())
                     {
                         // send the command to change the node name
@@ -2089,8 +2078,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         row.syncNode->updateMoveInvolvement();
                         sourceSyncNode->rare().moveFromHere = movePtr;
                         sourceSyncNode->updateMoveInvolvement();
-
-                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
 
                         rowResult = false;
                         return true;
@@ -2166,8 +2153,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
                         // command sent, now we wait for the actinpacket updates, later we will recognise
                         // the row as synced from fsNode, cloudNode and update the syncNode from those
-
-                        LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
 
                         row.syncNode->rare().moveToHere = movePtr;
                         row.syncNode->updateMoveInvolvement();
@@ -2493,22 +2478,6 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
     ProgressingMonitor monitor(*this, row, fullPath);
 
-    if (row.syncNode && row.syncNode->type != row.cloudNode->type)
-    {
-        LOG_debug << syncname << "checked node does not have the same type, blocked: " << fullPath.cloudPath;
-
-        monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::FolderMatchedAgainstFile, true, true,
-            {fullPath.cloudPath},
-            {},
-            {fullPath.localPath},
-            {}));
-
-        row.suppressRecursion = true;
-        rowResult = false;
-        return true;
-    }
-
     unique_ptr<LocalNode> childrenToDeleteOnFunctionExit;
 
     // find out where the node was when synced, and is now.
@@ -2728,7 +2697,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath(false) : "<null>")
                 << logTriplet(row, fullPath);
 
-            LOG_debug << "Sync - remote move " << fullPath.cloudPath <<
+            LOG_debug << "Sync - detected remote move " << fullPath.cloudPath <<
                 " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath(false) : "<null>") <<
                 " to " << parentRow.cloudNode->name;
 
@@ -2840,7 +2809,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             // (or file) to gain a new FSID.
             assert(overwrite || !fsstableids || debug_confirm_getfsid(fullPath.localPath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
 
-            LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
+            LOG_debug << syncname << "Sync - executed local rename/move " << sourceSyncNode->getLocalPath() << " -> " << fullPath.localPath;
 
             if (caseInsensitiveRename)
             {
@@ -7305,6 +7274,7 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                     return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
                 }
 
+                // Make this new fsNode part of our sync data structure
                 parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
                 row.fsNode = &parentRow.fsAddedSiblings.back();
                 row.syncNode->slocalname = row.fsNode->cloneShortname();
@@ -7314,6 +7284,13 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                 row.syncNode->localFSCannotStoreThisName = true;
                 return true;  // carry on with checkItem() - this syncNode will cause a stall until cloud rename
             }
+
+            // Mark the row as synced with the original Node downloaded, so that
+            // we can chain any cloud moves/renames that occurred in the meantime
+            row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+            row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+            row.syncNode->setSyncedNodeHandle(downloadPtr->h);
+            statecacheadd(row.syncNode);
         }
         else if (nameTooLong)
         {
@@ -7352,6 +7329,26 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
     return true;  // carry on with checkItem()
 }
 
+struct DifferentValueDetector_nodetype
+{
+    nodetype_t value = TYPE_UNKNOWN;
+
+    // returns false if any different values are detected
+    bool combine(nodetype_t v)
+    {
+        if (value == TYPE_UNKNOWN)
+        {
+            value = v;
+            return true;
+        }
+        else if (v == TYPE_UNKNOWN)
+        {
+            return true;
+        }
+        else return v == value;
+    }
+};
+
 bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc)
 {
     CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItem);
@@ -7374,6 +7371,62 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
         return false;
     }
+
+    // Check for files vs folders,  we can't upload a file over a folder etc.
+    // Turns out we need to let moves be detected first, hence this block is moved from
+    // there, otherwise a delete of a moved node could happen
+    // Hence this block is moved from syncItem_checkMoves
+    DifferentValueDetector_nodetype typeDiffDetect;
+    if ((row.cloudNode && !typeDiffDetect.combine(row.cloudNode->type)) ||
+        (row.syncNode && !typeDiffDetect.combine(row.syncNode->type)) ||
+        (row.fsNode && !typeDiffDetect.combine(row.fsNode->type)))
+    {
+        SYNC_verbose << syncname << "File vs folder detected in this row: " << fullPath.localPath;
+
+        // we already know these are not move-involved.  So, allow resetting the type of the syncNode
+        if (row.syncNode)
+        {
+            nodetype_t resetType = TYPE_UNKNOWN;
+
+            if (!row.fsNode && row.cloudNode)
+            {
+                SYNC_verbose << syncname << "Resetting sync node type for no fsNode: " << row.cloudNode->type << fullPath.localPath;
+                resetType = row.cloudNode->type;
+            }
+
+            if (!row.cloudNode && row.fsNode)
+            {
+                SYNC_verbose << syncname << "Resetting sync node type for no cloudNode: " << row.fsNode->type << fullPath.localPath;
+                resetType = row.fsNode->type;
+            }
+
+            if (row.cloudNode && row.fsNode && row.cloudNode->type == row.fsNode->type)
+            {
+                SYNC_verbose << syncname << "Resetting sync node type to cloud/fs type: " << row.cloudNode->type << fullPath.localPath;
+                resetType = row.cloudNode->type;
+            }
+
+            if (resetType != TYPE_UNKNOWN)
+            {
+                row.syncNode->type = resetType;
+                row.syncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, row.syncNode->localname, row.syncNode->cloneShortname());
+                row.syncNode->setSyncedNodeHandle(NodeHandle());
+                statecacheadd(row.syncNode);
+                return false;
+            }
+        }
+
+        bool cloudSideChange = row.cloudNode && row.syncNode && row.cloudNode->type != row.syncNode->type;
+
+        ProgressingMonitor monitor(*this, row, fullPath);
+        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            SyncWaitReason::FolderMatchedAgainstFile, true, cloudSideChange,
+            {fullPath.cloudPath}, {},
+            {fullPath.localPath}, {}));
+
+        return false;
+    }
+
 
     unsigned confirmDeleteCount = 0;
     if (row.syncNode)
@@ -7620,16 +7673,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         if (row.syncNode->type == TYPE_DONOTSYNC)
         {
             // we do not upload do-not-sync files (eg. system+hidden, on windows)
-            return true;
-        }
-
-        // Any clashing names in the cloud?
-        if (!row.cloudClashingNames.empty())
-        {
-            // Then we should only get here if we're an ignore file.
-            assert(row.isIgnoreFile());
-
-            // Consider us synced.
             return true;
         }
 
@@ -8746,7 +8789,7 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
 
         if (parentRow.fsNode)
         {
-            LOG_verbose << syncname << "Creating local folder at: " << fullPath.localPath << logTriplet(row, fullPath);
+            LOG_verbose << syncname << "Sync - executing local folder creation at: " << fullPath.localPath << logTriplet(row, fullPath);
 
             assert(!isBackup());
             if (syncs.fsaccess->mkdirlocal(fullPath.localPath, false, true))
