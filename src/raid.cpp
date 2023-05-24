@@ -389,9 +389,9 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                 // Otherwise, we'll request the remaining: -15 MB
                 size_t remainingSize = maxpos - curpos;
                 npos = (remainingSize >= MAX_LAST_CHUNK) ?
-                                (npos + (lastChunkSize / 2)) :
-                                npos + lastChunkSize;
-                npos = std::min<m_off_t>(npos, maxpos);
+                            (curpos + (remainingSize / 2)) :
+                            maxpos;
+                assert(npos <= maxpos);
                 LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
             }
         }
