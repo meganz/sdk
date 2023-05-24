@@ -390,14 +390,22 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 static_cast<size_t>(npos - curpos) :
                                 0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
-        if (mAvoidSmallLastRequest && (nextChunkSize > 0) && (nextChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
+        if (mAvoidSmallLastRequest) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
         {
-            // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
-            // Otherwise, we'll request the remaining: -15 MB
-            npos = (nextChunkSize >= MAX_LAST_CHUNK) ?
-                        (npos + (nextChunkSize / 2)) :
-                        maxpos;
-            LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos;
+            size_t lastChunkSize = (npos < maxpos) ?
+                                    static_cast<size_t>(maxpos - npos) :
+                                    0;
+            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK))
+            {
+                // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
+                // Otherwise, we'll request the remaining: -15 MB
+                size_t remainingSize = maxpos - curpos;
+                npos = (remainingSize >= MAX_LAST_CHUNK) ?
+                                (npos + (lastChunkSize / 2)) :
+                                npos + lastChunkSize;
+                npos = std::min<m_off_t>(npos, maxpos);
+            }
+            LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
         }
         if (unusedRaidConnection == connectionNum && npos > curpos)
         {
