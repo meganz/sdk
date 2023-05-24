@@ -61,9 +61,17 @@ namespace mega {
         };
 
         // Min last request chunk (to avoid small chunks to be requested)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MIN_LAST_CHUNK = 512 * 1024;
+#else
         static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
+#endif
         // Max last request chunk (otherwise split it in two)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MAX_LAST_CHUNK = 1 * 1024 * 1024;
+#else
         static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
+#endif
 
         // call this before starting a transfer. Extracts the vector content
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
