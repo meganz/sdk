@@ -1309,7 +1309,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 /**
  * @brief Check if the MEGASdk object is logged in.
- * @return 0 if not logged in, Otherwise, a number >= 0.
+ * @return 0 if not logged in, Otherwise, a number > 0.
  */
 - (NSInteger)isLoggedIn;
 
