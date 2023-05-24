@@ -137,7 +137,6 @@ void RaidBufferManager::FilePiece::swap(FilePiece& other)
 RaidBufferManager::RaidBufferManager()
     : is_raid(false)
     , raidKnown(false)
-    , mAvoidSmallLastRequest(AVOID_SMALL_SIZE_LAST_REQUEST)
     , raidLinesPerChunk(16 * 1024)
     , unusedRaidConnection(0)
     , raidpartspos(0)
@@ -233,16 +232,6 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
             transferPos(0) = outputfilepos;  // if there is any data waiting in asyncoutputbuffers this value is alreday ahead of it
         }
     }
-}
-
-void RaidBufferManager::setAvoidSmallLastRequest(bool value)
-{
-    mAvoidSmallLastRequest = value;
-}
-
-bool RaidBufferManager::getAvoidSmallLastRequest() const
-{
-    return mAvoidSmallLastRequest;
 }
 
 bool RaidBufferManager::isRaid() const
@@ -390,12 +379,11 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 static_cast<size_t>(npos - curpos) :
                                 0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
-        if (mAvoidSmallLastRequest) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
         {
             size_t lastChunkSize = (npos < maxpos) ?
                                     static_cast<size_t>(maxpos - npos) :
                                     0;
-            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK))
+            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
             {
                 // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
                 // Otherwise, we'll request the remaining: -15 MB
@@ -404,8 +392,8 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 (npos + (lastChunkSize / 2)) :
                                 npos + lastChunkSize;
                 npos = std::min<m_off_t>(npos, maxpos);
+                LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
             }
-            LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
         }
         if (unusedRaidConnection == connectionNum && npos > curpos)
         {
