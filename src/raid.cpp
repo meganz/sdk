@@ -383,7 +383,7 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
             size_t lastChunkSize = (npos < maxpos) ?
                                     static_cast<size_t>(maxpos - npos) :
                                     0;
-            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
+            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK for the last request
             {
                 // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
                 // Otherwise, we'll request the remaining: -15 MB
