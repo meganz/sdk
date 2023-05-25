@@ -62,7 +62,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 33554432; // 32 MB [Previous value: 2097152 -> 2 MB]
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 41943040; // 40 MB [Previous value: 16777216 -> 16 MB]
 #else
