@@ -24084,6 +24084,8 @@ void MegaApiImpl::dismissBanner(int id, MegaRequestListener* listener)
 
 error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
 {
+    if (!client->loggedin()) return API_EACCESS;    // it requires master key to encrypt data, which is received in response to login
+
             NodeHandle remoteNode = NodeHandle().set6byte(request->getNodeHandle());
             const char* backupName = request->getName();
             const char* localFolder = request->getFile();
