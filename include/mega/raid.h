@@ -73,6 +73,11 @@ namespace mega {
         static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
 #endif
 
+#ifdef DEBUG
+        // To be called within CloudRaid tests when a lower speed is needed or we need to trigger 403/404/timeout errors
+        void disableAvoidSmallLastRequest();
+#endif
+
         // call this before starting a transfer. Extracts the vector content
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
 
@@ -191,6 +196,11 @@ namespace mega {
         unsigned raidHttpGetErrorCount[RAIDPARTS];
 
         bool connectionStarted[RAIDPARTS];
+
+#ifdef DEBUG
+        // For test hooks, disable avoid small requests when we need a lower speed and trigger 404/403/timeout errors
+        bool mDisableAvoidSmallLastRequest;
+#endif
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
         void combineRaidParts(unsigned connectionNum);
