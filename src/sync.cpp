@@ -2837,6 +2837,24 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
                 sourceSyncNode->setScanAgain(true, false, false, 0);
                 row.syncNode->setScanAgain(true, true, true, 0);  // scan parent to see this moved fs item, also scan subtree to see if anything new is in there to overcome race conditions with fs notifications from the prior fs subtree paths
+
+                // Mark this row as synced immediately, to cover the case where the user
+                // moves the item back immediately, perhaps they made a mistake,
+                // and we don't get a chance to recognise the row as synced in a future pass
+                // Becuase in that case, we would end up with a download instead of a chained move
+
+                if (auto fsNode = FSNode::fromPath(*syncs.fsaccess, fullPath.localPath, false, FSLogging::logOnError))
+                {
+                    // Make this new fsNode part of our sync data structure
+                    parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
+                    row.fsNode = &parentRow.fsAddedSiblings.back();
+                    row.syncNode->slocalname = row.fsNode->cloneShortname();
+
+                    row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+                    row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
+                    row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+                    statecacheadd(row.syncNode);
+                }
             }
 
             rowResult = false;
@@ -8787,6 +8805,16 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
     {
         assert(!alreadyExists); // if it did we would have matched it
 
+        // check to see if this is actually the source of a move, but we didn't detect that earlier
+        // due to multiple moves in progress, and the order we visit items in the folder
+        {
+            if (LocalNode* sourceSyncNode = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, this, nullptr, cloudRootOwningUser))
+            {
+                LOG_verbose << syncname << "Downsync double check detected node as the source of a move, delaying folder create: " << logTriplet(row, fullPath);
+                return false;
+            }
+        }
+
         if (parentRow.fsNode)
         {
             LOG_verbose << syncname << "Sync - executing local folder creation at: " << fullPath.localPath << logTriplet(row, fullPath);
@@ -9573,7 +9601,16 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
                                 }, canChangeVault);
                             }
                         });
+
+                    // Remember that the delete is going on, so we don't do anything else until that resolves
+                    // And, detach the synced-fsid side, so that we don't later delete the local side, should
+                    // the user move the exact same file back to where it disappeared from.  That would occur
+                    // because we later see the cloud side gone, but synced-handle and synced-fsid are the same,
+                    // and that very same local file is present in the row.
                     row.syncNode->rare().removeNodeHere = deletePtr;
+                    row.syncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);
+                    statecacheadd(row.syncNode);
+
                 }
                 else if (exclusionState == ES_EXCLUDED)
                 {
