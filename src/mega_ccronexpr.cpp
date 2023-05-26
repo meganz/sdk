@@ -527,17 +527,18 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
      ins points to the next occurrence of rep in orig
      orig points to the remainder of orig after "end of rep"
      */
-    tmp = result = (char*) cronMalloc(strlen(orig) + (len_with - len_rep) * count + 1);
+    size_t len_orig = strlen(orig);
+    tmp = result = (char*) cronMalloc(len_orig + (len_with - len_rep) * count + 1);
     if (!result) return NULL;
 
     while (count--) {
         ins = strstr(orig, rep);
         len_front = ins - orig;
         tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
+        tmp = strncpy(tmp, with, len_with + 1) + len_with;
         orig += len_front + len_rep; /* move to next "end of rep" */
     }
-    strcpy(tmp, orig);
+    strncpy(tmp, orig, len_orig + 1);
     return result;
 }
 

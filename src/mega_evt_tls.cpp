@@ -322,7 +322,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, size_t 
         r = SSL_shutdown(conn->ssl);
         //it might be possible that peer send close_notify and close the network
         //hence, no check if sending is complete
-        bytes = evt__send_pending(conn);
+        evt__send_pending(conn);
         if ( (1 == r)  && conn->close_cb ) {
             conn->close_cb(conn, r);
         }

@@ -786,16 +786,16 @@ class MegaUserPrivate : public MegaUser
 		MegaUserPrivate(User *user);
 		MegaUserPrivate(MegaUser *user);
 		static MegaUser *fromUser(User *user);
-        virtual MegaUser *copy();
+        MegaUser *copy() override;
 
-		~MegaUserPrivate();
-        virtual const char* getEmail();
-        virtual MegaHandle getHandle();
-        virtual int getVisibility();
-        virtual int64_t getTimestamp();
+        ~MegaUserPrivate() override;
+        const char* getEmail() override;
+        MegaHandle getHandle() override;
+        int getVisibility() override;
+        int64_t getTimestamp() override;
         bool hasChanged(uint64_t changeType) override;
         uint64_t getChanges() override;
-        virtual int isOwnChange();
+        int isOwnChange() override;
 
 	protected:
 		const char *email;
@@ -1038,7 +1038,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
-        virtual void setAppData(const char *data);
+        virtual void setAppData(const char *data) { doSetAppData(data); }
         const char* getAppData() const override;
         virtual void setState(int state);
         int getState() const override;
@@ -1122,6 +1122,8 @@ protected:
         // to protect against the operation being cancelled in the meantime
         shared_ptr<MegaRecursiveOperation> recursiveOperation;
 
+    private:
+        void doSetAppData(const char *data);
 };
 
 class MegaTransferDataPrivate : public MegaTransferData

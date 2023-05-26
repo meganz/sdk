@@ -29,10 +29,13 @@
 
 namespace mega {
 
+struct MegaApp;
 class HeartBeatSyncInfo;
 class BackupInfoSync;
 class BackupMonitor;
 class MegaClient;
+struct JSON;
+class JSONWriter;
 
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.

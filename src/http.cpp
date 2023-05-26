@@ -321,7 +321,11 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
 // this method allows to retrieve DNS servers as configured in the system. Note that, under Wifi connections,
 // it usually returns the gateway (192.168.1.1 or similar), so the DNS requests done by c-ares represent a
 // an access to the local network, which we aim to avoid since iOS 14 requires explicit permission given by the user.
-void HttpIO::getDNSserversFromIos(string& dnsServers)
+void HttpIO::getDNSserversFromIos(string&
+#if TARGET_OS_IPHONE
+                                  dnsServers
+#endif
+                                  )
 {
 #if TARGET_OS_IPHONE
     // Workaround to get the IP of valid DNS servers on iOS

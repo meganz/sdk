@@ -140,7 +140,11 @@ string backupTypeToStr(BackupType type)
     return "UNKNOWN";
 }
 
-void AddHiddenFileAttribute(mega::LocalPath& path)
+void AddHiddenFileAttribute(mega::LocalPath&
+#ifdef _WIN32
+                            path
+#endif
+                            )
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -149,7 +153,11 @@ void AddHiddenFileAttribute(mega::LocalPath& path)
 #endif
 }
 
-void RemoveHiddenFileAttribute(mega::LocalPath& path)
+void RemoveHiddenFileAttribute(mega::LocalPath&
+#ifdef _WIN32
+                               path
+#endif
+                               )
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
