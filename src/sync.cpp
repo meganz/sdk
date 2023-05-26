@@ -8805,16 +8805,6 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
     {
         assert(!alreadyExists); // if it did we would have matched it
 
-        // check to see if this is actually the source of a move, but we didn't detect that earlier
-        // due to multiple moves in progress, and the order we visit items in the folder
-        {
-            if (LocalNode* sourceSyncNode = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, this, nullptr, cloudRootOwningUser))
-            {
-                LOG_verbose << syncname << "Downsync double check detected node as the source of a move, delaying folder create: " << logTriplet(row, fullPath);
-                return false;
-            }
-        }
-
         if (parentRow.fsNode)
         {
             LOG_verbose << syncname << "Sync - executing local folder creation at: " << fullPath.localPath << logTriplet(row, fullPath);
