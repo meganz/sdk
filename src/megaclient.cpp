@@ -15605,7 +15605,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
         {
             if (Node* n = nodeByHandle(rec.nodeHandle))
             {
-                LOG_debug << "Moving to Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
                 rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
             }
             else
@@ -15659,7 +15659,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
 
     syncdebrisadding = true;
     syncdebrisminute = currentminute;
-    LOG_debug << "Creating daily SyncDebris and daily folder: " << buf;
+    LOG_debug << clientname << "Creating cloud daily SyncDebris and daily folder: " << buf;
 
     // create missing component(s) of the sync debris folder of the day
     vector<NewNode> nnVec;
@@ -15695,7 +15695,7 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
         [this](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
             syncdebrisadding = false;
             // on completion, send the queued nodes
-            LOG_debug << "Daily SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
+            LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
             execmovetosyncdebris(nullptr, nullptr, false);
         }, false));
     return nullptr;
