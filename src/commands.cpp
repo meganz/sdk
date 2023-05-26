@@ -4080,6 +4080,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionCookieSettings;
     string appPrefs;
     string versionAppPrefs;
+    string ccPrefs;
+    string versionCcPrefs;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4226,6 +4228,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
             parseUserAttribute(json, appPrefs, versionAppPrefs);
+            break;
+
+        case MAKENAMEID8('*', '!', 'c', 'c', 'P', 'r', 'e', 'f'):
+            parseUserAttribute(json, ccPrefs, versionCcPrefs);
             break;
 
 #ifdef ENABLE_SYNC
@@ -4593,6 +4599,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
+                }
+
+                if (!ccPrefs.empty())
+                {
+                    changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
                 }
 
                 if (aliases.size())
