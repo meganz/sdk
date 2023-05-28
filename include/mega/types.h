@@ -744,6 +744,7 @@ typedef enum {
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
     ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
+    ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
