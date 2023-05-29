@@ -631,6 +631,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Register a delegate with queue type to receive all events about requests.
+ *
+ * You can use [MEGASdk removeMEGARequestDelegateAsync:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about requests.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
  * @brief Register a delegate to receive all events about transfers.
  *
  * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
