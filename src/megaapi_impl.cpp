@@ -1782,6 +1782,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_APPS_PREFS;
     }
+    if (user->changed.ccPrefs)
+    {
+        changed |= MegaUser::CHANGE_CC_PREFS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -6178,6 +6182,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
         case MegaApi::USER_ATTR_APPS_PREFS:
+        case MegaApi::USER_ATTR_CC_PREFS:
             scope = '*';
             break;
 
@@ -14753,6 +14758,7 @@ void MegaApiImpl::getua_result(error e)
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_CC_PREFS
                   || request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
@@ -20108,6 +20114,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
                         || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_CC_PREFS
                         || type == ATTR_APPS_PREFS)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
