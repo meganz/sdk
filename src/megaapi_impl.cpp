@@ -22448,7 +22448,7 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
                 {     0,   98000}, // Below MEGAproxy.
                 { 99600,  100000}, // WebClient range.
                 {100000,  300000}, // API extended range.
-                {600000,  600000}, // WebClient extended range.
+                {500000,  600000}, // WebClient extended range.
                 {700000,  800000}, // API extended range.
                 {900000, INT_MAX}  // Unassigned.
             }; // excluded
