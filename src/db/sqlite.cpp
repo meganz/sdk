@@ -64,7 +64,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
         auto fileAccess = fsAccess.newfileaccess();
 
-        if (fileAccess->fopen(legacyPath))
+        if (fileAccess->fopen(legacyPath, FSLogging::logExceptFileNotFound))
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
@@ -110,7 +110,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
     return fsAccess.fileExistsAt(dbPath);
 }
 
-SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
+SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
 {
     sqlite3 *db = nullptr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -123,11 +123,11 @@ SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, con
                              db,
                              fsAccess,
                              dbPath,
-                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
+                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0, std::move(dBErrorCallBack));
 
 }
 
-DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
+DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
 {
     sqlite3 *db = nullptr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -161,11 +161,20 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 #endif
 
+    result = sqlite3_create_function(db, "regexp", 2, SQLITE_ANY,0, &SqliteAccountState::userRegexp, 0, 0);
+    if (result)
+    {
+        LOG_debug << "Data base error(sqlite3_create_function): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
                                 dbPath,
-                                (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
+                                (flags & DB_OPEN_FLAG_TRANSACTED) > 0,
+                                std::move(dBErrorCallBack));
 }
 
 bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
@@ -246,7 +255,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     auto to = dbPath + suffix;
 
     // -shm could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -shm file";
@@ -258,7 +267,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     to = dbPath + suffix;
 
     // -wal could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -wall file";
@@ -271,7 +280,7 @@ bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::Local
     auto to = dbPath + suffix;
 
     // -journal could or couldn't be present
-    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    if (fileAccess->fopen(from, FSLogging::logExceptFileNotFound) && !fsAccess.renamelocal(from, to))
     {
          // Exists origin and failure to rename
         LOG_debug << "Failure to rename -journal file";
@@ -305,10 +314,9 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 
 }
 
-SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
-  : DbTable(rng, checkAlwaysTransacted)
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
+  : DbTable(rng, checkAlwaysTransacted, dBErrorCallBack)
   , db(db)
-  , pStmt(nullptr)
   , dbfile(path)
   , fsaccess(&fsAccess)
 {
@@ -349,7 +357,7 @@ void SqliteDbTable::rewind()
         return;
     }
 
-    int result;
+    int result = SQLITE_OK;
 
     if (pStmt)
     {
@@ -360,12 +368,7 @@ void SqliteDbTable::rewind()
         result = sqlite3_prepare_v2(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
     }
 
-    if (result != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(result));
-        LOG_err << "Unable to rewind database: " << dbfile << err;
-        assert(!"Unable to rewind database.");
-    }
+    errorHandler(result, "Rewind", false);
 }
 
 // retrieve next record through cursor
@@ -388,12 +391,7 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
         sqlite3_finalize(pStmt);
         pStmt = NULL;
 
-        if (rc != SQLITE_DONE)
-        {
-            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-            LOG_err << "Unable to get next record from database: " << dbfile << err;
-            assert(!"Unable to get next record from database.");
-        }
+        errorHandler(rc, "Get next record", false);
 
         return false;
     }
@@ -430,12 +428,7 @@ bool SqliteDbTable::get(uint32_t index, string* data)
         }
     }
 
-    if (rc != SQLITE_DONE && rc != SQLITE_ROW)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to get record from database: " << dbfile << err;
-        assert(!"Unable to get record from database.");
-    }
+    errorHandler(rc, "Get record statecache", false);
 
     sqlite3_finalize(stmt);
 
@@ -474,18 +467,11 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
         }
     }
 
-    bool ok = sqlResult == SQLITE_DONE;
-
-    if (!ok)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to put record into database: " << dbfile << err;
-        assert(!"Unable to put record into database.");
-    }
+    errorHandler(sqlResult, "Put record", false);
 
     sqlite3_reset(mPutStmt);
 
-    return ok;
+    return sqlResult == SQLITE_DONE;
 }
 
 
@@ -514,18 +500,11 @@ bool SqliteDbTable::del(uint32_t index)
         }
     }
 
-    bool ok = sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
-
-    if (!ok)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to delete record from database: " << dbfile << err;
-        assert(!"Unable to delete record from database.");
-    }
+    errorHandler(sqlResult, "Delete record", false);
 
     sqlite3_reset(mDelStmt);
 
-    return ok;
+    return sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
 }
 
 // truncate table
@@ -539,12 +518,7 @@ void SqliteDbTable::truncate()
     checkTransaction();
 
     int rc = sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
-    if (rc != API_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to truncate database: " << dbfile << err;
-        assert(!"Unable to truncate database.");
-    }
+    errorHandler(rc, "Truncate ", false);
 }
 
 // begin transaction
@@ -557,12 +531,7 @@ void SqliteDbTable::begin()
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
     int rc = sqlite3_exec(db, "BEGIN", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to begin transaction on database: " << dbfile << err;
-        assert(!"Unable to begin transaction on database.");
-    }
+    errorHandler(rc, "Begin transaction", false);
 }
 
 // commit transaction
@@ -576,12 +545,7 @@ void SqliteDbTable::commit()
     LOG_debug << "DB transaction COMMIT " << dbfile;
 
     int rc = sqlite3_exec(db, "COMMIT", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to commit transaction on database: " << dbfile << err;
-        assert(!"Unable to commit transaction on database.");
-    }
+    errorHandler(rc, "Commit transaction", false);
 }
 
 // abort transaction
@@ -595,12 +559,7 @@ void SqliteDbTable::abort()
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
 
     int rc = sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
-    if (rc != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to rollback transaction on database: " << dbfile << err;
-        assert(!"Unable to rollback transaction on database.");
-    }
+    errorHandler(rc, "Rollback", false);
 }
 
 void SqliteDbTable::remove()
@@ -629,8 +588,51 @@ void SqliteDbTable::remove()
     fsaccess->unlinklocal(dbfile);
 }
 
-SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
-    : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
+void SqliteDbTable::errorHandler(int sqliteError, const string& operation, bool interrupt)
+{
+    DBError dbError = DBError::DB_ERROR_UNKNOWN;
+    switch (sqliteError)
+    {
+    case SQLITE_OK:
+    case SQLITE_ROW:
+    case SQLITE_DONE:
+        return;
+
+    case SQLITE_INTERRUPT:
+        if (interrupt)
+        {
+            // SQLITE_INTERRUPT isn't handle as an error if caller can be interrupted
+            LOG_debug <<  operation << ": interrupted";
+            return;
+        }
+        break;
+
+    case SQLITE_FULL:
+        dbError = DBError::DB_ERROR_FULL;
+        break;
+
+    case SQLITE_IOERR:
+        dbError = DBError::DB_ERROR_IO;
+        break;
+
+    default:
+        dbError = DBError::DB_ERROR_UNKNOWN;
+        break;
+    }
+
+    string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqliteError));
+    LOG_err << operation << ": " << dbfile << err;
+    assert(!operation.c_str());
+
+    if (mDBErrorCallBack && dbError != DBError::DB_ERROR_UNKNOWN)
+    {
+        // Only notify DB errors related to disk-is-full and input/output failures
+        mDBErrorCallBack(dbError);
+    }
+}
+
+SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
+    : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted, dBErrorCallBack)
 {
 }
 
@@ -674,18 +676,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         }
     }
 
-    if (sqlResult != SQLITE_DONE)
-    {
-        if (sqlResult == SQLITE_INTERRUPT)
-        {
-            LOG_debug << "Unable to processSqlQueryNodes, running the query has been interrupted";
-        }
-        else
-        {
-            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-            LOG_err << "Unable to processSqlQueryNodes for database: " << dbfile << err;
-        }
-    }
+    errorHandler(sqlResult, "Process sql query", true);
 
     return sqlResult == SQLITE_DONE;
 }
@@ -701,15 +692,10 @@ bool SqliteAccountState::remove(NodeHandle nodehandle)
 
     char buf[64];
 
-    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
+    snprintf(buf, sizeof(buf), "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle.as8byte());
 
     int sqlResult = sqlite3_exec(db, buf, 0, 0, NULL);
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to remove a node from database: " << dbfile << err;
-        assert(!"Unable to remove a node from database.");
-    }
+    errorHandler(sqlResult, "Delete node", false);
 
     return sqlResult == SQLITE_OK;
 }
@@ -724,12 +710,7 @@ bool SqliteAccountState::removeNodes()
     checkTransaction();
 
     int sqlResult = sqlite3_exec(db, "DELETE FROM nodes", 0, 0, NULL);
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to remove all nodes from database: " << dbfile << err;
-        assert(!"Unable to remove all nodes from database.");
-    }
+    errorHandler(sqlResult, "Delete nodes", false);
 
     return sqlResult == SQLITE_OK;
 }
@@ -761,12 +742,7 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
 
     }
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to update counter in database: " << dbfile << err;
-        assert(!"Unable to update counter in database: ");
-    }
+    errorHandler(sqlResult, "Update counter", false);
 
     sqlite3_reset(mStmtUpdateNode);
 }
@@ -800,12 +776,7 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
         }
     }
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to update counter and flags in database: " << dbfile << err;
-        assert(!"Unable to update counter and flags in database: ");
-    }
+    errorHandler(sqlResult, "Update counter and flags", false);
 
     sqlite3_reset(mStmtUpdateNodeAndFlags);
 }
@@ -847,7 +818,6 @@ void SqliteAccountState::createIndexes()
         LOG_err << "Data base error while creating index (shareindex): " << sqlite3_errmsg(db);
     }
 
-
     sql = "CREATE INDEX IF NOT EXISTS favindex on nodes (fav)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -874,13 +844,13 @@ void SqliteAccountState::finalise()
 {
     sqlite3_finalize(mStmtPutNode);
     mStmtPutNode = nullptr;
-    
+
     sqlite3_finalize(mStmtUpdateNode);
     mStmtUpdateNode = nullptr;
 
     sqlite3_finalize(mStmtUpdateNodeAndFlags);
     mStmtUpdateNodeAndFlags = nullptr;
- 
+
     sqlite3_finalize(mStmtTypeAndSizeNode);
     mStmtTypeAndSizeNode = nullptr;
 
@@ -995,12 +965,7 @@ bool SqliteAccountState::put(Node *node)
         sqlResult = sqlite3_step(mStmtPutNode);
     }
 
-    if (sqlResult != SQLITE_DONE)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to put a node from database: " << dbfile << err;
-        assert(!"Unable to put a node from database.");
-    }
+    errorHandler(sqlResult, "Put node", false);
 
     sqlite3_reset(mStmtPutNode);
 
@@ -1047,9 +1012,7 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get a node from database: " << dbfile << err;
-        assert(!"Unable to get a node from database.");
+        errorHandler(sqlResult, "Get node", false);
     }
 
     sqlite3_reset(mStmtGetNode);
@@ -1071,7 +1034,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &mStmtNodeByOrigFp, NULL);
     }
 
-    bool result = false;    
+    bool result = false;
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_blob(mStmtNodeByOrigFp, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
@@ -1080,12 +1043,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by origfingerprint from database: " << dbfile << err;
-        assert(!"Unable to get nodes by origfingerprint from database.");
-    }
+    errorHandler(sqlResult, "Get node by orig fingerprint", false);
 
     sqlite3_reset(mStmtNodeByOrigFp);
 
@@ -1113,12 +1071,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get root nodes from database: " << dbfile << err;
-        assert(!"Unable to get root nodes from database.");
-    }
+    errorHandler(sqlResult, "Get root nodes", false);
 
     sqlite3_finalize(stmt);
 
@@ -1143,12 +1096,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         }
     }
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get root nodes from database: " << dbfile << err;
-        assert(!"Unable to get root nodes from database.");
-    }
+    errorHandler(sqlResult, "Get nodes with shares or link", false);
 
     sqlite3_finalize(stmt);
 
@@ -1185,14 +1133,9 @@ bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::p
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    sqlite3_reset(mStmtChildren);
+    errorHandler(sqlResult, "Get children", true);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get children from database: " << dbfile << err;
-        assert(!"Unable to get children from database.");
-    }
+    sqlite3_reset(mStmtChildren);
 
     return result;
 }
@@ -1231,14 +1174,9 @@ bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    sqlite3_reset(mStmtChildrenFromType);
+    errorHandler(sqlResult, "Get children from type", true);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get children from database from type: " << dbfile << err;
-        assert(!"Unable to get children from database from type.");
-    }
+    sqlite3_reset(mStmtChildrenFromType);
 
     return result;
 }
@@ -1268,14 +1206,9 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
         }
     }
 
-    sqlite3_reset(mStmtNumChildren);
+    errorHandler(sqlResult, "Get number of children", false);
 
-    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get number of children from database: " << dbfile << err;
-        assert(!"Unable to get number of children from database.");
-    }
+    sqlite3_reset(mStmtNumChildren);
 
     return numChildren;
 }
@@ -1300,12 +1233,9 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
         uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION);
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.flags & " + std::to_string(excludeFlags) + " = 0 AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByName, NULL);
     }
@@ -1323,12 +1253,7 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
-        assert(!"Unable to get nodes by name from database.");
-    }
+    errorHandler(sqlResult, "Search nodes by name", true);
 
     sqlite3_reset(mStmtNodeByName);
 
@@ -1354,12 +1279,9 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
     {
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.parenthandle = ? AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.parenthandle = ? AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByNameNoRecursive, NULL);
     }
@@ -1380,12 +1302,7 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
     // unregister the handler (no-op if not registered)
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
-    if (sqlResult != SQLITE_OK)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by name from database without recursion: " << dbfile << err;
-        assert(!"Unable to get nodes by name from database without recursion.");
-    }
+    errorHandler(sqlResult, "Search nodes by name without recursion", true);
 
     sqlite3_reset(mStmtNodeByNameNoRecursive);
 
@@ -1411,12 +1328,9 @@ bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, 
     {
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
-                               "WHERE n1.share = ? AND LOWER(n1.name) GLOB LOWER(?)";
+                               "WHERE n1.share = ? AND n1.name REGEXP ?";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // GLOB is case sensitive
-        //
-        // If we want to add support to names in UTF-8, a new
-        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+        // Our REGEXP implementation is case insensitive
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtInShareOutShareByName, NULL);
     }
@@ -1439,9 +1353,7 @@ bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, 
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get in-shares/out-shares by name from database: " << dbfile << err;
-        assert(!"Unable to get in-shares/out-shares by name from database: ");
+        errorHandler(sqlResult, "Search shares or link by name", true);
     }
 
     sqlite3_reset(mStmtInShareOutShareByName);
@@ -1473,9 +1385,7 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by fingerprint from database: " << dbfile << err;
-        assert(!"Unable to get nodes by fingerprint from database.");
+        errorHandler(sqlResult, "get nodes by fingerprint", false);
     }
 
     sqlite3_reset(mStmtNodesByFp);
@@ -1513,9 +1423,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by fingerprint from database: " << dbfile << err;
-        assert(!"Unable to get nodes by fingerprint from database.");
+        errorHandler(sqlResult, "Get node by fingerprint", false);
     }
 
     sqlite3_reset(mStmtNodeByFp);
@@ -1529,7 +1437,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     {
         return false;
     }
-    
+
     const std::string filenode = std::to_string(FILENODE);
     uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
     std::string sqlQuery =  "SELECT n1.nodehandle, n1.counter, n1.node "
@@ -1559,8 +1467,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
 
     if (sqlResult != SQLITE_OK)
     {
-        std::string err = std::string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get recent nodes from database: " << dbfile << err;
+        errorHandler(sqlResult, "Get recent nodes", false);
     }
 
     sqlite3_reset(mStmtRecents);
@@ -1601,9 +1508,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
 
     if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get favourites from database: " << dbfile << err;
-        assert(!"Unable to get favourites from database.");
+        errorHandler(sqlResult, "Get favourites handles", false);
     }
 
     sqlite3_reset(mStmtFavourites);
@@ -1650,9 +1555,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by name and type from database: " << dbfile << err;
-        assert(!"Unable to get node by name from database (Only search at first level).");
+        errorHandler(sqlResult, "Get nodes by name and type", false);
     }
 
     sqlite3_reset(mStmtChildNode);
@@ -1688,9 +1591,7 @@ bool SqliteAccountState::getNodeSizeTypeAndFlags(NodeHandle node, m_off_t& size,
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node type and size from database: " << dbfile << err;
-        assert(!"Unable to get node type and size from database.");
+        errorHandler(sqlResult, "Get nodes by name, type and flags", false);
     }
 
     sqlite3_reset(mStmtTypeAndSizeNode);
@@ -1742,15 +1643,7 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        if (sqlResult == SQLITE_INTERRUPT)
-        {
-            LOG_debug << "Unable to get `isAncestor`, running the query has been interrupted";
-        }
-        else
-        {
-            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-            LOG_err << "Unable to get `isAncestor` from database: " << dbfile << err;
-        }
+        errorHandler(sqlResult, "Is ancestor", true);
     }
 
     sqlite3_reset(mStmtIsAncestor);
@@ -1778,9 +1671,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
 
     if (sqlResult != SQLITE_ROW)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get number of nodes from database: " << dbfile << err;
-        assert(!"Unable to get number of nodes from database.");
+        errorHandler(sqlResult, "Get number of nodes", false);
     }
 
     sqlite3_finalize(stmt);
@@ -1818,9 +1709,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
 
     if (sqlResult != SQLITE_ROW)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get number of children of type from database: " << dbfile << err;
-        assert(!"Unable to get number of children of type from database.");
+        errorHandler(sqlResult, "Get number of children by type", false);
     }
 
     sqlite3_reset(mStmtNumChild);
@@ -1866,16 +1755,13 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node by Mime type from database: " << dbfile << err;
-        assert(!"Unable to get node by Mime type from database.");
+        errorHandler(sqlResult, "Get nodes by mime type", true);
     }
 
     sqlite3_reset(mStmtNodeByMimeType);
 
     return result;
 }
-
 
 bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
@@ -1894,7 +1780,7 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
     bool result = false;
     int sqlResult = SQLITE_OK;
-    
+
     if (!mStmtNodeByMimeTypeExcludeRecursiveFlags)
     {
         // recursive query from ancestorHandle
@@ -1911,7 +1797,7 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
     }
-    
+
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int64(mStmtNodeByMimeTypeExcludeRecursiveFlags, 1, ancestorHandle.as8byte())) == SQLITE_OK &&
@@ -1930,14 +1816,156 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
 
     if (sqlResult != SQLITE_OK)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node by Mime type excluding recursive flags from database: " << dbfile << err;
-        assert(!"Unable to get node by Mime type excluding recursive flags from database.");
+        errorHandler(sqlResult, "Get by mime type exclusive recurisve", true);
     }
 
     sqlite3_reset(mStmtNodeByMimeTypeExcludeRecursiveFlags);
 
     return result;
+}
+
+void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for user Regexp";
+        assert(false);
+        return;
+    }
+
+    const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (dataBaseName && pattern)
+    {
+        int result = SqliteAccountState::icuLikeCompare(pattern, dataBaseName, 0);
+        sqlite3_result_int(context, result);
+    }
+}
+
+// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
+
+/*
+** This lookup table is used to help decode the first byte of
+** a multi-byte UTF8 character. It is copied here from SQLite source
+** code file utf8.c.
+*/
+static const unsigned char icuUtf8Trans1[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
+};
+
+#define SQLITE_ICU_READ_UTF8(zIn, c)                      \
+    c = *(zIn++);                                         \
+    if (c>=0xc0){                                         \
+    c = icuUtf8Trans1[c-0xc0];                            \
+    while ((*zIn & 0xc0)==0x80){                          \
+    c = (c<<6) + (0x3f & *(zIn++));                       \
+}                                                         \
+}
+
+#define SQLITE_ICU_SKIP_UTF8(zIn)                        \
+    assert(*zIn);                                        \
+    if (*(zIn++)>=0xc0){                                 \
+    while ((*zIn & 0xc0)==0x80){zIn++;}                  \
+}
+
+
+int SqliteAccountState::icuLikeCompare(
+        const uint8_t *zPattern,   // LIKE pattern
+        const uint8_t *zString,    // The UTF-8 string to compare against
+        const UChar32 uEsc)         // The escape character
+{
+    // Define Linux wildcards
+    static const uint32_t MATCH_ONE = (uint32_t)'?';
+    static const uint32_t MATCH_ALL = (uint32_t)'*';
+
+    int prevEscape = 0;     //True if the previous character was uEsc
+
+    while (1)
+    {
+        // Read (and consume) the next character from the input pattern.
+        uint32_t uPattern;
+        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
+        if(uPattern == 0)
+            break;
+
+        /* There are now 4 possibilities:
+        **
+        **     1. uPattern is an unescaped match-all character "*",
+        **     2. uPattern is an unescaped match-one character "?",
+        **     3. uPattern is an unescaped escape character, or
+        **     4. uPattern is to be handled as an ordinary character
+        */
+        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 1
+            uint8_t c;
+
+            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
+            // MATCH_ALL. For each MATCH_ONE, skip one character in the
+            // test string
+            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
+            {
+                if (c == MATCH_ONE)
+                {
+                    if (*zString == 0) return 0;
+                    SQLITE_ICU_SKIP_UTF8(zString);
+                }
+
+                zPattern++;
+            }
+
+            if (*zPattern == 0)
+                return 1;
+
+            while (*zString)
+            {
+                if (icuLikeCompare(zPattern, zString, uEsc))
+                {
+                    return 1;
+                }
+
+                SQLITE_ICU_SKIP_UTF8(zString);
+            }
+
+            return 0;
+        }
+        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 2
+            if( *zString==0 ) return 0;
+            SQLITE_ICU_SKIP_UTF8(zString);
+
+        }
+        else if (uPattern == (uint32_t)uEsc && !prevEscape)
+        {
+            // Case 3
+            prevEscape = 1;
+
+        }
+        else
+        {
+            // Case 4
+            uint32_t uString;
+            SQLITE_ICU_READ_UTF8(zString, uString);
+            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
+            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
+            if (uString != uPattern)
+            {
+                return 0;
+            }
+
+            prevEscape = 0;
+        }
+    }
+
+    return *zString == 0;
 }
 
 } // namespace

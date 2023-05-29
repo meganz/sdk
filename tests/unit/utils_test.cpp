@@ -437,6 +437,22 @@ TEST(Conversion, HexVal)
     }
 }
 
+TEST(URLCodec, Escape)
+{
+    string input = "abc123!@#$%^&*()";
+    string output;
+
+    URLCodec::escape(&input, &output);
+    EXPECT_EQ(output, "abc123%21%40%23%24%25%5e%26%2a%28%29");
+
+    string input2 = "EF字幕组 编织记忆 stitchers S02E10.mp4";
+    string output2;
+
+    URLCodec::escape(&input2, &output2);
+    EXPECT_EQ(output2, "EF%e5%ad%97%e5%b9%95%e7%bb%84%20%e7%bc%96%e7%bb%87%e8%ae%b0%e5%bf%86%20stitchers%20S02E10.mp4");
+}
+
+
 TEST(URLCodec, Unescape)
 {
     string input = "a%4a%4Bc";
@@ -626,7 +642,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
     // Create a new database.
-    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
 
     // Was the database created successfully?
     ASSERT_TRUE(!!dbTable);
@@ -644,7 +660,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
         ASSERT_TRUE(!!dbTable);
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -655,7 +671,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name, 0, nullptr));
     EXPECT_TRUE(!!dbTable);
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -673,7 +689,7 @@ TEST_F(SqliteDBTest, ProbeCurrent)
                                 DbAccess::DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -691,7 +707,7 @@ TEST_F(SqliteDBTest, ProbeLegacy)
                                 DbAccess::LEGACY_DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -934,7 +950,7 @@ public:
 
         auto fileAccess = mFsAccess.newfileaccess(false);
 
-        return fileAccess->fopen(path, false, true)
+        return fileAccess->fopen(path, false, true, FSLogging::logOnError)
                && fileAccess->fwrite(&data, 1, 0);
     }
 
@@ -1027,4 +1043,51 @@ TEST_F(TooLongNameTest, Rename)
         ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
+}
+
+class SprintfTest
+    : public ::testing::Test
+{
+};
+
+TEST_F(SprintfTest, nulTerminateWhenBufferFull)
+{
+    const char* countToSix = "123456";
+    // g++ detects if we don't use a variable
+
+    char buf[3] = { 'x', 'x', 'x' };
+    // with macro commented out
+    snprintf(buf, 3, "%s", countToSix);
+    ASSERT_EQ(buf[0], '1');
+    ASSERT_EQ(buf[1], '2');
+    ASSERT_EQ(buf[2], '\0');
+
+    snprintf(buf, 3, "%s", countToSix);
+}
+
+TEST_F(SprintfTest, Multiple) {
+
+    char ebuf[7];
+    snprintf(ebuf, sizeof ebuf, "%s", "1234");
+    // technique developed to used snprintf()
+    char* ptr = strchr(ebuf, 0);
+    snprintf(ptr, sizeof ebuf - (ptr - ebuf), "%s", "ABCDEFGH");
+    ASSERT_EQ(ebuf[0], '1');
+    ASSERT_EQ(ebuf[1], '2');
+    ASSERT_EQ(ebuf[2], '3');
+    ASSERT_EQ(ebuf[3], '4');
+    ASSERT_EQ(ebuf[4], 'A');
+    ASSERT_EQ(ebuf[5], 'B');
+    ASSERT_EQ(ebuf[6], '\0');
+}
+
+TEST_F(SprintfTest, ResizeAndPrint) {
+
+    unsigned int price = 120;
+    string sprice;
+    sprice.resize(128);
+    snprintf(const_cast<char*>(sprice.data()), sprice.length(), "%.2f", price / 100.0);
+    replace(sprice.begin(), sprice.end(), ',', '.');
+    // sprince = "1.20\0\0\0\..."
+    ASSERT_EQ((string)sprice.c_str(), "1.20");
 }

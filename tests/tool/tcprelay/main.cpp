@@ -98,7 +98,7 @@ struct RelayRunner
             [this](unique_ptr<TcpRelay> p)
         {
             lock_guard<mutex> g(relaycollectionmutex);
-            acceptedrelays.emplace_back(move(p));
+            acceptedrelays.emplace_back(std::move(p));
             cout << acceptedrelays.back()->reporting_name << " acceptor is #" << (acceptedrelays.size() - 1) << endl;
         }));
 

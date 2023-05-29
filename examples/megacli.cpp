@@ -64,11 +64,6 @@
 #include <winioctl.h>
 #endif
 
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-#include "mega/rotativeperformancelogger.h"
-#endif
-
-
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -252,6 +247,11 @@ const char* errorstring(error e)
     }
 }
 
+string verboseErrorString(error e)
+{
+    return (string("Error message: ") + errorstring(e)
+            + string(" (error code ") + std::to_string(e) + ")");
+}
 
 struct ConsoleLock
 {
@@ -390,13 +390,14 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    if (appxfer_it != appfile_list::iterator())
+    if (appxfer_it != appxferq[GET].end())
         appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
 {
-    appxferq[PUT].erase(appxfer_it);
+    if (appxfer_it != appxferq[PUT].end())
+        appxferq[PUT].erase(appxfer_it);
 }
 
 void AppFilePut::displayname(string* dname)
@@ -577,6 +578,8 @@ static const char* treestatename(treestate_t ts)
             return "Pending";
         case TREESTATE_SYNCING:
             return "Syncing";
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";
@@ -616,6 +619,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
+    appxfer_it = appxferq[GET].end();
+
     if (n)
     {
         h = n->nodeHandle();
@@ -655,6 +660,8 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
+    appxfer_it = appxferq[PUT].end();
+
     // full local path
     setLocalname(clocalname);
 
@@ -1254,21 +1261,11 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (gVerboseMode)
     {
         cout << "Received " << l << " byte(s) of user attribute: ";
@@ -1301,11 +1298,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-    if (client->fetchingkeys)
-    {
-        return;
-    }
-
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
@@ -2228,10 +2220,10 @@ int loadfile(LocalPath& localPath, string* data)
 {
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localPath, 1, 0))
+    if (fa->fopen(localPath, 1, 0, FSLogging::logOnError))
     {
         data->resize(size_t(fa->size));
-        fa->fread(data, unsigned(data->size()), 0, 0);
+        fa->fread(data, unsigned(data->size()), 0, 0, FSLogging::logOnError);
         return 1;
     }
     return 0;
@@ -2617,7 +2609,7 @@ public:
     }
 
     // process file credentials
-    bool procresult(Result r) override
+    bool procresult(Result r, JSON& json) override
     {
         if (!r.wasErrorOrOK())
         {
@@ -2625,25 +2617,25 @@ public:
             bool done = false;
             while (!done)
             {
-                switch (client->json.getnameid())
+                switch (json.getnameid())
                 {
                 case EOO:
                     done = true;
                     break;
 
                 case 'g':
-                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    if (json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
                         for (;;)
                         {
                             std::string tu;
-                            if (!client->json.storeobject(&tu))
+                            if (!json.storeobject(&tu))
                             {
                                 break;
                             }
                             tempurls.push_back(tu);
                         }
-                        client->json.leavearray();
+                        json.leavearray();
                         if (tempurls.size() == 6)
                         {
                             if (Node* n = client->nodebyhandle(h))
@@ -2661,7 +2653,7 @@ public:
                     // fall-through
 
                 default:
-                    client->json.storeobject();
+                    json.storeobject();
                 }
             }
         }
@@ -3310,9 +3302,10 @@ void exec_getuserquota(autocomplete::ACState& s)
     client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
-void exec_getuserdata(autocomplete::ACState& s)
+void exec_getuserdata(autocomplete::ACState&)
 {
-    client->getuserdata(client->reqtag);
+    if (client->loggedin()) client->getuserdata(client->reqtag);
+    else client->getmiscflags();
 }
 
 void exec_querytransferquota(autocomplete::ACState& ac)
@@ -3462,7 +3455,7 @@ void exec_fingerprint(autocomplete::ACState& s)
     auto localfilepath = localPathArg(s.words[1].s);
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localfilepath, true, false, nullptr))
+    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError, nullptr))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -3533,7 +3526,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
     // perform get in both cases
     auto fa = client->fsaccess->newfileaccess();
-    if (fa->fopen(localfilepath, true, false))
+    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -3789,7 +3782,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                e = client->unlink(backupRootNode, false, 0, true, move(completion));
+                e = client->unlink(backupRootNode, false, 0, true, std::move(completion));
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
@@ -3806,7 +3799,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, std::move(completion), true));
             }
         }
     };
@@ -3828,7 +3821,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                 sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
                 const string& sdsValue = Node::toSdsString(sdsBkps);
 
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), move(attrCompl), true);
+                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), std::move(attrCompl), true);
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
@@ -3970,57 +3963,6 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-}
-
-class AnomalyReporter
-    : public FilenameAnomalyReporter
-{
-public:
-    void anomalyDetected(FilenameAnomalyType type,
-                            const LocalPath& localPath,
-                            const string& remotePath) override
-    {
-        string typeName;
-
-        switch (type)
-        {
-        case FILENAME_ANOMALY_NAME_MISMATCH:
-            typeName = "NAME_MISMATCH";
-            break;
-        case FILENAME_ANOMALY_NAME_RESERVED:
-            typeName = "NAME_RESERVED";
-            break;
-        default:
-            assert(!"Unknown anomaly type!");
-            typeName = "UNKNOWN";
-            break;
-        }
-
-        cout << "Filename anomaly detected: type: "
-                << typeName
-                << ": local path: "
-                << localPath.toPath(false)
-                << ": remote path: "
-                << remotePath
-                << endl;
-    }
-}; // AnomalyReporter
-
-void exec_logFilenameAnomalies(autocomplete::ACState& s)
-{
-    unique_ptr<FilenameAnomalyReporter> reporter;
-
-    if (s.words[1].s == "on")
-    {
-        reporter.reset(new AnomalyReporter());
-    }
-
-    cout << "Filename anomaly reporting is "
-         << (reporter ? "en" : "dis")
-         << "abled."
-         << endl;
-
-    client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -4244,6 +4186,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_ipc, sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i"))));
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(exec_getemail, sequence(text("getemail"), param("handle_b64")));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
                                                                           text("del"),
@@ -4266,6 +4209,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_manualverif, sequence(text("verification"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -4281,9 +4225,6 @@ autocomplete::ACN autocompleteSyntax()
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
                 opt(either(flag("-console"), flag("-noconsole"))),
                 opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-                ,opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
-#endif
                 ));
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -4380,9 +4321,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_logFilenameAnomalies,
-           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
-
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
     p->Add(exec_driveid,
@@ -4401,12 +4339,17 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("newset"), opt(param("name"))),
                         sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
-                        sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("removeelement"), param("sid"), param("eid"))
+                        sequence(text("removeelement"), param("sid"), param("eid")),
+                        sequence(text("export"), param("sid"), opt(flag("-disable"))),
+                        sequence(text("getpubliclink"), param("sid")),
+                        sequence(text("fetchpublicset"), param("publicsetlink")),
+                        text("getsetinpreview"),
+                        text("stoppublicsetpreview"),
+                        sequence(text("downloadelement"), param("sid"), param("eid"))
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
@@ -5073,7 +5016,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++, false);
+                client->putnodes(tn->nodeHandle(), vo, std::move(tc.nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -5081,7 +5024,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), move(tc.nn), gNextClientTag++);
+                    client->putnodes(targetuser.c_str(), std::move(tc.nn), gNextClientTag++);
                 }
                 else
                 {
@@ -5208,12 +5151,12 @@ void exec_get(autocomplete::ACState& s)
     {
         handle ph = UNDEF;
         byte key[FILENODEKEYLENGTH];
-        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
+        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, TypeOfLink::FILE) == API_OK)
         {
             cout << "Checking link..." << endl;
 
             client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
                 {
@@ -5253,7 +5196,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5377,7 +5320,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     if (type == FILENODE)
     {
         auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(localname, true, false))
+        if (fa->fopen(localname, true, false, FSLogging::logOnError))
         {
             FileFingerprint fp;
             fp.genfingerprint(fa.get());
@@ -5440,7 +5383,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
                 uploadLocalFolderContent(tmp, parent, vo, true);
             };
 
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+            client->putnodes(parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
         }
     }
 }
@@ -5456,7 +5399,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
 #ifndef DONT_USE_SCAN_SERVICE
 
     auto fa = client->fsaccess->newfileaccess();
-    fa->fopen(localname);
+    fa->fopen(localname, FSLogging::logOnError);
     if (fa->type != FOLDERNODE)
     {
         cout << "Path is not a folder: " << localname.toPath(false);
@@ -6075,6 +6018,28 @@ void exec_share(autocomplete::ACState& s)
     }
 }
 
+void exec_getemail(autocomplete::ACState& s)
+{
+    if (!client->loggedin())
+    {
+        cout << "Must be logged in to fetch user emails" << endl;
+        return;
+    }
+
+    client->getUserEmail(s.words[1].s.c_str());
+}
+void DemoApp::getuseremail_result(string *email, error e)
+{
+    if (e)
+    {
+        cout << "Failed to retrieve email: " << e << endl;
+    }
+    else
+    {
+        cout << "Email: " << email << endl;
+    }
+}
+
 void exec_users(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
@@ -6177,7 +6142,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname, false);
-                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6187,7 +6152,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname, false);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -6501,68 +6466,6 @@ void exec_debug(autocomplete::ACState& s)
             }
         }
     }
-#ifdef USE_ROTATIVEPERFORMANCELOGGER
-    string rpl_filename;
-    string rpl_toconsole;
-    if (s.extractflagparam("-rotative_performance_logger_file", rpl_filename))
-    {
-        bool toconsole = s.extractflag("-rotative_performance_logger_toconsole");
-
-        bool exerciseOutput = s.extractflag("-rotative_performance_logger_exerciseOutput");
-
-        // singletons...
-        RotativePerformanceLogger::Instance().initialize(".", rpl_filename.c_str(), toconsole);
-
-        if (exerciseOutput)
-        {
-            // two competing threads, both logging, so we're not just paused during gzipping
-
-            new std::thread([](){
-                std::map<long, int> fps;
-
-                auto start = std::chrono::high_resolution_clock::now();
-                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
-                {
-                    LOG_info << "Logging from thread 1" ;
-                    fps[long(m_time())]++;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
-                }
-                auto cl = conlock(cout);
-                cl << "thread 1:";
-                for (auto& n : fps) cl << " " << n.second;
-                cl << "\n";
-            });
-
-
-            new std::thread([](){
-                std::map<long, int> fps;
-
-                auto start = std::chrono::high_resolution_clock::now();
-                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
-                {
-                    LOG_info << "Logging from thread 2" ;
-                    fps[long(m_time())]++;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
-                }
-                auto cl = conlock(cout);
-                cl << "thread 2:";
-                for (auto& n : fps) cl << " " << n.second;
-                cl << "\n";
-            });
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-            string dm(99999999, 'x');
-            for (int i = 0 ; i < 30 ; i++)
-            {
-                LOG_err << DirectMessage(dm.c_str());
-            }
-
-
-        }
-
-    }
-#endif
-
 
     cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
@@ -7274,11 +7177,11 @@ void exec_decryptLink(autocomplete::ACState &s)
     error e = client->decryptlink(link.c_str(), password.c_str(), &decryptedLink);
     if (e)
     {
-        cout << "Failed to encrypt link: " << errorstring(e) << endl;
+        cout << "Failed to decrypt link: " << errorstring(e) << endl;
     }
     else
     {
-        cout << "Password encrypted link: " << decryptedLink << endl;
+        cout << "Decrypted link: " << decryptedLink << endl;
     }
 
 }
@@ -7287,7 +7190,7 @@ void exec_import(autocomplete::ACState& s)
 {
     handle ph = UNDEF;
     byte key[FILENODEKEYLENGTH];
-    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, false);
+    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, TypeOfLink::FILE);
     if (e == API_OK)
     {
         cout << "Opening link..." << endl;
@@ -7304,8 +7207,8 @@ void exec_folderlinkinfo(autocomplete::ACState& s)
     publiclink = s.words[1].s;
 
     handle ph = UNDEF;
-    byte folderkey[SymmCipher::KEYLENGTH];
-    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, true) == API_OK)
+    byte folderkey[FOLDERNODEKEYLENGTH];
+    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, TypeOfLink::FOLDER) == API_OK)
     {
         cout << "Loading public folder link info..." << endl;
         client->getpubliclinkinfo(ph);
@@ -8762,13 +8665,14 @@ void exportnode_result(Error e, handle h, handle ph)
         }
 
         string publicLink;
+        TypeOfLink lType = client->validTypeForPublicURL(n->type);
         if (n->type == FILENODE)
         {
-            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, lType, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
+            publicLink = MegaClient::publicLinkURL(client->mNewLinkFormat, lType, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
 
         cout << publicLink;
@@ -8919,7 +8823,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag, false);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, client->restag, false);
     }
     else
     {
@@ -8943,7 +8847,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     #ifndef NDEBUG
     error eaux =
     #endif
-    client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
+    client->parsepubliclink(publiclink.c_str(), ph, folderkey, TypeOfLink::FOLDER);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link
@@ -9059,9 +8963,9 @@ dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dsti
 }
 
 // reload needed
-void DemoApp::reload(const char* reason, ReasonsToReload reasonToReload)
+void DemoApp::notifyError(const char* reason, ErrorReason errorReason)
 {
-    cout << "Reload suggested (" << reason << ") - use 'reload' to trigger" << endl;
+    cout << "Error has been detected: " << errorReason << " (" << reason << ")" << endl;
 }
 
 void DemoApp::reloading()
@@ -9144,7 +9048,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-// set addition/update/removal
+// set addition/update/removal/export {en|dis}able/
 void DemoApp::sets_updated(Set** s, int count)
 {
     cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
@@ -9158,6 +9062,10 @@ void DemoApp::sets_updated(Set** s, int count)
         if (set->hasChanged(Set::CH_NEW))
         {
             cout << " has been added";
+        }
+        if (set->hasChanged(Set::CH_EXPORTED))
+        {
+            cout << " export has been " << (set->publicId() == UNDEF ? "dis" : "en") << "abled";
         }
         else if (set->hasChanged(Set::CH_REMOVED))
         {
@@ -9948,8 +9856,6 @@ int main(int argc, char* argv[])
 
     clientFolder = NULL;    // additional for folder links
 
-    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
-
     megacli();
 
     delete client;
@@ -10078,7 +9984,7 @@ void exec_metamac(autocomplete::ACState& s)
     auto ifAccess = client->fsaccess->newfileaccess();
     {
         auto localPath = localPathArg(s.words[1].s);
-        if (!ifAccess->fopen(localPath, 1, 0))
+        if (!ifAccess->fopen(localPath, 1, 0, FSLogging::logOnError))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
             return;
@@ -10199,7 +10105,7 @@ void exec_syncadd(autocomplete::ACState& s)
             NodeHandle(),
             string(),
             0,
-            move(drivePath),
+            std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
@@ -10221,7 +10127,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(move(config), false, sync_completion, "");
+        client->addsync(std::move(config), false, sync_completion, "");
     }
 
     else // backup
@@ -10250,7 +10156,7 @@ void exec_syncadd(autocomplete::ACState& s)
             }
             else
             {
-                client->addsync(move(sc), false, [revertOnError](error e, SyncError se, handle h){
+                client->addsync(std::move(sc), false, [revertOnError](error e, SyncError se, handle h){
 
                     if (e != API_OK)
                     {
@@ -10712,6 +10618,7 @@ void printSet(const Set* s)
     }
 
     cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;
@@ -10720,7 +10627,7 @@ void printSet(const Set* s)
     cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
     cout << endl;
 }
-void printElements(const map<handle, SetElement>* elems)
+void printElements(const elementsmap_t* elems)
 {
     if (!elems)
     {
@@ -10744,15 +10651,30 @@ void printElements(const map<handle, SetElement>* elems)
 
 void exec_setsandelements(autocomplete::ACState& s)
 {
-    // Are we logged in?
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to manipulate Sets."
-             << endl;
-        return;
-    }
+    static const set<string> nonLoggedInCmds {"fetchpublicset",
+                                              "getsetinpreview",
+                                              "downloadelement",
+                                              "stoppublicsetpreview"
+                                             };
 
     const auto command = s.words[1].s;
+    const auto commandRequiresLoggingIn = [&command]() -> bool
+    {
+        return nonLoggedInCmds.find(command) == nonLoggedInCmds.end(); // contains is C++20
+    };
+    const auto isClientLoggedIn = []() -> bool
+    {
+        return client->loggedin() == FULLACCOUNT;
+    };
+
+    // Are we logged in?
+    if (commandRequiresLoggingIn() && !isClientLoggedIn())
+    {
+        cerr << "You must be logged in to manipulate Sets. "
+             << "Except for the following commands:\n";
+        for (const auto& c : nonLoggedInCmds) cerr << "\t" << c << "\n";
+        return;
+    }
 
     if (command == "list")
     {
@@ -10773,7 +10695,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             newset.setName(name);
         }
 
-        client->putSet(move(newset), [](Error e, const Set* s)
+        client->putSet(std::move(newset), [](Error e, const Set* s)
             {
                 if (e == API_OK && s)
                 {
@@ -10797,7 +10719,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         string buf;
         if (s.extractflagparam("-n", buf) || s.extractflag("-n"))
         {
-            updset.setName(move(buf));
+            updset.setName(std::move(buf));
         }
         buf.clear();
         if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
@@ -10814,7 +10736,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
         }
 
-        client->putSet(move(updset), [id](Error e, const Set*)
+        client->putSet(std::move(updset), [id](Error e, const Set*)
             {
                 if (e == API_OK)
                 {
@@ -10843,24 +10765,21 @@ void exec_setsandelements(autocomplete::ACState& s)
             });
     }
 
-    else if (command == "fetchset")
+    else if (command == "getsetinpreview")
     {
-        handle id = 0; // must have remaining bits set to 0
-        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-
-        client->fetchSet(id, [id](Error e, Set* s, map<handle, SetElement>* els)
-            {
-                if (e == API_OK)
-                {
-                    cout << "Fetched Set " << toHandle(id) << endl;
-                    printSet(s);
-                    printElements(els);
-                }
-                else
-                {
-                    cout << "Error fetching Set " << toHandle(id) << ' ' << e << endl;
-                }
-            });
+        if (!client->inPublicSetPreview())
+        {
+            cout << "Not in Public Set Preview currently\n";
+            return;
+        }
+        const Set* ps = client->getPreviewSet();
+        if (ps)
+        {
+            cout << "Fetched Set successfully\n";
+            printSet(ps);
+            printElements(client->getPreviewSetElements());
+        }
+        else cout << "Error getting Set from preview: No Set received\n";
     }
 
     else if (command == "removeelement")
@@ -10876,6 +10795,160 @@ void exec_setsandelements(autocomplete::ACState& s)
                 else
                     cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
             });
+    }
+
+    else if (command == "export")
+    {
+        handle sid = 0;
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+
+        string buf;
+        bool isExportSet = !(s.extractflagparam("-disable", buf) || s.extractflag("-disable"));
+        buf.clear();
+        cout << (isExportSet ? "En" : "Dis") << "abling export for Set " << toHandle(sid) << "\n";
+
+        client->exportSet(sid, isExportSet, [sid, isExportSet](Error e)
+           {
+               string msg = (isExportSet ? "en" : "dis") + string("abled");
+               cout << "\tSet " << toHandle(sid) << " export "
+                    << (isExportSet ? "en" : "dis") << "abled "
+                    << (e == API_OK ? "" : "un") << "successfully"
+                    << (e == API_OK ? "" : ". " + verboseErrorString(e))
+                    << endl;
+           });
+    }
+
+    else if (command == "getpubliclink")
+    {
+        handle sid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        cout << "Requesting public link for Set " << toHandle(sid) << endl;
+
+        error e; string url;
+        std::tie(e, url) = client->getPublicSetLink(sid);
+
+        cout << "\tPublic link generated " << (e == API_OK ? "" : "un") << "successfully"
+             << (e == API_OK ? " " + url : ". " + verboseErrorString(e))
+             << endl;
+    }
+
+    else if (command == "fetchpublicset")
+    {
+        string publicSetLink = s.words[2].s.c_str();
+
+        cout << "Fetching public Set with link " << publicSetLink << endl;
+        client->fetchPublicSet(publicSetLink.c_str(), [](Error e, Set* s, elementsmap_t* elements)
+        {
+            unique_ptr<mega::Set> set(s);
+            unique_ptr<mega::elementsmap_t> els(elements);
+            if (e == API_OK)
+            {
+                if (set) cout << "\tPreview mode started for Set " << toHandle(set->id()) << endl;
+                else cout << "\tNull Set returned for started preview mode\n";
+
+                printSet(set.get());
+                printElements(els.get());
+            }
+            else cout << "\tPreview mode failed: " + verboseErrorString(e) << endl;
+        });
+    }
+
+    else if (command == "stoppublicsetpreview")
+    {
+        if (client->inPublicSetPreview())
+        {
+            cout << "Stopping Public Set preview mode for Set " << toHandle(client->getPreviewSet()->id()) << "\n";
+            client->stopSetPreview();
+            cout << "Public Set preview mode stopped " << (client->inPublicSetPreview() ? "un" : "")
+                 << "successfully\n";
+        }
+        else cout << "Not in Public Set Preview mode currently\n";
+    }
+
+    else if (command == "downloadelement")
+    {
+        handle sid = 0, eid = 0;
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
+        cout << "Requesting to download Element " << toHandle(eid) << " from Set " << toHandle(sid)
+             << endl;
+
+        cout << "\tSet preview mode " << (client->inPublicSetPreview() ? "en" : "dis") << "abled\n";
+        const SetElement* element = nullptr;
+        if (client->inPublicSetPreview())
+        {
+            element = client->getPreviewSetElement(eid);
+            if (element) cout << "\tElement found in preview Set\n";
+            else if (!isClientLoggedIn())
+            {
+                cout << "Error: attempting to dowload an element which is not in the previewed "
+                     << "Set, and user is not logged in\n";
+                return;
+            }
+        }
+        if (!element)
+        {
+            element = client->getSetElement(sid, eid);
+            if (element) cout << "\tElement found in owned Set\n";
+        }
+
+        if (!element)
+        {
+            cout << "\tElement not found as part of provided Set\n";
+            return;
+        }
+
+        std::array<byte, FILENODEKEYLENGTH> ekey;
+        handle enode = element->node();
+        memcpy(ekey.data(), element->key().c_str(), ekey.size());
+        auto commandCB =
+            [ekey, enode] (const Error &e, m_off_t size,
+                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
+                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
+                          const std::vector<std::string> &/*ips*/)
+        {
+            if (!fingerprint) // failed processing the command
+            {
+                if (e == API_ETOOMANY && e.hasExtraInfo())
+                {
+                    cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
+                         << endl;
+                }
+                else cout << "Link check failed: " << errorstring(e) << endl;
+
+                return true;
+            }
+
+            FileFingerprint ffp;
+            m_time_t tm = 0;
+            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+
+            cout << "\tName: " << *filename << ", size: " << size << ", tm: " << tm;
+            if (fingerprint->size()) cout << ", fingerprint available";
+            if (fileattrstring->size()) cout << ", has attributes";
+            cout << endl;
+
+            if (e) cout << "Not available: " << errorstring(e) << endl;
+            else
+            {
+                cout << "\tInitiating download..." << endl;
+
+                TransferDbCommitter committer(client->tctable);
+                auto file = ::mega::make_unique<AppFileGet>(nullptr,
+                                                            NodeHandle().set6byte(enode),
+                                                            (byte*)ekey.data(), size, tm,
+                                                            filename, fingerprint);
+                file->hprivate = true;
+                file->hforeign = true;
+                startxfer(committer, std::move(file), *filename, client->nextreqtag());
+            }
+
+            return true;
+        };
+
+        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
+                                            true /*private*/, nullptr, nullptr, nullptr, false,
+                                            commandCB));
     }
 
     else // create or update element
@@ -10906,7 +10979,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         string param;
         if (s.extractflagparam("-n", param) || s.extractflag("-n"))
         {
-            el.setName(move(param));
+            el.setName(std::move(param));
         }
         param.clear();
         if (s.extractflagparam("-o", param))
@@ -10919,7 +10992,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
         }
 
-        client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)
+        client->putSetElement(std::move(el), [createNew, setId, elemId](Error e, const SetElement* el)
             {
                 if (createNew)
                 {
@@ -11050,4 +11123,16 @@ void exec_secure(autocomplete::ACState &s)
     }
 
     cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
+}
+
+void exec_manualverif(autocomplete::ACState &s)
+{
+    if (s.extractflag("-on"))
+    {
+        client->mKeyManager.setManualVerificationFlag(true);
+    }
+    else if (s.extractflag("-off"))
+    {
+        client->mKeyManager.setManualVerificationFlag(false);
+    }
 }

@@ -33,7 +33,7 @@ namespace mega {
 
     void CommonSE::setName(string&& name)
     {
-        setAttr(nameTag, move(name));
+        setAttr(nameTag, std::move(name));
     }
 
     void CommonSE::setAttr(const string& tag, string&& value)
@@ -42,7 +42,7 @@ namespace mega {
         {
             mAttrs.reset(new string_map());
         }
-        (*mAttrs)[tag] = move(value);
+        (*mAttrs)[tag] = std::move(value);
     }
 
     void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
@@ -173,11 +173,12 @@ namespace mega {
         }
     }
 
-    bool Set::serialize(string* d)
+    bool Set::serialize(string* d) const
     {
         CacheableWriter r(*d);
 
         r.serializehandle(mId);
+        r.serializehandle(mPublicId);
         r.serializehandle(mUser);
         r.serializecompressedi64(mTs);
         r.serializestring(mKey);
@@ -193,20 +194,22 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags();
+        r.serializeexpansionflags(true);
+        r.serializecompressedi64(mCTs);
 
         return true;
     }
 
     unique_ptr<Set> Set::unserialize(string* d)
     {
-        handle id = 0, u = 0;
+        handle id = 0, publicId = 0, u = 0;
         m_time_t ts = 0;
         string k;
         uint32_t attrCount = 0;
 
         CacheableReader r(*d);
         if (!r.unserializehandle(id) ||
+            !r.unserializehandle(publicId) ||
             !r.unserializehandle(u) ||
             !r.unserializecompressedi64(ts) ||
             !r.unserializestring(k) ||
@@ -225,17 +228,20 @@ namespace mega {
             {
                 return nullptr;
             }
-            attrs[move(ak)] = move(av);
+            attrs[std::move(ak)] = std::move(av);
         }
 
         unsigned char expansionsS[8];
-        if (!r.unserializeexpansionflags(expansionsS, 0))
+        m_time_t cts = 0;
+        if (!r.unserializeexpansionflags(expansionsS, 1) ||
+            (expansionsS[0] && !r.unserializecompressedi64(cts))) // creation timestamp
         {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, move(k), u, move(attrs));
+        auto s = ::mega::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs));
         s->setTs(ts);
+        s->setCTs(cts);
 
         return s;
     }
@@ -244,9 +250,17 @@ namespace mega {
     {
         setTs(s.ts());
 
-        if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
-        if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
-        mAttrs.swap(s.mAttrs);
+        if (s.publicId() != mPublicId)
+        {
+            setChanged(CH_EXPORTED);
+            setPublicId(s.publicId());
+        }
+        else
+        {
+            if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+            if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
+            mAttrs.swap(s.mAttrs);
+        }
 
         return changes();
     }
@@ -285,7 +299,7 @@ namespace mega {
         }
     }
 
-    bool SetElement::serialize(string* d)
+    bool SetElement::serialize(string* d) const
     {
         CacheableWriter r(*d);
 
@@ -344,7 +358,7 @@ namespace mega {
             {
                 return nullptr;
             }
-            attrs[move(ak)] = move(av);
+            attrs[std::move(ak)] = std::move(av);
         }
 
         if (!r.unserializeexpansionflags(expansionsE, 0))
@@ -352,7 +366,7 @@ namespace mega {
             return nullptr;
         }
 
-        auto el = ::mega::make_unique<SetElement>(sid, h, eid, move(k), move(attrs));
+        auto el = ::mega::make_unique<SetElement>(sid, h, eid, std::move(k), std::move(attrs));
         el->setOrder(o);
         el->setTs(ts);
 

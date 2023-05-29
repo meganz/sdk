@@ -28,12 +28,15 @@ namespace mega {
 
 bool Request::isFetchNodes() const
 {
-    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back());
+    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back().get());
 }
 
 void Request::add(Command* c)
 {
-    cmds.push_back(c);
+    // Once this becomes the in-progress request, it must not have anything added
+    assert(cachedJSON.empty());
+
+    cmds.push_back(unique_ptr<Command>(c));
 }
 
 size_t Request::size() const
@@ -41,53 +44,76 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req, bool& suppressSID, MegaClient* client) const
+string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const
 {
-    // concatenate all command objects, resulting in an API request
-    *req = "[";
-
-    suppressSID = true; // only if all commands in batch are suppressSID
-
-    map<string, int> counts;
-
-    for (int i = 0; i < (int)cmds.size(); i++)
+    if (cachedJSON.empty())
     {
-        req->append(i ? ",{" : "{");
-        req->append(cmds[i]->getJSON(client));
-        req->append("}");
-        suppressSID = suppressSID && cmds[i]->suppressSID;
-        ++counts[cmds[i]->commandStr];
+        // concatenate all command objects, resulting in an API request
+        string& req = cachedJSON;
+        req = "[";
+
+        cachedSuppressSID = true; // only if all commands in batch are suppressSID
+
+        map<string, int> counts;
+
+        for (int i = 0; i < (int)cmds.size(); i++)
+        {
+            req.append(i ? ",{" : "{");
+            req.append(cmds[i]->getJSON(client));
+            req.append("}");
+            cachedSuppressSID = cachedSuppressSID && cmds[i]->suppressSID;
+            ++counts[cmds[i]->commandStr];
+        }
+
+        req.append("]");
+
+        for (auto& e : counts)
+        {
+            if (!cachedCounts.empty()) cachedCounts += " ";
+            cachedCounts += e.first + ":" + std::to_string(e.second);
+        }
+
+        // increment unique request ID
+        for (int i = 10; i--; )
+        {
+            if (reqidCounter[i]++ < 'z')
+            {
+                break;
+            }
+            else
+            {
+                reqidCounter[i] = 'a';
+            }
+        }
+        cachedIdempotenceId = string(reqidCounter, 10);
     }
 
-    req->append("]");
-
-    string commandCounts;
-    for (auto& e : counts)
-    {
-        if (!commandCounts.empty()) commandCounts += " ";
-        commandCounts += e.first + ":" + std::to_string(e.second);
-    }
-    LOG_debug << "Req command counts: " << commandCounts;
+    // once we send the commands, any retry must be for exactly
+    // the same JSON, or idempotence will not work properly
+    LOG_debug << "Req command counts: " << cachedCounts;
+    suppressSID = cachedSuppressSID;
+    idempotenceId = cachedIdempotenceId;
+    return cachedJSON;
 }
 
-bool Request::processCmdJSON(Command* cmd, bool couldBeError)
+bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
 {
     Error e;
-    if (couldBeError && cmd->checkError(e, cmd->client->json))
+    if (couldBeError && cmd->checkError(e, json))
     {
-        return cmd->procresult(Command::Result(Command::CmdError, e));
+        return cmd->procresult(Command::Result(Command::CmdError, e), json);
     }
-    else if (cmd->client->json.enterobject())
+    else if (json.enterobject())
     {
-        return cmd->procresult(Command::CmdObject) && cmd->client->json.leaveobject();
+        return cmd->procresult(Command::CmdObject, json) && json.leaveobject();
     }
-    else if (cmd->client->json.enterarray())
+    else if (json.enterarray())
     {
-        return cmd->procresult(Command::CmdArray) && cmd->client->json.leavearray();
+        return cmd->procresult(Command::CmdArray, json) && json.leavearray();
     }
     else
     {
-        return cmd->procresult(Command::CmdItem);
+        return cmd->procresult(Command::CmdItem, json);
     }
 }
 
@@ -96,36 +122,36 @@ void Request::process(MegaClient* client)
     TransferDbCommitter committer(client->tctable);
     client->mTctableRequestCommitter = &committer;
 
-    client->json = json;
+    JSON processingJson = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
-        Command* cmd = cmds[processindex];
+        Command* cmd = cmds[processindex].get();
 
         client->restag = cmd->tag;
 
         cmd->client = client;
 
-        auto cmdJSON = client->json;
+        auto cmdJSON = processingJson;
         bool parsedOk = true;
 
-        if (*client->json.pos == ',') ++client->json.pos;
+        if (*processingJson.pos == ',') ++processingJson.pos;
 
         Error e;
-        if (cmd->checkError(e, client->json))
+        if (cmd->checkError(e, processingJson))
         {
-            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e));
+            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e), processingJson);
         }
         else
         {
             // straightforward case - plain JSON response, no seqtag
-            parsedOk = processCmdJSON(cmd, true);
+            parsedOk = processCmdJSON(cmd, true, processingJson);
         }
 
         if (!parsedOk)
         {
             LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
-            client->json = cmdJSON;
-            client->json.storeobject();
+            processingJson = cmdJSON;
+            processingJson.storeobject();
 
             // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
             assert(false);
@@ -135,16 +161,18 @@ void Request::process(MegaClient* client)
 #ifdef DEBUG
             // double check the command consumed the right amount of JSON
             cmdJSON.storeobject();
-            if (client->json.pos != cmdJSON.pos)
+            if (processingJson.pos != cmdJSON.pos)
             {
-                assert(client->json.pos == cmdJSON.pos);
+                assert(processingJson.pos == cmdJSON.pos);
             }
 #endif
         }
+
+        // delete the command as soon as it's not needed anymore
+        cmds[processindex].reset();
     }
 
-    json = client->json;
-    client->json.pos = nullptr;
+    json = processingJson;
     if (processindex == cmds.size() || stopProcessing)
     {
         clear();
@@ -155,7 +183,7 @@ void Request::process(MegaClient* client)
 Command* Request::getCurrentCommand()
 {
     assert(processindex < cmds.size());
-    return cmds[processindex];
+    return cmds[processindex].get();
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -185,13 +213,6 @@ void Request::servererror(const std::string& e, MegaClient* client)
 
 void Request::clear()
 {
-    for (int i = (int)cmds.size(); i--; )
-    {
-        if (!cmds[i]->persistent)
-        {
-            delete cmds[i];
-        }
-    }
     cmds.clear();
     jsonresponse.clear();
     json.pos = NULL;
@@ -209,6 +230,11 @@ void Request::swap(Request& r)
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
 
+    std::swap(cachedJSON, r.cachedJSON);
+    std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
+    std::swap(cachedCounts, r.cachedCounts);
+    std::swap(cachedSuppressSID, r.cachedSuppressSID);
+
     // Although swap would usually swap all fields, these must be empty anyway
     // If swap was used when these were active, we would be moving needed info out of the request-in-progress
     assert(jsonresponse.empty() && r.jsonresponse.empty());
@@ -216,8 +242,11 @@ void Request::swap(Request& r)
     assert(processindex == 0 && r.processindex == 0);
 }
 
-RequestDispatcher::RequestDispatcher()
+RequestDispatcher::RequestDispatcher(PrnGen& rng)
 {
+    // initialize random API request sequence ID (server API is idempotent)
+    resetId(reqid, sizeof reqid, rng);
+
     nextreqs.push_back(Request());
 }
 
@@ -262,45 +291,65 @@ void RequestDispatcher::add(Command *c)
     }
 }
 
-bool RequestDispatcher::cmdspending() const
+bool RequestDispatcher::readyToSend() const
 {
-    return nextreqs.empty() ? false :
-          !nextreqs.front().empty();
+    if (!inflightreq.empty())
+    {
+        // retry of prior attempt. Otherwise, we are waiting response, so not ready
+        return inflightFailReason != RETRY_NONE;
+    }
+    else
+    {
+        return nextreqs.empty() ? false :
+              !nextreqs.front().empty();
+    }
 }
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    return !inflightreq.empty();
+    return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client)
+string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
-    assert(inflightreq.empty());
-    inflightreq.swap(nextreqs.front());
-    nextreqs.pop_front();
-    if (nextreqs.empty())
+    if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {
-        nextreqs.push_back(Request());
+        // this is a retry after connection failure
+        // everything is already set up, JSON is cached etc.
+        LOG_debug << "cs Retrying the last request after code: " << inflightFailReason;
     }
-    inflightreq.get(out, suppressSID, client);
+    else
+    {
+        assert(inflightreq.empty());
+        inflightreq.swap(nextreqs.front());
+        nextreqs.pop_front();
+        if (nextreqs.empty())
+        {
+            nextreqs.push_back(Request());
+        }
+    }
+    string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
 #endif
+    inflightFailReason = RETRY_NONE;
+    return requestJSON;
 }
 
-void RequestDispatcher::requeuerequest()
+void RequestDispatcher::inflightFailure(retryreason_t reason)
 {
 #ifdef MEGA_MEASURE_CODE
     csBatchesReceived += 1;
 #endif
     assert(!inflightreq.empty());
-    if (!nextreqs.front().empty())
-    {
-        nextreqs.push_front(Request());
-    }
-    nextreqs.front().swap(inflightreq);
+    assert(!nextreqs.empty());
+
+    // we keep inflightreq as it needs to be resent exactly as it was, for idempotence
+    // just track whether we do need to resend, for cmdsInflight() signal
+    assert(reason != RETRY_NONE);
+    inflightFailReason = reason;
 }
 
 void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
@@ -330,6 +379,7 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
     inflightreq.servererror(e, client);
     inflightreq.process(client);
     assert(inflightreq.empty());
+    inflightFailReason = RETRY_NONE;
     processing = false;
     if (clearWhenSafe)
     {
@@ -348,6 +398,7 @@ void RequestDispatcher::clear()
     else
     {
         inflightreq.clear();
+        inflightFailReason = RETRY_NONE;
         for (auto& r : nextreqs)
         {
             r.clear();

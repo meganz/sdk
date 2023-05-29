@@ -29,10 +29,8 @@
 // bitmap graphics processor
 class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
-    CGImageSourceRef imageSource;
-    CFDictionaryRef imageParams;
-    CFMutableDictionaryRef thumbnailParams;
-    CGImageRef createThumbnailWithMaxSize(int size);
+    dispatch_semaphore_t semaphore;
+    CFURLRef sourceURL;
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
     const char* supportedformats() override;

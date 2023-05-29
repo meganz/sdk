@@ -66,7 +66,7 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !(lhs == rhs);
 }
 
-bool FileFingerprint::serialize(string *d)
+bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
@@ -76,18 +76,15 @@ bool FileFingerprint::serialize(string *d)
     return true;
 }
 
-FileFingerprint *FileFingerprint::unserialize(string *d)
+unique_ptr<FileFingerprint> FileFingerprint::unserialize(const char*& ptr, const char* end)
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
     if (ptr + sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > end)
     {
         LOG_err << "FileFingerprint unserialization failed - serialized string too short";
         return NULL;
     }
 
-    FileFingerprint *fp = new FileFingerprint();
+    unique_ptr<FileFingerprint> fp(new FileFingerprint());
 
     fp->size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
@@ -101,7 +98,6 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
     fp->isvalid = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    d->erase(0, ptr - d->data());
     return fp;
 }
 
@@ -140,7 +136,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
-    if (!fa->openf())
+    if (!fa->openf(FSLogging::logOnError))
     {
         size = -1;
         return true;
@@ -149,7 +145,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -167,7 +163,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -199,7 +195,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                 if (!fa->frawread(block, sizeof block,
                                   (size - sizeof block)
                                   * (i * blocks + j)
-                                  / (crc.size() * blocks - 1), true))
+                                  / (crc.size() * blocks - 1), true, FSLogging::logOnError))
                 {
                     size = -1;
                     fa->closef();
@@ -388,6 +384,11 @@ int FileFingerprint::unserializefingerprint(string* d)
     isvalid = true;
 
     return 1;
+}
+
+string FileFingerprint::fingerprintDebugString() const
+{
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

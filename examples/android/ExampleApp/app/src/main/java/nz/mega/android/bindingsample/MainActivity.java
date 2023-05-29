@@ -84,11 +84,8 @@ public class MainActivity extends Activity implements OnClickListener, MegaReque
 
 	@Override
 	public void onClick(View v) {
-		switch(v.getId()){
-			case R.id.button_login:{
-				initLogin();
-				break;
-			}
+		if (v.getId() == R.id.button_login) {
+			initLogin();
 		}
 	}
 	

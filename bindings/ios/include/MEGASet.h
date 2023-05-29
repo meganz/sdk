@@ -23,11 +23,12 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM (NSInteger, MEGASetChangeType) {
-    MEGASetChangeTypeNew      = 0x01,
-    MEGASetChangeTypeName     = 0x02,
-    MEGASetChangeTypeCover    = 0x04,
-    MEGASetChangeTypeRemoved  = 0x08
+typedef NS_ENUM(NSUInteger, MEGASetChangeType) {
+    MEGASetChangeTypeNew           = 0x01,
+    MEGASetChangeTypeName          = 0x02,
+    MEGASetChangeTypeCover         = 0x04,
+    MEGASetChangeTypeRemoved       = 0x08,
+    MEGASetChangeTypeExported      = 0x10
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -58,6 +59,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic) uint64_t userId;
 
 /**
+ * @brief Returns public id of current Set if it was exported. INVALID_HANDLE otherwise
+ *
+ * @return Public id of Set.
+ */
+@property (readonly, nonatomic) uint64_t publicId;
+
+/**
  * @brief Returns id of Element set as 'cover' for current Set.
  *
  * It will return INVALID_HANDLE if no cover was set or if the Element became invalid
@@ -73,6 +81,13 @@ NS_ASSUME_NONNULL_BEGIN
  * @return timestamp value.
  */
 @property (readonly, nonatomic) NSDate *timestamp;
+
+/**
+ * @brief Returns creation timestamp of current Set.
+ *
+ * @return timestamp value.
+ */
+@property (readonly, nonatomic) NSDate *timestampCreated;
 
 /**
  * @brief Returns name of current Set.
@@ -94,18 +109,39 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGASetChangeTypeNew                  = 0x01
  * Check if the Set was new
  *
- * - MEGASetChangeTypeName                 = 0x02
+ * - MEGASetChangeTypeName                = 0x02
  * Check if Set name has changed
  *
  * - MEGASetChangeTypeCover                = 0x04
  * Check if Set cover has changed
  *
- * - MEGASetChangeTypeRemoved              = 0x08
+ * - MEGASetChangeTypeRemoved          = 0x08
  * Check if the Set was removed
+ *
+ * - MEGASetChangeTypeExported           = 0x10
+ * Check if the Set was exported or disabled (i.e. exporting ended)
  *
  * @return YES if this Set has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetChangeType)changeType;
+
+/**
+ * @brief Returns changes  for MEGASet
+ *
+ * Note that the position of each bit matches the MEGASetChangeType value
+ *
+ * @return combination of changes in
+ */
+- (MEGASetChangeType)changes;
+
+/**
+ * @brief Returns true if this Set is exported (can be accessed via public link)
+ *
+ * Public link is retrieved when the Set becomes exported
+ *
+ * @return true if this Set is exported
+ */
+- (BOOL)isExported;
 
 @end
 

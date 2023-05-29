@@ -64,9 +64,9 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 #if defined(__ANDROID__) || defined(USE_IOS)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 41943040; // 40 MB [Previous value: 16777216 -> 16 MB]
 #else
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB [Previous value: 4194304 -> 4 MB]
 #endif
 
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
@@ -193,7 +193,7 @@ TransferSlot::~TransferSlot()
 
             // Open the file in synchonous mode
             fa.reset(transfer->client->fsaccess->newfileaccess());
-            if (!fa->fopen(transfer->localfilename, false, true))
+            if (!fa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
             {
                 fa.reset();
             }
@@ -1164,13 +1164,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 asyncIO[i] = NULL;
                             }
 
-                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos, FSLogging::logOnError);
                             reqs[i]->status = REQ_ASYNCIO;
                             prepare = false;
                         }
                         else
                         {
-                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos))
+                            if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos, FSLogging::logOnError))
                             {
                                 LOG_warn << "Error preparing transfer: " << fa->retry;
                                 if (!fa->retry)

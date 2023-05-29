@@ -432,7 +432,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
-                client->addsync(move(syncConfig), false,
+                client->addsync(std::move(syncConfig), false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
@@ -484,6 +484,9 @@ static const char* treestatename(treestate_t ts)
 
         case TREESTATE_SYNCING:
             return "Syncing";
+
+        case TREESTATE_IGNORED:
+            return "Ignored";
     }
 
     return "UNKNOWN";

@@ -50,51 +50,51 @@ extern JavaVM *MEGAjvm;
 #include <sys/vfs.h>
 
 #ifndef FUSEBLK_SUPER_MAGIC
-#define FUSEBLK_SUPER_MAGIC 0x65735546
+#define FUSEBLK_SUPER_MAGIC 0x65735546ul
 #endif /* ! FUSEBLK_SUPER_MAGIC */
 
 #ifndef FUSECTL_SUPER_MAGIC
-#define FUSECTL_SUPER_MAGIC 0x65735543
+#define FUSECTL_SUPER_MAGIC 0x65735543ul
 #endif /* ! FUSECTL_SUPER_MAGIC */
 
 #ifndef HFS_SUPER_MAGIC
-#define HFS_SUPER_MAGIC 0x4244
+#define HFS_SUPER_MAGIC 0x4244ul
 #endif /* ! HFS_SUPER_MAGIC */
 
 #ifndef HFSPLUS_SUPER_MAGIC
-#define HFSPLUS_SUPER_MAGIC 0x482B
+#define HFSPLUS_SUPER_MAGIC 0x482Bul
 #endif /* ! HFSPLUS_SUPER_MAGIC */
 
 #ifndef NTFS_SB_MAGIC
-#define NTFS_SB_MAGIC 0x5346544E
+#define NTFS_SB_MAGIC 0x5346544Eul
 #endif /* ! NTFS_SB_MAGIC */
 
 #ifndef SDCARDFS_SUPER_MAGIC
-#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
+#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5ul
 #endif /* ! SDCARDFS_SUPER_MAGIC */
 
 #ifndef F2FS_SUPER_MAGIC
-#define F2FS_SUPER_MAGIC 0xF2F52010
+#define F2FS_SUPER_MAGIC 0xF2F52010ul
 #endif /* ! F2FS_SUPER_MAGIC */
 
 #ifndef XFS_SUPER_MAGIC
-#define XFS_SUPER_MAGIC 0x58465342
+#define XFS_SUPER_MAGIC 0x58465342ul
 #endif /* ! XFS_SUPER_MAGIC */
 
 #ifndef CIFS_MAGIC_NUMBER
-#define CIFS_MAGIC_NUMBER 0xFF534D42
+#define CIFS_MAGIC_NUMBER 0xFF534D42ul
 #endif // ! CIFS_MAGIC_NUMBER
 
 #ifndef NFS_SUPER_MAGIC
-#define NFS_SUPER_MAGIC 0x6969
+#define NFS_SUPER_MAGIC 0x6969ul
 #endif // ! NFS_SUPER_MAGIC
 
 #ifndef SMB_SUPER_MAGIC
-#define SMB_SUPER_MAGIC 0x517B
+#define SMB_SUPER_MAGIC 0x517Bul
 #endif // ! SMB_SUPER_MAGIC
 
 #ifndef SMB2_MAGIC_NUMBER
-#define SMB2_MAGIC_NUMBER 0xfe534d42
+#define SMB2_MAGIC_NUMBER 0xfe534d42ul
 #endif // ! SMB2_MAGIC_NUMBER
 
 #endif /* __linux__ */
@@ -213,7 +213,7 @@ PosixFileAccess::~PosixFileAccess()
     }
 }
 
-bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
+bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(nonblocking_localname);
@@ -257,7 +257,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return false;
 }
 
-bool PosixFileAccess::sysopen(bool)
+bool PosixFileAccess::sysopen(bool, FSLogging fsl)
 {
     assert(fd < 0 && "There should be no opened file descriptor at this point");
     errorcode = 0;
@@ -274,7 +274,10 @@ bool PosixFileAccess::sysopen(bool)
     if (fd < 0)
     {
         errorcode = errno;
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        }
     }
 
     return fd >= 0;
@@ -348,10 +351,10 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
-                             context->access & AsyncIOContext::ACCESS_WRITE);
+                             context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
     if (context->failed)
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -520,10 +523,11 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool, bool skipcasecheck)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     struct stat statbuf;
 
+    fopenSucceeded = false;
     retry = false;
     bool statok = false;
     if (iteratingDir) //reuse statbuf from iterator
@@ -612,6 +616,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 
             FileSystemAccess::captimestamp(&mtime);
 
+            fopenSucceeded = true;
             return true;
         }
 
@@ -656,7 +661,10 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        }
     }
     if (fd >= 0 || statok)
     {
@@ -691,6 +699,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
 
             FileSystemAccess::captimestamp(&mtime);
 
+            fopenSucceeded = true;
             return true;
         }
 
@@ -1126,7 +1135,11 @@ int PosixFileSystemAccess::getdefaultfilepermissions()
 
 void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
+#ifdef DEBUG
+    defaultfilepermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
     defaultfilepermissions = permissions | 0600;
+#endif
 }
 
 int PosixFileSystemAccess::getdefaultfolderpermissions()
@@ -1136,7 +1149,11 @@ int PosixFileSystemAccess::getdefaultfolderpermissions()
 
 void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
+#ifdef DEBUG
+    defaultfolderpermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
     defaultfolderpermissions = permissions | 0700;
+#endif
 }
 
 bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
@@ -1880,7 +1897,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Can we avoid recomputing this file's fingerprint?
         if (it != known.end() && reuse(result, it->second))
         {
-            result.fingerprint = move(it->second.fingerprint);
+            result.fingerprint = std::move(it->second.fingerprint);
             continue;
         }
 
@@ -2022,7 +2039,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
     if (!statfs(path.localpath.c_str(), &statbuf))
     {
-        switch (statbuf.f_type)
+        switch (static_cast<unsigned long>(statbuf.f_type))
         {
         case EXT2_SUPER_MAGIC:
             type = FS_EXT;

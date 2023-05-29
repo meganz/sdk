@@ -25,17 +25,24 @@
 
 #include <sqlite3.h>
 
+// Include ICU headers
+#include <unicode/uchar.h>
+
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
 {
 protected:
     sqlite3* db = nullptr;
-    sqlite3_stmt* pStmt;
     LocalPath dbfile;
     FileSystemAccess *fsaccess;
+
+    sqlite3_stmt* pStmt = nullptr;
     sqlite3_stmt* mDelStmt = nullptr;
     sqlite3_stmt* mPutStmt = nullptr;
+
+    // handler for DB errors ('interrupt' is true if caller can be interrupted by CancelToken)
+    void errorHandler(int sqliteError, const std::string& operation, bool interrupt);
 
 public:
     void rewind() override;
@@ -49,10 +56,11 @@ public:
     void abort() override;
     void remove() override;
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     virtual ~SqliteDbTable();
 
     bool inTransaction() const override;
+
 };
 
 /**
@@ -94,13 +102,18 @@ public:
     void createIndexes() override;
 
     void remove() override;
-    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     void finalise();
     virtual ~SqliteAccountState();
 
     // Callback registered by some long-time running queries, so they can be canceled
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
+    static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
+    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
+            const uint8_t *zString,    /* The UTF-8 string to compare against */
+            const UChar32 uEsc         /* The escape character */
+          );
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -153,9 +166,9 @@ public:
     // updated to new value
     bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) override;
 
-    SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+    SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) override;
 
-    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+    DbTable* openTableWithNodes(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags, DBErrorCallback dBErrorCallBack) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 

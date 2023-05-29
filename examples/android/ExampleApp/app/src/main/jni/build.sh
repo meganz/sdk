@@ -99,6 +99,56 @@ ZENLIB_SOURCE_FOLDER=ZenLib-${ZENLIB_VERSION}
 ZENLIB_DOWNLOAD_URL=https://github.com/MediaArea/ZenLib/archive/${ZENLIB_SOURCE_FILE}
 ZENLIB_SHA1="1af04654c9618f54ece624a0bad881a3cfef3692"
 
+ICU=icu
+ICU_VERSION=71_1
+ICU_SOURCE_FILE=icu4c-${ICU_VERSION}.zip
+ICU_SOURCE_FOLDER=icu-${ICU_VERSION}
+ICU_DOWNLOAD_URL=https://github.com/unicode-org/icu/releases/download/release-71-1/icu4c-71_1-src.zip
+ICU_SHA1="0b6a02293a81ccfb2a743ce1faa009770ed8a12c"
+ICU_SOURCE_VERSION=icuSource-${ICU_VERSION}
+
+function setupEnv()
+{
+    local ABI="${1}"
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        local TOOLCHAIN="${NDK_ROOT}/toolchains/llvm/prebuilt/darwin-x86_64"
+    else
+        local TOOLCHAIN="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64"
+    fi
+    export AR=$TOOLCHAIN/bin/llvm-ar
+    export LD=$TOOLCHAIN/bin/ld
+    export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+    export STRIP=$TOOLCHAIN/bin/llvm-strip
+
+    if [ "${ABI}" == "armeabi-v7a" ]; then
+        export TARGET_HOST="armv7a-linux-androideabi"
+    elif [ "${ABI}" == "arm64-v8a" ]; then
+        export TARGET_HOST="aarch64-linux-android"
+    elif [ "${ABI}" == "x86" ]; then
+        export TARGET_HOST="i686-linux-android"
+    elif [ "${ABI}" == "x86_64" ]; then
+        export TARGET_HOST="x86_64-linux-android"
+    fi
+
+    export CC=$TOOLCHAIN/bin/${TARGET_HOST}${ANDROID_API}-clang
+    export AS=$CC
+    export CXX=$TOOLCHAIN/bin/${TARGET_HOST}${ANDROID_API}-clang++
+}
+
+function cleanEnv()
+{
+    unset AR
+    unset LD
+    unset RANLIB
+    unset STRIP
+    unset TARGET_HOST
+    unset CC
+    unset AS
+    unset CXX
+}
+
+
 function downloadCheckAndUnpack()
 {
     local URL=$1
@@ -218,6 +268,9 @@ if [ "$1" == "clean" -o "$1" == "clean_all" ]; then
         rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}
         rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}
         rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}
+        rm -rf ${ICU}/${ICU_SOURCE_VERSION}
+        rm -rf ${ICU}/${ICU_SOURCE_FILE}
+
     fi
     rm -rf ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready
     rm -rf ${SQLITE}/${SQLITE_SOURCE_FILE}.ready
@@ -227,6 +280,7 @@ if [ "$1" == "clean" -o "$1" == "clean_all" ]; then
     rm -rf ${LIBUV}/${LIBUV_SOURCE_FILE}.ready
     rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}.ready
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}.ready
+    rm -rf ${ICU}/${ICU_SOURCE_FILE}.ready
 
     echo "* Deleting object files"
     rm -rf ../obj/local/armeabi-v7a
@@ -409,6 +463,73 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
     touch ${CURL}/${CURL_SOURCE_FILE}.ready
 fi
 echo "* cURL with c-ares is ready"
+
+echo "* Setting up ICU"
+if [ ! -f ${ICU}/${ICU_SOURCE_FILE}.ready ]; then
+    downloadCheckAndUnpack ${ICU_DOWNLOAD_URL} ${ICU}/${ICU_SOURCE_FILE} ${ICU_SHA1} ${ICU}/${ICU_SOURCE_VERSION}
+
+    pushd "${ICU}/${ICU_SOURCE_VERSION}/icu" &>> ${LOG_FILE}
+    sed -i -e 's/\r$//' source/runConfigureICU
+    sed -i -e 's/\r$//' source/configure
+    sed -i -e 's/\r$//' source/config.sub
+    sed -i -e 's/\r$//' source/config.guess
+    sed -i -e 's/\r$//' source/config/make2sh.sed
+    sed -i -e 's/\r$//' source/mkinstalldirs
+
+    mkdir -p linux && cd linux
+
+    CONFIGURE_LINUX_OPTIONS="--enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=yes --enable-tests=no --enable-samples=no --enable-dyload=no"
+    ../source/runConfigureICU Linux CFLAGS="-Os" CXXFLAGS="--std=c++11" ${CONFIGURE_LINUX_OPTIONS} &>> ${LOG_FILE}
+
+    make -j${JOBS} &>> ${LOG_FILE}
+
+    export CROSS_BUILD_DIR=$(realpath .)
+    export ANDROID_NDK=${NDK_ROOT}
+
+    popd &>> ${LOG_FILE}
+
+    for ABI in ${BUILD_ARCHS}; do
+        echo "* Compiling ICU for ${ABI}"
+        setupEnv "${ABI}"
+
+        pushd "${ICU}/${ICU_SOURCE_VERSION}/icu" &>> ${LOG_FILE}
+
+        mkdir -p ${ABI} && cd ${ABI}
+
+        if [ "${ABI}" == "armeabi-v7a" ]; then
+            HOST=arm-linux-androideabi
+            ARCH=arm
+        elif [ "${ABI}" == "arm64-v8a" ]; then
+            HOST=aarch64-linux-android
+            ARCH=arm64
+        elif [ "${ABI}" == "x86" ]; then
+            HOST=i686-linux-android
+            ARCH=x86
+        elif [ "${ABI}" == "x86_64" ]; then
+            HOST=i686-linux-android
+            ARCH=x86_64
+        fi
+
+        export ANDROID_TOOLCHAIN=$(pwd)/${ICU}/toolchain-${ABI}
+        export PATH=$ANDROID_TOOLCHAIN/bin:$PATH
+
+        rm -rf ${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
+        $NDK_ROOT/build/tools/make-standalone-toolchain.sh --arch=${ARCH} --platform=${APP_PLATFORM} --install-dir=${ANDROID_TOOLCHAIN} &>> ${LOG_FILE}
+
+        CONFIGURE_ANDROID_OPTIONS="--host=${HOST} --enable-static --enable-shared=no --enable-extras=no --enable-strict=no --enable-icuio=no --enable-layout=no --enable-layoutex=no --enable-tools=no --enable-tests=no --enable-samples=no --enable-dyload=no -with-cross-build=$CROSS_BUILD_DIR"
+
+        ../source/configure CFLAGS="-Os -fPIC" CXXFLAGS="--std=c++11 -fPIC" ${CONFIGURE_ANDROID_OPTIONS}  &>> ${LOG_FILE}
+
+        make -j${JOBS} &>> ${LOG_FILE}
+
+        popd &>> ${LOG_FILE}
+    done
+
+    cleanEnv
+    touch ${ICU}/${ICU_SOURCE_FILE}.ready
+fi
+echo "* ICU is ready"
+
 
 echo "* All dependencies are prepared!"
 

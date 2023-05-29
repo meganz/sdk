@@ -58,8 +58,16 @@ using namespace mega;
     return self.set ? self.set->user() : 0;
 }
 
+- (uint64_t)publicId {
+    return self.set ? self.set->publicId() : 0;
+}
+
 - (NSDate *)timestamp {
     return self.set ? [[NSDate alloc] initWithTimeIntervalSince1970:self.set->ts()] : nil;
+}
+
+- (NSDate *)timestampCreated {
+    return self.set ? [[NSDate alloc] initWithTimeIntervalSince1970:self.set->cts()] : nil;
 }
 
 - (NSString *)name {
@@ -70,6 +78,18 @@ using namespace mega;
 
 - (uint64_t)cover {
     return self.set ? self.set->cover(): ::mega::INVALID_HANDLE;
+}
+
+- (BOOL)hasChangedType:(MEGASetChangeType)changeType {
+    return self.set ? self.set->hasChanged(int(changeType)) : NO;
+}
+
+- (MEGASetChangeType)changes {
+    return (MEGASetChangeType) (self.set ? self.set->getChanges() : 0);
+}
+
+- (BOOL)isExported {
+    return self.set ? self.set->isExported() : NO;
 }
 
 @end
