@@ -22443,12 +22443,30 @@ void MegaApiImpl::sendEvent(int eventType, const char* message, bool addJourneyI
 
     request->performRequest = [this, request]()
         {
-            int number = int(request->getNumber());
+            // See https://confluence.developers.mega.co.nz/display/STS/Event+Ranges
+            static const std::vector<std::pair<int, int>> excluded = {
+                {     0,   98000}, // Below MEGAproxy.
+                { 99600,  100000}, // WebClient range.
+                {100000,  300000}, // API extended range.
+                {500000,  600000}, // WebClient extended range.
+                {700000,  800000}, // API extended range.
+                {900000, INT_MAX}  // Unassigned.
+            }; // excluded
+
             const char *text = request->getText();
 
-            if(number < 98900 || (number >= 99150 && (number < 99200 || number >= 99600)) || !text)
-            {
+            // No message.
+            if (!text)
                 return API_EARGS;
+
+            int number = int(request->getNumber());
+
+            // Is the event in an acceptable range?
+            for (auto& e : excluded)
+            {
+                // Events in a disallowed range.
+                if (number >= e.first && number < e.second)
+                    return API_EARGS;
             }
 
             const char* viewId = request->getSessionKey();
