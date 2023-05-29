@@ -5746,7 +5746,7 @@ CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRand
     arg("crv", clRandValue.data(), static_cast<int>(clRandValue.size()));
 }
 
-bool CommandAccountVersionUpgrade::procresult(Result r)
+bool CommandAccountVersionUpgrade::procresult(Result r, JSON&)
 {
     bool goodJson = r.wasErrorOrOK();
     error e = goodJson ? error(r.errorOrOK()) : API_EINTERNAL;

@@ -251,7 +251,7 @@ class MEGA_API CommandAccountVersionUpgrade : public Command
     std::function<void(error e)> mCompletion;
 
 public:
-    bool procresult(Result) override;
+    bool procresult(Result, JSON&) override;
 
     CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&&encMKey, string&& hashedAuthKey, string&& salt,
         std::function<void(error e)> completion);
