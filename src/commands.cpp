@@ -5737,7 +5737,7 @@ bool CommandSetMasterKey::procresult(Result r, JSON& json)
 
 CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&& encMKey, string&& hashedAuthKey, string&& salt,
     std::function<void(error e)> completion)
-    : mEncryptedMasterKey(move(encMKey)), mSalt(move(salt)), mCompletion(completion)
+    : mEncryptedMasterKey(std::move(encMKey)), mSalt(std::move(salt)), mCompletion(completion)
 {
     cmd("avu");
 
@@ -5757,7 +5757,7 @@ bool CommandAccountVersionUpgrade::procresult(Result r, JSON&)
         {
             client->accountversion = 2;
             client->k.assign(reinterpret_cast<const char*>(mEncryptedMasterKey.data()), mEncryptedMasterKey.size());
-            client->accountsalt = move(mSalt);
+            client->accountsalt = std::move(mSalt);
         }
     }
 

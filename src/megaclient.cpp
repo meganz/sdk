@@ -12134,7 +12134,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
 
     if (accountversion == 1 && mV1PswdVault)
     {
-        auto v1PswdVault(move(mV1PswdVault));
+        auto v1PswdVault(std::move(mV1PswdVault));
 
         if (loggedin() == FULLACCOUNT)
         {
@@ -12220,7 +12220,7 @@ void MegaClient::saveV1Pwd(const char* pwd)
 
         if (tlvStr)
         {
-            mV1PswdVault.reset(new pair<string, SymmCipher>(move(*tlvStr), move(pwcipher)));
+            mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
         }
     }
 }
@@ -12238,7 +12238,7 @@ void MegaClient::upgradeAccountToV2(const string& pwd, std::function<void(error 
 
     fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
 
-    reqs.add(new CommandAccountVersionUpgrade(move(clientRandomValue), move(encmasterkey), move(hashedauthkey), move(salt), completion));
+    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), completion));
 }
 // -------- end of Account upgrade to V2
 
