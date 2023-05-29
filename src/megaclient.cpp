@@ -21248,8 +21248,10 @@ string KeyManager::toKeysContainer()
     string keysCiphered;
     mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
 
+#ifndef NDEBUG
     byte header[2] = {20, 0};
     assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+#endif
 
     return string({20, 0}) + iv + keysCiphered;
 }
@@ -22203,9 +22205,9 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                #ifdef DEBUG
+#ifndef NDEBUG
                     int uhsize =
-                #endif
+#endif
                 Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);

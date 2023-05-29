@@ -189,9 +189,8 @@ int PosixWaiter::wait()
 void PosixWaiter::notify()
 {
     std::lock_guard<std::mutex> g(mMutex);
-    if (!alreadyNotified)
+    if (!alreadyNotified && write(m_pipe[1], "0", 1) == 1)
     {
-        write(m_pipe[1], "0", 1);
         alreadyNotified = true;
     }
 }

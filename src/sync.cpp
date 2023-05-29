@@ -1315,7 +1315,11 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool
+#ifndef NDEBUG
+                                 fromOutsideThreadAlreadyLocked
+#endif
+                                 )
 {
     assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
@@ -4386,7 +4390,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-#ifdef DEBUG
+#ifndef NDEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 #endif
 
@@ -4565,7 +4569,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));

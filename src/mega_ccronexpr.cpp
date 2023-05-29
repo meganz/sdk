@@ -503,6 +503,11 @@ static char* to_string(int num) {
 }
 
 static char* str_replace(char *orig, const char *rep, const char *with) {
+// disable warnings in Release build
+#if !defined(__ANDROID__) && (!defined(_WIN32) || !defined(MSC_VER))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
     char *result; /* the return string */
     char *ins; /* the next insert point */
     char *tmp; /* varies */
@@ -540,6 +545,9 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
     }
     strncpy(tmp, orig, len_orig + 1);
     return result;
+#if !defined(__ANDROID__) && (!defined(_WIN32) || !defined(MSC_VER))
+#pragma GCC diagnostic pop
+#endif
 }
 
 static unsigned int parse_uint(const char* str, int* errcode) {

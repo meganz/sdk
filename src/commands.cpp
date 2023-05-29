@@ -970,7 +970,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 {
     byte key[FILENODEKEYLENGTH];
 
-#ifdef DEBUG
+#ifndef NDEBUG
     assert(newnodes.size() > 0);
     for (auto& n : newnodes) assert(n.canChangeVault == canChangeVault);
 #endif
@@ -4038,7 +4038,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionPushSetting;
     string contactLinkVerification;
     string versionContactLinkVerification;
+#ifndef NDEBUG
     handle me = UNDEF;
+#endif
     string chatFolder;
     string versionChatFolder;
     string cameraUploadFolder;
@@ -4147,7 +4149,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case 'u':
+#ifndef NDEBUG
             me = json.gethandle(MegaClient::USERHANDLE);
+#endif
             break;
 
         case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
@@ -4985,8 +4989,10 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<Acc
 bool CommandGetUserQuota::procresult(Result r, JSON& json)
 {
     m_off_t td;
+#ifndef NDEBUG
     bool got_storage = false;
     bool got_storage_used = false;
+#endif
     int uslw = -1;
 
     if (r.wasErrorOrOK())
@@ -5069,7 +5075,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
             // Your total account storage usage
                 details->storage_used = json.getint();
+#ifndef NDEBUG
                 got_storage_used = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -5115,7 +5123,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
             // maximum storage allowance
                 details->storage_max = json.getint();
+#ifndef NDEBUG
                 got_storage = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
@@ -9719,7 +9729,7 @@ bool CommandPutSetElement::procresult(Result r, JSON& json)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
-#ifdef DEBUG
+#ifndef NDEBUG
     bool isNew = mElement->id() == UNDEF;
 #endif
     const SetElement* el = nullptr;

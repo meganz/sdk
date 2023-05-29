@@ -24369,7 +24369,7 @@ void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* sch
                 return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), [chatid, request, this] (Error e, const ScheduledMeeting* sm)
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), [request, this] (Error e, const ScheduledMeeting* sm)
             {
                 if (sm)
                 {

@@ -427,7 +427,7 @@ uint64_t NodeManager::getNodeCount()
         assert(!getRootNodeFiles().isUndef() && !getRootNodeVault().isUndef() && !getRootNodeRubbish().isUndef());
     }
 
-#ifdef DEBUG
+#ifndef NDEBUG
     if (mNodes.size())
     {
         uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;

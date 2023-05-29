@@ -204,8 +204,11 @@ int evt_ctx_init(evt_ctx_t *tls)
 
 int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key)
 {
+#ifndef NDEBUG
     int r = 0;
-    r = evt_ctx_init( tls);
+    r =
+#endif
+    evt_ctx_init( tls);
     assert( 0 == r);
     return evt_ctx_set_crt_key(tls, crtf, key);
 }
@@ -449,7 +452,11 @@ void evt_ctx_free(evt_ctx_t *ctx)
 
 
 // adapted from Openssl's s23_srvr.c code
-int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
+int evt_is_tls_stream(const char *bfr, const ssize_t
+#ifndef NDEBUG
+                      nrd
+#endif
+                      )
 {
     int is_tls = 0;
     assert( nrd >= 11);

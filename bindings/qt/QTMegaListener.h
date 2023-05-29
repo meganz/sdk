@@ -11,7 +11,7 @@ class QTMegaListener : public QObject, public MegaListener
 
 public:
     explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
-    virtual ~QTMegaListener();
+    ~QTMegaListener() override;
 
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
 	void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override;
@@ -38,7 +38,7 @@ public:
 #endif
 
 protected:
-    virtual void customEvent(QEvent * event);
+    void customEvent(QEvent * event) override;
 
     MegaApi *megaApi;
 	MegaListener *listener;

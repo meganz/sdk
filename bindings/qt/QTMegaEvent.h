@@ -36,7 +36,7 @@ public:
     };
 
     QTMegaEvent(MegaApi *megaApi, Type type);
-    ~QTMegaEvent();
+    ~QTMegaEvent() override;
 
     MegaApi *getMegaApi();
     MegaRequest* getRequest();
