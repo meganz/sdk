@@ -23034,9 +23034,9 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
                 return API_EACCESS;
             }
 
-            ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
             if (chat->priv < PRIV_MODERATOR)
             {
+                ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
                 if (chat->priv < PRIV_STANDARD || !chatOptions.openInvite())
                 {
                     // only allowed moderators or participants with standard permissions just if openInvite is enabled
