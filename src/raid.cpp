@@ -137,7 +137,6 @@ void RaidBufferManager::FilePiece::swap(FilePiece& other)
 RaidBufferManager::RaidBufferManager()
     : is_raid(false)
     , raidKnown(false)
-    , mAvoidSmallLastRequest(AVOID_SMALL_SIZE_LAST_REQUEST)
     , raidLinesPerChunk(16 * 1024)
     , unusedRaidConnection(0)
     , raidpartspos(0)
@@ -152,6 +151,10 @@ RaidBufferManager::RaidBufferManager()
         raidHttpGetErrorCount[i] = 0;
         connectionStarted[i] = false;
     }
+
+#ifdef DEBUG
+    mDisableAvoidSmallLastRequest = false;
+#endif
 }
 
 static void clearOwningFilePieces(std::deque<RaidBufferManager::FilePiece*>& q)
@@ -235,15 +238,12 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
     }
 }
 
-void RaidBufferManager::setAvoidSmallLastRequest(bool value)
+#ifdef DEBUG
+void RaidBufferManager::disableAvoidSmallLastRequest()
 {
-    mAvoidSmallLastRequest = value;
+    mDisableAvoidSmallLastRequest = true;
 }
-
-bool RaidBufferManager::getAvoidSmallLastRequest() const
-{
-    return mAvoidSmallLastRequest;
-}
+#endif
 
 bool RaidBufferManager::isRaid() const
 {
@@ -390,14 +390,24 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 static_cast<size_t>(npos - curpos) :
                                 0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
-        if (mAvoidSmallLastRequest && (nextChunkSize > 0) && (nextChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
+#ifdef DEBUG
+        if (!mDisableAvoidSmallLastRequest)
+#endif
         {
-            // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
-            // Otherwise, we'll request the remaining: -15 MB
-            npos = (nextChunkSize >= MAX_LAST_CHUNK) ?
-                        (npos + (nextChunkSize / 2)) :
-                        maxpos;
-            LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos;
+            size_t lastChunkSize = (npos < maxpos) ?             // Last chunk left apart from the current chunk
+                                    static_cast<size_t>(maxpos - npos) :
+                                    0;
+            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK)) // Dont leave a last chunk smaller than MIN_LAST_CHUNK for the last request
+            {
+                // If this chunk and the last one are greater or equal than +16 MB (or the corresponding value for MAX_CHUNK_SIZE), we'll ask for two chunks of +8 MB.
+                // Otherwise, we'll request the remaining: -15 MB
+                size_t remainingSize = maxpos - curpos;          // Remaining size (current chunk + last chunk)
+                npos = (remainingSize >= MAX_LAST_CHUNK) ?      // If the remaining size (current chunk + last chunk) is greater than MAX_LAST_CHUNK
+                            (curpos + (remainingSize / 2)) :    // Npos moved to half of the remaining size
+                            maxpos;                             // Npos moved to the end
+                assert(npos <= maxpos);
+                LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
+            }
         }
         if (unusedRaidConnection == connectionNum && npos > curpos)
         {

@@ -61,11 +61,22 @@ namespace mega {
         };
 
         // Min last request chunk (to avoid small chunks to be requested)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MIN_LAST_CHUNK = 512 * 1024;
+#else
         static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
+#endif
         // Max last request chunk (otherwise split it in two)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MAX_LAST_CHUNK = 1 * 1024 * 1024;
+#else
         static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
-        // Default value to activate min/max last request values
-        static constexpr bool AVOID_SMALL_SIZE_LAST_REQUEST = true;
+#endif
+
+#ifdef DEBUG
+        // To be called within CloudRaid tests when a lower speed is needed or we need to trigger 403/404/timeout errors
+        void disableAvoidSmallLastRequest();
+#endif
 
         // call this before starting a transfer. Extracts the vector content
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
@@ -118,12 +129,6 @@ namespace mega {
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
-        // Activate/Deactivate whether a last small chunk can be requested (Activated by default: deactivate for slower throughput)
-        void setAvoidSmallLastRequest(bool value = AVOID_SMALL_SIZE_LAST_REQUEST);
-
-        // Indicate if a small last request is being avoided
-        bool getAvoidSmallLastRequest() const;
-
         // Set the unused raid connection [0 - RAIDPARTS)
         bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
 
@@ -145,7 +150,6 @@ namespace mega {
 
         bool is_raid;
         bool raidKnown;
-        bool mAvoidSmallLastRequest;
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
         m_off_t fullfilesize;      // end of the file
@@ -192,6 +196,11 @@ namespace mega {
         unsigned raidHttpGetErrorCount[RAIDPARTS];
 
         bool connectionStarted[RAIDPARTS];
+
+#ifdef DEBUG
+        // For test hooks, disable avoid small requests when we need a lower speed and trigger 404/403/timeout errors
+        bool mDisableAvoidSmallLastRequest;
+#endif
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
         void combineRaidParts(unsigned connectionNum);

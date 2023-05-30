@@ -12395,6 +12395,13 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
 dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+
+    if (!transfer)
+    {
+        LOG_warn << "pread_failure: transfer is invalid";
+        return NEVER;
+    }
+
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
@@ -28673,8 +28680,12 @@ void StreamingBuffer::init(size_t capacity)
 void StreamingBuffer::calcMaxBufferAndMaxOutputSize()
 {
     size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
-    constexpr size_t BUFFER_PAUSE_RESUME_FACTOR = 4; // Take into account pausing/resuming actions: we need that margin.
+#if defined(__ANDROID__) || defined(USE_IOS)
+    size_t minNeededBufferSize = (maxReadChunkSize * 5) / 2; // Equivalent to x2.5 [x * (2 + 1/2) = x * 5/2]
+#else
+    constexpr size_t BUFFER_PAUSE_RESUME_FACTOR = 3; // Take into account pausing/resuming actions: we need that margin.
     size_t minNeededBufferSize = maxReadChunkSize * BUFFER_PAUSE_RESUME_FACTOR;
+#endif
     size_t maxDeliveryChunksPerByteRate;
     if (duration)
     {
