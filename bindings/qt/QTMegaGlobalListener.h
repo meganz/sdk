@@ -1,6 +1,14 @@
 #pragma once
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QObject>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "megaapi.h"
 
 namespace mega
