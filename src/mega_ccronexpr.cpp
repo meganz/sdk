@@ -504,7 +504,7 @@ static char* to_string(int num) {
 
 static char* str_replace(char *orig, const char *rep, const char *with) {
 // disable warnings in Release build
-#if defined(__GNUC__) && !defined(__APPLE__)
+#if defined(__GNUC__) && !defined(__APPLE__) && !defined(__ANDROID__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
@@ -545,7 +545,7 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
     }
     strncpy(tmp, orig, len_orig + 1);
     return result;
-#if defined(__GNUC__) && !defined(__APPLE__)
+#if defined(__GNUC__) && !defined(__APPLE__) && !defined(__ANDROID__)
 #pragma GCC diagnostic pop
 #endif
 }
