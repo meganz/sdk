@@ -17071,6 +17071,44 @@ class MegaApi
          */
         int getDefaultFolderPermissions();
 
+#ifndef NDEBUG
+        /**
+         * @brief
+         * Query the minimum permissions for newly created files.
+         *
+         * @return
+         * The minimum permissions for newly created files.
+         */
+        static int getMinimumFilePermissions();
+
+        /**
+         * @brief
+         * Query the minimum permissions for newly created folders.
+         *
+         * @return
+         * The minimum permissions for newly created files.
+         */
+        static int getMinimumFolderPermissions();
+
+        /**
+         * @brief
+         * Set the minimum permissions for newly created files.
+         *
+         * @param permissions
+         * The new minimum permissions forf newly created files.
+         */
+        static void setMinimumFilePermissions(int permissions);
+
+        /**
+         * @brief
+         * Set the minimum permissions for newly created files.
+         *
+         * @param permissions
+         * The new minimum permissions forf newly created folders.
+         */
+        static void setMinimumFolderPermissions(int permissions);
+#endif // !NDEBUG
+
         /**
          * @brief Get the time (in seconds) during which transfers will be stopped due to a bandwidth overquota
          * @return Time (in seconds) during which transfers will be stopped, otherwise 0

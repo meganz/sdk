@@ -13364,6 +13364,35 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
+
+class ScopedMinimumPermissions
+{
+    int mFile;
+    int mFolder;
+
+public:
+    ScopedMinimumPermissions(int file, int folder)
+      : mFile()
+      , mFolder()
+    {
+#ifndef NDEBUG
+        mFile = MegaApi::getMinimumFilePermissions();
+        mFolder = MegaApi::getMinimumFolderPermissions();
+
+        MegaApi::setMinimumFilePermissions(file);
+        MegaApi::setMinimumFolderPermissions(folder);
+#endif // !NDEBUG
+    }
+
+    ~ScopedMinimumPermissions()
+    {
+#ifndef NDEBUG
+        MegaApi::setMinimumFilePermissions(mFile);
+        MegaApi::setMinimumFolderPermissions(mFolder);
+#endif // !NDEBUG
+    }
+}; // ScopedMinimumPermissions
+
 /**
  * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
  *
@@ -13433,6 +13462,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
+    ScopedMinimumPermissions minimumPermissions(0400, 0700);
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
@@ -13556,6 +13586,8 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_EQ(API_OK, downloadFolder());
     ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
+
+    ScopedMinimumPermissions minimumPermissions(0400, 0400);
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
