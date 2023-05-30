@@ -1184,6 +1184,188 @@ class MegaNode
 
 
 /**
+ * @brief Represents information of a Backup in MEGA
+ *
+ * It allows getting all information about a Backup.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of a Backup
+ * when the object was created. They are immutable.
+ *
+ */
+class MegaBackupInfo
+{
+public:
+    /**
+     * @brief Returns Backup id.
+     *
+     * @return Backup id.
+     */
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns Backup type.
+     *
+     * It can be one of the following values:
+     *  INVALID       = -1
+     *  TWO_WAY       =  0
+     *  UP_SYNC       =  1
+     *  DOWN_SYNC     =  2
+     *  CAMERA_UPLOAD =  3
+     *  MEDIA_UPLOAD  =  4
+     *  BACKUP_UPLOAD =  5
+     *
+     * @return Backup type.
+     */
+    virtual int type() const { return -1; } // values from BackupType enum
+
+    /**
+     * @brief Returns handle of Backup root.
+     *
+     * @return Backup root handle.
+     */
+    virtual MegaHandle root() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns the name of the backed up local folder.
+     *
+     * @return Name of the backed up local folder.
+     */
+    virtual const char* localFolder() const { return nullptr; }
+
+    /**
+     * @brief Returns the id of the device where the backup originated.
+     *
+     * @return Id of the device where the backup originated.
+     */
+    virtual const char* deviceId() const { return nullptr; }
+
+    /**
+     * @brief Returns the sync state of the backup.
+     *
+     * It can be one of the following values:
+     *  STATE_NOT_INITIALIZED = 0
+     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
+     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
+     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
+     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
+     *  UNKNOWN  = 5 -> Unknown status
+     *
+     * @return Sync state of the backup.
+     */
+    virtual int state() const { return 0; }
+
+    /**
+     * @brief Returns the sync substate of the backup.
+     *
+     * @return Sync substate of the backup.
+     */
+    virtual int substate() const { return 0; }
+
+    /**
+     * @brief Returns extra information, used as source for extracting other details.
+     *
+     * @return Extra information, used as source for extracting other details.
+     */
+    virtual const char* extra() const { return nullptr; }
+
+    /**
+     * @brief Returns the name of the backup.
+     *
+     * @return Name of the backup.
+     */
+    virtual const char* name() const { return nullptr; }
+
+    /**
+     * @brief Returns the timestamp of the backup, as reported by heartbeats.
+     *
+     * @return Timestamp of the backup, as reported by heartbeats.
+     */
+    virtual uint64_t ts() const { return 0; }
+
+    /**
+     * @brief Returns the status of the backup, as reported by heartbeats.
+     *
+     * @return Status of the backup, as reported by heartbeats.
+     */
+    virtual int status() const { return 0; }
+
+    /**
+     * @brief Returns the progress of the backup, as reported by heartbeats.
+     *
+     * @return Progress of the backup, as reported by heartbeats.
+     */
+    virtual int progress() const { return 0; }
+
+    /**
+     * @brief Returns upload count.
+     *
+     * @return Upload count.
+     */
+    virtual int uploads() const { return 0; }
+
+    /**
+     * @brief Returns download count.
+     *
+     * @return Download count.
+     */
+    virtual int downloads() const { return 0; }
+
+    /**
+     * @brief Returns the last activity timestamp, as reported by heartbeats.
+     *
+     * @return Last activity timestamp, as reported by heartbeats.
+     */
+    virtual uint64_t activityTs() const { return 0; }
+
+    /**
+     * @brief Returns handle of the last synced node.
+     *
+     * @return Handle of the last synced node.
+     */
+    virtual MegaHandle lastSync() const { return INVALID_HANDLE; }
+
+    virtual MegaBackupInfo* copy() const { return nullptr; }
+    virtual ~MegaBackupInfo() = default;
+};
+
+/**
+ * @brief List of MegaBackupInfo objects
+ *
+ * A MegaBackupInfoList has the ownership of the MegaBackupInfo objects that it contains, so they
+ * will be valid only until the MegaBackupInfoList is deleted. If you want to retain a MegaBackupInfo
+ * returned by a MegaBackupInfoList, use MegaBackupInfo::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaBackupInfoList
+{
+public:
+    /**
+     * @brief Returns the MegaBackupInfo at the position i in the MegaBackupInfoList
+     *
+     * The MegaBackupInfoList retains the ownership of any returned MegaBackupInfo. It will be valid
+     * only until the MegaBackupInfoList is deleted. If you want to retain a MegaBackupInfo returned
+     * by this function, use MegaBackupInfo::copy().
+     *
+     * If the index is >= the size of the list, this function returns null.
+     *
+     * @param i Position of the instance that we want to get from the list
+     * @return Instance at position i in the list
+     */
+    virtual const MegaBackupInfo* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaBackupInfo instances in the list
+     * @return Number of MegaBackupInfo instances in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaBackupInfoList* copy() const { return nullptr; }
+    virtual ~MegaBackupInfoList() = default;
+};
+
+
+/**
  * @brief Represents a Set in MEGA
  *
  * It allows to get all data related to a Set in MEGA.
@@ -4251,7 +4433,8 @@ class MegaRequest
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
-            TOTAL_OF_REQUEST_TYPES                                          = 169,
+            TYPE_BACKUP_INFO                                                = 169,
+            TOTAL_OF_REQUEST_TYPES                                          = 170,
         };
 
         virtual ~MegaRequest();
@@ -5102,6 +5285,8 @@ class MegaRequest
          * @return list of elements in the requested MegaSet, or null if Set not found
          */
         virtual MegaSetElementList* getMegaSetElementList() const;
+
+        virtual MegaBackupInfoList* getMegaBackupInfoList() const;
 };
 
 /**
@@ -20333,6 +20518,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Fetch information about all registered backups for Backup Centre
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
+         *
+         * @param listener MegaRequestListener to track this request
+        */
+        void getBackupInfo(MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Send heartbeat associated with an existing backup

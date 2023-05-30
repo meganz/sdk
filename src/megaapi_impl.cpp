@@ -3468,6 +3468,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
+    this->mMegaBackupInfoList.reset(request->mMegaBackupInfoList ? request->mMegaBackupInfoList->copy() : nullptr);
     this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
     this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
     this->mMegaIntegerList.reset(request->mMegaIntegerList ? request->mMegaIntegerList->copy() : nullptr);
@@ -4077,6 +4078,16 @@ void MegaRequestPrivate::setMegaIntegerList(std::unique_ptr<MegaIntegerList> int
     mMegaIntegerList.swap(ints);
 }
 
+MegaBackupInfoList* MegaRequestPrivate::getMegaBackupInfoList() const
+{
+    return mMegaBackupInfoList.get();
+}
+
+void MegaRequestPrivate::setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps)
+{
+    mMegaBackupInfoList.swap(bkps);
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -4248,6 +4259,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_OPEN_SHARE_DIALOG: return "OPEN_SHARE_DIALOG";
         case TYPE_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
+        case TYPE_BACKUP_INFO: return "BACKUP_INFO";
     }
     return "UNKNOWN";
 }
@@ -24174,6 +24186,29 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener* listene
         {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
                 [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
+            return API_OK;
+        };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getBackupInfo(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_INFO, listener);
+
+    request->performRequest = [this, request]()
+        {
+            client->getBackupInfo([this, request](const Error& e, const vector<CommandBackupSyncFetch::Data>& d)
+            {
+                if (e == API_OK)
+                {
+                    request->setMegaBackupInfoList(::mega::make_unique<MegaBackupInfoListPrivate>(d));
+                }
+
+                fireOnRequestFinish(request, ::mega::make_unique<MegaErrorPrivate>(e));
+            });
+
             return API_OK;
         };
 

@@ -681,6 +681,57 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 };
 
 
+class MegaBackupInfoPrivate : public MegaBackupInfo
+{
+public:
+    MegaBackupInfoPrivate(const CommandBackupSyncFetch::Data& d) : mData(d) {}
+
+    MegaHandle id() const override { return mData.backupId; }
+    int type() const override { return mData.backupType; }
+    MegaHandle root() const override { return mData.rootNode; }
+    const char* localFolder() const override { return mData.localFolder.c_str(); }
+    const char* deviceId() const override { return mData.deviceId.c_str(); }
+    int state() const override { return mData.syncState; }
+    int substate() const override { return mData.syncSubstate; }
+    const char* extra() const override { return mData.extra.c_str(); }
+    const char* name() const override { return mData.backupName.c_str(); }
+    uint64_t ts() const override { return mData.hbTimestamp; }
+    int status() const override { return mData.hbStatus; }
+    int progress() const override { return mData.hbProgress; }
+    int uploads() const override { return mData.uploads; }
+    int downloads() const override { return mData.downloads; }
+    uint64_t activityTs() const override { return mData.lastActivityTs; }
+    MegaHandle lastSync() const override { return mData.lastSyncedNodeHandle; }
+
+    MegaBackupInfoPrivate* copy() const override { return new MegaBackupInfoPrivate(*this); }
+
+private:
+    const CommandBackupSyncFetch::Data mData;
+};
+
+
+class MegaBackupInfoListPrivate : public MegaBackupInfoList
+{
+public:
+    MegaBackupInfoListPrivate(const std::vector<CommandBackupSyncFetch::Data>& d)
+    {
+        mBackups.reserve(d.size());
+        for (const auto& bd : d)
+        {
+            mBackups.emplace_back(bd);
+        }
+    }
+
+    MegaBackupInfoListPrivate* copy() const override { return new MegaBackupInfoListPrivate(*this); }
+
+    const MegaBackupInfo* get(unsigned i) const override { return i < size() ? &mBackups[i] : nullptr; }
+    unsigned size() const override { return (unsigned)mBackups.size(); }
+
+private:
+    vector<MegaBackupInfoPrivate> mBackups;
+};
+
+
 class MegaSetPrivate : public MegaSet
 {
 public:
@@ -1521,6 +1572,9 @@ class MegaRequestPrivate : public MegaRequest
         const MegaIntegerList* getMegaIntegerList() const override;
         void setMegaIntegerList(std::unique_ptr<MegaIntegerList> ints);
 
+        MegaBackupInfoList* getMegaBackupInfoList() const override;
+        void setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1575,6 +1629,7 @@ protected:
         unique_ptr<MegaSet> mMegaSet;
         unique_ptr<MegaSetElementList> mMegaSetElementList;
         unique_ptr<MegaIntegerList> mMegaIntegerList;
+        unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -3084,6 +3139,7 @@ class MegaApiImpl : public MegaApp
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char *backupName, int state, int subState, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+        void getBackupInfo(MegaRequestListener* listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);

@@ -931,6 +931,11 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
+{
+    reqs.add(new CommandBackupSyncFetch(f));
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
