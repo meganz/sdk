@@ -1261,14 +1261,16 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
 
     /**
-     * @brief Returns Backup type. It can be one of the following values:
-     * INVALID       = -1
-     * TWO_WAY       =  0
-     * UP_SYNC       =  1
-     * DOWN_SYNC     =  2
-     * CAMERA_UPLOAD =  3
-     * MEDIA_UPLOAD  =  4
-     * BACKUP_UPLOAD =  5
+     * @brief Returns Backup type.
+     *
+     * It can be one of the following values:
+     *  INVALID       = -1
+     *  TWO_WAY       =  0
+     *  UP_SYNC       =  1
+     *  DOWN_SYNC     =  2
+     *  CAMERA_UPLOAD =  3
+     *  MEDIA_UPLOAD  =  4
+     *  BACKUP_UPLOAD =  5
      *
      * @return Backup type.
      */
@@ -1297,6 +1299,14 @@ public:
 
     /**
      * @brief Returns the sync state of the backup.
+     *
+     * It can be one of the following values:
+     *  STATE_NOT_INITIALIZED = 0
+     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
+     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
+     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
+     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
+     *  UNKNOWN  = 5 -> Unknown status
      *
      * @return Sync state of the backup.
      */
@@ -20580,8 +20590,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
          *
          * @param listener MegaRequestListener to track this request
         */
