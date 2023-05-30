@@ -142,7 +142,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeDrivesName              = 35, // private - byte array
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
-    MEGAUserAttributeCcPreferences           = 39, // private - byte array - versioned (content consumption preferences)
+    MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -4970,7 +4970,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGAUserAttributeAlias
  *  - MEGAUserAttributeDeviceNames
  *  - MEGAUserAttributeAppsPreferences
- *  - MEGAUserAttributeCcPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
  * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
  *
  * @param type Attribute type
@@ -4995,7 +4995,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Set the list of device names (private)
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
- * MEGAUserAttributeCcPreferences = 39
+ * MEGAUserAttributeContentConsumptionPreferences = 39
  * Set the content consumption prefs (private)
  *
  * @param key Key for the new attribute in the string map
@@ -5015,7 +5015,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGAUserAttributeAlias
  *  - MEGAUserAttributeDeviceNames
  *  - MEGAUserAttributeAppsPreferences
- *  - MEGAUserAttributeCcPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
  * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
  *
  * @param type Attribute type
@@ -5040,7 +5040,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Set the list of device names (private)
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
- * MEGAUserAttributeCcPreferences = 39
+ * MEGAUserAttributeContentConsumptionPreferences = 39
  * Set the content consumption prefs (private)
  *
  * @param key Key for the new attribute in the string map
