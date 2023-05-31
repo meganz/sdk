@@ -12395,6 +12395,13 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
 dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
+
+    if (!transfer)
+    {
+        LOG_warn << "pread_failure: transfer is invalid";
+        return NEVER;
+    }
+
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
