@@ -96,14 +96,6 @@ private:
     HANDLE mHandle;
 };
 
-void FileSystemAccess::setMinimumDirectoryPermissions(int)
-{
-}
-
-void FileSystemAccess::setMinimumFilePermissions(int)
-{
-}
-
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
