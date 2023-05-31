@@ -3746,6 +3746,7 @@ using namespace mega;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
+    delete [] val;
     return ret;
 }
 
