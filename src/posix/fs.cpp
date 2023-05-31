@@ -109,16 +109,6 @@ using namespace std;
 
 bool PosixFileAccess::mFoundASymlink = false;
 
-void FileSystemAccess::setMinimumDirectoryPermissions(int permissions)
-{
-    mMinimumDirectoryPermissions = permissions & 07777;
-}
-
-void FileSystemAccess::setMinimumFilePermissions(int permissions)
-{
-    mMinimumFilePermissions = permissions & 07777;
-}
-
 #ifdef USE_IOS
 
 const string adjustBasePath(const LocalPath& name)
@@ -1145,10 +1135,11 @@ int PosixFileSystemAccess::getdefaultfilepermissions()
 
 void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
-    // Sanitize permissions.
-    permissions &= 07777;
-
-    defaultfilepermissions = permissions | mMinimumFilePermissions;
+#ifdef DEBUG
+    defaultfilepermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
+    defaultfilepermissions = permissions | 0600;
+#endif
 }
 
 int PosixFileSystemAccess::getdefaultfolderpermissions()
@@ -1158,10 +1149,11 @@ int PosixFileSystemAccess::getdefaultfolderpermissions()
 
 void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
-    // Sanitize permissions.
-    permissions &= 07777;
-
-    defaultfolderpermissions = permissions | mMinimumDirectoryPermissions;
+#ifdef DEBUG
+    defaultfolderpermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
+#else
+    defaultfolderpermissions = permissions | 0700;
+#endif
 }
 
 bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
