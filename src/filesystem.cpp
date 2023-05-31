@@ -38,6 +38,9 @@
 
 namespace mega {
 
+std::atomic<int> FileSystemAccess::mMinimumDirectoryPermissions{0700};
+std::atomic<int> FileSystemAccess::mMinimumFilePermissions{0600};
+
 CodeCounter::ScopeStats g_compareUtfTimings("compareUtfTimings");
 
 FSLogging FSLogging::noLogging(eNoLogging);
@@ -824,6 +827,16 @@ handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcas
         return fileAccess->fsid;
 
     return UNDEF;
+}
+
+int FileSystemAccess::getMinimumDirectoryPermissions()
+{
+    return mMinimumDirectoryPermissions;
+}
+
+int FileSystemAccess::getMinimumFilePermissions()
+{
+    return mMinimumFilePermissions;
 }
 
 #ifdef ENABLE_SYNC

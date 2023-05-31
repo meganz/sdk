@@ -3832,6 +3832,30 @@ int MegaApi::getDefaultFolderPermissions()
     return pImpl->getDefaultFolderPermissions();
 }
 
+#ifndef NDEBUG
+
+int MegaApi::getMinimumFilePermissions()
+{
+    return FileSystemAccess::getMinimumFilePermissions();
+}
+
+int MegaApi::getMinimumFolderPermissions()
+{
+    return FileSystemAccess::getMinimumDirectoryPermissions();
+}
+
+void MegaApi::setMinimumFilePermissions(int permissions)
+{
+    FileSystemAccess::setMinimumFilePermissions(permissions);
+}
+
+void MegaApi::setMinimumFolderPermissions(int permissions)
+{
+    FileSystemAccess::setMinimumDirectoryPermissions(permissions);
+}
+
+#endif // !NDEBUG
+
 long long MegaApi::getBandwidthOverquotaDelay()
 {
     return pImpl->getBandwidthOverquotaDelay();
