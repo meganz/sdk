@@ -509,7 +509,7 @@ bool Either::addCompletions(ACState& s)
 bool Either::match(ACState& s) const
 {
     auto i = s.i;
-    for (auto e : eithers)
+    for (const auto& e : eithers)
     {
         s.i = i;
         if (e->match(s))
@@ -1157,7 +1157,7 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
                 }
                 else
                 {
-                    for (auto fwm : firstWordMatches)
+                    for (const auto& fwm : firstWordMatches)
                     {
                         conout << std::endl << e->describePrefix << *fwm << endl;
                     }
@@ -1182,7 +1182,7 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             else
             {
                 conout << "Ambiguous syntax" << std::endl;
-                for (auto a : v)
+                for (const auto& a : v)
                 {
                     conout << e->describePrefix << *a << std::endl;
                 }

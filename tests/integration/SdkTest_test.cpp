@@ -788,7 +788,7 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     onTranferFinishedCount += 1;
 }
 
-void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
+void SdkTest::onTransferUpdate(MegaApi*, MegaTransfer *transfer)
 {
     onTransferUpdate_progress = transfer->getTransferredBytes();
     onTransferUpdate_filesize = transfer->getTotalBytes();
@@ -854,7 +854,7 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
     mApi[apiIndex].setElementUpdated = true;
 }
 
-void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
+void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList*)
 {
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
@@ -929,7 +929,7 @@ void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
     }
 }
 
-void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
+void SdkTest::fetchnodes(unsigned int apiIndex, int)
 {
     RequestTracker rt(megaApi[apiIndex].get());
     mApi[apiIndex].megaApi->fetchNodes(&rt);
@@ -966,9 +966,8 @@ void SdkTest::locallogout(unsigned apiIndex)
     ASSERT_EQ(API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
-void SdkTest::resumeSession(const char *session, int timeout)
+void SdkTest::resumeSession(const char *session, unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
@@ -1552,7 +1551,7 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action)
     }
 }
 
-string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
+string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int, bool isFreeAccount, bool writable, bool megaHosted)
 {
     RequestTracker rt(megaApi[apiIndex].get());
 
@@ -1639,7 +1638,7 @@ void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expect
     mApi[apiIndex].cr.reset(crl->get(0)->copy());
 }
 
-MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int timeout)
+MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *parent, int)
 {
     RequestTracker tracker(megaApi[apiIndex].get());
 
@@ -1663,13 +1662,12 @@ void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& co
     ASSERT_EQ(API_OK, synchronousGetRegisteredContacts(apiIndex, contactsStringMap.get(), this)) << "Get registered contacts failed";
 }
 
-void SdkTest::getCountryCallingCodes(const int timeout)
+void SdkTest::getCountryCallingCodes(unsigned apiIndex)
 {
-    int apiIndex = 0;
     ASSERT_EQ(API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
-void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
+void SdkTest::getUserAttribute(MegaUser *u, int type, int, int apiIndex)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
 
@@ -5689,7 +5687,7 @@ static void incrementFilename(string& s)
 struct second_timer
 {
     m_time_t t;
-    m_time_t pause_t;
+    m_time_t pause_t = 0;
     second_timer() { t = m_time(); }
     void reset () { t = m_time(); }
     void pause() { pause_t = m_time(); }
@@ -6370,10 +6368,10 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         delete[] receiveBuf;
     }
 
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
+    void onTransferStart(MegaApi*, MegaTransfer*) override
     {
     }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+    void onTransferFinish(MegaApi*, MegaTransfer*, MegaError* error) override
     {
         if (error && error->getErrorCode() != API_OK)
         {
@@ -6387,7 +6385,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
             completedSuccessfully = true;
         }
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
+    void onTransferUpdate(MegaApi*, MegaTransfer*) override
     {
     }
     void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
@@ -6396,7 +6394,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL");
         api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
     }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
+    bool onTransferData(MegaApi *, MegaTransfer *, char *buffer, size_t size) override
     {
         assert(receiveBufPos + size <= reserved);
         memcpy(receiveBuf + receiveBufPos, buffer, size);
@@ -7086,13 +7084,13 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     bool null_pointer = (n1.get() == nullptr);
     ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
 
-    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
-    err = synchronousSetNodeFavourite(0, n1.get(), true);
+    synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    synchronousSetNodeFavourite(0, n1.get(), true);
 
-    err = synchronousGetFavourites(0, subFolderA.get(), 0);
+    auto err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
     ASSERT_EQ(mApi[0].getFavNodeCount(), 2u) << "synchronousGetFavourites failed...";
-    err = synchronousGetFavourites(0, nullptr, 1);
+    synchronousGetFavourites(0, nullptr, 1);
     ASSERT_EQ(mApi[0].getFavNodeCount(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mApi[0].getFavNode(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
@@ -8507,13 +8505,13 @@ struct SyncListener : MegaListener
         stateMap.clear();
     }
 
-    void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
+    void onSyncFileStateChanged(MegaApi*, MegaSync*, std::string*, int) override
     {
         // probably too frequent to output
         //out() << "onSyncFileStateChanged " << sync << newState;
     }
 
-    void onSyncAdded(MegaApi* api, MegaSync* sync) override
+    void onSyncAdded(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncAdded " << toHandle(sync->getBackupId());
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
@@ -8522,14 +8520,14 @@ struct SyncListener : MegaListener
         state(sync) = added;
     }
 
-    void onSyncDeleted(MegaApi* api, MegaSync* sync) override
+    void onSyncDeleted(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncDeleted " << toHandle(sync->getBackupId());
         check(state(sync) != nonexistent && state(sync) != deleted);
         state(sync) = nonexistent;
     }
 
-    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
+    void onSyncStateChanged(MegaApi*, MegaSync* sync) override
     {
         out() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << " runState: " << sync->getRunState();
 
@@ -8541,7 +8539,7 @@ struct SyncListener : MegaListener
         check(state(sync) != nonexistent);
     }
 
-    void onGlobalSyncStateChanged(MegaApi* api) override
+    void onGlobalSyncStateChanged(MegaApi*) override
     {
         // just too frequent for out() really
         //out() << "onGlobalSyncStateChanged ";
@@ -8650,7 +8648,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto removeSyncByBackupId = [this, &megaNode](handle backupId)
+    auto removeSyncByBackupId = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
         megaApi[0]->removeSync(backupId, &syncTracker);
@@ -11655,7 +11653,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Get public Set URL";
-    const auto lCheckSetLink = [this, sh, &exportedSetURL](int expectedResult)
+    const auto lCheckSetLink = [this, sh](int expectedResult)
     {
         bool isSuccessExpected = expectedResult == API_OK;
         unique_ptr<const char[]> publicSetLink(megaApi[0]->getPublicLinkForExportedSet(sh));
@@ -11667,7 +11665,6 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
 
     LOG_debug << "# U1: Fetch Public Set and start Public Set preview mode";
-    userIdx = 0;
     isExpectedToBeExported = true;
     const auto lIsSameElementList = [&els, &lIsSameElement](const MegaSetElementList* ell)
     {
@@ -13449,7 +13446,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFile = [this, &filename](bool readF, bool writeF) -> bool
+    auto openFile = [&filename](bool readF, bool writeF) -> bool
     {
         auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();

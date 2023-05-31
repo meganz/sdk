@@ -1459,7 +1459,7 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1518,7 +1518,7 @@ public:
      * @param i Position of the MegaSet that we want to get for the list
      * @return MegaSet at the position i in the list
      */
-    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSet* get(unsigned int i) const;
 
     /**
      * @brief Returns the number of MegaSets in the list
@@ -1614,7 +1614,7 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1663,7 +1663,7 @@ public:
      * @param i Position of the MegaSetElement that we want to get for the list
      * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSetElement* get(unsigned int i) const;
 
     /**
      * @brief Returns the number of MegaSetElements in the list
