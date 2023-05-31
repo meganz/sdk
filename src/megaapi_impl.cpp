@@ -23014,39 +23014,55 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
 
             if (publicMode && !unifiedKey)
             {
+                LOG_err << "Request (TYPE_CHAT_INVITE). Invalid unified key for Public chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EINCOMPLETE;
             }
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
+                LOG_err << "Request (TYPE_CHAT_INVITE). Invalid user handle: " << Base64Str<MegaClient::USERHANDLE>(uh)
+                << ", or chatid: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_ENOENT;
             }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
+                LOG_err << "Request (TYPE_CHAT_INVITE). chatroom not found: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_ENOENT;
             }
 
             TextChat *chat = it->second;
             if (chat->publicchat != publicMode)
             {
+                LOG_err << "Request (TYPE_CHAT_INVITE). " << (chat->publicchat ? "Public chat mode" : "Private chat mode")
+                << " ,unexpected for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EACCESS;
             }
 
             // new participants of private chats require the title to be encrypted to them
             if (!chat->publicchat && (!chat->title.empty() && (!title || title[0] == '\0')))
             {
+                LOG_err << "Request (TYPE_CHAT_INVITE). Invalid title for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EINCOMPLETE;
             }
 
-            ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
-            if (!chat->group
-                    || chat->priv < PRIV_STANDARD
-                    || (chat->priv != PRIV_MODERATOR && !chatOptions.openInvite()))
+            if (!chat->group)
             {
-                // only allowed moderators or participants with standard permissions just if openInvite is enabled
+                LOG_err << "Request (TYPE_CHAT_INVITE). Invalid chat (1on1): " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EACCESS;
+            }
+
+            if (chat->priv < PRIV_MODERATOR)
+            {
+                ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
+                if (chat->priv < PRIV_STANDARD || !chatOptions.openInvite())
+                {
+                    // only allowed moderators or participants with standard permissions just if openInvite is enabled
+                    LOG_err << "Request (TYPE_CHAT_INVITE). Insufficient permissions to perform this action, for chat: "
+                    << Base64Str<MegaClient::USERHANDLE>(chatid);
+                    return API_EACCESS;
+                }
             }
 
             client->inviteToChat(chatid, uh, access, unifiedKey, title);
