@@ -81,13 +81,13 @@ class SyncApp : public MegaApp, public Logger
     handle cwd;
     bool initial_fetch;
 
-    void prelogin_result(int version, string* email, string *salt, error e);
+    void prelogin_result(int version, string* email, string *salt, error e) override;
 
-    void login_result(error e);
+    void login_result(error e) override;
 
-    void fetchnodes_result(const Error& e);
+    void fetchnodes_result(const Error& e) override;
 
-    void request_error(error e);
+    void request_error(error e) override;
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
@@ -104,7 +104,7 @@ public:
         #ifdef ENABLE_LOG_PERFORMANCE
             , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
         #endif
-    );
+    ) override;
 };
 
 // globals
@@ -334,7 +334,7 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
-void SyncApp::log(const char *time, int loglevel, const char *source, const char *message
+void SyncApp::log(const char *time, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                  , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
@@ -343,11 +343,6 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
     if (!time)
     {
         time = "";
-    }
-
-    if (!source)
-    {
-        source = "";
     }
 
     if (!message)
@@ -363,7 +358,7 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
     cout << endl;
 }
 
-void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
+void SyncApp::prelogin_result(int version, std::string*, std::string *salt, error e)
 {
     if (e)
     {
@@ -433,7 +428,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(std::move(syncConfig), false,
-                                [](error err, const SyncError& serr, handle backupId) {
+                                [](error err, const SyncError& serr, handle) {
                     if (err)
                     {
                         LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
@@ -456,7 +451,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 }
 
 // this callback function is called when request-level error occurred
-void SyncApp::request_error(error e)
+void SyncApp::request_error(error)
 {
     LOG_err << "FATAL: Request failed, exiting";
     exit(1);
@@ -492,7 +487,7 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
+void SyncApp::syncupdate_treestate(const SyncConfig&, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
     LOG_info << "Sync - state change of node " << lp << " to " << treestatename(ts);
 }

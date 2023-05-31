@@ -548,7 +548,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 {
                     Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
-                    found = true;
                     if (notify)
                     {
                         n->changed.pendingshares = true;
@@ -909,7 +908,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int)
     {
         if (e != API_OK)
         {
@@ -929,6 +928,11 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
+}
+
+void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
+{
+    reqs.add(new CommandBackupSyncFetch(f));
 }
 
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
@@ -8815,9 +8819,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
-    User* u;
-
-    if (!(u = finduser(user, 0)) && !user)
+    if (!finduser(user, 0) && !user)
     {
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
         else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
@@ -11304,7 +11306,7 @@ void MegaClient::procsr(JSON* j)
         else
         {
             // unknown node: skip
-            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
+            while (j->ishandle(USERHANDLE) && j->gethandle(USERHANDLE));
         }
     }
 
@@ -13211,7 +13213,6 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
     byte hmac[32];
     memcpy((char*)&hmac, ptr, 32);
-    ptr += 32;
 
     // Derive MAC key with salt+pwd
     vector<byte> derivedKey = deriveKey(pwd, salt, 64);
@@ -13431,7 +13432,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
     getuserdata(reqtag,
-        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
+        [this, u, spwd, spin](string*, string*, string*, error e)
         {
             if (e != API_OK)
             {
@@ -13791,7 +13792,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         LOG_info << "Upgrading cache to NOD";
         // call setparent() for the nodes whose parent was not available upon unserialization
-        for (auto it : delayedParents)
+        for (const auto& it : delayedParents)
         {
             Node *parent = mNodeManager.getNodeByHandle(it.first);
             for (Node* child : it.second)
@@ -16235,7 +16236,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning, std::move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool, int){
 
                 if (e)
                 {
@@ -16311,7 +16312,7 @@ void MegaClient::stopxfers(LocalNode* l, TransferDbCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType fsType) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType) const
 {
     Node** npp;
 
@@ -17972,7 +17973,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
     }
 }
 
-void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
+void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>&)
 {
     syncdebrisadding = false;
 }
@@ -21381,8 +21382,10 @@ string KeyManager::toKeysContainer()
     string keysCiphered;
     mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
 
+#ifndef NDEBUG
     byte header[2] = {20, 0};
     assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+#endif
 
     return string({20, 0}) + iv + keysCiphered;
 }
@@ -22336,9 +22339,9 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                #ifdef DEBUG
+#ifndef NDEBUG
                     int uhsize =
-                #endif
+#endif
                 Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
