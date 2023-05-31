@@ -982,7 +982,7 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
         auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
         if (e != API_OK)
         {
-            LOG_err << "Remove backup: backup root not found";
+            LOG_err << "Remove backup: failed to set the 'sds' node attribute";
             finalCompletion(e); // should there be a specific error here?
         }
     };

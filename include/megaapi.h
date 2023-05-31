@@ -20582,8 +20582,8 @@ class MegaApi
          *
          * This method allows to remove a backup from the list of backups displayed in the
          * Backup Centre, and completely remove its contents, either by moving them to
-         * moveDestinationor (when the latter has a valid value) by deleting them (when
-         * destination is INVALID_HANDLE). @see \c MegaApi::setScheduledCopy.
+         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * destination is INVALID_HANDLE).
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
          * Valid data in the MegaRequest object received on callbacks:
