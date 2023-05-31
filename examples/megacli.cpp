@@ -3842,7 +3842,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         // get backup's remote node
         const string& backupIdStr = s.words[1].s;
 
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        client->getBackupInfo([backupIdStr](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
@@ -3887,7 +3887,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                 cout << "Backup Centre - id not found: " << backupIdStr << endl;
                 return;
             }
-        }));
+        });
     }
 }
 

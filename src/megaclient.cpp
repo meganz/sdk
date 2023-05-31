@@ -962,7 +962,7 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
         if (bkpRmvErr != API_OK)
         {
             LOG_err << "Backup remove: failed to remove backup " << bkpId;
-            finalCompletion(bkpRmvErr); // should there be a specific error here?
+            finalCompletion(bkpRmvErr);
             return;
         }
 
@@ -983,7 +983,7 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
         if (e != API_OK)
         {
             LOG_err << "Remove backup: failed to set the 'sds' node attribute";
-            finalCompletion(e); // should there be a specific error here?
+            finalCompletion(e);
         }
     };
 
