@@ -1,7 +1,15 @@
 #pragma once
 
 #include <megaapi.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QEvent>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 namespace mega
 {
@@ -36,7 +44,7 @@ public:
     };
 
     QTMegaEvent(MegaApi *megaApi, Type type);
-    ~QTMegaEvent();
+    ~QTMegaEvent() override;
 
     MegaApi *getMegaApi();
     MegaRequest* getRequest();

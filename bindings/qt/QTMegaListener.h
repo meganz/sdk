@@ -1,6 +1,14 @@
 ﻿#pragma once
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QObject>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "megaapi.h"
 
 namespace mega
@@ -11,7 +19,7 @@ class QTMegaListener : public QObject, public MegaListener
 
 public:
     explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
-    virtual ~QTMegaListener();
+    ~QTMegaListener() override;
 
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
 	void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override;
@@ -38,7 +46,7 @@ public:
 #endif
 
 protected:
-    virtual void customEvent(QEvent * event);
+    void customEvent(QEvent * event) override;
 
     MegaApi *megaApi;
 	MegaListener *listener;

@@ -278,7 +278,7 @@ class TestMegaLogger : public Logger
 {
     mutex logMutex;
 public:
-    void log(const char* time, int loglevel, const char* source, const char* message
+    void log(const char*, int loglevel, const char* source, const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
           , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
 #endif

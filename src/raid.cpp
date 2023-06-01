@@ -736,7 +736,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     return queueParallel;
 }
 
-void TransferBufferManager::finalize(FilePiece& r)
+void TransferBufferManager::finalize(FilePiece&)
 {
     // for transfers (as opposed to DirectRead), decrypt/mac is now done on threads
 }

@@ -1507,10 +1507,10 @@ public:
 
     bool procresult(Result, JSON&) override;
 
-    CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)>);
+    CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)>);
 
 private:
-    std::function<void(Error, vector<Data>&)> completion;
+    std::function<void(const Error&, const vector<Data>&)> completion;
 };
 
 

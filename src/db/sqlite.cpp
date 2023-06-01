@@ -34,7 +34,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
+LocalPath SqliteDbAccess::databasePath(const FileSystemAccess&,
                                        const string& name,
                                        const int version) const
 {
@@ -335,16 +335,16 @@ SqliteDbTable::~SqliteDbTable()
     sqlite3_finalize(mDelStmt);
     sqlite3_finalize(mPutStmt);
 
-    if (inTransaction())
+    if (doInTransaction())
     {
-        abort();
+        doAbort();
     }
 
     sqlite3_close(db);
     LOG_debug << "Database closed " << dbfile;
 }
 
-bool SqliteDbTable::inTransaction() const
+bool SqliteDbTable::doInTransaction() const
 {
     return sqlite3_get_autocommit(db) == 0;
 }
@@ -549,7 +549,7 @@ void SqliteDbTable::commit()
 }
 
 // abort transaction
-void SqliteDbTable::abort()
+void SqliteDbTable::doAbort()
 {
     if (!db)
     {
