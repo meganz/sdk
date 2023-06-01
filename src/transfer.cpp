@@ -1174,9 +1174,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
             else
             {
                 // Transfer is already deleted
-                LOG_warn << "[DirectReadNode::retry] Removing DirectReadNode. No appdata (transfer is deleted) for DirectRead" << " [this = " << this << "]";
-                delete this;
-                return;
+                LOG_err << "[DirectReadNode::retry] No appdata (transfer is deleted) for this DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
             }
         }
     }
@@ -1312,7 +1310,6 @@ bool DirectReadSlot::processAnyOutputPieces()
             mDr->drn->partiallen += len;
             mDr->progress += len;
             mMinComparableThroughput = static_cast<m_off_t>(len);
-            mDr->drn->schedule(DirectReadSlot::TIMEOUT_DS); // If we have all the req data already submitted we need to re-schedule this or the transfer will be retried before TIMEOUT_DS dseconds
         }
     }
     return continueDirectRead;
@@ -1552,6 +1549,7 @@ bool DirectReadSlot::doio()
                                      mDr->drn->client->minstreamingrate > 0 ? // Custom limit
                                         (mDr->drn->client->minstreamingrate / numParts) :
                                         1; // No limit (1 B/s)
+    if (isRaid) { minSpeedPerConnection = (minSpeedPerConnection + RAIDSECTOR - 1) & - RAIDSECTOR; } // round up to a RAIDSECTOR divisible value
     for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
     {
         std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -1576,7 +1574,7 @@ bool DirectReadSlot::doio()
                     maxChunkSize = aggregatedThroughput;
                     // 16KB as min chunk divisible size to submit. If the user's speed is even lower than 16KB/s per connection, then respect the minSpeedPerConnection.
                     // This is to avoid small chunks to be assembled (if raid) and delivered.
-                    unsigned minChunkDivisibleSize = maxChunkSize < (16 * 1024) ? minSpeedPerConnection : 16 * 1024;
+                    unsigned minChunkDivisibleSize = maxChunkSize < (16 * 1024) ? minSpeedPerConnection : 16 * 1024; // 16KB is divisible by RAIDSECTOR: works for RAID and NON-RAID
 
                     if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
                     {
@@ -1649,15 +1647,15 @@ bool DirectReadSlot::doio()
                 }
                 req->lastdata = Waiter::ds;
 
-                mDr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
-
                 // we might have a raid-reassembled block to write now, or this very block in non-raid
                 if (n && !processAnyOutputPieces())
                 {
-                    // app-requested abort
+                    LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces. Removing DirectRead" << " [this = " << this << "]";
                     delete mDr;
                     return true;
                 }
+
+                mDr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
             }
 
             if (req->status == REQ_SUCCESS && !req->in.size())
@@ -1689,7 +1687,7 @@ bool DirectReadSlot::doio()
                     // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                     if (!processAnyOutputPieces())
                     {
-                        // app-requested abort
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces (on new buffer supplied). Removing DirectRead" << " [this = " << this << "]";
                         delete mDr;
                         return true;
                     }
@@ -1714,7 +1712,6 @@ bool DirectReadSlot::doio()
                         if (allDone)
                         {
                             LOG_debug << "DirectReadSlot [conn " << connectionNum << "] All requests are DONE: Delete read request and direct read slot" << " [this = " << this << "]";
-                            mDr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
 
                             // remove and delete completed read request, then remove slot
                             delete mDr;
@@ -1830,6 +1827,7 @@ m_off_t DirectRead::drMaxReqSize() const
 DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
     : drbuf(this)
 {
+    LOG_debug << "[DirectRead::DirectRead] New DirectRead [cappdata = " << cappdata << "]" << " [this = " << this << "]";
     drn = cdrn;
 
     count = ccount;
@@ -1859,6 +1857,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
 DirectRead::~DirectRead()
 {
+    LOG_debug << "Deleting DirectRead" << " [this = " << this << "]";
     abort();
 
     if (reads_it != drn->reads.end())
@@ -1900,7 +1899,7 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
 // request DirectRead's range via tempurl
 DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 {
-    LOG_debug << "[DirectReadSlot::DirectReadSlot] New DirectReadSlot" << " [this = " << this << "]";
+    LOG_debug << "[DirectReadSlot::DirectReadSlot] New DirectReadSlot [cdr = " << (void*)cdr << "]" << " [this = " << this << "]";
     mDr = cdr;
 
     mPos = mDr->offset + mDr->progress;
