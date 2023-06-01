@@ -1175,6 +1175,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
             {
                 // Transfer is already deleted
                 LOG_err << "[DirectReadNode::retry] No appdata (transfer is deleted) for this DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
+                delete *(it++);
             }
         }
     }
