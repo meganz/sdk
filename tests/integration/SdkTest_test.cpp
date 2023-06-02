@@ -7440,10 +7440,22 @@ TEST_F(SdkTest, SdkBackupFolder)
 #ifdef ENABLE_SYNC
 TEST_F(SdkTest, SdkBackupMoveOrDelete)
 {
-    /// Run this after SdkBackupFolder that will create My Backups folder.
-
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupMoveOrDelete___";
+
+    string timestamp = getCurrentTimestamp(true);
+
+    // Set device name if missing
+    if (synchronousGetDeviceName(0) != API_OK || mApi[0].getAttributeValue().empty())
+    {
+        string deviceName = "Jenkins " + timestamp;
+        ASSERT_EQ(synchronousSetDeviceName(0, deviceName.c_str()), API_OK) << "Setting device name failed";
+        // make sure Device Name attr was set
+        ASSERT_EQ(synchronousGetDeviceName(0), API_OK) << "Getting device name failed";
+        ASSERT_EQ(deviceName, mApi[0].getAttributeValue()) << "Getting device name failed (wrong value)";
+    }
+    // Make sure My Backups folder was created
+    syncTestMyBackupsRemoteFolder(0);
 
     // Create local contents to back up
     fs::path localFolderPath = fs::current_path() / "LocalBackupFolder";
@@ -7455,7 +7467,6 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_TRUE(createLocalFile(localFolderPath, bkpFile.c_str()));
 
     // create a backup
-    string timestamp = getCurrentTimestamp(true);
     const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
     MegaHandle newSyncRootNodeHandle = INVALID_HANDLE;
     int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
