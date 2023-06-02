@@ -210,7 +210,7 @@ bool computeFingerprint(LightFileFingerprint& ffp, const LocalNode& l)
 
 // Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
 bool computeFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess,
-                        FileAccess& fa, LocalPath& path, const set<LocalPath>& paths)
+                        FileAccess& fa, LocalPath&, const set<LocalPath>& paths)
 {
     if (fa.type == FILENODE)
     {
@@ -397,7 +397,7 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 
 } // anonymous
 
-int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess)
+int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&)
 {
     if (path1.empty() || path2.empty())
     {
@@ -1315,7 +1315,11 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool
+#ifndef NDEBUG
+                                 fromOutsideThreadAlreadyLocked
+#endif
+                                 )
 {
     assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
@@ -1928,20 +1932,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         it->second->setnameparent(parent, localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
                     }
 
-                    // Has the move (rename) resulted in a filename anomaly?
-                    if (Node* node = it->second->node)
-                    {
-                        auto type = isFilenameAnomaly(*localpathNew, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto localPath = *localpathNew;
-                            auto remotePath = node->displaypath();
-
-                            client->filenameAnomalyDetected(type, localPath, remotePath);
-                        }
-                    }
-
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 
@@ -2435,7 +2425,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
         });
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool, bool resetFingerprint, bool notifyApp, bool, std::function<void(error, SyncError, handle)> completion, const string& logname, const string&)
 {
     assert(onSyncThread());
 
@@ -2553,7 +2543,7 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
     bool inshare, bool isNetwork, const LocalPath& rootpath,
-    std::function<void(error, SyncError, handle)> completion, std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname, bool notifyApp)
+    std::function<void(error, SyncError, handle)> completion, std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname, bool)
 {
     assert(!us.mSync);
 
@@ -2755,7 +2745,7 @@ void Syncs::backupCloseDrive(const LocalPath& drivePath, std::function<void(Erro
     queueSync([this, drivePath, clientCallback]()
         {
             Error e = backupCloseDrive_inThread(drivePath);
-            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
+            queueClient([clientCallback, e](MegaClient&, TransferDbCommitter&)
                 {
                     clientCallback(e);
                 });
@@ -2813,7 +2803,7 @@ void Syncs::backupOpenDrive(const LocalPath& drivePath, std::function<void(Error
     queueSync([this, drivePath, clientCallback]()
         {
             Error e = backupOpenDrive_inThread(drivePath);
-            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
+            queueClient([clientCallback, e](MegaClient&, TransferDbCommitter&)
                 {
                     clientCallback(e);
                 });
@@ -3747,7 +3737,7 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     auto clientCompletion = [this, completion](error e, SyncError se, handle backupId)
     {
-        queueClient([e, se, backupId, completion](MegaClient& mc, TransferDbCommitter& committer)
+        queueClient([e, se, backupId, completion](MegaClient&, TransferDbCommitter&)
             {
                 if (completion) completion(e, se, backupId);
             });
@@ -4233,7 +4223,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
 
             us->mConfig.mSyncDeregisterSent = true;
             auto backupId = us->mConfig.mBackupId;
-            queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
+            queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter&){
                 mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
                     if (onFinalDeregister) onFinalDeregister();
                 }));
@@ -4400,7 +4390,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-#ifdef DEBUG
+#ifndef NDEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 #endif
 
@@ -4419,7 +4409,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -4579,7 +4569,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));

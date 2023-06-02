@@ -101,7 +101,14 @@
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
-    #include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+#include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 #include "mega/utils.h"

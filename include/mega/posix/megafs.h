@@ -154,10 +154,13 @@ public:
 struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 {
     PosixAsyncIOContext();
-    virtual ~PosixAsyncIOContext();
-    virtual void finish();
+    ~PosixAsyncIOContext() override;
+    void finish() override { doFinish(); }
 
     struct aiocb *aiocb;
+
+private:
+    void doFinish();
 };
 #endif
 
@@ -204,7 +207,7 @@ public:
 
 #ifdef HAVE_AIO_RT
 protected:
-    virtual AsyncIOContext* newasynccontext();
+    AsyncIOContext* newasynccontext() override;
     static void asyncopfinished(union sigval sigev_value);
 #endif
 

@@ -560,7 +560,7 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/,
     dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
     const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
     Cb mCompletion;

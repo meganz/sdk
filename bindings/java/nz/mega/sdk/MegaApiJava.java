@@ -114,6 +114,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
     public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
     public final static int USER_ATTR_APPS_PREFS = MegaApi.USER_ATTR_APPS_PREFS;
+    public final static int USER_ATTR_CC_PREFS = MegaApi.USER_ATTR_CC_PREFS;
 
     // deprecated: public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
     public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
@@ -4323,6 +4324,7 @@ public class MegaApiJava {
      *  - MegaApi::ATTR_ALIAS
      *  - MegaApi::ATTR_DEVICE_NAMES
      *  - MegaApi::USER_ATTR_APPS_PREFS
+     *  - MegaApi::USER_ATTR_CC_PREFS
      * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
      *
      * @param type Attribute type
@@ -4367,6 +4369,7 @@ public class MegaApiJava {
      *  - MegaApi::ATTR_ALIAS
      *  - MegaApi::ATTR_DEVICE_NAMES
      *  - MegaApi::USER_ATTR_APPS_PREFS
+     *  - MegaApi::USER_ATTR_CC_PREFS
      * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
      *
      * @param type Attribute type

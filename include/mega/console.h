@@ -22,6 +22,8 @@
 #ifndef MEGA_CONSOLE_H
 #define MEGA_CONSOLE_H 1
 
+#include "types.h"
+
 namespace mega {
 struct MEGA_API Console
 {

@@ -341,7 +341,7 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, putsource_t source)
+void AppFileGet::completed(Transfer*, putsource_t)
 {
     if (onCompleted) onCompleted();
 
@@ -350,7 +350,7 @@ void AppFileGet::completed(Transfer*, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated(error e)
+void AppFileGet::terminated(error)
 {
     delete this;
 }
@@ -368,7 +368,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool, int){
 
             if (e)
             {
@@ -383,20 +383,21 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated(error e)
+void AppFilePut::terminated(error)
 {
     delete this;
 }
 
 AppFileGet::~AppFileGet()
 {
-    if (appxfer_it != appfile_list::iterator())
+    if (appxfer_it != appxferq[GET].end())
         appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
 {
-    appxferq[PUT].erase(appxfer_it);
+    if (appxfer_it != appxferq[PUT].end())
+        appxferq[PUT].erase(appxfer_it);
 }
 
 void AppFilePut::displayname(string* dname)
@@ -618,6 +619,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
+    appxfer_it = appxferq[GET].end();
+
     if (n)
     {
         h = n->nodeHandle();
@@ -657,6 +660,8 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
 
 AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
+    appxfer_it = appxferq[PUT].end();
+
     // full local path
     setLocalname(clocalname);
 
@@ -896,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool, handle, error e)
 {
     if (e)
     {
@@ -1533,6 +1538,11 @@ bool showattrs = false;
 // returns NULL if path malformed or not found
 static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
+    if (!ptr)
+    {
+        return nullptr;
+    }
+
     vector<string> c;
     string s;
     int l = 0;
@@ -2662,7 +2672,7 @@ public:
         else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
-            for (auto s : stack->servers)
+            for (const auto& s : stack->servers)
             {
                 cout << s << endl;
             }
@@ -3331,7 +3341,7 @@ void exec_showattributes(autocomplete::ACState& s)
 {
     if (const Node* n = nodeFromRemotePath(s.words[1].s))
     {
-        for (auto pair : n->attrs.map)
+        for (const auto& pair : n->attrs.map)
         {
             char namebuf[10]{};
             AttrMap::nameid2string(pair.first, namebuf);
@@ -3392,7 +3402,7 @@ public:
     string mLogFileName;
     bool logToConsole = false;
 
-    void log(const char*, int loglevel, const char*, const char *message
+    void log(const char*, int, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                  , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
@@ -3605,7 +3615,7 @@ void exec_setdevicename(autocomplete::ACState& s)
     putua_map(b64idhash, b64devname, ATTR_DEVICE_NAMES);
 }
 
-void exec_getdevicename(autocomplete::ACState& s)
+void exec_getdevicename(autocomplete::ACState&)
 {
     User* u = client->ownuser();
     if (!u)
@@ -3889,57 +3899,6 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         });
     }
-}
-
-class AnomalyReporter
-    : public FilenameAnomalyReporter
-{
-public:
-    void anomalyDetected(FilenameAnomalyType type,
-                            const LocalPath& localPath,
-                            const string& remotePath) override
-    {
-        string typeName;
-
-        switch (type)
-        {
-        case FILENAME_ANOMALY_NAME_MISMATCH:
-            typeName = "NAME_MISMATCH";
-            break;
-        case FILENAME_ANOMALY_NAME_RESERVED:
-            typeName = "NAME_RESERVED";
-            break;
-        default:
-            assert(!"Unknown anomaly type!");
-            typeName = "UNKNOWN";
-            break;
-        }
-
-        cout << "Filename anomaly detected: type: "
-                << typeName
-                << ": local path: "
-                << localPath.toPath(false)
-                << ": remote path: "
-                << remotePath
-                << endl;
-    }
-}; // AnomalyReporter
-
-void exec_logFilenameAnomalies(autocomplete::ACState& s)
-{
-    unique_ptr<FilenameAnomalyReporter> reporter;
-
-    if (s.words[1].s == "on")
-    {
-        reporter.reset(new AnomalyReporter());
-    }
-
-    cout << "Filename anomaly reporting is "
-         << (reporter ? "en" : "dis")
-         << "abled."
-         << endl;
-
-    client->mFilenameAnomalyReporter = std::move(reporter);
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -4298,9 +4257,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_logFilenameAnomalies,
-           sequence(text("logfilenameanomalies"), either(text("on"), text("off"))));
-
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), opt(either(flag("-on"), flag("-off")))));
 
     p->Add(exec_driveid,
@@ -4547,8 +4503,6 @@ static void process_line(char* l)
         }
         else
         {
-            error e;
-
             if (signupemail.size())
             {
                 string buf = client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
@@ -4576,7 +4530,7 @@ static void process_line(char* l)
             }
             else
             {
-                if ((e = client->changepw(newpassword.c_str())) == API_OK)
+                if (client->changepw(newpassword.c_str()) == API_OK)
                 {
                     memcpy(pwkey, newpwkey, sizeof pwkey);
                     cout << endl << "Changing password..." << endl;
@@ -5135,7 +5089,7 @@ void exec_get(autocomplete::ACState& s)
             cout << "Checking link..." << endl;
 
             client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
                 {
@@ -5175,7 +5129,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5514,7 +5468,7 @@ void exec_put(autocomplete::ACState& s)
         << " file(s) in queue" << endl;
 }
 
-void exec_pwd(autocomplete::ACState& s)
+void exec_pwd(autocomplete::ACState&)
 {
     string path;
 
@@ -5540,8 +5494,13 @@ void exec_lcd(autocomplete::ACState& s)
 }
 
 
-void exec_llockfile(autocomplete::ACState& s)
+void exec_llockfile(autocomplete::ACState&
+#ifdef WIN32
+                    s
+#endif
+                    )
 {
+#ifdef WIN32
     bool readlock = s.extractflag("-read");
     bool writelock = s.extractflag("-write");
     bool unlock = s.extractflag("-unlock");
@@ -5554,7 +5513,6 @@ void exec_llockfile(autocomplete::ACState& s)
 
     LocalPath localpath = localPathArg(s.words[1].s);
 
-#ifdef WIN32
     static map<LocalPath, HANDLE> llockedFiles;
 
     if (unlock)
@@ -5760,7 +5718,7 @@ void exec_lpwd(autocomplete::ACState& s)
 #endif
 
 
-void exec_test(autocomplete::ACState& s)
+void exec_test(autocomplete::ACState&)
 {
 }
 
@@ -5784,7 +5742,7 @@ void exec_mfac(autocomplete::ACState& s)
     client->multifactorauthcheck(email.c_str());
 }
 
-void exec_mfae(autocomplete::ACState& s)
+void exec_mfae(autocomplete::ACState&)
 {
     client->multifactorauthsetup();
 }
@@ -5824,8 +5782,7 @@ void exec_login(autocomplete::ACState& s)
             }
             else
             {
-                const char* ptr;
-                if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
+                if (strchr(s.words[1].s.c_str(), '#'))  // folder link indicator
                 {
                     const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
                     return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
@@ -6459,7 +6416,7 @@ void exec_clear(autocomplete::ACState& s)
 }
 #endif
 
-void exec_retry(autocomplete::ACState& s)
+void exec_retry(autocomplete::ACState&)
 {
     if (client->abortbackoff())
     {
@@ -6471,7 +6428,7 @@ void exec_retry(autocomplete::ACState& s)
     }
 }
 
-void exec_recon(autocomplete::ACState& s)
+void exec_recon(autocomplete::ACState&)
 {
     cout << "Closing all open network connections..." << endl;
 
@@ -6815,7 +6772,7 @@ void exec_apiurl(autocomplete::ACState& s)
     }
 }
 
-void exec_passwd(autocomplete::ACState& s)
+void exec_passwd(autocomplete::ACState&)
 {
     if (client->loggedin() != NOTLOGGEDIN)
     {
@@ -6990,7 +6947,7 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
-void exec_cancelsignup(autocomplete::ACState& s)
+void exec_cancelsignup(autocomplete::ACState&)
 {
     client->cancelsignup();
 }
@@ -7275,7 +7232,7 @@ void exec_chatst(autocomplete::ACState& s)
     }
 }
 
-void exec_chatpu(autocomplete::ACState& s)
+void exec_chatpu(autocomplete::ACState&)
 {
     client->getChatPresenceUrl();
 }
@@ -7596,7 +7553,7 @@ void exec_session(autocomplete::ACState& s)
     }
 }
 
-void exec_version(autocomplete::ACState& s)
+void exec_version(autocomplete::ACState&)
 {
     cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
@@ -7649,10 +7606,10 @@ void exec_version(autocomplete::ACState& s)
     cwd = NodeHandle();
 }
 
-void exec_showpcr(autocomplete::ACState& s)
+void exec_showpcr(autocomplete::ACState&)
 {
-    string outgoing = "";
-    string incoming = "";
+    string outgoing;
+    string incoming;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
         if (it->second->isoutgoing)
@@ -7875,7 +7832,7 @@ void exec_smsverify(autocomplete::ACState& s)
     }
 }
 
-void exec_verifiedphonenumber(autocomplete::ACState& s)
+void exec_verifiedphonenumber(autocomplete::ACState&)
 {
     cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
 }
@@ -7901,7 +7858,7 @@ void exec_killsession(autocomplete::ACState& s)
     }
 }
 
-void exec_locallogout(autocomplete::ACState& s)
+void exec_locallogout(autocomplete::ACState&)
 {
     cout << "Logging off locally..." << endl;
 
@@ -8309,7 +8266,7 @@ void DemoApp::sendsignuplink_result(error e)
     }
 }
 
-void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+void DemoApp::confirmsignuplink2_result(handle, const char*, const char *email, error e)
 {
     if (e)
     {
@@ -8813,7 +8770,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
-void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t, uint32_t numVersions)
 {
     if (e != API_OK)
     {
@@ -9835,8 +9792,6 @@ int main(int argc, char* argv[])
 
     clientFolder = NULL;    // additional for folder links
 
-    client->mFilenameAnomalyReporter.reset(new AnomalyReporter()); // on by default
-
     megacli();
 
     delete client;
@@ -10010,7 +9965,7 @@ void exec_metamac(autocomplete::ACState& s)
     }
 }
 
-void exec_resetverifiedphonenumber(autocomplete::ACState& s)
+void exec_resetverifiedphonenumber(autocomplete::ACState&)
 {
     client->resetSmsVerifiedPhoneNumber();
 }
@@ -10311,7 +10266,7 @@ void exec_syncopendrive(autocomplete::ACState& s)
         });
 }
 
-void exec_synclist(autocomplete::ACState& s)
+void exec_synclist(autocomplete::ACState&)
 {
     // Check the user's logged in.
     if (client->loggedin() != FULLACCOUNT)
@@ -10498,7 +10453,7 @@ void exec_syncremove(autocomplete::ACState& s)
         // unlink the backup's Vault nodes after deregistering it
         NodeHandle source = v[0].mRemoteNode;
         NodeHandle destination = NodeHandle().set6byte(bkpDest);
-        completion = [completion, source, destination](Error e){
+        completion = [completion, source, destination](Error){
             client->unlinkOrMoveBackupNodes(source, destination, completion);
         };
     }
@@ -10552,7 +10507,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError, handle)
             {
                 if (err)
                 {
@@ -10883,7 +10838,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle enode = element->node();
         memcpy(ekey.data(), element->key().c_str(), ekey.size());
         auto commandCB =
-            [ekey, enode] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
+            [ekey, enode] (const Error &e, m_off_t size,
                           dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
                           std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
                           const std::vector<std::string> &/*ips*/)
@@ -10900,7 +10855,11 @@ void exec_setsandelements(autocomplete::ACState& s)
                 return true;
             }
 
-            cout << "\tName: " << *filename << ", size: " << size;
+            FileFingerprint ffp;
+            m_time_t tm = 0;
+            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+
+            cout << "\tName: " << *filename << ", size: " << size << ", tm: " << tm;
             if (fingerprint->size()) cout << ", fingerprint available";
             if (fileattrstring->size()) cout << ", has attributes";
             cout << endl;
@@ -11015,7 +10974,7 @@ void DemoApp::reqstat_progress(int permilprogress)
     cout << "Progress (per mille) of request: " << permilprogress << endl;
 }
 
-void exec_numberofnodes(autocomplete::ACState &s)
+void exec_numberofnodes(autocomplete::ACState&)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish

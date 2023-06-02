@@ -37,7 +37,7 @@ bool ScheduledFlags::serialize(string& out) const
 ScheduledFlags* ScheduledFlags::unserialize(const std::string &in)
 {
     if (in.empty())  { return nullptr; }
-    uint32_t flagsNum = 0;
+    uint32_t flagsNum = schedEmptyFlags;
     CacheableReader r(in);
     if (!r.unserializeu32(flagsNum))
     {
@@ -422,7 +422,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
     constexpr unsigned int flagsSize = 6;
     unsigned char expansions[8]; // must be defined with size 8
 
-    const auto logAndFail = [](const string& msg) -> ScheduledMeeting*
+    const auto logAndFail = [](const string&) -> ScheduledMeeting*
     {
         LOG_err << "Failure at schedule meeting unserialization ";
         assert(false);
@@ -883,7 +883,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
 
-    for (auto i: scheduledMeetingsStr)
+    for (const auto& i: scheduledMeetingsStr)
     {
         ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
         if (auxMeet)

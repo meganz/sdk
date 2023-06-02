@@ -102,64 +102,6 @@ class MegaIntegerList;
 #endif
 
 /**
- * @brief
- * Interface to receive filename anomaly notifications from the SDK.
- *
- * @see MegaApi::setFilenameAnomalyReporter
- */
-class MegaFilenameAnomalyReporter
-{
-public:
-    /**
-     * @brief
-     * Represents the type of anomaly reported by the SDK.
-     */
-    enum AnomalyType
-    {
-        /**
-         * @brief
-         * A file's local and remote names differ.
-         *
-         * An example of when this kind of anomaly can occur is when
-         * downloading a file from the cloud that contains characters in its
-         * name that are not valid on the local filesystem.
-         *
-         * Say, downloading a file called A:B on Windows.
-         */
-        ANOMALY_NAME_MISMATCH = 0,
-
-        /**
-         * @brief
-         * A file has a reserved name.
-         *
-         * This kind of anomaly is reported by the SDK when it attempts to
-         * download a file that has a name that is reserved on the local
-         * filesystem.
-         *
-         * Say, downloading a file called CON on Windows.
-         */
-        ANOMALY_NAME_RESERVED = 1
-    }; // AnomalyType
-
-    virtual ~MegaFilenameAnomalyReporter() { };
-
-    /**
-     * @brief
-     * Called by the SDK when it wants to report a filename anomaly.
-     *
-     * @param type
-     * The anomaly that was detected by the SDK.
-     *
-     * @param localPath
-     * The local path of the file with a filename anomaly.
-     *
-     * @param remotePath
-     * The remote path of the file with a filename anomaly.
-     */
-    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
-}; // MegaFilenameAnomalyReporter
-
-/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -948,7 +890,7 @@ class MegaNode
          *
          * @return true if this node has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the node
@@ -1001,7 +943,7 @@ class MegaNode
          * Check if counter for this node (its subtree) has changed
          *
          */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Returns true if the node has an associated thumbnail
@@ -1261,14 +1203,16 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
 
     /**
-     * @brief Returns Backup type. It can be one of the following values:
-     * INVALID       = -1
-     * TWO_WAY       =  0
-     * UP_SYNC       =  1
-     * DOWN_SYNC     =  2
-     * CAMERA_UPLOAD =  3
-     * MEDIA_UPLOAD  =  4
-     * BACKUP_UPLOAD =  5
+     * @brief Returns Backup type.
+     *
+     * It can be one of the following values:
+     *  INVALID       = -1
+     *  TWO_WAY       =  0
+     *  UP_SYNC       =  1
+     *  DOWN_SYNC     =  2
+     *  CAMERA_UPLOAD =  3
+     *  MEDIA_UPLOAD  =  4
+     *  BACKUP_UPLOAD =  5
      *
      * @return Backup type.
      */
@@ -1297,6 +1241,14 @@ public:
 
     /**
      * @brief Returns the sync state of the backup.
+     *
+     * It can be one of the following values:
+     *  STATE_NOT_INITIALIZED = 0
+     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
+     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
+     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
+     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
+     *  UNKNOWN  = 5 -> Unknown status
      *
      * @return Sync state of the backup.
      */
@@ -1490,24 +1442,24 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW     = 0
+     * - MegaSet::CHANGE_TYPE_NEW     = 0x01
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME    = 1
+     * - MegaSet::CHANGE_TYPE_NAME    = 0x02
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER   = 2
+     * - MegaSet::CHANGE_TYPE_COVER   = 0x04
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED = 3
+     * - MegaSet::CHANGE_TYPE_REMOVED = 0x08
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 0x10
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1518,7 +1470,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1532,15 +1484,13 @@ public:
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
-    enum // match Set::CH_XXX values
+    enum // 1:1 with Set::CH_XXX values
     {
-        CHANGE_TYPE_NEW,
-        CHANGE_TYPE_NAME,
-        CHANGE_TYPE_COVER,
-        CHANGE_TYPE_REMOVED,
-        CHANGE_TYPE_EXPORT,
-
-        CHANGE_TYPE_SIZE
+        CHANGE_TYPE_NEW     = 0x01,
+        CHANGE_TYPE_NAME    = 0x02,
+        CHANGE_TYPE_COVER   = 0x04,
+        CHANGE_TYPE_REMOVED = 0x08,
+        CHANGE_TYPE_EXPORT  = 0x10,
     };
 };
 
@@ -1568,7 +1518,7 @@ public:
      * @param i Position of the MegaSet that we want to get for the list
      * @return MegaSet at the position i in the list
      */
-    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSet* get(unsigned int i) const;
 
     /**
      * @brief Returns the number of MegaSets in the list
@@ -1650,21 +1600,21 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0x01
      * Check if the SetElement was new
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 0x02
      * Check if SetElement name has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 0x04
      * Check if SetElement order has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 0x08
      * Check if the SetElement was removed
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1675,19 +1625,17 @@ public:
      *
      * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
 
-    enum // match SetElement::CH_EL_XXX values
+    enum // 1:1 with SetElement::CH_EL_XXX values
     {
-        CHANGE_TYPE_ELEM_NEW,
-        CHANGE_TYPE_ELEM_NAME,
-        CHANGE_TYPE_ELEM_ORDER,
-        CHANGE_TYPE_ELEM_REMOVED,
-
-        CHANGE_TYPE_ELEM_SIZE
+        CHANGE_TYPE_ELEM_NEW     = 0x01,
+        CHANGE_TYPE_ELEM_NAME    = 0x02,
+        CHANGE_TYPE_ELEM_ORDER   = 0x04,
+        CHANGE_TYPE_ELEM_REMOVED = 0x08,
     };
 };
 
@@ -1715,7 +1663,7 @@ public:
      * @param i Position of the MegaSetElement that we want to get for the list
      * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSetElement* get(unsigned int i) const;
 
     /**
      * @brief Returns the number of MegaSetElements in the list
@@ -1850,6 +1798,7 @@ class MegaUser
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
+            CHANGE_CC_PREFS                         = 0x80000000,
         };
 
         /**
@@ -1955,9 +1904,12 @@ class MegaUser
          * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
          * Check if apps prefs have changed
          *
+         * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
+         * Check if content consumption prefs have changed
+         *
          * @return true if this user has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the user
@@ -2053,8 +2005,11 @@ class MegaUser
          * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
          * Check if apps prefs have changed
          *
+         * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
+         * Check if content consumption prefs have changed
+         *
          * Check if backup names have changed         */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Indicates if the user is changed by yourself or by another client.
@@ -2396,7 +2351,7 @@ public:
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
-    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+    virtual bool hasSchedMeetingChanged(uint64_t /*changeType*/) const;
 
     /**
      * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
@@ -2908,7 +2863,7 @@ public:
      *
      * @return true if this chat has an specific change
      */
-    virtual bool hasChanged(int changeType) const;
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns a bit field with the changes of the chatroom
@@ -2940,7 +2895,7 @@ public:
      *
      * @return The returned value is an OR combination of these flags
      */
-    virtual int getChanges() const;
+    virtual uint64_t getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.
@@ -9205,6 +9160,7 @@ class MegaApi
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
+            USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
         };
 
         enum {
@@ -11391,21 +11347,6 @@ class MegaApi
         static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
-         * @brief
-         * Specify a reporter to receive filename anomaly messages from the SDK.
-         *
-         * @param reporter
-         * The reporter that should receive filename anomaly messages.
-         *
-         * Note that null is a valid value for this parameter and if
-         * specified, will prevent the SDK from sending messages to the
-         * reporter previously specified using this function.
-         *
-         * @see MegaFilenameAnomalyReporter
-         */
-        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        /**
          * @brief Send a log to the logging system
          *
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
@@ -12623,7 +12564,8 @@ class MegaApi
          *  - MegaApi::ATTR_ALIAS
          *  - MegaApi::ATTR_DEVICE_NAMES
          *  - MegaApi::USER_ATTR_APPS_PREFS
-         * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+         *  - MegaApi::USER_ATTR_CC_PREFS
+         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null terminated as value.
          *
          * @param type Attribute type
          *
@@ -12647,6 +12589,8 @@ class MegaApi
          * Set the list of device names (private)
          * MegaApi::ATTR_APPS_PREFS = 38
          * Set the apps prefs (private)
+         * MegaApi::ATTR_CC_PREFS = 39
+         * Set the content consumption prefs (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -20603,8 +20547,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
          *
          * @param listener MegaRequestListener to track this request
         */
