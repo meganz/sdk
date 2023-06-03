@@ -1155,15 +1155,16 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
         client->usealtdownport = !client->usealtdownport;
     }
 
-    // signal failure to app , obtain minimum desired retry time
-    for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+    // signal failure to app, obtain minimum desired retry time
+    for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
-        (*it)->abort();
-
-        if (e)
+        if ((*it)->appdata)
         {
-            if ((*it)->appdata)
+            (*it)->abort();
+
+            if (e)
             {
+                LOG_debug << "[DirectReadNode::retry] Calling pread_failure for DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
                 dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
                 if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
@@ -1171,13 +1172,21 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
                     minretryds = retryds;
                 }
             }
-            else
-            {
-                // Transfer is already deleted
-                LOG_err << "[DirectReadNode::retry] No appdata (transfer is deleted) for this DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
-                delete *(it++);
-            }
         }
+        if (!(*it)->appdata) // It may have been deleted after pread_failure
+        {
+            // Transfer is deleted
+            LOG_warn << "[DirectReadNode::retry] No appdata (transfer has been deleted) for this DirectRead (" << (void*)(*it) << "). Deleting affected DirectRead" << " [this = " << this << "]";
+            delete *(it++);
+        }
+        else it++;
+    }
+
+    if (reads.empty()) // Check again if there are DirectReads left to retry
+    {
+        LOG_warn << "Removing DirectReadNode. No reads left to retry" << " [this = " << this << "]";
+        delete this;
+        return;
     }
 
     if (e == API_EOVERQUOTA && timeleft)
