@@ -1526,20 +1526,20 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
         int minspeed = mDr->drn->client->minstreamingrate;
         if (minspeed < 0)
         {
-            LOG_warn << "DirectReadSlot: Set min speed as MIN_BYTES_PER_SECOND" << " [this = " << this << "]";
+            LOG_warn << "DirectReadSlot: Watchdog -> Set min speed as MIN_BYTES_PER_SECOND(" << MIN_BYTES_PER_SECOND << ") to compare with average speed." << " [this = " << this << "]";
             minspeed = MIN_BYTES_PER_SECOND;
         }
-        LOG_debug << "DirectReadSlot: Calculating Mean speed" << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
+        LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
         if (minspeed != 0 && meanspeed < minspeed)
         {
             if (!mDr->appdata)
             {
                 // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
-                LOG_err << "[DirectReadSlot::watchOverDirectReadPerformance] Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
+                LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
                 mDr->drn->client->app->client->sendevent(99472, "DirectRead detected with a null transfer");
                 return false;
             }
-            LOG_warn << "DirectReadSlot: Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
+            LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
             mDr->drn->retry(API_EAGAIN);
             return true;
         }
