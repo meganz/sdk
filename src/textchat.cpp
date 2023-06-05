@@ -1089,6 +1089,7 @@ bool TextChat::setMode(bool publicchat)
         return false;
     }
 
+    if (!publicchat) { LOG_debug << "TextChat::setMode: EKR enabled (private chat)"; }
     this->publicchat = publicchat;
     changed.mode = true;
 
