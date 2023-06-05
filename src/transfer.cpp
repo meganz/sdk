@@ -1173,6 +1173,11 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
                 }
             }
         }
+        else
+        {
+            // This situation should never happen
+            client->sendevent(99472, "DirectRead detected with a null transfer");
+        }
         if (!(*it)->appdata) // It may have been deleted after pread_failure
         {
             // Transfer is deleted
@@ -1310,7 +1315,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         else
         {
             LOG_err << "DirectReadSlot tried to deliver an assembled part, but the transfer doesn't exist anymore. Aborting" << " [this = " << this << "]";
-            mDr->drn->client->app->client->sendevent(99472, "DirectRead detected with a null transfer");
+            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
             continueDirectRead = false;
         }
         mDr->drbuf.bufferWriteCompleted(0, true);
@@ -1536,7 +1541,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
             {
                 // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
                 LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
-                mDr->drn->client->app->client->sendevent(99472, "DirectRead detected with a null transfer");
+                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
                 return false;
             }
             LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
@@ -1735,7 +1740,7 @@ bool DirectReadSlot::doio()
                         if (!mDr->appdata)
                         {
                             LOG_err << "DirectReadSlot [conn " << connectionNum << "] There is a chunk request, but transfer is already deleted. This should never happen. Aborting" << " [this = " << this << "]";
-                            mDr->drn->client->app->client->sendevent(99472, "DirectRead detected with a null transfer");
+                            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
                             delete mDr;
                             return true;
                         }
@@ -1801,7 +1806,7 @@ bool DirectReadSlot::doio()
             else
             {
                 LOG_err << "DirectReadSlot [conn " << connectionNum << "] Request failed, but transfer is already deleted. Aborting" << " [this = " << this << "]";
-                mDr->drn->client->app->client->sendevent(99472, "DirectRead detected with a null transfer");
+                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
                 delete mDr;
             }
             return true;
