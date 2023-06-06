@@ -5762,14 +5762,23 @@ bool MegaApiImpl::isEphemeralPlusPlus()
 
 char* MegaApiImpl::getMyEmail()
 {
-    User* u;
-    SdkMutexGuard g(sdkMutex);
-    if (!client->loggedin() || !(u = client->finduser(client->me)))
+    // return without locking the main mutex if possible
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
+    if (mLastReceivedLoggedInState == NOTLOGGEDIN) return nullptr;
+    if (mLastKnownEmail.empty())
     {
-        return NULL;
+        g.unlock();
+        string buf;
+        {
+            SdkMutexGuard lock(sdkMutex);
+            User* u = client->ownuser();
+            if (u) buf = u->email;
+        }
+        g.lock();
+        mLastKnownEmail = buf;
     }
 
-    return MegaApi::strdup(u->email.c_str());
+    return MegaApi::strdup(mLastKnownEmail.c_str());
 }
 
 int64_t MegaApiImpl::getAccountCreationTs()
@@ -14483,6 +14492,7 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         mLastKnownRootNode.reset();
         mLastKnownVaultNode.reset();
         mLastKnownRubbishNode.reset();
+        mLastKnownEmail.clear();
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }

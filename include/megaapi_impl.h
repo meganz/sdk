@@ -3300,6 +3300,7 @@ protected:
         unique_ptr<MegaNode> mLastKnownRootNode;
         unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
+        string mLastKnownEmail;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
