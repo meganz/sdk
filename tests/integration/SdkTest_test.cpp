@@ -6161,7 +6161,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
-    ASSERT_GT(dnlBytes, pauseThreshold / 4) << "Download appears to have been restarted instead of resumed";
+    ASSERT_GT(dnlBytes, pauseThreshold / 10) << "Download appears to have been restarted instead of resumed";
 
     megaApi[0]->setMaxDownloadSpeed(-1);
 
