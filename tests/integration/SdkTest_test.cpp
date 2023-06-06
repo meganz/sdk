@@ -1919,6 +1919,38 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
 
+    // test changing the email
+    // -----------------------
+
+    const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
+    chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
+    ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
+
+    {
+        string changelink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
+        ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
+
+        ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
+    }
+
+    // Login using new email
+    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "email not changed correctly";
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
+    }
+
+    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
+    {
+        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
+    }
+
+    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
+
+
     // delete the account
     // ------------------
     
@@ -1927,12 +1959,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     {
         unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
-        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
     }
 
     // Get cancel account link from the mailbox
     {
-        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
@@ -1940,7 +1972,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
         ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
-            << " Failed to confirm cancel account " << newTestAcc.c_str();
+            << " Failed to confirm cancel account " << changedTestAcc.c_str();
     }
 }
 
