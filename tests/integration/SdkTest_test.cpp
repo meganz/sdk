@@ -7532,13 +7532,14 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     string timestamp = getCurrentTimestamp(true);
 
     // Set device name if missing
-    if (synchronousGetDeviceName(0) != API_OK || mApi[0].getAttributeValue().empty())
+    string deviceName;
+    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
     {
-        string deviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(synchronousSetDeviceName(0, deviceName.c_str()), API_OK) << "Setting device name failed";
+        string newDeviceName = "Jenkins " + timestamp;
+        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
         // make sure Device Name attr was set
-        ASSERT_EQ(synchronousGetDeviceName(0), API_OK) << "Getting device name failed";
-        ASSERT_EQ(deviceName, mApi[0].getAttributeValue()) << "Getting device name failed (wrong value)";
+        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
     syncTestMyBackupsRemoteFolder(0);
@@ -7552,34 +7553,81 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     string bkpFile = "bkpFile";
     ASSERT_TRUE(createLocalFile(localFolderPath, bkpFile.c_str()));
 
-    // create a backup
+    // Create a backup
     const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
-    MegaHandle newSyncRootNodeHandle = INVALID_HANDLE;
-    int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
+    MegaHandle backupRootNodeHandle = INVALID_HANDLE;
+    int err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
     ASSERT_EQ(err, API_OK) << "Backup failed";
-    ASSERT_NE(newSyncRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for backup";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for backup";
+
+    // Get backup id
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reported 0 Sync instances";
+    MegaHandle backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            ASSERT_STREQ(megaSync->getName(), backupNameStr.c_str()) << "New backup had wrong name";
+            // Make sure the sync's actually active.
+            ASSERT_EQ(megaSync->getRunState(), MegaSync::RUNSTATE_RUNNING) << "Backup found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
-    // remove backup and delete its contens
-    RequestTracker deleteNodesTracker(megaApi[0].get());
-    megaApi[0]->removeBackupMD(allSyncs->get(0)->getBackupId(), INVALID_HANDLE, &deleteNodesTracker);
-    ASSERT_EQ(deleteNodesTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
-    std::unique_ptr<MegaNode> deletedNode(megaApi[0]->getNodeByHandle(newSyncRootNodeHandle));
-    ASSERT_FALSE(deletedNode) << "Failed delete contents of the removed backup";
+    // Use another connection with the same credentials
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    auto& differentApi = *megaApi.back();
+    differentApi.addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(std::move(pa));
+    auto& differentApiDtls = mApi.back();
+    differentApiDtls.megaApi = &differentApi;
+    int differentApiIdx = int(megaApi.size() - 1);
 
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for backup";
+    auto loginTracker = asyncRequestLogin(differentApiIdx, differentApiDtls.email.c_str(), differentApiDtls.pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << differentApiIdx;
+    loginTracker = asyncRequestFetchnodes(differentApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
-    // create another backup
-    newSyncRootNodeHandle = INVALID_HANDLE;
-    err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
+    // Request backup removal (and delete its contents) from a different connection
+    RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeBackupMD(backupId, INVALID_HANDLE, &removeBackupTracker);
+    ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
+
+    // Wait for this client to recive the backup removal request
+    auto syncCfgRemoved = [this, &backupId]()
+    {
+        unique_ptr<MegaSyncList> syncs{ megaApi[0]->getSyncs() };
+        if (!syncs) return true;
+        for (int i = 0; i < syncs->size(); ++i)
+        {
+            if (syncs->get(i)->getBackupId() == backupId) return false;
+        }
+        return true;
+    };
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed backup after 60 seconds";
+
+    // Wait for the backup to be removed from remote storage
+    auto bkpDeleted = [this, backupRootNodeHandle]()
+    {
+        std::unique_ptr<MegaNode> deletedNode(megaApi[0]->getNodeByHandle(backupRootNodeHandle));
+        return !deletedNode;
+    };
+    ASSERT_TRUE(WaitFor(bkpDeleted, 60000)) << "Backup not removed after 60 seconds";
+
+    // Create another backup
+    backupRootNodeHandle = INVALID_HANDLE;
+    err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
     ASSERT_EQ(err, API_OK) << "Second backup failed";
-    ASSERT_NE(newSyncRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for 2nd backup";
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reported 0 Sync instances after 2nd backup";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for 2nd backup";
 
-    // create move destination
+    // Create move destination
     MegaNode *rootnode = megaApi[0]->getRootNode();
     string moveDstName = "bkpMoveDest";
     MegaHandle moveDest = createFolder(0, moveDstName.c_str(), rootnode);
@@ -7587,15 +7635,40 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     std::unique_ptr<MegaNode> moveDestNode(megaApi[0]->getNodeByHandle(moveDest));
     ASSERT_TRUE(moveDestNode) << "Node missing for remote folder " << moveDstName;
 
-    // remove backup and move its contens
-    RequestTracker deleteNodesTracker2(megaApi[0].get());
-    megaApi[0]->removeBackupMD(allSyncs->get(0)->getBackupId(), moveDest, &deleteNodesTracker2);
-    ASSERT_EQ(deleteNodesTracker2.waitForResult(), API_OK) << "Failed to remove backup and move its contents";
-    std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(moveDestNode.get()));
-    ASSERT_TRUE(destChildren && destChildren->size() == 1) << "Move destination empty after removing backup";
-
+    // Get 2nd backup id
     allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for 2nd backup";
+    backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            ASSERT_STREQ(megaSync->getName(), backupNameStr.c_str()) << "2nd backup had wrong name";
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "2nd backup found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "2nd backup could not be found";
+
+    // Request backup removal (and move its contents) from a different connection
+    RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeBackupMD(backupId, moveDest, &removeBackupTracker2);
+    ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
+
+    // Wait for this client to receive the 2nd backup removal request
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the 2nd removed backup after 60 seconds";
+
+    // Wait for the contents of the 2nd backup to be moved in remote storage
+    auto bkpMoved = [this, backupRootNodeHandle, &moveDestNode]()
+    {
+        std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(moveDestNode.get()));
+        return destChildren && destChildren->size() == 1 &&
+               destChildren->get(0)->getHandle() == backupRootNodeHandle;
+    };
+    ASSERT_TRUE(WaitFor(bkpMoved, 60000)) << "2nd backup not moved after 60 seconds";
 
     fs::remove_all(localFolderPath, ec);
 }
