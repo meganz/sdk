@@ -961,8 +961,7 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
         if (bkpRmvErr != API_OK)
         {
             LOG_err << "Backup remove: failed to remove backup " << bkpId;
-            finalCompletion(bkpRmvErr);
-            return;
+            // Don't break execution here in case of error. Still try to set 'sds' node attribute.
         }
 
         Node* bkpRootNode = nodebyhandle(*bkpRoot);
