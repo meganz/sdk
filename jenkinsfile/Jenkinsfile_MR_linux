@@ -43,84 +43,6 @@ pipeline {
                     }
                 }
 
-                stage('Get MEGAchat branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('MEGACHAT_BRANCH_TO_TEST')
-                        }
-                    }
-                    steps {
-                        script{
-                            env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println MEGACHAT_BRANCH
-                            if (MEGACHAT_BRANCH == ""){
-                                echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
-                            }
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the MEGAchat branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                stage('Get Android branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('ANDROID_BRANCH_TO_TEST')
-                        }
-                    }
-                    steps {
-                        script{
-                            env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println ANDROID_BRANCH
-                            if (ANDROID_BRANCH == ""){
-                                echo "ANDROID_BRANCH was not found on description so develop will be used by default"
-                            }
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the Android branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                stage('Get iOS branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('IOS_BRANCH_TO_TEST')
-                        }
-                    }
-                    steps {
-                        script{
-                            env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println IOS_BRANCH
-                            if (IOS_BRANCH == ""){
-                                echo "IOS_BRANCH was not found on description so develop will be used by default"
-                            }
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the iOS branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-
                 stage('Get API URL'){
                     when {
                         expression { 
@@ -284,6 +206,3 @@ pipeline {
         }
     }
 }
-
-
-

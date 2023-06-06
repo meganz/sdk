@@ -12,7 +12,6 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        APIURL_TO_TEST = ' '
     }
 
     stages {
@@ -73,32 +72,6 @@ pipeline {
                         }
                     }
                 }
-
-                stage('Get Android branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('ANDROID_BRANCH_TO_TEST')
-                        }
-                    }
-                    steps {
-                        script{
-                            env.ANDROID_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep ANDROID_BRANCH_TO_TEST | awk -F "ANDROID_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println ANDROID_BRANCH
-                            if (ANDROID_BRANCH == ""){
-                                echo "ANDROID_BRANCH was not found on description so develop will be used by default"
-                            }
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the Android branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
                 
                 stage('Get iOS branch'){
                     when {
@@ -125,35 +98,6 @@ pipeline {
                         }
                     }
                 }
-
-                stage('Get API URL'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('USE_APIURL_TO_TEST')
-                        }
-                    }
-                    steps {
-                        script{
-                            APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println APIURL_TO_TEST
-                            if (APIURL_TO_TEST == ""){
-                                APIURL_TO_TEST = "https://g.api.mega.co.nz/"
-                                echo "APIURL_TO_TEST was not found on description so ${APIURL_TO_TEST} will be used by default"
-                            }
-                            echo "APIURL_TO_TEST will be ${APIURL_TO_TEST}"
-                        }
-                    }
-                    post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the SDK branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
-                                }
-                            }
-                        }
-                    }
-                }
-
             }
         }
 
