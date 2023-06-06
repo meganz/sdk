@@ -829,16 +829,6 @@ handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcas
     return UNDEF;
 }
 
-int FileSystemAccess::getMinimumDirectoryPermissions()
-{
-    return mMinimumDirectoryPermissions;
-}
-
-int FileSystemAccess::getMinimumFilePermissions()
-{
-    return mMinimumFilePermissions;
-}
-
 #ifdef ENABLE_SYNC
 
 bool FileSystemAccess::initFilesystemNotificationSystem()

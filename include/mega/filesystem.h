@@ -823,12 +823,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // On failure, zero.
     virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
 
-    // Query the minimum permissions for newly created directories.
-    static int getMinimumDirectoryPermissions();
-
-    // Query the minimum permissions for newly created files.
-    static int getMinimumFilePermissions();
-
     // Specify the minimum permissions for new created directories.
     static void setMinimumDirectoryPermissions(int permissions);
 

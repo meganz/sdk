@@ -13372,8 +13372,8 @@ class ScopedMinimumPermissions
 
 public:
     ScopedMinimumPermissions(int directory, int file)
-      : mDirectory(FileSystemAccess::getMinimumDirectoryPermissions())
-      , mFile(FileSystemAccess::getMinimumFilePermissions())
+      : mDirectory(0700)
+      , mFile(0600)
     {
         FileSystemAccess::setMinimumDirectoryPermissions(directory);
         FileSystemAccess::setMinimumFilePermissions(file);
