@@ -51,6 +51,8 @@
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
 #import "MEGAUserAlert.h"
+#import "MEGABackupInfo.h"
+#import "MEGABackupInfoList.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -9770,6 +9772,20 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch information about all registered backups for Backup Centre
+ * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
+ *
+ * @param delegate MegaRequestListener to track this request
+*/
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre
