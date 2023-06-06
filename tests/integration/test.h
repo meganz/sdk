@@ -85,8 +85,6 @@ extern bool gResumeSessions;
 extern bool gScanOnly;
 extern bool gManualVerification;
 
-extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
-
 LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };

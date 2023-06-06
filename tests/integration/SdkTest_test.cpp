@@ -164,8 +164,7 @@ std::string megaApiCacheFolder(int index)
     return p;
 }
 
-template<typename Predicate>
-bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
+bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
 {
     const unsigned sleepMs = 100;
     unsigned totalMs = 0;
