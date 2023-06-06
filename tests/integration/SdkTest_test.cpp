@@ -7599,7 +7599,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     megaApi[differentApiIdx]->removeBackupMD(backupId, INVALID_HANDLE, &removeBackupTracker);
     ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
 
-    // Wait for this client to recive the backup removal request
+    // Wait for this client to receive the backup removal request
     auto syncCfgRemoved = [this, &backupId]()
     {
         unique_ptr<MegaSyncList> syncs{ megaApi[0]->getSyncs() };
