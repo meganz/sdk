@@ -8766,24 +8766,16 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                     fullPath.localPath, inshare, threadSafeState, row.fsNode ? row.fsNode->fingerprint : FileFingerprint()
                     ), downloadFirst);
 
-                //row.syncNode->treestate(TREESTATE_SYNCING);
-                //parentRow.syncNode->treestate(TREESTATE_SYNCING);
-
-                // If there's a legit .megaignore file present, we use it until (if and when) it is actually replaced.
-
-                //// Are we downloading an ignore file?
-                //if (row.syncNode->isIgnoreFile())
-                //{
-                //    // Then signal that it's downloading.
-                //    parentRow.syncNode->setWaitingForIgnoreFileLoad(true);
-                //}
             }
             // terminated and completed transfers are checked for early in syncItem()
             else
             {
                 if (!pflsc.alreadyDownloadingCount)
                 {
-                    SYNC_verbose << syncname << "Download already in progress" << logTriplet(row, fullPath);
+                    SYNC_verbose << syncname << "Download already in progress c:"
+                                 << (downloadPtr->wasCompleted ?0:1) << " t:"
+                                 << (downloadPtr->wasTerminated ?0:1) << " ra:"
+                                 << (downloadPtr->wasRequesterAbandoned ?0:1) << logTriplet(row, fullPath);
                 }
                 pflsc.alreadyDownloadingCount += 1;
             }
