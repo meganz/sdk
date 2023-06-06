@@ -37,12 +37,12 @@ class MEGA_API ShareNodeKeys
 
 public:
     // a convenience function for calling the full add() below when working with Node*
-    void add(Node*, Node*, int);
+    void add(Node*, Node*, bool);
 
     // Adds keys needed for sharing the node (specifed wtih nodekey/nodehandle) to the `keys` and `items` collections.
     // Each node may be in multiple shares so the parent chain is traversed and if this node is in multiple shares, then multiple keys are added.
     // The result is suitable for sending all the collected keys for each share, per Node, to the API.
-    void add(const string& nodekey, handle nodehandle, Node*, int, const byte* = NULL, int = 0);
+    void add(const string& nodekey, handle nodehandle, Node*, bool, const byte* = NULL, int = 0);
 
     void get(Command*, bool skiphandles = false);
 };

@@ -68,12 +68,13 @@ class MEGA_API TreeProcShareKeys : public TreeProc
 {
     ShareNodeKeys snk;
     Node* sn;
+    bool includeParentChain;
 
 public:
     void proc(MegaClient*, Node*);
     void get(Command*);
 
-    TreeProcShareKeys(Node* = NULL);
+    TreeProcShareKeys(Node*, bool);
 };
 
 class MEGA_API TreeProcForeignKeys : public TreeProc

@@ -25,14 +25,15 @@
 
 namespace mega {
 // create share keys
-TreeProcShareKeys::TreeProcShareKeys(Node* n)
+TreeProcShareKeys::TreeProcShareKeys(Node* n, bool includeParentChain) 
+    : sn(n)
+    , includeParentChain(includeParentChain)
 {
-    sn = n;
 }
 
 void TreeProcShareKeys::proc(MegaClient*, Node* n)
 {
-    snk.add(n, sn, sn != NULL);
+    snk.add(n, sn, includeParentChain);
 }
 
 void TreeProcShareKeys::get(Command* c)

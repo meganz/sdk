@@ -1185,11 +1185,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, true);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, true, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1358,7 +1358,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     arg("t", t->nodeHandle());
     assert(t->type != FILENODE);
 
-    TreeProcShareKeys tpsk;
+    TreeProcShareKeys tpsk(t, true);
     client->proctree(n, &tpsk);
     tpsk.get(this);
 
@@ -1999,7 +1999,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     if (newshare)
     {
         // the new share's nodekeys for this user: generate node list
-        TreeProcShareKeys tpsk(n);
+        TreeProcShareKeys tpsk(n, false);
         client->proctree(n, &tpsk);
         tpsk.get(this);
     }
