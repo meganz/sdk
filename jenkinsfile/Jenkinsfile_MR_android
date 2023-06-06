@@ -15,7 +15,7 @@ pipeline {
         stage('clean previous runs and update gitlab commit status'){
             steps{
                 deleteDir()
-                updateGitlabCommitStatus(name: 'build Android', state: 'running')
+                updateGitlabCommitStatus(name: 'Build Android', state: 'running')
             }
         }
         stage('Get build parameters'){
