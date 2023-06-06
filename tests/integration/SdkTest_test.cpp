@@ -13367,29 +13367,22 @@ TEST_F(SdkTest, SdkResumableTrasfers)
 
 class ScopedMinimumPermissions
 {
+    int mDirectory;
     int mFile;
-    int mFolder;
 
 public:
-    ScopedMinimumPermissions(int file, int folder)
-      : mFile()
-      , mFolder()
+    ScopedMinimumPermissions(int directory, int file)
+      : mDirectory(FileSystemAccess::getMinimumDirectoryPermissions())
+      , mFile(FileSystemAccess::getMinimumFilePermissions())
     {
-#ifndef NDEBUG
-        mFile = MegaApi::getMinimumFilePermissions();
-        mFolder = MegaApi::getMinimumFolderPermissions();
-
-        MegaApi::setMinimumFilePermissions(file);
-        MegaApi::setMinimumFolderPermissions(folder);
-#endif // !NDEBUG
+        FileSystemAccess::setMinimumDirectoryPermissions(directory);
+        FileSystemAccess::setMinimumFilePermissions(file);
     }
 
     ~ScopedMinimumPermissions()
     {
-#ifndef NDEBUG
-        MegaApi::setMinimumFilePermissions(mFile);
-        MegaApi::setMinimumFolderPermissions(mFolder);
-#endif // !NDEBUG
+        FileSystemAccess::setMinimumDirectoryPermissions(mDirectory);
+        FileSystemAccess::setMinimumFilePermissions(mFile);
     }
 }; // ScopedMinimumPermissions
 
@@ -13462,7 +13455,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
-    ScopedMinimumPermissions minimumPermissions(0400, 0700);
+    ScopedMinimumPermissions minimumPermissions(0700, 0400);
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
