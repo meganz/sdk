@@ -26964,21 +26964,7 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     LOG_debug << "MegaRecursiveOperation finished subtransfers: " << transfersFinishedCount << " of " << transfersTotalCount;
     if (allSubtransfersResolved())
     {
-        if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
-        {
-            // set root folder node handle in MegaTransfer
-            LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
-            auto rootFolderName = transfer->getFileName()
-                   ? transfer->getFileName()
-                   : path.leafName().toPath(true);
-
-            unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
-            std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
-            if (root)
-            {
-               transfer->setNodeHandle(root->getHandle());
-            }
-        }
+        setRootNodeHandleInTransfer();
 
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
@@ -27220,6 +27206,31 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     return true;
 }
 
+void MegaRecursiveOperation::setRootNodeHandleInTransfer()
+{
+    if (transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+    {
+        // set root folder node handle in MegaTransfer
+        LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
+        auto rootFolderName = transfer->getFileName()
+                                  ? transfer->getFileName()
+                                  : path.leafName().toPath(true);
+
+        unique_ptr<MegaNode> parentRootNode(megaApi->getNodeByHandle(transfer->getParentHandle()));
+        std::unique_ptr<MegaNode>root(megaApi->getChildNode(parentRootNode.get(), rootFolderName.c_str()));
+        if (root)
+        {
+            if (transfer->getNodeHandle() != INVALID_HANDLE
+                && transfer->getNodeHandle() != root->getHandle())
+            {
+                LOG_debug << "setRootNodeHandleInTransfer root nodehandle: " << Base64Str<MegaClient::NODEHANDLE>(root->getHandle())
+                          << ": doesn't match with current one: " << Base64Str<MegaClient::NODEHANDLE>(transfer->getNodeHandle()) ;
+            }
+            transfer->setNodeHandle(root->getHandle());
+        }
+    }
+}
+
 void MegaRecursiveOperation::complete(Error e, bool cancelledByUser)
 {
     assert(mMainThreadId == std::this_thread::get_id());
@@ -27235,6 +27246,11 @@ void MegaRecursiveOperation::complete(Error e, bool cancelledByUser)
     if (cancelledByUser) { logMsg.append(" (has been cancelled by user)"); }
     e ? logMsg.append(" finished with error [").append(std::to_string(e).c_str()).append("]") : logMsg.append(" finished successfully");
     LOG_debug << logMsg << " - bytes: " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+
+    if (allSubtransfersResolved())
+    {
+        setRootNodeHandleInTransfer();
+    }
 
     transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
     megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e));
