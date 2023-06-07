@@ -361,6 +361,9 @@ CONFIG(USE_FFMPEG) {
             debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
             else:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libbz2.a
         }
+        vcpkg:win32 {
+            LIBS += -lbz2$$DEBUG_SUFFIX
+        }
     }
 }
 

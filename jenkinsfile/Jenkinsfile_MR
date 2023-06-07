@@ -192,7 +192,7 @@ pipeline {
                 stage('Build macOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation macos'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation macos'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -251,7 +251,7 @@ pipeline {
                 stage('Build Linux'){
                     when{
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation linux'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation linux'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -310,7 +310,7 @@ pipeline {
                 stage('Build Windows'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation windows'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation windows'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -369,7 +369,7 @@ pipeline {
                 stage('Build MEGAchat'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation megachat'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation megachat'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -429,7 +429,7 @@ pipeline {
                 stage('Build Android'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation android'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation android'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -489,7 +489,7 @@ pipeline {
                 stage('Build iOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation ios'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation ios'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
