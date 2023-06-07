@@ -182,7 +182,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
-void CurlHttpIO::id_function(CRYPTO_THREADID*)
+void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }

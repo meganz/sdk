@@ -548,6 +548,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 {
                     Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
+                    found = true;
                     if (notify)
                     {
                         n->changed.pendingshares = true;
@@ -908,7 +909,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int)
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
     {
         if (e != API_OK)
         {
@@ -13159,6 +13160,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
     byte hmac[32];
     memcpy((char*)&hmac, ptr, 32);
+    ptr += 32;
 
     // Derive MAC key with salt+pwd
     vector<byte> derivedKey = deriveKey(pwd, salt, 64);
@@ -13378,7 +13380,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
     reqs.add(new CommandGetUserData(this, reqtag,
-        [this, u, spwd, spin](string*, string*, string*, error e)
+        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
             if (e != API_OK)
             {
@@ -13728,7 +13730,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         LOG_info << "Upgrading cache to NOD";
         // call setparent() for the nodes whose parent was not available upon unserialization
-        for (const auto& it : delayedParents)
+        for (auto it : delayedParents)
         {
             Node *parent = mNodeManager.getNodeByHandle(it.first);
             for (Node* child : it.second)
@@ -16175,7 +16177,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning, std::move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool, int){
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
 
                 if (e)
                 {
@@ -16251,7 +16253,7 @@ void MegaClient::stopxfers(LocalNode* l, TransferDbCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType fsType) const
 {
     Node** npp;
 
@@ -17912,7 +17914,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
     }
 }
 
-void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>&)
+void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 {
     syncdebrisadding = false;
 }

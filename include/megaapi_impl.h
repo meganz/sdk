@@ -1089,7 +1089,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
-        virtual void setAppData(const char *data) { doSetAppData(data); }
+        virtual void setAppData(const char *data);
         const char* getAppData() const override;
         virtual void setState(int state);
         int getState() const override;
@@ -1173,8 +1173,6 @@ protected:
         // to protect against the operation being cancelled in the meantime
         shared_ptr<MegaRecursiveOperation> recursiveOperation;
 
-    private:
-        void doSetAppData(const char *data);
 };
 
 class MegaTransferDataPrivate : public MegaTransferData

@@ -341,7 +341,7 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, putsource_t)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     if (onCompleted) onCompleted();
 
@@ -350,7 +350,7 @@ void AppFileGet::completed(Transfer*, putsource_t)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated(error)
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
@@ -368,7 +368,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool, int){
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)
             {
@@ -383,7 +383,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated(error)
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool, handle, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if (e)
     {
@@ -2672,7 +2672,7 @@ public:
         else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
-            for (const auto& s : stack->servers)
+            for (auto s : stack->servers)
             {
                 cout << s << endl;
             }
@@ -3341,7 +3341,7 @@ void exec_showattributes(autocomplete::ACState& s)
 {
     if (const Node* n = nodeFromRemotePath(s.words[1].s))
     {
-        for (const auto& pair : n->attrs.map)
+        for (auto pair : n->attrs.map)
         {
             char namebuf[10]{};
             AttrMap::nameid2string(pair.first, namebuf);
@@ -3402,7 +3402,7 @@ public:
     string mLogFileName;
     bool logToConsole = false;
 
-    void log(const char*, int, const char*, const char *message
+    void log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                  , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
@@ -3615,7 +3615,7 @@ void exec_setdevicename(autocomplete::ACState& s)
     putua_map(b64idhash, b64devname, ATTR_DEVICE_NAMES);
 }
 
-void exec_getdevicename(autocomplete::ACState&)
+void exec_getdevicename(autocomplete::ACState& s)
 {
     User* u = client->ownuser();
     if (!u)
@@ -5537,7 +5537,7 @@ void exec_put(autocomplete::ACState& s)
         << " file(s) in queue" << endl;
 }
 
-void exec_pwd(autocomplete::ACState&)
+void exec_pwd(autocomplete::ACState& s)
 {
     string path;
 
@@ -5563,13 +5563,8 @@ void exec_lcd(autocomplete::ACState& s)
 }
 
 
-void exec_llockfile(autocomplete::ACState&
-#ifdef WIN32
-                    s
-#endif
-                    )
+void exec_llockfile(autocomplete::ACState& s)
 {
-#ifdef WIN32
     bool readlock = s.extractflag("-read");
     bool writelock = s.extractflag("-write");
     bool unlock = s.extractflag("-unlock");
@@ -5582,6 +5577,7 @@ void exec_llockfile(autocomplete::ACState&
 
     LocalPath localpath = localPathArg(s.words[1].s);
 
+#ifdef WIN32
     static map<LocalPath, HANDLE> llockedFiles;
 
     if (unlock)
@@ -5787,7 +5783,7 @@ void exec_lpwd(autocomplete::ACState& s)
 #endif
 
 
-void exec_test(autocomplete::ACState&)
+void exec_test(autocomplete::ACState& s)
 {
 }
 
@@ -5811,7 +5807,7 @@ void exec_mfac(autocomplete::ACState& s)
     client->multifactorauthcheck(email.c_str());
 }
 
-void exec_mfae(autocomplete::ACState&)
+void exec_mfae(autocomplete::ACState& s)
 {
     client->multifactorauthsetup();
 }
@@ -5851,7 +5847,8 @@ void exec_login(autocomplete::ACState& s)
             }
             else
             {
-                if (strchr(s.words[1].s.c_str(), '#'))  // folder link indicator
+                const char* ptr;
+                if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
                     const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
                     return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
@@ -6485,7 +6482,7 @@ void exec_clear(autocomplete::ACState& s)
 }
 #endif
 
-void exec_retry(autocomplete::ACState&)
+void exec_retry(autocomplete::ACState& s)
 {
     if (client->abortbackoff())
     {
@@ -6497,7 +6494,7 @@ void exec_retry(autocomplete::ACState&)
     }
 }
 
-void exec_recon(autocomplete::ACState&)
+void exec_recon(autocomplete::ACState& s)
 {
     cout << "Closing all open network connections..." << endl;
 
@@ -6841,7 +6838,7 @@ void exec_apiurl(autocomplete::ACState& s)
     }
 }
 
-void exec_passwd(autocomplete::ACState&)
+void exec_passwd(autocomplete::ACState& s)
 {
     if (client->loggedin() != NOTLOGGEDIN)
     {
@@ -7016,7 +7013,7 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
-void exec_cancelsignup(autocomplete::ACState&)
+void exec_cancelsignup(autocomplete::ACState& s)
 {
     client->cancelsignup();
 }
@@ -7301,7 +7298,7 @@ void exec_chatst(autocomplete::ACState& s)
     }
 }
 
-void exec_chatpu(autocomplete::ACState&)
+void exec_chatpu(autocomplete::ACState& s)
 {
     client->getChatPresenceUrl();
 }
@@ -7622,7 +7619,7 @@ void exec_session(autocomplete::ACState& s)
     }
 }
 
-void exec_version(autocomplete::ACState&)
+void exec_version(autocomplete::ACState& s)
 {
     cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
@@ -7675,7 +7672,7 @@ void exec_version(autocomplete::ACState&)
     cwd = NodeHandle();
 }
 
-void exec_showpcr(autocomplete::ACState&)
+void exec_showpcr(autocomplete::ACState& s)
 {
     string outgoing;
     string incoming;
@@ -7901,7 +7898,7 @@ void exec_smsverify(autocomplete::ACState& s)
     }
 }
 
-void exec_verifiedphonenumber(autocomplete::ACState&)
+void exec_verifiedphonenumber(autocomplete::ACState& s)
 {
     cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
 }
@@ -7927,7 +7924,7 @@ void exec_killsession(autocomplete::ACState& s)
     }
 }
 
-void exec_locallogout(autocomplete::ACState&)
+void exec_locallogout(autocomplete::ACState& s)
 {
     cout << "Logging off locally..." << endl;
 
@@ -8335,7 +8332,7 @@ void DemoApp::sendsignuplink_result(error e)
     }
 }
 
-void DemoApp::confirmsignuplink2_result(handle, const char*, const char *email, error e)
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
 {
     if (e)
     {
@@ -8839,7 +8836,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
-void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t, uint32_t numVersions)
+void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
 {
     if (e != API_OK)
     {
@@ -10034,7 +10031,7 @@ void exec_metamac(autocomplete::ACState& s)
     }
 }
 
-void exec_resetverifiedphonenumber(autocomplete::ACState&)
+void exec_resetverifiedphonenumber(autocomplete::ACState& s)
 {
     client->resetSmsVerifiedPhoneNumber();
 }
@@ -10335,7 +10332,7 @@ void exec_syncopendrive(autocomplete::ACState& s)
         });
 }
 
-void exec_synclist(autocomplete::ACState&)
+void exec_synclist(autocomplete::ACState& s)
 {
     // Check the user's logged in.
     if (client->loggedin() != FULLACCOUNT)
@@ -10522,7 +10519,7 @@ void exec_syncremove(autocomplete::ACState& s)
         // unlink the backup's Vault nodes after deregistering it
         NodeHandle source = v[0].mRemoteNode;
         NodeHandle destination = NodeHandle().set6byte(bkpDest);
-        completion = [completion, source, destination](Error){
+        completion = [completion, source, destination](Error e){
             client->unlinkOrMoveBackupNodes(source, destination, completion);
         };
     }
@@ -10576,7 +10573,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError, handle)
+        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -11043,7 +11040,7 @@ void DemoApp::reqstat_progress(int permilprogress)
     cout << "Progress (per mille) of request: " << permilprogress << endl;
 }
 
-void exec_numberofnodes(autocomplete::ACState&)
+void exec_numberofnodes(autocomplete::ACState &s)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish

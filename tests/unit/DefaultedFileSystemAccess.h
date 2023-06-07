@@ -36,7 +36,7 @@ public:
     DefaultedFileSystemAccess()
     {
     }
-    std::unique_ptr<mega::FileAccess> newfileaccess(bool = true) override
+    std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
         throw NotImplemented{__func__};
     }
@@ -84,7 +84,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool expanselocalpath(const mega::LocalPath&, mega::LocalPath&) override
+    bool expanselocalpath(const mega::LocalPath& path, mega::LocalPath& absolutepath) override
     {
         throw NotImplemented{__func__};
     }

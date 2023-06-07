@@ -37,7 +37,6 @@
 #include <cryptopp/algparam.h>
 #include <cryptopp/hmac.h>
 #include <cryptopp/pwdbased.h>
-#include "mega/types.h"
 
 namespace mega {
 
