@@ -9812,6 +9812,24 @@ void Syncs::processTriggerHandles()
     }
 }
 
+void Syncs::setdefaultfilepermissions(int permissions)
+{
+    queueSync(
+        [this, permissions]() {
+            fsaccess->setdefaultfilepermissions(permissions);
+        },
+        "setdefaultfilepermissions");
+}
+
+void Syncs::setdefaultfolderpermissions(int permissions)
+{
+    queueSync(
+        [this, permissions]() {
+            fsaccess->setdefaultfolderpermissions(permissions);
+        },
+        "setdefaultfolderpermissions");
+}
+
 #ifdef _WIN32
 #define PATHSTRING(s) L ## s
 #else // _WIN32
