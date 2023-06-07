@@ -2573,6 +2573,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  *
  * It performs different operations related to transfers in both directions: up and down.
  *
+ * - Uploads an empty directory
  * - Starts an upload transfer and cancel it
  * - Starts an upload transfer, pause it, resume it and complete it
  * - Get node by fingerprint
@@ -2581,38 +2582,33 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
-    auto createAndUploadEmptyFolder = [this](mega::MegaTransferListener* uploadListener1) -> bool
-    {
-        if (!uploadListener1) { return false; }
-
-        fs::path p = fs::current_path() / "upload_folder_mega_auto_test_sdk";
-        if (fs::exists(p))
-        {
-            fs::remove_all(p);
-        }
-        if (!fs::create_directories(p))
-        {
-            return false;
-        }
-
-        megaApi[0]->startUpload(p.u8string().c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/, ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/, false   /*isSourceTemporary*/,
-                            false   /*startFirst*/, nullptr /*cancelToken*/, uploadListener1);
-        return true;
-    };
-
     LOG_info << "___TEST Transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << cwd();
 
     // --- Upload an empty folder ---
+    auto createAndUploadEmptyFolder = [this](mega::MegaTransferListener* uploadListener1) -> fs::path
+    {
+        if (!uploadListener1)                { return fs::path{}; }
+        fs::path p = fs::current_path() / "upload_folder_mega_auto_test_sdk";
+        if (fs::exists(p) && !fs::remove(p)) { return fs::path{}; }
+        if (!fs::create_directory(p))        { return fs::path{}; }
+
+        megaApi[0]->startUpload(p.u8string().c_str(),
+                                std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                                nullptr /*fileName*/, ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/, false   /*isSourceTemporary*/,
+                                false   /*startFirst*/, nullptr /*cancelToken*/, uploadListener1);
+        return p;
+    };
     auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
     uploadListener1->selfDeleteOnFinalCallback = uploadListener1;
-    ASSERT_TRUE(createAndUploadEmptyFolder(uploadListener1.get())) << "SdkTestTransfers: can't create local empty folder";
-    ASSERT_EQ(uploadListener1->waitForResult(), API_OK) << "SdkTestTransfers: error uploading empty folder";
-    ASSERT_NE(uploadListener1->resultNodeHandle, mega::INVALID_HANDLE) << "SdkTestTransfers: node handle received in onTransferFinish is invalid";
+    auto p = createAndUploadEmptyFolder(uploadListener1.get());
+    ASSERT_FALSE(p.empty()) << "Upload empty folder: error creating local empty folder";
+    ASSERT_EQ(uploadListener1->waitForResult(), API_OK) << "Upload empty folder: error uploading empty folder";
+    ASSERT_NE(uploadListener1->resultNodeHandle, mega::INVALID_HANDLE)
+        << "Upload empty folder: node handle received in onTransferFinish is invalid";
+    EXPECT_TRUE(fs::remove(p)) << "Upload empty folder: error cleaning empty dir resource " << p;
 
     // --- Cancel a transfer ---
     MegaNode* rootnode = megaApi[0]->getRootNode();
