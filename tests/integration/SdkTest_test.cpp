@@ -2581,17 +2581,43 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
+    auto createAndUploadEmptyFolder = [this](mega::MegaTransferListener* uploadListener1) -> bool
+    {
+        if (!uploadListener1) { return false; }
+
+        fs::path p = fs::current_path() / "upload_folder_mega_auto_test_sdk";
+        if (fs::exists(p))
+        {
+            fs::remove_all(p);
+        }
+        if (!fs::create_directories(p))
+        {
+            return false;
+        }
+
+        megaApi[0]->startUpload(p.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/, ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/, false   /*isSourceTemporary*/,
+                            false   /*startFirst*/, nullptr /*cancelToken*/, uploadListener1);
+        return true;
+    };
+
     LOG_info << "___TEST Transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
     LOG_info << cwd();
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
-    string filename1 = UPFILE;
-    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
-
+    // --- Upload an empty folder ---
+    auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
+    uploadListener1->selfDeleteOnFinalCallback = uploadListener1;
+    ASSERT_TRUE(createAndUploadEmptyFolder(uploadListener1.get())) << "SdkTestTransfers: can't create local empty folder";
+    ASSERT_EQ(uploadListener1->waitForResult(), API_OK) << "SdkTestTransfers: error uploading empty folder";
+    ASSERT_NE(uploadListener1->resultNodeHandle, mega::INVALID_HANDLE) << "SdkTestTransfers: node handle received in onTransferFinish is invalid";
 
     // --- Cancel a transfer ---
+    MegaNode* rootnode = megaApi[0]->getRootNode();
+    string filename1 = UPFILE;
+    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
     TransferTracker ttc(megaApi[0].get());
     megaApi[0]->startUpload(filename1.c_str(),
                             rootnode,
