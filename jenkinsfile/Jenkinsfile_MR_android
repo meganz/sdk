@@ -170,8 +170,8 @@ pipeline {
                                 sh "echo Cloning android branch ${ANDROID_BRANCH}"
                                 checkout([
                                     $class: 'GitSCM', 
-                                    branches: [[name: "${ANDROID_BRANCH}"]],
-                                    userRemoteConfigs: [[ url: "${env.GIT_URL}:mobile/android/android.git", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                    branches: [[name: "origin/${ANDROID_BRANCH}"]],
+                                    userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                     extensions: [
                                         [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                                         ]
@@ -182,7 +182,7 @@ pipeline {
                                     checkout([
                                         $class: 'GitSCM', 
                                         branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
-                                        userRemoteConfigs: [[ url: "${env.GIT_URL}:megachat/MEGAchat.git", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                        userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                         extensions: [
                                             [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                                             ]
@@ -196,7 +196,7 @@ pipeline {
                                     checkout([
                                         $class: 'GitSCM', 
                                         branches: [[name: "origin/${env.gitlabSourceBranch}"]],
-                                        userRemoteConfigs: [[ url: "${env.GIT_URL}:sdk/sdk.git", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                        userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                         extensions: [
                                             [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
                                             [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
