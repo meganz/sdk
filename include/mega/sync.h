@@ -1136,6 +1136,10 @@ public:
     void triggerSync(NodeHandle, bool recurse = false);
     void triggerSync(const LocalPath& lp, bool scan);
 
+    // set default permission for file system access
+    void setdefaultfilepermissions(int permissions);
+    void setdefaultfolderpermissions(int permissions);
+
     // ------ public data members (thread safe)
 
     // waiter for sync loop on thread
