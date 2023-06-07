@@ -700,11 +700,20 @@ public:
 #endif
     ) override;
 
+    // Do not use this unless you know what you are doing!
+    //
+    // This is an unfortunate workaround for cases when multiple connections/clients add
+    // each its own logger to the same target (i.e. file), leading to duplicated messages
+    // being logged consecutively.
+    // This for example has happened in MegaChat's automated tests.
+    void useOnlyFirstLogger(bool onlyFirst = true) { useOnlyFirstMegaLogger = onlyFirst; }
+
 private:
     std::recursive_mutex mutex;
     map<void*, LogCallback> megaLoggers;
     bool logToConsole;
     bool alreadyLogging = false;
+    bool useOnlyFirstMegaLogger = false;
 };
 
 
