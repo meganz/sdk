@@ -1918,7 +1918,7 @@ UserAlert::Base* UserAlerts::findAlertToCombineWith(const UserAlert::Base* a, na
 {
     if (a->type == t)
     {
-        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [t](UserAlert::Base* b) { return !b->removed(); });
+        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [](UserAlert::Base* b) { return !b->removed(); });
         return ait != alerts.rend() && (*ait)->type == t ? *ait : nullptr;
     }
 

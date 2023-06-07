@@ -931,6 +931,11 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
+{
+    reqs.add(new CommandBackupSyncFetch(f));
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
@@ -3792,7 +3797,7 @@ void MegaClient::dispatchTransfers()
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                             : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
                                                  h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
-                            [this, ts, hprivate, h](const Error &e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
+                            [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                                const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
                         {
@@ -8325,9 +8330,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
-    User* u;
-
-    if (!(u = finduser(user, 0)) && !user)
+    if (!finduser(user, 0) && !user)
     {
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
         else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
@@ -9736,9 +9739,13 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         const char* m = NULL;
         nameid name;
         BizMode bizMode = BIZ_MODE_UNKNOWN;
+        string pubk, puEd255, puCu255, sigPubk, sigCu255;
 
-        while ((name = j->getnameid()) != EOO)
+        bool exit = false;
+        while (!exit)
         {
+            string fieldName = j->getnameWithoutAdvance();
+            name = j->getnameid();
             switch (name)
             {
                 case 'u':   // new node: handle
@@ -9782,11 +9789,41 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     break;
                 }
 
+                case MAKENAMEID4('p', 'u', 'b', 'k'):
+                    j->storebinary(&pubk);
+                    break;
+
+                case MAKENAMEID8('+', 'p', 'u', 'E', 'd', '2', '5', '5'):
+                    j->storebinary(&puEd255);
+                    break;
+
+                case MAKENAMEID8('+', 'p', 'u', 'C', 'u', '2', '5', '5'):
+                    j->storebinary(&puCu255);
+                    break;
+
+                case MAKENAMEID8('+', 's', 'i', 'g', 'P', 'u', 'b', 'k'):
+                    j->storebinary(&sigPubk);
+                    break;
+
+                case EOO:
+                    exit = true;
+                    break;
+
                 default:
-                    if (!j->storeobject())
+                    switch (User::string2attr(fieldName.c_str()))
                     {
-                        return false;
+                        case ATTR_SIG_CU255_PUBK:
+                            j->storebinary(&sigCu255);
+                            break;
+
+                        default:
+                            if (!j->storeobject())
+                            {
+                                return false;
+                            }
+                            break;
                     }
+                    break;
             }
         }
 
@@ -9817,6 +9854,36 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
                 u->mBizMode = bizMode;
 
+                // The attributes received during the "ug" also include the version.
+                // Keep them instead of the ones with no version from the fetch nodes.
+                if (!(uh == me && fetchingnodes))
+                {
+                    if (pubk.size())
+                    {
+                        u->pubk.setkey(AsymmCipher::PUBKEY, (const byte*)pubk.data(), (int)pubk.size());
+                    }
+
+                    if (puEd255.size())
+                    {
+                        u->setattr(ATTR_ED25519_PUBK, &puEd255, nullptr);
+                    }
+
+                    if (puCu255.size())
+                    {
+                        u->setattr(ATTR_CU25519_PUBK, &puCu255, nullptr);
+                    }
+
+                    if (sigPubk.size())
+                    {
+                        u->setattr(ATTR_SIG_RSA_PUBK, &sigPubk, nullptr);
+                    }
+
+                    if (sigCu255.size())
+                    {
+                        u->setattr(ATTR_SIG_CU255_PUBK, &sigCu255, nullptr);
+                    }
+                }
+
                 if (v != VISIBILITY_UNKNOWN)
                 {
                     if (u->show != v || u->ctime != ts)
@@ -9834,7 +9901,8 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                  && uh != me
                                  && statecurrent)  // otherwise, fetched when statecurrent is set
                         {
-                            // new user --> fetch keys
+                            // new user --> fetch contact keys if they are not yet available.
+                            // If keys are available for the user, fetchContactKeys will call trackKey directly.
                             fetchContactKeys(u);
                         }
 
@@ -10743,7 +10811,7 @@ void MegaClient::procsr(JSON* j)
         else
         {
             // unknown node: skip
-            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
+            while (j->ishandle(USERHANDLE) && j->gethandle(USERHANDLE));
         }
     }
 
@@ -14031,10 +14099,13 @@ void MegaClient::fetchContactKeys(User *user)
 
     // TODO: remove obsolete retrieval of public RSA keys and its signatures
     // (authrings for RSA are deprecated)
-    int creqtag = reqtag;
-    reqtag = 0;
-    getpubkey(user->uid.c_str());
-    reqtag = creqtag;
+    if (!user->pubk.isvalid())
+    {
+        int creqtag = reqtag;
+        reqtag = 0;
+        getpubkey(user->uid.c_str());
+        reqtag = creqtag;
+    }
 }
 
 error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
@@ -19163,8 +19234,10 @@ string KeyManager::toKeysContainer()
     string keysCiphered;
     mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
 
+#ifndef NDEBUG
     byte header[2] = {20, 0};
     assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+#endif
 
     return string({20, 0}) + iv + keysCiphered;
 }
@@ -20118,9 +20191,9 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                #ifdef DEBUG
+#ifndef NDEBUG
                     int uhsize =
-                #endif
+#endif
                 Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);

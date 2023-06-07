@@ -22,6 +22,7 @@
 #ifndef MEGA_ACCOUNT_H
 #define MEGA_ACCOUNT_H 1
 
+#include "types.h"
 
 namespace mega {
 // account details/history

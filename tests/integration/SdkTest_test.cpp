@@ -578,6 +578,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
             }
+            else if (request->getParamType() == MegaApi::USER_ATTR_CC_PREFS)
+            {
+                mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
+            }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : "");
@@ -3100,12 +3104,22 @@ TEST_F(SdkTest, SdkTestContacts)
 
 TEST_F(SdkTest, SdkTestAppsPrefs)
 {
+    testPrefs("___TEST AppsPrefs___", MegaApi::USER_ATTR_APPS_PREFS);
+}
+
+TEST_F(SdkTest, SdkTestCcPrefs)
+{
+    testPrefs("___TEST CcPrefs___", MegaApi::USER_ATTR_CC_PREFS);
+}
+
+void SdkTest::testPrefs(const std::string& title, int type)
+{
     const auto comparePrefs = [](const MegaStringMap* currentMap, const MegaStringMap* testMap) -> bool
     {
         if (!currentMap || !testMap) return false;
 
-        std::unique_ptr<MegaStringList> currentKeys (currentMap->getKeys());
-        std::unique_ptr<MegaStringList> testKeys (testMap->getKeys());
+        std::unique_ptr<MegaStringList> currentKeys(currentMap->getKeys());
+        std::unique_ptr<MegaStringList> testKeys(testMap->getKeys());
         if (!currentKeys || !testKeys)
         {
             return false;
@@ -3126,54 +3140,54 @@ TEST_F(SdkTest, SdkTestAppsPrefs)
         return true;
     };
 
-    const auto isAppsPrefsUpdated = [this, &comparePrefs](const MegaStringMap* uprefs) -> bool
+    const auto isPrefsUpdated = [this, &comparePrefs, type](const MegaStringMap* uprefs) -> bool
     {
         std::unique_ptr<MegaUser> u(megaApi[0]->getMyUser());
         EXPECT_TRUE(u) << "Can't get own user";
-        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), MegaApi::USER_ATTR_APPS_PREFS, maxTimeout, 0));
+        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), type, maxTimeout, 0));
         EXPECT_TRUE(comparePrefs(mApi[0].mStringMap.get(), uprefs)) << "ERR";
         return true;
     };
 
-    const auto fetchAppsPrefs = [this](const unsigned int index) -> int
+    const auto fetchPrefs = [this, type](const unsigned int index) -> int
     {
         std::unique_ptr<MegaUser> u(megaApi[index]->getMyUser());
         if (!u) { return API_ENOENT; }
         mApi[index].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
-        return synchronousGetUserAttribute(index, u.get(), MegaApi::USER_ATTR_APPS_PREFS);
+        return synchronousGetUserAttribute(index, u.get(), type);
     };
 
-    LOG_info << "___TEST AppsPrefs___";
+    LOG_info << title;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // fetch for current attr value
     static constexpr char keyname[] = "key1";
     const unsigned int index = 0;
-    const int res = fetchAppsPrefs(index);
+    const int res = fetchPrefs(index);
     ASSERT_TRUE(res == API_ENOENT || res == API_OK);
 
     // set value for attr (overwrite any posible value that could exists for keyname)
-    std::unique_ptr <MegaStringMap> newAppPrefs(MegaStringMap::createInstance());
+    std::unique_ptr <MegaStringMap> newPrefs(MegaStringMap::createInstance());
     std::string val = std::to_string(m_time());
     unique_ptr<char[]> valB64(MegaApi::binaryToBase64(val.data(), val.size()));
-    newAppPrefs->set(keyname, valB64.get());
-    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+    newPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, type, newPrefs.get()));
 
     // logout and login
     releaseMegaApi(index);
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // check attr value is expected after logout/login
-    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+    ASSERT_TRUE(isPrefsUpdated(newPrefs.get())) << "";
 
     // set value for attr again (overwrite latest value for keyname)
     val = std::to_string(m_time());
     valB64.reset(MegaApi::binaryToBase64(val.data(), val.size()));
-    newAppPrefs->set(keyname, valB64.get());
-    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+    newPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, type, newPrefs.get()));
 
     // check attr value is expected
-    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+    ASSERT_TRUE(isPrefsUpdated(newPrefs.get())) << "";
 }
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
@@ -5704,12 +5718,12 @@ namespace mega
             unsigned oldvalue = tbm->raidLinesPerChunk;
             unsigned minDivisorSize = 4 * 1024 * 1024; //  raidLinesPerChunk is defined by MAX_REQ_SIZE value, which depends on the system -> division factor of 4 for different max_req_sizes
             unsigned divideBy = std::max<unsigned>(static_cast<unsigned>(TransferSlot::MAX_REQ_SIZE / minDivisorSize), static_cast<unsigned>(1));
-            tbm->raidLinesPerChunk /= divideBy;
-            tbm->setAvoidSmallLastRequest(false);
+            tbm->raidLinesPerChunk = tbm->raidLinesPerChunk / divideBy;
+            tbm->disableAvoidSmallLastRequest();
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
 
-        static bool  onHttpReqPost509(HttpReq* req)
+        static bool onHttpReqPost509(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5725,7 +5739,7 @@ namespace mega
             return false;
         }
 
-        static bool  onHttpReqPost404Or403(HttpReq* req)
+        static bool onHttpReqPost404Or403(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5748,7 +5762,7 @@ namespace mega
         }
 
 
-        static bool  onHttpReqPostTimeout(HttpReq* req)
+        static bool onHttpReqPostTimeout(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5970,7 +5984,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 /**
 * @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
 *
-* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+* Download a cloudraid file but with a connection failing with http errors 404 and 403. The download should recover from the problems in 5 channel mode
 *
 */
 
@@ -6027,9 +6041,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
 /**
-* @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
+* @brief TEST_F SdkTestCloudraidTransferWithSingleChannelTimeouts
 *
-* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+* Download a cloudraid file but with a connection failing after a timeout. The download should recover from the problems in 5 channel mode
 *
 */
 
@@ -6050,7 +6064,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
-    // set up for 404 and 403 errors
+    // set up for timeout
     // smaller chunk sizes so we can get plenty of pauses
     DebugTestHook::countdownToTimeout = 15;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED

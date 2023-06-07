@@ -32,10 +32,13 @@
 
 namespace mega {
 
+struct MegaApp;
 class HeartBeatSyncInfo;
 class BackupInfoSync;
 class BackupMonitor;
 class MegaClient;
+struct JSON;
+class JSONWriter;
 
 // How should the sync engine detect filesystem changes?
 enum ChangeDetectionMethod

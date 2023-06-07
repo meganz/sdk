@@ -80,13 +80,13 @@ class SyncApp : public MegaApp, public Logger
     handle cwd;
     bool initial_fetch;
 
-    void prelogin_result(int version, string* email, string *salt, error e);
+    void prelogin_result(int version, string* email, string *salt, error e) override;
 
-    void login_result(error e);
+    void login_result(error e) override;
 
-    void fetchnodes_result(const Error& e);
+    void fetchnodes_result(const Error& e) override;
 
-    void request_error(error e);
+    void request_error(error e) override;
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
@@ -103,7 +103,7 @@ public:
         #ifdef ENABLE_LOG_PERFORMANCE
             , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
         #endif
-    );
+    ) override;
 };
 
 // globals

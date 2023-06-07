@@ -2007,6 +2007,8 @@ public:
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
+    void getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f);
+
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
 
