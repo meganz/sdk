@@ -2411,8 +2411,8 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->listener = transfer->getListener();
     this->transfer = transfer->getTransfer();
     this->type = transfer->getType();
-    this->state = transfer->getState();
-    this->priority = transfer->getPriority();
+    this->setState(transfer->getState());
+    this->setPriority(transfer->getPriority());
     this->setTag(transfer->getTag());
     this->setPath(transfer->getPath());
     this->setNodeHandle(transfer->getNodeHandle());
@@ -2442,7 +2442,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setForceNewUpload(transfer->isForceNewUpload());
     this->setLastError(transfer->lastError.get());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
-    this->doSetAppData(transfer->getAppData());
+    this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
     mCancelToken = transfer->mCancelToken;
     this->setStage(transfer->getStage());
@@ -2643,7 +2643,7 @@ int MegaTransferPrivate::getFolderTransferTag() const
     return this->folderTransferTag;
 }
 
-void MegaTransferPrivate::doSetAppData(const char *data)
+void MegaTransferPrivate::setAppData(const char *data)
 {
     if (this->appData)
     {
@@ -5416,12 +5416,12 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, putsource_t)
+void MegaFileGet::completed(Transfer*, putsource_t source)
 {
     delete this;
 }
 
-void MegaFileGet::terminated(error)
+void MegaFileGet::terminated(error e)
 {
     delete this;
 }
@@ -5521,7 +5521,7 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     delete this;
 }
 
-void MegaFilePut::terminated(error)
+void MegaFilePut::terminated(error e)
 {
     delete this;
 }
@@ -8544,8 +8544,13 @@ void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listen
 }
 
 MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData,
-    bool isSourceFileTemporary, bool forceNewUpload, FileSystemType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile)
+    bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile)
 {
+    if (fsType == FS_UNKNOWN && localPath)
+    {
+        fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
+    }
+
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
     {
@@ -9417,7 +9422,7 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char*)
+char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
 {
     if(!name)
     {
@@ -12451,9 +12456,10 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, 
     fireOnTransferUpdate(transfer);
     if (!fireOnTransferData(transfer) || end)
     {
+        LOG_debug << "[MegaApiImpl::pread_data] Finish. Transfer: " << param << ", end = " << end << " [this = " << this << "]";
         transfer->setState(end ? MegaTransfer::STATE_COMPLETED : MegaTransfer::STATE_CANCELLED);
         fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(end ? API_OK : API_EINCOMPLETE));
-        return end;
+        return false;
     }
     return true;
 }
@@ -12969,7 +12975,7 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chats_updated(textchat_map *chats, int)
+void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
     if (chats)
     {
@@ -13156,7 +13162,7 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_syncing(bool)
+void MegaApiImpl::syncupdate_syncing(bool syncing)
 {
     fireOnGlobalSyncStateChanged();
 }
@@ -27202,7 +27208,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
         megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
-            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool, int)
+            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;
@@ -28160,7 +28166,7 @@ void MegaScheduledCopyController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     megaApi->fireOnBackupUpdate(this);
 }
 
-void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransfer*, MegaError *e)
+void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaScheduledCopyController::onTransferTemporaryError";
 
@@ -28169,7 +28175,7 @@ void MegaScheduledCopyController::onTransferTemporaryError(MegaApi *, MegaTransf
     {
         errorPrivate = unique_ptr<MegaErrorPrivate>(dynamic_cast<MegaErrorPrivate *>(e->copy()));
     }
-    else if (e)
+    else
     {
          errorPrivate = make_unique<MegaErrorPrivate>(e->getErrorCode());
     }
@@ -29869,22 +29875,22 @@ void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
     }
 }
 
-void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext*) // without this closing breaks!
+void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext *tcpctx) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnAsyncEventClose";
 }
 
-void MegaTCPServer::processOnExitHandleClose(MegaTCPServer*) // without this closing breaks!
+void MegaTCPServer::processOnExitHandleClose(MegaTCPServer *tcpServer) // without this closing breaks!
 {
     LOG_debug << "At supposed to be virtual processOnExitHandleClose";
 }
 
-void MegaTCPServer::processReceivedData(MegaTCPContext*, ssize_t, const uv_buf_t*)
+void MegaTCPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t *buf)
 {
     LOG_debug << "At supposed to be virtual processReceivedData";
 }
 
-void MegaTCPServer::processAsyncEvent(MegaTCPContext*)
+void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 {
     LOG_debug << "At supposed to be virtual processAsyncEvent";
 }
@@ -30035,12 +30041,12 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     httpctx->node = NULL;
 }
 
-bool MegaHTTPServer::respondNewConnection(MegaTCPContext*)
+bool MegaHTTPServer::respondNewConnection(MegaTCPContext* tcpctx)
 {
     return true;
 }
 
-void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer*)
+void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 {
 }
 
@@ -32140,7 +32146,7 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
     return ftpctx;
 }
 
-void MegaFTPServer::processWriteFinished(MegaTCPContext*, int status)
+void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 {
     LOG_verbose << "MegaFTPServer::processWriteFinished. status=" << status;
 }
@@ -32664,6 +32670,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 {
     MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
 
+    ssize_t parsed = -1; ((void)(parsed));
     string petition;
     std::string command;
     string response;
@@ -32692,6 +32699,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
         if (psepend != petition.size()-strlen(crlf))
         {
+            parsed = -1;
             failed = true;
 
             LOG_warn << " Failed to parse petition:<" << petition << ">" << " psep=" << psep << " psepend=" << psepend
@@ -32699,6 +32707,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         else
         {
+            parsed = petition.size();
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
             for (char& c : command) { c = static_cast<char>(toupper(c)); };
@@ -32888,6 +32897,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_SYST:
         case FTP_CMD_FEAT:
         case FTP_CMD_NOOP:
+            if (psep != string::npos)
+            {
+                parsed = -1;
+            }
             break;
         // single arg
         case FTP_CMD_USER:
@@ -32917,6 +32930,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 string rest = petition.substr(psep+1);
                 ftpctx->arg1 = rest;
             }
+            else
+            {
+                parsed = -1;
+            }
 
             break;
             //optional arg
@@ -32941,12 +32958,24 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {  //optional R <SP> <decimal-integer>
                     rest = petition.substr(psep+1);
                     psep = rest.find_first_of(separators);
-                    if ((psep + 1) < petition.size())
+                    if (psep != 1 && (rest.at(0) != 'R' || rest.at(0) != 'r'))
+                    {
+                        parsed = -1;
+                    }
+                    else if ((psep + 1) < petition.size())
                     {
                         rest = petition.substr(psep+1);
                         ftpctx->arg2 = rest;
                     }
+                    else
+                    {
+                        parsed = -1;
+                    }
                 }
+            }
+            else
+            {
+                parsed = -1;
             }
             break;
         case FTP_CMD_OPTS:
@@ -32959,9 +32988,14 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     ftpctx->arg2 = rest.substr(psep+1);
                 }
+                else
+                {
+                    parsed = -1;
+                }
             }
             break;
         default:
+            parsed = -1;
             break;
         };
 
@@ -33620,7 +33654,7 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
     uv_mutex_unlock(&ftpctx->mutex_responses);
 }
 
-void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext*)
+void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 {
     LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
@@ -33669,7 +33703,7 @@ bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
 
 }
 
-void MegaFTPServer::processOnExitHandleClose(MegaTCPServer*)
+void MegaFTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 {
 
 }
@@ -33707,11 +33741,11 @@ MegaFTPContext::~MegaFTPContext()
     uv_mutex_destroy(&mutex_nodeToDownload);
 }
 
-void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *)
+void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 {
 }
 
-bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
+bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
 {
     LOG_verbose << "MegaFTPContext::onTransferData";
     return true;
@@ -34292,7 +34326,7 @@ bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
     return false;
 }
 
-void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer*)
+void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 {
 }
 
@@ -34451,7 +34485,7 @@ void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *
     uv_async_send(&asynchandle);
 }
 
-void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *, MegaError *)
+void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
 {
     if (finished)
     {

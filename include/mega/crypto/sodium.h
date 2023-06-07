@@ -24,7 +24,6 @@
 
 #include <sodium.h>
 #include <vector>
-#include "mega/types.h"
 
 namespace mega {
 

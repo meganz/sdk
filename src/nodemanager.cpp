@@ -336,7 +336,7 @@ node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
             parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
         }
 
-        for (const auto& nodeSerializedIt : nodesFromTable)
+        for (auto nodeSerializedIt : nodesFromTable)
         {
             if (cancelToken.isCancelled())
             {
