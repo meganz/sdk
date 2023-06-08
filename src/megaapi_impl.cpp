@@ -31379,7 +31379,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         if (seppos == string::npos)
         {
-            newParentNode = baseNode ? baseNode->copy() : node->copy();
+            if (baseNode)  newParentNode = baseNode->copy();
+            else if (node) newParentNode = node->copy();
+            else           newParentNode = nullptr;
             newname = dest;
         }
         else
