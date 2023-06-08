@@ -765,6 +765,7 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     if (e == API_EKEY)
         mc->sendevent(99433, "Undecryptable file", 0);
 
+    // TODO: this seems wrong, but is probably just carried over from the old sync logic.  Surely we should stall for this case rather than auto-delete?
     // Blocked file?
     if (e == API_EBLOCKED)
     {

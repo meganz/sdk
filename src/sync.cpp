@@ -695,6 +695,8 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localroot->fsid_lastSynced = fas->fsid;
     us.mConfig.mLocalPathFsid = fas->fsid;
     us.mConfig.mFilesystemFingerprint = fsfp;
+    LOG_debug << "Constructed Sync has filesystemId: " << us.mConfig.mFilesystemFingerprint
+              << " and root folder id: " << us.mConfig.mLocalPathFsid;
 
     // load LocalNodes from cache (only for internal syncs)
     // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
@@ -1364,7 +1366,7 @@ struct ProgressingMonitor
 
         if (sf.stall.local.empty())
         {
-            LOG_debug << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingCloud(mapKeyPath, move(e));
@@ -1378,7 +1380,7 @@ struct ProgressingMonitor
 
         if (sf.stall.local.empty())
         {
-            LOG_debug << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
+            LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
         sf.stall.waitingLocal(mapKeyPath, move(e));
@@ -1399,7 +1401,7 @@ struct ProgressingMonitor
         {
             if (sf.noProgress)
             {
-                LOG_debug << "First sync node not progressing: " << sync.logTriplet(sr, sp);
+                LOG_debug << sync.syncname << "First sync node not progressing: " << sync.logTriplet(sr, sp);
             }
             sf.noProgress = false;
             sf.noProgressCount = 0;
@@ -1985,7 +1987,10 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                         LOG_debug << syncname << "Moving node to debris for replacement: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
                         auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
-                        sourceSyncNode->rare().removeNodeHere = deletePtr;
+
+                        // do not remember this one, as this is not the main operation this time
+                        // we should not adjust syncedFsid on completion of this aspect
+                        //sourceSyncNode->rare().removeNodeHere = deletePtr;
 
                         bool inshareFlag = inshare;
                         auto deleteHandle = row.cloudNode->handle;
@@ -1994,7 +1999,14 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
-                                    mc.movetosyncdebris(n, inshareFlag, nullptr, canChangeVault);
+                                    mc.movetosyncdebris(n, inshareFlag, [deletePtr](NodeHandle, Error e){
+
+                                        // deletePtr must live until the operation is fully complete, and we get the actionpacket back indicating Nodes are adjusted already.
+                                        // otherwise, we may see the node still present, no pending actions, and downsync it
+                                        if (e) deletePtr->failed = true;
+                                        else deletePtr->succeeded = true;
+
+                                    }, canChangeVault);
                                 }
 
                                 // deletePtr lives until this moment
@@ -2285,6 +2297,42 @@ bool Sync::checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, S
             SYNC_verbose << syncname << "Folder Create completed, but cloud Node does not match now.  Reset to reevaluate." << logTriplet(row, fullPath);
             folderCreate.reset();
             row.syncNode->updateMoveInvolvement();
+        }
+    }
+
+    rowResult = false;
+    return false;
+}
+
+bool Sync::checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult)
+{
+    // if this cloud move was a sync decision, don't look to make it locally too
+    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().removeNodeHere)
+    {
+        auto& ptr = row.syncNode->rare().removeNodeHere;
+
+        if (ptr->failed)
+        {
+            SYNC_verbose << syncname << "Cloud move to debris here failed, reset for reevaluation" << logTriplet(row, fullPath);
+            ptr.reset();
+        }
+        else if (!ptr->succeeded)
+        {
+            SYNC_verbose << syncname << "Cloud move to debris already issued for this node, waiting for it to complete. " << logTriplet(row, fullPath);
+            rowResult = false;
+            return true;  // row processed (no further action) but not synced
+        }
+        else
+        {
+            SYNC_verbose << syncname << "Cloud move to debris completed in expected location, setting synced handle/fsid" << logTriplet(row, fullPath);
+
+            // Now that the operation completed, it's appropriate to set synced-ids so we can apply more logic to the updated state
+
+            row.syncNode->setSyncedNodeHandle(NodeHandle()); //  we could set row.cloudNode->handle, but then we would not download after move if the file was both moved and updated;
+            row.syncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);
+            ptr.reset();
+            row.syncNode->trimRareFields();
+            statecacheadd(row.syncNode);
         }
     }
 
@@ -6882,7 +6930,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 (recurseHere &&
                                 !childRow.suppressRecursion &&
                                 //!childRow.syncNode->deletedFS &&   we should not check this one, or we won't remove the LocalNode
-                                childRow.syncNode->rareRO().removeNodeHere.expired() &&
+                                //childRow.syncNode->rareRO().removeNodeHere.expired() && // this is shared_ptr now, not weak_ptr.  And checked early in checkForCompletedCloudMovedToDebris
                                 childRow.syncNode->rareRO().unlinkHere.expired() &&
                                 !childRow.syncNode->rareRO().moveToHere))) // don't create new LocalNodes under a moving-to folder, we'll move the already existing LocalNodes when the move completes
                         {
@@ -7121,6 +7169,13 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         row.itemProcessed = true;
         return rowResult;
     }
+
+    if (checkForCompletedCloudMovedToDebris(row, parentRow, fullPath, rowResult))
+    {
+        row.itemProcessed = true;
+        return rowResult;
+    }
+
 
     // First deal with detecting local moves/renames and propagating correspondingly
     // Independent of the syncItem() combos below so we don't have duplicate checks in those.
@@ -9542,7 +9597,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     else if (syncs.mSyncFlags->movesWereComplete ||
              row.isIgnoreFile())  // ignore files do not participate in move logic
     {
-        if (row.syncNode->rareRO().removeNodeHere.expired())
+        if (!row.syncNode->rareRO().removeNodeHere)
         {
             // We need to be sure before sending to sync trash.  If we have received
             // a lot of delete notifications, but not yet the corrsponding add that makes it a move
@@ -9579,24 +9634,22 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
                                     return;
                                 }
 
-                                mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error){
+                                mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error e){
 
                                     // deletePtr lives until this moment
-                                    LOG_debug << "Sync delete to sync debris completed: " << deletePtr->pathDeleting;
+                                    LOG_debug << "Sync delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
+
+                                    if (e) deletePtr->failed = true;
+                                    else deletePtr->succeeded = true;
 
                                 }, canChangeVault);
                             }
                         });
 
                     // Remember that the delete is going on, so we don't do anything else until that resolves
-                    // And, detach the synced-fsid side, so that we don't later delete the local side, should
-                    // the user move the exact same file back to where it disappeared from.  That would occur
-                    // because we later see the cloud side gone, but synced-handle and synced-fsid are the same,
-                    // and that very same local file is present in the row.
+                    // We will detach the synced-fsid side on final completion of this operation.  If we do so
+                    // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
                     row.syncNode->rare().removeNodeHere = deletePtr;
-                    row.syncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, row.syncNode->localname, nullptr);
-                    statecacheadd(row.syncNode);
-
                 }
                 else if (exclusionState == ES_EXCLUDED)
                 {
@@ -11019,7 +11072,8 @@ void Syncs::syncLoop()
                     else if (filesystemId && us->mConfig.mFilesystemFingerprint &&
                              filesystemId != us->mConfig.mFilesystemFingerprint)
                     {
-                        LOG_err << "Sync path is available again but is not the same filesystem, by id: " << us->mConfig.mLocalPath;
+                        LOG_err << "Sync path is available again but is not the same filesystem, by id.  Old: "
+                                << us->mConfig.mFilesystemFingerprint << " New: " << filesystemId << " Path: " << us->mConfig.mLocalPath;
                     }
                     else
                     {

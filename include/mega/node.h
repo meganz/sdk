@@ -698,6 +698,8 @@ struct MEGA_API LocalNode
         {
             // (actually if it's an inshare, we unlink() as there's no debris
             string pathDeleting;
+            bool failed = false;
+            bool succeeded = false;
         };
 
         struct UnlinkInProgress
@@ -717,7 +719,7 @@ struct MEGA_API LocalNode
         shared_ptr<MoveInProgress> moveFromHere;
         shared_ptr<MoveInProgress> moveToHere;
         shared_ptr<CreateFolderInProgress> createFolderHere;
-        weak_ptr<DeleteToDebrisInProgress> removeNodeHere;
+        shared_ptr<DeleteToDebrisInProgress> removeNodeHere;
         weak_ptr<UnlinkInProgress> unlinkHere;
 
         // Filter rules applicable below this node.
