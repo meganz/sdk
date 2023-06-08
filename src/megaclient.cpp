@@ -7424,6 +7424,9 @@ void MegaClient::sc_se()
                 mapuser(uh, email.c_str()); // update email used as index for user's map
                 u->changed.email = true;
                 notifyuser(u);
+
+                // produce a callback to update cached email in MegaApp
+                reportLoggedInChanges();
             }
             // TODO: manage different status once multiple-emails is supported
 
