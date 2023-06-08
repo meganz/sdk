@@ -2591,7 +2591,7 @@ TEST_F(SdkTest, SdkTestTransfers)
     LOG_info << cwd();
 
     // --- Upload an empty folder ---
-    auto createAndUploadEmptyFolder = [this](mega::MegaTransferListener* uploadListener1) -> fs::path
+    auto createAndUploadEmptyFolder = [this](::mega::MegaTransferListener* uploadListener1) -> fs::path
     {
         if (!uploadListener1)                { return fs::path{}; }
         fs::path p = fs::current_path() / "upload_folder_mega_auto_test_sdk";
@@ -2610,7 +2610,7 @@ TEST_F(SdkTest, SdkTestTransfers)
     auto p = createAndUploadEmptyFolder(uploadListener1.get());
     ASSERT_FALSE(p.empty()) << "Upload empty folder: error creating local empty folder";
     ASSERT_EQ(uploadListener1->waitForResult(), API_OK) << "Upload empty folder: error uploading empty folder";
-    ASSERT_NE(uploadListener1->resultNodeHandle, mega::INVALID_HANDLE)
+    ASSERT_NE(uploadListener1->resultNodeHandle, ::mega::INVALID_HANDLE)
         << "Upload empty folder: node handle received in onTransferFinish is invalid";
     EXPECT_TRUE(fs::remove(p)) << "Upload empty folder: error cleaning empty dir resource " << p;
 
