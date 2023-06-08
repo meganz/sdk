@@ -285,6 +285,9 @@ protected:
     // it's only safe to use this client ptr when on the MegaApiImpl's thread
     MegaClient* megaapiThreadClient();
 
+    // set node handle for root folder in transfer
+    void setRootNodeHandleInTransfer();
+
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
 
