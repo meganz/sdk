@@ -53,6 +53,8 @@
 #import "MEGAUserAlert.h"
 #import "MEGABackupInfo.h"
 #import "MEGABackupInfoList.h"
+#import "MEGAScheduledCopy.h"
+#import "MEGAScheduledCopyDelegate.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -730,6 +732,24 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Previously registered MegaLogger implementation
  */
 - (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate receive backups events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate won't receive more events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)removeScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 #pragma mark - Utils
 

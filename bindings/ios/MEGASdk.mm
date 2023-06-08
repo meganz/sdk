@@ -42,6 +42,7 @@
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
 #import "DelegateMEGATreeProcessorListener.h"
+#import "DelegateMEGAScheduledCopyListener.h"
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
@@ -63,6 +64,7 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGAGlobalListener *>activeGlobalListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAListener *>activeMegaListeners;
 @property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
+@property (nonatomic, assign) std::set<DelegateMEGAScheduledCopyListener *>activeScheduledCopyListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
@@ -71,6 +73,7 @@ using namespace mega;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
+- (MegaScheduledCopyListener *)createDelegateMegaScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 @property (nonatomic, nullable) MegaApi *megaApi;
 
@@ -430,6 +433,44 @@ using namespace mega;
         MegaApi::removeLoggerObject(listenersToRemove[i]);
         delete listenersToRemove[i];
     }
+}
+
+- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    [self addScheduledCopyDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addScheduledCopyListener([self createDelegateMegaScheduledCopyListener:delegate queueType:queueType]);
+    }
+}
+
+- (void)removeScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    std::vector<DelegateMEGAScheduledCopyListener *> listenersToRemove;
+    
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMEGAScheduledCopyListener *>::iterator it = _activeScheduledCopyListeners.begin();
+    while (it != _activeScheduledCopyListeners.end()) {
+        DelegateMEGAScheduledCopyListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == delegate) {
+            listenersToRemove.push_back(delegateListener);
+            _activeScheduledCopyListeners.erase(it++);
+        }
+        else {
+            it++;
+        }
+    }
+    pthread_mutex_unlock(&listenerMutex);
+    
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        if (self.megaApi) {
+            self.megaApi->removeScheduledCopyListener(listenersToRemove[i]);
+        }
+        delete listenersToRemove[i];
+    }
+    
 }
 
 #pragma mark - Utils
@@ -3802,6 +3843,16 @@ using namespace mega;
     DelegateMEGALoggerListener *delegateListener = new DelegateMEGALoggerListener(delegate);
     pthread_mutex_lock(&listenerMutex);
     _activeLoggerListeners.insert(delegateListener);
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaScheduledCopyListener *)createDelegateMegaScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGAScheduledCopyListener *delegateListener = new DelegateMEGAScheduledCopyListener(self, delegate, queueType);
+    pthread_mutex_lock(&listenerMutex);
+    _activeScheduledCopyListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }
