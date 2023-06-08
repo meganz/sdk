@@ -933,26 +933,27 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
 void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+    shared_ptr<bool> isBackup = std::make_shared<bool>(false);
 
     // step 4: move or delete backup contents
-    auto moveOrDeleteBackup = [this, bkpId, bkpRoot, targetDest, finalCompletion](NodeHandle, Error setAttrErr)
+    auto moveOrDeleteBackup = [this, bkpId, bkpRoot, targetDest, isBackup, finalCompletion](NodeHandle, Error setAttrErr)
     {
-        if (setAttrErr != API_OK)
+        if (!*isBackup || setAttrErr != API_OK)
         {
-            LOG_err << "Backup remove: failed to set sds for backup " << toHandle(bkpId) << ": " << setAttrErr;
+            if (setAttrErr != API_OK)
+            {
+                LOG_err << "Remove backup/sync: failed to set 'sds' for " << toHandle(bkpId) << ": " << setAttrErr;
+            }
             finalCompletion(setAttrErr);
             return;
         }
 
-        else
-        {
-            NodeHandle bkpRootNH;
-            bkpRootNH.set6byte(*bkpRoot);
-            NodeHandle targetDestNH;
-            targetDestNH.set6byte(targetDest ? targetDest : UNDEF); // allow 0 as well
+        NodeHandle bkpRootNH;
+        bkpRootNH.set6byte(*bkpRoot);
+        NodeHandle targetDestNH;
+        targetDestNH.set6byte(targetDest ? targetDest : UNDEF); // allow 0 as well
 
-            unlinkOrMoveBackupNodes(bkpRootNH, targetDestNH, finalCompletion);
-        }
+        unlinkOrMoveBackupNodes(bkpRootNH, targetDestNH, finalCompletion);
     };
 
     // step 3: set sds attribute
@@ -960,14 +961,14 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
     {
         if (bkpRmvErr != API_OK)
         {
-            LOG_err << "Backup remove: failed to remove backup " << toHandle(bkpId);
+            LOG_err << "Remove backup/sync: failed to remove " << toHandle(bkpId);
             // Don't break execution here in case of error. Still try to set 'sds' node attribute.
         }
 
         Node* bkpRootNode = nodebyhandle(*bkpRoot);
         if (!bkpRootNode)
         {
-            LOG_err << "Remove backup: backup root not found";
+            LOG_err << "Remove backup/sync: root folder not found";
             finalCompletion(API_ENOENT);
             return;
         }
@@ -980,34 +981,35 @@ void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<v
         auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
         if (e != API_OK)
         {
-            LOG_err << "Remove backup: failed to set the 'sds' node attribute";
+            LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
             finalCompletion(e);
         }
     };
 
-    // step 1: fetch Backup data from Backup Centre
-    getBackupInfo([this, bkpId, bkpRoot, updateSds, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+    // step 1: fetch Backup/sync data from Backup Centre
+    getBackupInfo([this, bkpId, bkpRoot, updateSds, isBackup, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
-                LOG_err << "Remove backup: getBackupInfo failed with " << e;
+                LOG_err << "Remove backup/sync: getBackupInfo failed with " << e;
                 finalCompletion(e);
                 return;
             }
 
             for (auto& d : data)
             {
-                if (d.backupId == bkpId && d.backupType == BackupType::BACKUP_UPLOAD)
+                if (d.backupId == bkpId)
                 {
                     *bkpRoot = d.rootNode;
+                    *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
 
-                    // step 2: remove backup
+                    // step 2: remove backup/sync
                     reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
                     return;
                 }
             }
 
-            LOG_err << "Remove backup: Backup " << toHandle(bkpId) << " not returned by 'sr' command";
+            LOG_err << "Remove backup/sync: " << toHandle(bkpId) << " not returned by 'sr' command";
             finalCompletion(API_ENOENT);
         });
 }

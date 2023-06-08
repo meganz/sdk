@@ -20522,7 +20522,7 @@ class MegaApi
 
         /**
          * @brief Mark a backup already registered in Backup Centre, for removal, and
-         * move or delete its contents.
+         * move or delete its contents. Other sync types will only be stopped.
          *
          * This method allows to remove a backup from the list of backups displayed in the
          * Backup Centre, and completely remove its contents, either by moving them to
@@ -20537,7 +20537,7 @@ class MegaApi
          *
          * @param backupId backup id of the backup to be removed
          * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
-         * backup contents will be deleted
+         * backup contents will be deleted; for non-backup syncs it will be ignored
          * @param listener MegaRequestListener to track this request
         */
         void removeBackupMD(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);

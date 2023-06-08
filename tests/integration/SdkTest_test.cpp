@@ -7602,13 +7602,8 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     // Wait for this client to receive the backup removal request
     auto syncCfgRemoved = [this, &backupId]()
     {
-        unique_ptr<MegaSyncList> syncs{ megaApi[0]->getSyncs() };
-        if (!syncs) return true;
-        for (int i = 0; i < syncs->size(); ++i)
-        {
-            if (syncs->get(i)->getBackupId() == backupId) return false;
-        }
-        return true;
+        unique_ptr<MegaSync> s(megaApi[0]->getSyncByBackupId(backupId));
+        return !s;
     };
     ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed backup after 60 seconds";
 
@@ -7668,6 +7663,37 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
                destChildren->get(0)->getHandle() == backupRootNodeHandle;
     };
     ASSERT_TRUE(WaitFor(bkpMoved, 60000)) << "2nd backup not moved after 60 seconds";
+
+    // Create a sync
+    backupRootNodeHandle = INVALID_HANDLE;
+    err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_TWOWAY, localFolderPath.u8string().c_str(), nullptr, moveDest, nullptr);
+    ASSERT_EQ(err, API_OK) << "Sync failed";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for sync";
+
+    // Get backup id of the sync
+    allSyncs.reset(megaApi[0]->getSyncs());
+    backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_TWOWAY &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "Sync could not be found";
+
+    // Request sync stop from a different connection
+    RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeBackupMD(backupId, INVALID_HANDLE, &stopSyncTracker);
+    ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
+
+    // Wait for this client to receive the sync stop request
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed sync after 60 seconds";
 
     fs::remove_all(localFolderPath, ec);
 }

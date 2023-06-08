@@ -3812,7 +3812,8 @@ void exec_backupcentre(autocomplete::ACState& s)
              }
         });
     }
-    else if (delFlag && s.words.size() >= 2) // remove backup && (move or delete) its contents
+    else if ((delFlag && s.words.size() >= 2) || // remove backup && (move or delete) its contents
+             (stopFlag && s.words.size() == 2))  // stop non-backup sync
     {
         handle backupId = 0;
         const string& backupIdStr = s.words[1].s;
@@ -3820,7 +3821,7 @@ void exec_backupcentre(autocomplete::ACState& s)
 
         // get move destination for the removed backup
         handle hDest = 0;
-        if (s.words.size() == 3)
+        if (delFlag && s.words.size() == 3)
         {
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
@@ -3832,70 +3833,39 @@ void exec_backupcentre(autocomplete::ACState& s)
                 return;
             }
         }
+        else
+        {
+            hDest = UNDEF;
+        }
 
-        client->removeBackupMD(backupId, hDest, [backupId, hDest](const Error& e)
+        // determine if it's a backup or other type of sync
+        SyncConfig c;
+        bool found = client->syncs.configById(backupId, c);
+        bool isBackup = found && c.isBackup();
+
+        // request removal
+        client->removeBackupMD(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
         {
             if (e == API_OK)
             {
-                cout << "Backup Centre - Backup " << toHandle(backupId) << " removed and contents "
-                     << (hDest == UNDEF ? "deleted" : "moved") << endl;
+                cout << "Backup Centre - " << (isBackup ? "Backup " : "Sync ") << toHandle(backupId);
+                if (isBackup)
+                {
+                    cout << " removed and contents " << (hDest == UNDEF ? "deleted" : "moved") << endl;
+                }
+                else
+                {
+                    cout << " stopped" << endl;
+                }
             }
             else
             {
-                cout << "Backup Centre - Failed to remove Backup " << toHandle(backupId) << " and "
-                     << (hDest == UNDEF ? "deleted" : "moved") << " its contents (" << errorstring(e) << ')' << endl;
-            }
-        });
-    }
-    else if (stopFlag && s.words.size() == 2)
-    {
-        // get backup's remote node
-        const string& backupIdStr = s.words[1].s;
-
-        client->getBackupInfo([backupIdStr](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
-        {
-            if (e != API_OK)
-            {
-                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
-                return;
-            }
-
-            handle backupId = 0;
-            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-
-            bool found = false;
-            for (auto& d : data)
-            {
-                if (d.backupId == backupId)
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                if (isBackup)
                 {
-                    if (d.backupType != BackupType::TWO_WAY)
-                    {
-                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
-                        return;
-                    }
-
-                    // remove sync
-                    client->reqs.add(new CommandBackupRemove(client, backupId,
-                        [backupIdStr](const Error& cbrErr) mutable
-                        {
-                            if (cbrErr != API_OK && cbrErr != API_ENOENT)
-                            {
-                                cout << "Backup Centre - Failed to remove Sync " << backupIdStr
-                                     << " (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
-                                return;
-                            }
-
-                            cout << "Backup Centre - Sync " << backupIdStr << " removed" << endl;
-                        }));
-
-                    found = true;
-                    break;
+                    cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
                 }
-            }
-            if (!found)
-            {
-                cout << "Backup Centre - id not found: " << backupIdStr << endl;
-                return;
+                cout << " (" << errorstring(e) << ')' << endl;
             }
         });
     }
