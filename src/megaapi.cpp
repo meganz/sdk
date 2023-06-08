@@ -5719,6 +5719,11 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
     pImpl->removeBackup(backupId, listener);
 }
 
+void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    pImpl->removeFromBC(backupId, moveDestination, listener);
+}
+
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
 {
     pImpl->getBackupInfo(listener);
