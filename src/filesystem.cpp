@@ -1534,7 +1534,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
+LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 {
     assert(invariant());
 
@@ -1555,10 +1555,7 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
         extension.localpath = localpath.substr(dotindex);
     }
 
-    ostringstream oss;
-    oss << " (" << counter << ")";
-
-    result.localpath += LocalPath::fromRelativePath(oss.str()).localpath + extension.localpath;
+    result.localpath += LocalPath::fromRelativePath(suffix).localpath + extension.localpath;
     assert(result.invariant());
     return result;
 }

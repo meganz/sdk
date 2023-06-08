@@ -2732,7 +2732,9 @@ TEST_F(SdkTest, SdkTestTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download transfer failed after " << maxTimeout << " seconds";
@@ -2778,7 +2780,9 @@ TEST_F(SdkTest, SdkTestTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download 0-byte file failed after " << maxTimeout << " seconds";
@@ -3667,7 +3671,9 @@ TEST_F(SdkTest, SdkTestShares)
                                                  nullptr  /*customName*/,
                                                  nullptr  /*appData*/,
                                                  false    /*startFirst*/,
-                                                 nullptr  /*cancelToken*/);
+                                                 nullptr  /*cancelToken*/,
+                                                 MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
 
     bool hasFailed = (transferError != API_OK);
@@ -3683,7 +3689,9 @@ TEST_F(SdkTest, SdkTestShares)
                                              nullptr  /*customName*/,
                                              nullptr  /*appData*/,
                                              false    /*startFirst*/,
-                                             nullptr  /*cancelToken*/);
+                                             nullptr  /*cancelToken*/,
+                                             MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_EQ(API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
     delete nNoAuth;
@@ -5849,7 +5857,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
         << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
@@ -5876,7 +5886,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         m_off_t lastprogress = 0, pausecount = 0;
         second_timer t;
@@ -5914,7 +5926,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         std::string sessionId = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
 
@@ -5941,7 +5955,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                           nullptr  /*customName*/,
                                           nullptr  /*appData*/,
                                           false    /*startFirst*/,
-                                          nullptr  /*cancelToken*/);
+                                          nullptr  /*cancelToken*/,
+                                          MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                          MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
             }
             else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
             {
@@ -6021,7 +6037,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6079,7 +6097,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6132,6 +6152,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
                               nullptr /*appData*/,
                               false   /*startFirst*/,
                               nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                               &rdt    /*listener*/);
 
     second_timer timer;
@@ -6225,7 +6247,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6299,7 +6323,9 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6464,7 +6490,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the initial file (error: " << mApi[0].lastError << ")";
@@ -7916,6 +7944,8 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                               &downloadListener);
 
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
@@ -8082,6 +8112,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*appData*/,
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
+            MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+            MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
             &downloadListener1);
 
     ASSERT_TRUE(downloadListener1.waitForResult() == API_EEXIST);
@@ -8099,6 +8131,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*appData*/,
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
+            MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+            MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
             &downloadListener2);
 
     for (int i = 1000; i-- && !downloadListener2.started; ) WaitMillisec(1);
@@ -9155,7 +9189,9 @@ TEST_F(SdkTest, SyncPaths)
                                                          nullptr  /*customName*/,
                                                          nullptr  /*appData*/,
                                                          false    /*startFirst*/,
-                                                         nullptr  /*cancelToken*/));
+                                                         nullptr  /*cancelToken*/,
+                                                         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -9201,7 +9237,9 @@ TEST_F(SdkTest, SyncPaths)
                                                          nullptr  /*customName*/,
                                                          nullptr  /*appData*/,
                                                          false    /*startFirst*/,
-                                                         nullptr  /*cancelToken*/));
+                                                         nullptr  /*cancelToken*/,
+                                                         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -11770,7 +11808,9 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/));
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
         fs::remove(downloadPath);
     };
 
@@ -13333,6 +13373,8 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         nullptr /*appData*/,
         false   /*startFirst*/,
         nullptr /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
         &dt     /*listener*/);
 
     while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
@@ -13416,6 +13458,8 @@ TEST_F(SdkTest, SdkTestFilePermissions)
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
+                                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };
@@ -13524,6 +13568,8 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
+                                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };

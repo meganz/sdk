@@ -232,7 +232,7 @@ public:
     void ensureThreadStopped();
 
     // check if user has cancelled recursive operation by using cancelToken of associated transfer
-    bool isCancelledByFolderTransferToken();
+    bool isCancelledByFolderTransferToken() const;
 
     // check if we have received onTransferFinishCallback for every transfersTotalCount
     bool allSubtransfersResolved()              { return  transfersFinishedCount >= transfersTotalCount; }
@@ -542,11 +542,13 @@ protected:
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
     scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
 
+    bool IsStoppedOrCancelled(const std::string& name) const;
+
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
 
     // Iterate through all pending files, and start all download transfers
-    bool genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue& transferQueue);
+    std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(FileSystemType fsType);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -1001,11 +1003,41 @@ inline CancelToken convertToCancelToken(MegaCancelToken* mct)
     return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;
 }
 
+class CollisionChecker
+{
+public:
+    enum class Option
+    {
+        Begin   = 1,
+        AssumeSame      = 1,
+        AlwaysError     = 2,
+        Fingerprint     = 3,
+        Metamac         = 4,
+        AssumeDifferent = 5,
+        End     = 6,
+    };
+
+    enum class Result
+    {
+        NotYet      = 1,                // Not checked yet
+        Skip        = 2,                // Skip it
+        ReportError = 3,                // Report Error
+        Download    = 4,                // Download it
+    };
+
+
+    static Result check(FileAccess* fa, MegaNode* fileNode, Option option);
+    static Result check(FileAccess* fa, Node* node, Option option);
+
+private:
+    static Result check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option);
+    static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+};
 
 class MegaTransferPrivate : public MegaTransfer, public Cacheable
 {
 	public:
-		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
+        MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
         MegaTransferPrivate(const MegaTransferPrivate *transfer);
         virtual ~MegaTransferPrivate();
 
@@ -1048,6 +1080,11 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setListener(MegaTransferListener *listener);
         void setTargetOverride(bool targetOverride);
         void setCancelToken(CancelToken);
+        void setCollisionCheck(CollisionChecker::Option);
+        void setCollisionCheck(int);
+        void setCollisionCheckResult(CollisionChecker::Result);
+        void setCollisionResolution(CollisionResolution);
+        void setCollisionResolution(int);
 
         int getType() const override;
         const char * getTransferString() const override;
@@ -1112,6 +1149,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         CancelToken& accessCancelToken() { return mCancelToken.cancelFlag; }
 
+        CollisionChecker::Option    getCollisionCheck() const;
+        CollisionChecker::Result    getCollisionCheckResult() const;
+        CollisionResolution         getCollisionResolution() const;
+
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
@@ -1123,6 +1164,9 @@ protected:
         int tag;
         int state;
         uint64_t priority;
+        CollisionChecker::Option    mCollisionCheck;
+        CollisionResolution         mCollisionResolution;
+        CollisionChecker::Result    mCollisionCheckResult;
 
         struct
         {
@@ -2336,8 +2380,8 @@ struct MegaFileGet : public MegaFile
     void progress() override;
     void completed(Transfer*, putsource_t source) override;
     void terminated(error e) override;
-    MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
-    MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
+    MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType, CollisionResolution collisionResolution);
+    MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath, CollisionResolution collisionResolution);
     ~MegaFileGet() {}
 
     bool serialize(string*) const override;
@@ -2667,8 +2711,8 @@ class MegaApiImpl : public MegaApp
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
         MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile = nullptr);
-        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener);
-        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener, FileSystemType fsType);
+        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener, FileSystemType fsType);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
@@ -3680,6 +3724,7 @@ private:
 #ifdef ENABLE_SYNC
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
+        void CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath);
 };
 
 class MegaHashSignatureImpl

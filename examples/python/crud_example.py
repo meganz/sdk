@@ -267,7 +267,7 @@ def worker(api, listener, executor, credentials):
     logging.info('*** start: download ***')
     node = api.getNodeByPath('README.md', cwd)
     if node != None:
-        executor.do(api.startDownload, (node, 'README_returned.md', None, None, False, None))
+        executor.do(api.startDownload, (node, 'README_returned.md', None, None, False, None, MegaTransfer.COLLISION_CHECK_FINGERPRINT, MegaTransfer.COLLISION_RESOLUTION_NEW_WITH_N))
     else:
         logging.warn('Node not found: {}'.format('README.md'))
     logging.info('*** done: download ***')
