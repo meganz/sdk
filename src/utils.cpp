@@ -140,11 +140,7 @@ string backupTypeToStr(BackupType type)
     return "UNKNOWN";
 }
 
-void AddHiddenFileAttribute(mega::LocalPath&
-#ifdef _WIN32
-                            path
-#endif
-                            )
+void AddHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -153,11 +149,7 @@ void AddHiddenFileAttribute(mega::LocalPath&
 #endif
 }
 
-void RemoveHiddenFileAttribute(mega::LocalPath&
-#ifdef _WIN32
-                               path
-#endif
-                               )
+void RemoveHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -2516,6 +2508,22 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type)
+{
+    SymmCipher cipher;
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    cipher.setkey((byte*)&nodeKey[0], type);
+    auto result = generateMetaMac(cipher, *fa, remoteIv);
+    return result.first && result.second == remoteMac;
+}
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
+{
+    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type);
 }
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)

@@ -28,8 +28,6 @@
 // Include ICU headers
 #include <unicode/uchar.h>
 
-#include "mega/db.h"
-
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -55,17 +53,14 @@ public:
     void truncate() override;
     void begin() override;
     void commit() override;
-    void abort() override { doAbort(); }
+    void abort() override;
     void remove() override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
     virtual ~SqliteDbTable();
 
-    bool inTransaction() const override { return doInTransaction(); }
+    bool inTransaction() const override;
 
-private:
-    void doAbort();
-    bool doInTransaction() const;
 };
 
 /**
@@ -99,7 +94,6 @@ public:
     bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag) override;
     bool getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle anscestorHandle, CancelToken cancelFlag) override;
     bool put(Node* node) override;
-    bool put(uint32_t index, char* data, unsigned len) override { return SqliteDbTable::put(index, data, len); }
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
 

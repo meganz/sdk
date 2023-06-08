@@ -548,7 +548,8 @@ void Model::ensureLocalDebrisTmpLock(const string& syncrootpath)
             trash->addkid(std::move(uniqueptr));
         }
 
-        if (!findnode("lock", tmpfolder))
+        ModelNode* lockfile;
+        if (!(lockfile = findnode("lock", tmpfolder)))
         {
             tmpfolder->addkid(makeModelSubfile("lock"));
         }
@@ -773,7 +774,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     client.client.waiter->notify();
 }
 
-void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle, int tag)
+void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle h, int tag)
 {
     if (tag == 0 && rpe != CATCHUP)
     {
@@ -1001,7 +1002,7 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
-void StandardClient::useralerts_updated(UserAlert::Base**, int numAlerts)
+void StandardClient::useralerts_updated(UserAlert::Base** alerts, int numAlerts)
 {
     if (logcb)
     {
@@ -1276,7 +1277,7 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
 #if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
 void StandardClient::sendDeferredAndReset()
 {
-    auto futureResult = thread_do<bool>([&](StandardClient&, PromiseBoolSP pb) {
+    auto futureResult = thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) {
         client.reqs.deferRequests = nullptr;
         client.reqs.sendDeferred();
         pb->set_value(true);
@@ -1662,7 +1663,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
             auto trampoline = [completion](const Error& result,
                                            targettype_t,
                                            vector<NewNode>&,
-                                           bool, int) {
+                                           bool, int tag) {
                 EXPECT_EQ(result, API_OK);
                 completion(result);
             };
@@ -1977,7 +1978,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
             nodearray[i] = std::move(*n);
         }
 
-        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool, int) {
+        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool, int tag) {
             lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
             pb->set_value(!e);
         };
@@ -2163,7 +2164,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         }
         else
         {
-            client.addsync(std::move(sc), false, [revertOnError, result](error e, SyncError, handle h){
+            client.addsync(std::move(sc), false, [revertOnError, result, this](error e, SyncError se, handle h){
                 if (e && revertOnError) revertOnError(nullptr);
                 result->set_value(e ? UNDEF : h);
 
@@ -3042,7 +3043,7 @@ void StandardClient::unlink_result(handle h, error e)
     resultproc.processresult(UNLINK, e, h, client.restag);
 }
 
-void StandardClient::putnodes_result(const Error& e, targettype_t, vector<NewNode>& nn, bool, int tag)
+void StandardClient::putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride, int tag)
 {
     resultproc.processresult(PUTNODES, e, nn.empty() ? UNDEF : nn[0].mAddedHandle, tag);
 }
@@ -3193,7 +3194,7 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
             [pb, n, p, this]()
             {
                 client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
-                    [pb](NodeHandle, Error e) { pb->set_value(!e); });
+                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
             },
             nullptr);
         return;
@@ -3448,7 +3449,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     // delete everything from Vault
     std::atomic<int> requestcount{0};
-    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP) {
+    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
 
         if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
         {
@@ -3919,7 +3920,7 @@ void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP re
     });
 }
 
-void StandardClient::triggerPeriodicScanEarly(handle /*backupID*/)
+void StandardClient::triggerPeriodicScanEarly(handle backupID)
 {
     // This one to be enabled after more of sync rework is merged to develop.
     // We don't have syncs configured for periodic scans yet on develop.
@@ -4482,7 +4483,7 @@ void renameLocalFolders(fs::path targetfolder, const string& newprefix)
         toRename.push_back(i->path());
     }
 
-    for (const auto& p : toRename)
+    for (auto p : toRename)
     {
         auto newpath = p.parent_path() / (newprefix + p.filename().u8string());
         fs::rename(p, newpath);
@@ -5462,7 +5463,7 @@ TEST_F(SyncTest, BasicSync_MoveTwiceLocallyButCloudMoveRequestDelayed)
 
     LOG_info << "Preventing move reqs being sent, then making local move for sync code to upsync";
 
-    c->client.reqs.deferRequests = [](Command*)
+    c->client.reqs.deferRequests = [](Command* c)
         {
             return true; // nothing can be sent, same as network disconnected
         };
@@ -6131,7 +6132,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     std::atomic<bool> putnodesDone{false};
     standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
         [&](){ standardclient->client.putnodes(targethandle, NoVersioning, std::move(newnodes), nullptr, standardclient->client.reqtag, false); },
-        [&putnodesDone](error) { putnodesDone = true; return true; });
+        [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
     {
@@ -10112,7 +10113,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb, &id](File&) {
+        cb.mOnFileAdded = [&cb, &id](File& file) {
 
             // the upload has been set super slow so there's loads of time.
 
@@ -10165,7 +10166,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnFileAdded = [&cb, &waiter, &id](File&) {
+        cb.mOnFileAdded = [&cb, &waiter, &id](File& file) {
 
             // get the single sync
             SyncConfig config;
@@ -10464,7 +10465,7 @@ void BackupBehavior::doTest(const string& initialContent,
         m.addfile("f", updatedContent);
 
         // Hook callback so we can tweak the mtime.
-        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification&) {
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
             // Roll back the mtime now that we know it will be processed.
             fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 

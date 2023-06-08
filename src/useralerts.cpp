@@ -70,7 +70,7 @@ nameid UserAlertRaw::getnameid(nameid nid, nameid default_value) const
 {
     JSON j = field(nid);
     nameid id = 0;
-    while (j.pos && *j.pos)
+    while (*j.pos)
     {
         id = (id << 8) + static_cast<unsigned char>(*j.pos++);
     }
