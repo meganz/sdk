@@ -59,12 +59,12 @@ struct TransferTracker : public ::mega::MegaTransferListener
     {
 
     }
-    void onTransferStart(MegaApi*, MegaTransfer*) override
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
         // called back on a different thread
         started = true;
     }
-    void onTransferFinish(MegaApi*, MegaTransfer *transfer, MegaError* error) override
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
@@ -123,11 +123,11 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
     }
 
-    void onRequestStart(MegaApi*, MegaRequest*) override
+    void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
         started = true;
     }
-    void onRequestFinish(MegaApi*, MegaRequest *request, MegaError* e) override
+    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
     {
         if (onFinish) onFinish(*e, *request);
 
@@ -184,7 +184,7 @@ struct OneShotListener : public ::mega::MegaRequestListener
     {
     }
 
-    void onRequestFinish(MegaApi*, MegaRequest* request, MegaError* e) override
+    void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e) override
     {
         mFunc(*e, *request);
         delete this;
@@ -337,28 +337,28 @@ protected:
 
     void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
-    void onRequestStart(MegaApi*, MegaRequest*) override {}
-    void onRequestUpdate(MegaApi*, MegaRequest*) override {}
+    void onRequestStart(MegaApi *api, MegaRequest *request) override {}
+    void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
-    void onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) override {}
-    void onTransferStart(MegaApi*, MegaTransfer*) override {}
+    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError*) override {}
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
     void onAccountUpdate(MegaApi *api) override;
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onSetsUpdate(MegaApi *api, MegaSetList *sets) override;
     void onSetElementsUpdate(MegaApi *api, MegaSetElementList *elements) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
-    void onReloadNeeded(MegaApi*) override {}
+    void onReloadNeeded(MegaApi *api) override {}
 
     void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList* alerts) override;
 
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi*, MegaSync*, string*, int) override {}
-    void onSyncStateChanged(MegaApi*,  MegaSync*) override {}
-    void onGlobalSyncStateChanged(MegaApi*) override {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
+    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
+    void onGlobalSyncStateChanged(MegaApi* api) override {}
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
@@ -375,7 +375,7 @@ public:
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
     char* dumpSession();
     void locallogout(unsigned apiIndex = 0);
-    void resumeSession(const char *session, unsigned apiIndex = 0);
+    void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
     void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
@@ -585,7 +585,7 @@ public:
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 
-    void getCountryCallingCodes(unsigned apiIndex = 0);
+    void getCountryCallingCodes(int timeout = maxTimeout);
     void explorePath(int account, MegaNode* node, int& files, int& folders);
 
     void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);

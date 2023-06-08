@@ -424,7 +424,7 @@ struct StandardClient : public MegaApp
         {
         }
 
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int)
+        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
         {
             mCallable(e);
         }
@@ -469,7 +469,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error) override
+        void terminated(error e) override
         {
             result->set_value(false);
             delete this;
@@ -494,7 +494,7 @@ struct StandardClient : public MegaApp
             delete this;
         }
 
-        void terminated(error) override
+        void terminated(error e) override
         {
             if (completion) completion(false);
             delete this;
@@ -527,7 +527,7 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient*, Node* /*n*/) override
+        void proc(MegaClient* client, Node* n) override
         {
             //out() << "fetchnodes tree: " << n->displaypath();;
         }

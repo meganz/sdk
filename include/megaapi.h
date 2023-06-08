@@ -1459,7 +1459,7 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const;
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1518,7 +1518,7 @@ public:
      * @param i Position of the MegaSet that we want to get for the list
      * @return MegaSet at the position i in the list
      */
-    virtual const MegaSet* get(unsigned int i) const;
+    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
 
     /**
      * @brief Returns the number of MegaSets in the list
@@ -1614,7 +1614,7 @@ public:
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(uint64_t changeType) const;
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1663,7 +1663,7 @@ public:
      * @param i Position of the MegaSetElement that we want to get for the list
      * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaSetElement* get(unsigned int i) const;
+    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
 
     /**
      * @brief Returns the number of MegaSetElements in the list
@@ -5450,6 +5450,22 @@ class MegaTransfer
             STAGE_CREATE_TREE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
+        };
+
+        enum
+        {                                               // Collision Check for same file
+            COLLISION_CHECK_ASSUMESAME          = 1,    // assume files are the same
+            COLLISION_CHECK_ALWAYSERROR         = 2,    // treat as an error
+            COLLISION_CHECK_FINGERPRINT         = 3,    // Check fingerprint. Assume files are same if their fingerprint are same (quick)
+            COLLISION_CHECK_METAMAC             = 4,    // Check MetaMac. Assume files are same if their meta mac are same (slow, a lot of disk + CPU)
+            COLLISION_CHECK_ASSUMEDIFFERENT     = 5,    // assume files are different
+        };
+
+        enum
+        {                                               // Indicates how to save same files
+            COLLISION_RESOLUTION_OVERWRITE          = 1, // Overwrite the existing one
+            COLLISION_RESOLUTION_NEW_WITH_N         = 2, // Rename the new one with suffix (1), (2), and etc.
+            COLLISION_RESOLUTION_EXISTING_TO_OLDN   = 3, // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
@@ -9303,6 +9319,7 @@ class MegaApi
             OPTION_SET_NAME             = (1 << 1),
             OPTION_SET_COVER            = (1 << 2),
         };
+
         enum
         {
             CREATE_ELEMENT              = (1 << 0),
@@ -14347,9 +14364,21 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
          * This param is required to be able to cancel transfers safely.
          * App retains the ownership of this param.
+         * @param collisionCheck Indicates the collision check on same files, valid values are:
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+         *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+         *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+         *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+         *
+         * @param collisionResolution Indicates how to save same files, valid values are:
+         *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+         *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+         *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
+         *
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA

@@ -27,7 +27,6 @@
 #include "megawaiter.h"
 #include "mega/thread/posixthread.h"
 #include "mega/thread/cppthread.h"
-#include "filesystem.h"
 
 namespace mega {
 
