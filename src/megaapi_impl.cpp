@@ -5742,11 +5742,12 @@ MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
     return api->pImpl;
 }
 
-void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me)
+void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me, const string& email)
 {
     std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
     mLastReceivedLoggedInState = s;
     mLastReceivedLoggedInMeHandle = me;
+    mLastReceivedLoggedInMyEmail = email;
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -5762,23 +5763,15 @@ bool MegaApiImpl::isEphemeralPlusPlus()
 
 char* MegaApiImpl::getMyEmail()
 {
-    // return without locking the main mutex if possible
     std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
-    if (mLastReceivedLoggedInState == NOTLOGGEDIN) return nullptr;
-    if (mLastKnownEmail.empty())
+
+    if (mLastReceivedLoggedInState == NOTLOGGEDIN ||
+            mLastReceivedLoggedInMyEmail.empty())
     {
-        g.unlock();
-        string buf;
-        {
-            SdkMutexGuard lock(sdkMutex);
-            User* u = client->ownuser();
-            if (u) buf = u->email;
-        }
-        g.lock();
-        mLastKnownEmail = buf;
+        return nullptr;
     }
 
-    return MegaApi::strdup(mLastKnownEmail.c_str());
+    return MegaApi::strdup(mLastReceivedLoggedInMyEmail.c_str());
 }
 
 int64_t MegaApiImpl::getAccountCreationTs()
@@ -13372,7 +13365,7 @@ void MegaApiImpl::users_updated(User** u, int count)
                 if (user->changed.email)
                 {
                     std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
-                    mLastKnownEmail = user->email;
+                    mLastReceivedLoggedInMyEmail = user->email;
                 }
                 break;  // same user is only notified once
             }
@@ -14505,10 +14498,10 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
         mLastReceivedLoggedInState = NOTLOGGEDIN;
         mLastReceivedLoggedInMeHandle = UNDEF;
+        mLastReceivedLoggedInMyEmail.clear();
         mLastKnownRootNode.reset();
         mLastKnownVaultNode.reset();
         mLastKnownRubbishNode.reset();
-        mLastKnownEmail.clear();
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }

@@ -2562,7 +2562,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
-        void loggedInStateChanged(sessiontype_t, handle me) override;
+        void loggedInStateChanged(sessiontype_t, handle me, const string &email) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -3296,11 +3296,11 @@ protected:
         mutex mLastRecievedLoggedMeMutex;
         sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
         handle mLastReceivedLoggedInMeHandle = UNDEF;
+        string mLastReceivedLoggedInMyEmail;
 
         unique_ptr<MegaNode> mLastKnownRootNode;
         unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
-        string mLastKnownEmail;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

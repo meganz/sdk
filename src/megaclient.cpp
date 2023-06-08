@@ -13326,12 +13326,15 @@ sessiontype_t MegaClient::loggedin()
 void MegaClient::reportLoggedInChanges()
 {
     auto currState = loggedin();
+    string currentEmail = ownuser() ? ownuser()->email : "";
     if (mLastLoggedInReportedState != currState ||
-        mLastLoggedInMeHandle != me)
+            mLastLoggedInMeHandle != me ||
+            (mLastLoggedInMyEmail != currentEmail))
     {
         mLastLoggedInReportedState = currState;
         mLastLoggedInMeHandle = me;
-        app->loggedInStateChanged(currState, me);
+        mLastLoggedInMyEmail = currentEmail;
+        app->loggedInStateChanged(currState, me, currentEmail);
     }
 }
 
