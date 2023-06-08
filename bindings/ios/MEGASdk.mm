@@ -3727,6 +3727,29 @@ using namespace mega;
     }
 }
 
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->sendEvent((int)eventType, message.UTF8String, addJourneyId, viewId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId {
+    if (self.megaApi) {
+        self.megaApi->sendEvent((int)eventType, message.UTF8String, addJourneyId, viewId.UTF8String);
+    }
+}
+
+- (NSString *)generateViewId {
+    if (self.megaApi == nil) return nil;
+    const char *val = self.megaApi->generateViewId();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->createSupportTicket(message.UTF8String, (int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
