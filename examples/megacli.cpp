@@ -3844,7 +3844,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         bool isBackup = found && c.isBackup();
 
         // request removal
-        client->removeBackupMD(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
+        client->removeFromBC(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
         {
             if (e == API_OK)
             {

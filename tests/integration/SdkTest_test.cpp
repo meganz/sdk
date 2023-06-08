@@ -7596,7 +7596,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Request backup removal (and delete its contents) from a different connection
     RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
-    megaApi[differentApiIdx]->removeBackupMD(backupId, INVALID_HANDLE, &removeBackupTracker);
+    megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &removeBackupTracker);
     ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
 
     // Wait for this client to receive the backup removal request
@@ -7649,7 +7649,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
-    megaApi[differentApiIdx]->removeBackupMD(backupId, moveDest, &removeBackupTracker2);
+    megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
     ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
 
     // Wait for this client to receive the 2nd backup removal request
@@ -7689,7 +7689,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Request sync stop from a different connection
     RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
-    megaApi[differentApiIdx]->removeBackupMD(backupId, INVALID_HANDLE, &stopSyncTracker);
+    megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &stopSyncTracker);
     ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
 
     // Wait for this client to receive the sync stop request

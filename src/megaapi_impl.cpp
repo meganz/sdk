@@ -24205,7 +24205,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener* listene
     waiter->notify();
 }
 
-void MegaApiImpl::removeBackupMD(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+void MegaApiImpl::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE_MD, listener);
     request->setParentHandle(backupId);
@@ -24215,7 +24215,7 @@ void MegaApiImpl::removeBackupMD(MegaHandle backupId, MegaHandle moveDestination
     {
         auto finalCompletion = [this, request](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); };
 
-        client->removeBackupMD(request->getParentHandle(), request->getNodeHandle(), finalCompletion);
+        client->removeFromBC(request->getParentHandle(), request->getNodeHandle(), finalCompletion);
         return API_OK;
     };
 

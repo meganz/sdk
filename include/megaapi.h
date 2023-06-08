@@ -20540,7 +20540,7 @@ class MegaApi
          * backup contents will be deleted; for non-backup syncs it will be ignored
          * @param listener MegaRequestListener to track this request
         */
-        void removeBackupMD(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+        void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about all registered backups for Backup Centre

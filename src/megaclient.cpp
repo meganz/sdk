@@ -930,7 +930,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
-void MegaClient::removeBackupMD(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
+void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
 {
     shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
     shared_ptr<bool> isBackup = std::make_shared<bool>(false);
