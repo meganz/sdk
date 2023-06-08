@@ -3751,6 +3751,7 @@ void exec_getmybackups(autocomplete::ACState&)
     cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
 }
 
+#ifdef ENABLE_SYNC
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -3870,6 +3871,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         });
     }
 }
+#endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 void exec_simulatecondition(autocomplete::ACState& s)
