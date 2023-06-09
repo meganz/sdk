@@ -19,7 +19,7 @@ namespace mega::SCCR {
 }
 */
 
-extern mega::SCCR::raidTime currtime;
+extern std::atomic<mega::SCCR::raidTime> currtime;
 extern mega::SCCR::Config config;
 
 namespace mega::SCCR {

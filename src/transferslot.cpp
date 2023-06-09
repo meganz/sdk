@@ -1233,7 +1233,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         std::cout << "[TransferSlot] [i="<<i<<"] cloudRaid->balancedRequest(connection = " << i << ", transfer->size = " << transfer->size << ", reqPos = " << reqs[i]->pos << ", reqSize = " << reqs[i]->size << ", maxRequestSize = " << maxRequestSize << ", skippart = 0) [prepareRequest]" << std::endl;
                         if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size, maxRequestSize, 0))
                         {
-                            std::cout << "TransferSlot [i="<<i<<"] balancedRequest FAILED !!!!! REQ_FAILURE!!!" << std::endl;
+                            std::cout << "TransferSlot [i="<<i<<"] MAX ALERT !!!! balancedRequest FAILED !!!!! REQ_FAILURE!!!" << std::endl;
                             reqs[i]->status = REQ_FAILURE;
                         }
                     }
@@ -1374,6 +1374,7 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
         httpReq->bufpos = 0;
         httpReq->status = REQ_INFLIGHT;
     }
+    std::cout << "[TransferSlot::processRaidReq] [connection=" << connection << "] STATUS: " << httpReq->status << ", transfer->type = " << transfer->type << ", currtime = " << Waiter::ds << std::endl;
     if (httpReq->status != REQ_INFLIGHT)
     {
         return -1;

@@ -4,7 +4,7 @@
 #include <map>
 #include <sstream>
 
-mega::SCCR::raidTime currtime;
+std::atomic<mega::SCCR::raidTime> currtime;
 
 using namespace mega::SCCR;
 
@@ -509,7 +509,7 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
     {
         std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", (!rem) -> setposrem() && s->status = " << s->status << " [pos="<<pos<<", rem="<<rem<<", remfeed="<<remfeed<<", sourcesize="<<sourcesize<<"]" << std::endl;
         setposrem();
-        if (REQ_PREPARED) s->status = REQ_READY;
+        if (s->status == REQ_PREPARED) s->status = REQ_READY;
         std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", (!rem) -> AFTER setposrem() && s->status = " << s->status << " -> [pos="<<pos<<", rem="<<rem<<", remfeed="<<remfeed<<", sourcesize="<<sourcesize<<"]" << std::endl;
     }
 
@@ -719,7 +719,6 @@ int PartFetcher::onFailure()
     auto& s = rr->sockets[part];
     assert(s != nullptr);
     std::cout << "[PartFetcher::onFailure] s->status = " << s->status << ", s->httpstatus = " << s->httpstatus << std::endl;
-
     rr->numPostInflight--;
     if (s->status == REQ_FAILURE)
     {
@@ -727,6 +726,7 @@ int PartFetcher::onFailure()
         {
             if (rr->cloudRaid->onRequestFailure(s, part, backoff))
             {
+                std::cout << "[PartFetcher::onFailure] After onRequestFailure -> new s->status = " << s->status << ", s->httpstatus = " << s->httpstatus << ", backoff = " << backoff << "" << std::endl;
                 assert(!backoff || s->status == REQ_PREPARED);
                 if (s->status == REQ_PREPARED)
                 {
@@ -1414,7 +1414,7 @@ void RaidReq::watchdog()
                 {
                     hanging++;
                     hangingsource = i;
-                    std::cout << "Watchdog -> ALERT hanging !!!!! hangingsource = " << hangingsource << std::endl;
+                    std::cout << "Watchdog -> ALERT hanging !!!!! hangingsource = " << hangingsource << " [currtime = " << currtime << ", sockets[i]->lastdata = " << sockets[i]->lastdata << "]" << " [this = " << this << "]" << std::endl;
                 }
 
                 numInflight++;
@@ -1426,7 +1426,7 @@ void RaidReq::watchdog()
 
             numconnected++;
         }
-        else if (!fetcher[i].errors) idlegoodsource = i;
+        else if (!fetcher[i].finished && !fetcher[i].errors) idlegoodsource = i;
     }
 
     std::cout << "Watchdog -> hanging = " << hanging << ", hangingsource = " << hangingsource << ", numconnected = " << numconnected << ", idlegoodsource = " << idlegoodsource << " [allconnected = " << allconnected() << "] [numReady = " << numReady << ", numPrepared = " << numPrepared << ", numInflight = " << numInflight << ", numSuccess = " << numSuccess << ", numFailure = " << numFailure << "] [numPartsUnfinished = " << numPartsUnfinished() << "] [this = " << this << "]" << std::endl;
@@ -1439,7 +1439,11 @@ void RaidReq::watchdog()
                 std::cout << "Watchdog Attempted remedy: Switching from " << hangingsource << " to previously unused " << idlegoodsource << std::endl;
                 fetcher[hangingsource].errors++;
                 fetcher[hangingsource].closesocket();
-                fetcher[idlegoodsource].trigger();
+                if (fetcher[idlegoodsource].trigger() == -1)
+                {
+                    std::cout << "ALERT ALERT ALERT, previously unused " << idlegoodsource << " returned -1!!! switching back to " << hangingsource << " !!!!" << std::endl;
+                    fetcher[hangingsource].trigger();
+                }
                 std::cout << "Watchdog return" << std::endl;
                 return;
             }
@@ -1491,7 +1495,7 @@ off_t RaidReq::readdata(byte* buf, off_t len)
     std::cout << "readdata -> count readahead -> [completed = " << completed << "] [this = " << this << "]" << std::endl;
     for (int i = RAIDPARTS; i--; )
     {
-        std::cout << "fetcher["<<i<<"].readahead.size = " << fetcher[i].readahead.size() << " [this = " << this << "]" << std::endl;
+        std::cout << "fetcher["<<i<<"].readahead.size = " << fetcher[i].readahead.size() << ". Req status = " << (sockets[i] ? sockets[i]->status.load() : 999) << ". Errors: " << fetcher[i].errors << ". Connected: " << fetcher[i].connected << ". Fetcher: " << (void*)&fetcher[i] << ". Pos: " << fetcher[i].pos << ". Finished: " << fetcher[i].finished << " [this = " << this << "]" << std::endl;
     }
     //do
     //{
@@ -1685,6 +1689,10 @@ void RaidReqPool::raidproxyiothread()
                     events.emplace_front(std::move(itScheduled->second));
                     itScheduled = scheduledio.erase(itScheduled);
                 }
+            }
+            while (itScheduled != scheduledio.end() && itScheduled->first > currtime)
+            {
+                std::cout << "[RaidReqPool::raidproxyiothread] Scheduled request waiting. Remaining time... " << (itScheduled->first - currtime) << " ds [Req time: " << itScheduled->first << ", currtime = " << currtime << "]" << " [this = " << this << "]" << std::endl;
             }
 
         }

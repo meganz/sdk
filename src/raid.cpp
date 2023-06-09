@@ -1090,7 +1090,7 @@ private:
     std::atomic<bool> waitForTs;
     std::condition_variable cvWaitForTS; // Wait for transferslot
     std::mutex wfts_m;
-    std::mutex ts_m;
+    std::recursive_mutex ts_m;
 
 public:
     CloudRaidImpl(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, SCCR::RaidReqPoolArray& rrpa, int connections)
@@ -1134,7 +1134,7 @@ public:
         if (!started.load()) std::cout << "[CloudRaidImpl::addWaitForTransferSlot] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
        	std::cout << " " << std::endl; //std::cout << "[CloudRaidImpl::addWaitForTransferSlot] [pre tSLock] [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::lock_guard<std::mutex> tSLock(ts_m);
+        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
         std::cout << " " << std::endl; //std::cout << "[CloudRaidImpl::addWaitForTransferSlot] [pre wftSLock] [post tSlock] [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         {
             std::lock_guard<std::mutex> wftSLock(wfts_m);
@@ -1166,7 +1166,7 @@ public:
         if (!started.load()) std::cout << "[CloudRaidImpl::disconnect] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         std::cout << "[CloudRaidImpl::disconnect] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::lock_guard<std::mutex> tSLock(ts_m);
+        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
     std::cout << "[CloudRaidImpl::disconnect] pre waitForTransferSlot()" << std::endl;
         waitForTransferSlot();
     std::cout << "[CloudRaidImpl::disconnect] post waitForTransferSlot()" << std::endl;
@@ -1179,7 +1179,7 @@ public:
     {
         if (!started.load()) return false;
         std::cout << "[CloudRaidImpl::prepareRequest] BEGIN [pos = " << pos << ", npos = " << npos << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::lock_guard<std::mutex> tSLock(ts_m);
+        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
         waitForTransferSlot();
         tslot->prepareRequest(req, tempURL, pos, npos);
         std::cout << "[CloudRaidImpl::prepareRequest] END [pos = " << pos << ", npos = " << npos << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
@@ -1190,7 +1190,7 @@ public:
     {
         if (!started.load()) return false;
         std::cout << "[CloudRaidImpl::post] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::lock_guard<std::mutex> tSLock(ts_m);
+        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
         waitForTransferSlot();
         req->post(client);
         std::cout << "[CloudRaidImpl::post] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
@@ -1202,13 +1202,13 @@ public:
         std::cout << "[CloudRaidImpl::onRequestFailure] call [req = " << req << ", part = " << part << "] [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         std::cout << "[CloudRaidImpl::onRequestFailure] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::lock_guard<std::mutex> tSLock(ts_m);
+        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
     std::cout << "[CloudRaidImpl::onRequestFailure] PRe WAITFortransferSlot" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         waitForTransferSlot();
     std::cout << "[CloudRaidImpl::onRequestFailure] POST waitForTransferSlot" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         dstime tslot_backoff = 0;
         tslot->processRequestFailure(client, committer, req, tslot_backoff, part);
-        backoff = static_cast<SCCR::raidTime>(backoff);
+        backoff = static_cast<SCCR::raidTime>(tslot_backoff);
         std::cout << "[CloudRaidImpl::onRequestFailure] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
@@ -1329,9 +1329,11 @@ public:
         m_off_t readData = -1;
         if (started.load())
         {
+            std::cout << "[CloudRaidImpl::read_data] call [currtime = " << currtime << ", new currtime = " << Waiter::ds << "]" << std::endl;
             currtime = Waiter::ds;
             readData = static_cast<m_off_t>(raidReqToken[connection].rr->readdata(buf, len));
         }
+        else { std::cout << "[CloudRaidImpl::read_data] NO STARTED !!!! [currtime = " << currtime << "]" << std::endl; }
         return readData;
     }
 };
