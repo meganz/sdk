@@ -542,12 +542,12 @@ bool MegaNode::isMarkedSensitive()
     return false;
 }
 
-bool MegaNode::hasChanged(int /*changeType*/)
+bool MegaNode::hasChanged(uint64_t /*changeType*/)
 {
     return false;
 }
 
-int MegaNode::getChanges()
+uint64_t MegaNode::getChanges()
 {
     return 0;
 }
@@ -703,12 +703,12 @@ int64_t MegaUser::getTimestamp()
     return 0;
 }
 
-bool MegaUser::hasChanged(int)
+bool MegaUser::hasChanged(uint64_t)
 {
     return false;
 }
 
-int MegaUser::getChanges()
+uint64_t MegaUser::getChanges()
 {
     return 0;
 }
@@ -810,7 +810,7 @@ MegaHandle MegaUserAlert::getSchedId() const
     return INVALID_HANDLE;
 }
 
-bool MegaUserAlert::hasSchedMeetingChanged(int) const
+bool MegaUserAlert::hasSchedMeetingChanged(uint64_t) const
 {
     return false;
 }
@@ -1143,6 +1143,11 @@ MegaSet* MegaRequest::getMegaSet() const
 }
 
 MegaSetElementList* MegaRequest::getMegaSetElementList() const
+{
+    return nullptr;
+}
+
+MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
 {
     return nullptr;
 }
@@ -2052,11 +2057,6 @@ void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger
 void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
     MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
-}
-
-void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    pImpl->setFilenameAnomalyReporter(reporter);
 }
 
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
@@ -3049,7 +3049,7 @@ MegaScheduledFlags::~MegaScheduledFlags()
 
 void MegaScheduledFlags::reset()                                {}
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
-unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
+unsigned long MegaScheduledFlags::getNumericValue() const       { return ScheduledFlags::schedEmptyFlags; }
 
 /* Class MegaScheduledRules */
 MegaScheduledRules* MegaScheduledRules::createInstance(int freq,
@@ -3448,9 +3448,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
-void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -5719,6 +5719,16 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
     pImpl->removeBackup(backupId, listener);
 }
 
+void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    pImpl->removeFromBC(backupId, moveDestination, listener);
+}
+
+void MegaApi::getBackupInfo(MegaRequestListener* listener)
+{
+    pImpl->getBackupInfo(listener);
+}
+
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
@@ -6865,12 +6875,12 @@ unsigned char MegaTextChat::getChatOptions() const
     return 0;
 }
 
-bool MegaTextChat::hasChanged(int) const
+bool MegaTextChat::hasChanged(uint64_t) const
 {
     return false;
 }
 
-int MegaTextChat::getChanges() const
+uint64_t MegaTextChat::getChanges() const
 {
     return 0;
 }

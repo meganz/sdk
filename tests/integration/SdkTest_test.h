@@ -72,7 +72,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
 
         // this local version still valid even after we self-delete
-        std::promise<ErrorCodes> local_promise = move(promiseResult);
+        std::promise<ErrorCodes> local_promise = std::move(promiseResult);
 
         if (selfDeleteOnFinalCallback)
         {
@@ -329,6 +329,8 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
+    void testPrefs(const std::string& title, int type);
+
 #ifdef ENABLE_CHAT
     void delSchedMeetings();
 #endif
@@ -414,10 +416,6 @@ public:
     template<typename ... Args> int synchronousRemoveBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->removeBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSendBackupHeartbeat(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, [this, apiIndex, args...]() { megaApi[apiIndex]->sendBackupHeartbeat(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetMyBackupsFolder(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_MY_BACKUPS, [this, apiIndex, args...]() { megaApi[apiIndex]->setMyBackupsFolder(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDeviceName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDeviceName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDriveName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDriveName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
@@ -435,6 +433,10 @@ public:
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(&rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doSetDriveName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDriveName(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }

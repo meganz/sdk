@@ -29,6 +29,14 @@ struct UnifiedSync;
 class Set;
 class SetElement;
 struct PerSyncStats;
+struct AccountDetails;
+class MegaClient;
+class LocalPath;
+struct BusinessPlan;
+struct CurrencyData;
+struct TLVstore;
+struct AchievementsDetails;
+class Sync;
 
 // callback interface
 struct MEGA_API MegaApp

@@ -736,7 +736,7 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 UserAlert::NewSharedNodes::NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
                                           vector<handle>&& fileHandles, vector<handle>&& folderHandles)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
-    , parentHandle(ph), fileNodeHandles(move(fileHandles)), folderNodeHandles(move(folderHandles))
+    , parentHandle(ph), fileNodeHandles(std::move(fileHandles)), folderNodeHandles(std::move(folderHandles))
 {
     assert(!ISUNDEF(uh));
 }
@@ -863,7 +863,7 @@ UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, uns
                     return nullptr;
                 }
 
-                auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, move(vh1), move(vh2));
+                auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, std::move(vh1), std::move(vh2));
                 nsn->setRelevant(p->relevant);
                 nsn->setSeen(p->seen);
                 return nsn;
@@ -888,7 +888,7 @@ UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int i
 
 UserAlert::RemovedSharedNode::RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                                                 vector<handle>&& handles)
-    : Base(UserAlert::type_d, uh, string(), timestamp, id), nodeHandles(move(handles))
+    : Base(UserAlert::type_d, uh, string(), timestamp, id), nodeHandles(std::move(handles))
 {
 }
 
@@ -955,7 +955,7 @@ UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* 
             return nullptr;
         }
 
-        auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, std::move(vh));
         rsn->setRelevant(p->relevant);
         rsn->setSeen(p->seen);
         return rsn;
@@ -978,7 +978,7 @@ UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int i
 
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                                                 vector<handle>&& handles)
-    : Base(UserAlert::type_u, uh, string(), timestamp, id), nodeHandles(move(handles))
+    : Base(UserAlert::type_u, uh, string(), timestamp, id), nodeHandles(std::move(handles))
 {
 }
 
@@ -1037,7 +1037,7 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
             return nullptr;
         }
 
-        auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, std::move(vh));
         usn->setRelevant(p->relevant);
         usn->setSeen(p->seen);
         return usn;
@@ -1549,8 +1549,9 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
         << "\n\tMeeting start date time (overrides): " << mStartDateTime
         << "\n\tUpdated by: " << pst.userEmail;
 
-    for (int changeType = 0; changeType < Changeset::CHANGE_TYPE_SIZE; ++changeType)
+    for (size_t changeBitPos = 0; changeBitPos < Changeset::CHANGE_TYPE_SIZE; ++changeBitPos)
     {
+        uint64_t changeType = 1ull << changeBitPos;
         if (!mUpdatedChangeset.hasChanged(changeType)) continue;
 
         oss << "\n\t\t" << mUpdatedChangeset.changeToString(changeType) << " updated";
@@ -1650,18 +1651,16 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     handle sm = UNDEF;
     handle parentSchedId = UNDEF;
     m_time_t overrides = mega_invalid_timestamp;
-    uint64_t bits = 0;
+    uint64_t changes = 0;
     unsigned char expF[8];
     if (r.unserializehandle(chatid)
         && r.unserializehandle(sm)
         && r.unserializehandle(parentSchedId)
         && r.unserializei64(overrides)
-        && r.unserializeu64(bits))
+        && r.unserializeu64(changes))
     {
-        std::bitset<Changeset::CHANGE_TYPE_SIZE> bs (static_cast<unsigned long>(bits));
-
         unique_ptr<Changeset::StrChangeset> tcs;
-        if (bs[Changeset::CHANGE_TYPE_TITLE])
+        if (changes & Changeset::CHANGE_TYPE_TITLE)
         {
             string oldTitle, newTitle;
             if (r.unserializestring(oldTitle) && r.unserializestring(newTitle))
@@ -1671,7 +1670,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::StrChangeset> tzcs;
-        if (bs[Changeset::CHANGE_TYPE_TIMEZONE])
+        if (changes & Changeset::CHANGE_TYPE_TIMEZONE)
         {
             string oldTz, newTz;
             if (r.unserializestring(oldTz) && r.unserializestring(newTz))
@@ -1681,7 +1680,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::TsChangeset> sdcs;
-        if (bs[Changeset::CHANGE_TYPE_STARTDATE])
+        if (changes & Changeset::CHANGE_TYPE_STARTDATE)
         {
             m_time_t oldsd, newsd;
             if (r.unserializei64(oldsd) && r.unserializei64(newsd))
@@ -1691,7 +1690,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::TsChangeset> edcs;
-        if (bs[Changeset::CHANGE_TYPE_ENDDATE])
+        if (changes & Changeset::CHANGE_TYPE_ENDDATE)
         {
             m_time_t olded, newed;
             if (r.unserializei64(olded) && r.unserializei64(newed))
@@ -1702,7 +1701,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
 
         if (r.unserializeexpansionflags(expF, 0))
         {
-            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, chatid, sm, parentSchedId, overrides, {bs, tcs, tzcs, sdcs, edcs});
+            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, chatid, sm, parentSchedId, overrides, {changes, tcs, tzcs, sdcs, edcs});
             usm->setRelevant(b->relevant);
             usm->setSeen(b->seen);
             return usm;
@@ -1730,7 +1729,7 @@ UserAlert::UpdatedScheduledMeeting::Changeset::Changeset(const std::bitset<CHANG
     }
 }
 
-string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeType) const
+string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(uint64_t changeType) const
 {
     switch (changeType)
     {
@@ -1745,30 +1744,32 @@ string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeT
     }
 }
 
-void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
+void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(uint64_t changeType,
                              UpdatedScheduledMeeting::Changeset::StrChangeset* sSet,
                              UpdatedScheduledMeeting::Changeset::TsChangeset* tSet)
 {
-    if (isValidChange(changeType))
+    mUpdatedFields |= changeType;
+    switch (changeType)
     {
-        mUpdatedFields[static_cast<size_t>(changeType)] = true; // update bitmask
-        switch (changeType)
-        {
-            case CHANGE_TYPE_TITLE:
-                if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_TIMEZONE:
-                if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_STARTDATE:
-                if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            case CHANGE_TYPE_ENDDATE:
-                if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            default:
-                break;
-        }
+        case CHANGE_TYPE_TITLE:
+            if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_TIMEZONE:
+            if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_STARTDATE:
+            if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_ENDDATE:
+            if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_DESCRIPTION:
+        case CHANGE_TYPE_CANCELLED:
+        case CHANGE_TYPE_RULES:
+            break;
+        default:
+            mUpdatedFields &= ~changeType;
+            break;
     }
     if (!invariant())
     {
@@ -1917,7 +1918,7 @@ UserAlert::Base* UserAlerts::findAlertToCombineWith(const UserAlert::Base* a, na
 {
     if (a->type == t)
     {
-        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [t](UserAlert::Base* b) { return !b->removed(); });
+        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [](UserAlert::Base* b) { return !b->removed(); });
         return ait != alerts.rend() && (*ait)->type == t ? *ait : nullptr;
     }
 
@@ -2118,12 +2119,12 @@ void UserAlerts::convertNotedSharedNodes(bool added)
         if (added)
         {
             add(new NewSharedNodes(i->first.first, i->first.second, i->second.timestamp, nextId(),
-                                   move(fileHandles), move(folderHandles)));
+                                   std::move(fileHandles), std::move(folderHandles)));
         }
         else
         {
             std::move(folderHandles.begin(), folderHandles.end(), std::back_inserter(fileHandles));
-            add(new RemovedSharedNode(i->first.first, m_time(), nextId(), move(fileHandles)));
+            add(new RemovedSharedNode(i->first.first, m_time(), nextId(), std::move(fileHandles)));
         }
     }
 }

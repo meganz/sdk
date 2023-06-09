@@ -102,64 +102,6 @@ class MegaIntegerList;
 #endif
 
 /**
- * @brief
- * Interface to receive filename anomaly notifications from the SDK.
- *
- * @see MegaApi::setFilenameAnomalyReporter
- */
-class MegaFilenameAnomalyReporter
-{
-public:
-    /**
-     * @brief
-     * Represents the type of anomaly reported by the SDK.
-     */
-    enum AnomalyType
-    {
-        /**
-         * @brief
-         * A file's local and remote names differ.
-         *
-         * An example of when this kind of anomaly can occur is when
-         * downloading a file from the cloud that contains characters in its
-         * name that are not valid on the local filesystem.
-         *
-         * Say, downloading a file called A:B on Windows.
-         */
-        ANOMALY_NAME_MISMATCH = 0,
-
-        /**
-         * @brief
-         * A file has a reserved name.
-         *
-         * This kind of anomaly is reported by the SDK when it attempts to
-         * download a file that has a name that is reserved on the local
-         * filesystem.
-         *
-         * Say, downloading a file called CON on Windows.
-         */
-        ANOMALY_NAME_RESERVED = 1
-    }; // AnomalyType
-
-    virtual ~MegaFilenameAnomalyReporter() { };
-
-    /**
-     * @brief
-     * Called by the SDK when it wants to report a filename anomaly.
-     *
-     * @param type
-     * The anomaly that was detected by the SDK.
-     *
-     * @param localPath
-     * The local path of the file with a filename anomaly.
-     *
-     * @param remotePath
-     * The remote path of the file with a filename anomaly.
-     */
-    virtual void anomalyDetected(AnomalyType type, const char* localPath, const char* remotePath) = 0;
-}; // MegaFilenameAnomalyReporter
-
-/**
  * @brief Interface to provide an external GFX processor
  *
  * You can implement this interface to provide a graphics processor to the SDK
@@ -948,7 +890,7 @@ class MegaNode
          *
          * @return true if this node has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the node
@@ -1001,7 +943,7 @@ class MegaNode
          * Check if counter for this node (its subtree) has changed
          *
          */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Returns true if the node has an associated thumbnail
@@ -1242,6 +1184,188 @@ class MegaNode
 
 
 /**
+ * @brief Represents information of a Backup in MEGA
+ *
+ * It allows getting all information about a Backup.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of a Backup
+ * when the object was created. They are immutable.
+ *
+ */
+class MegaBackupInfo
+{
+public:
+    /**
+     * @brief Returns Backup id.
+     *
+     * @return Backup id.
+     */
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns Backup type.
+     *
+     * It can be one of the following values:
+     *  INVALID       = -1
+     *  TWO_WAY       =  0
+     *  UP_SYNC       =  1
+     *  DOWN_SYNC     =  2
+     *  CAMERA_UPLOAD =  3
+     *  MEDIA_UPLOAD  =  4
+     *  BACKUP_UPLOAD =  5
+     *
+     * @return Backup type.
+     */
+    virtual int type() const { return -1; } // values from BackupType enum
+
+    /**
+     * @brief Returns handle of Backup root.
+     *
+     * @return Backup root handle.
+     */
+    virtual MegaHandle root() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns the name of the backed up local folder.
+     *
+     * @return Name of the backed up local folder.
+     */
+    virtual const char* localFolder() const { return nullptr; }
+
+    /**
+     * @brief Returns the id of the device where the backup originated.
+     *
+     * @return Id of the device where the backup originated.
+     */
+    virtual const char* deviceId() const { return nullptr; }
+
+    /**
+     * @brief Returns the sync state of the backup.
+     *
+     * It can be one of the following values:
+     *  STATE_NOT_INITIALIZED = 0
+     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
+     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
+     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
+     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
+     *  UNKNOWN  = 5 -> Unknown status
+     *
+     * @return Sync state of the backup.
+     */
+    virtual int state() const { return 0; }
+
+    /**
+     * @brief Returns the sync substate of the backup.
+     *
+     * @return Sync substate of the backup.
+     */
+    virtual int substate() const { return 0; }
+
+    /**
+     * @brief Returns extra information, used as source for extracting other details.
+     *
+     * @return Extra information, used as source for extracting other details.
+     */
+    virtual const char* extra() const { return nullptr; }
+
+    /**
+     * @brief Returns the name of the backup.
+     *
+     * @return Name of the backup.
+     */
+    virtual const char* name() const { return nullptr; }
+
+    /**
+     * @brief Returns the timestamp of the backup, as reported by heartbeats.
+     *
+     * @return Timestamp of the backup, as reported by heartbeats.
+     */
+    virtual uint64_t ts() const { return 0; }
+
+    /**
+     * @brief Returns the status of the backup, as reported by heartbeats.
+     *
+     * @return Status of the backup, as reported by heartbeats.
+     */
+    virtual int status() const { return 0; }
+
+    /**
+     * @brief Returns the progress of the backup, as reported by heartbeats.
+     *
+     * @return Progress of the backup, as reported by heartbeats.
+     */
+    virtual int progress() const { return 0; }
+
+    /**
+     * @brief Returns upload count.
+     *
+     * @return Upload count.
+     */
+    virtual int uploads() const { return 0; }
+
+    /**
+     * @brief Returns download count.
+     *
+     * @return Download count.
+     */
+    virtual int downloads() const { return 0; }
+
+    /**
+     * @brief Returns the last activity timestamp, as reported by heartbeats.
+     *
+     * @return Last activity timestamp, as reported by heartbeats.
+     */
+    virtual uint64_t activityTs() const { return 0; }
+
+    /**
+     * @brief Returns handle of the last synced node.
+     *
+     * @return Handle of the last synced node.
+     */
+    virtual MegaHandle lastSync() const { return INVALID_HANDLE; }
+
+    virtual MegaBackupInfo* copy() const { return nullptr; }
+    virtual ~MegaBackupInfo() = default;
+};
+
+/**
+ * @brief List of MegaBackupInfo objects
+ *
+ * A MegaBackupInfoList has the ownership of the MegaBackupInfo objects that it contains, so they
+ * will be valid only until the MegaBackupInfoList is deleted. If you want to retain a MegaBackupInfo
+ * returned by a MegaBackupInfoList, use MegaBackupInfo::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaBackupInfoList
+{
+public:
+    /**
+     * @brief Returns the MegaBackupInfo at the position i in the MegaBackupInfoList
+     *
+     * The MegaBackupInfoList retains the ownership of any returned MegaBackupInfo. It will be valid
+     * only until the MegaBackupInfoList is deleted. If you want to retain a MegaBackupInfo returned
+     * by this function, use MegaBackupInfo::copy().
+     *
+     * If the index is >= the size of the list, this function returns null.
+     *
+     * @param i Position of the instance that we want to get from the list
+     * @return Instance at position i in the list
+     */
+    virtual const MegaBackupInfo* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaBackupInfo instances in the list
+     * @return Number of MegaBackupInfo instances in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaBackupInfoList* copy() const { return nullptr; }
+    virtual ~MegaBackupInfoList() = default;
+};
+
+
+/**
  * @brief Represents a Set in MEGA
  *
  * It allows to get all data related to a Set in MEGA.
@@ -1318,24 +1442,24 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSet::CHANGE_TYPE_NEW     = 0
+     * - MegaSet::CHANGE_TYPE_NEW     = 0x01
      * Check if the Set was new
      *
-     * - MegaSet::CHANGE_TYPE_NAME    = 1
+     * - MegaSet::CHANGE_TYPE_NAME    = 0x02
      * Check if Set name has changed
      *
-     * - MegaSet::CHANGE_TYPE_COVER   = 2
+     * - MegaSet::CHANGE_TYPE_COVER   = 0x04
      * Check if Set cover has changed
      *
-     * - MegaSet::CHANGE_TYPE_REMOVED = 3
+     * - MegaSet::CHANGE_TYPE_REMOVED = 0x08
      * Check if the Set was removed
      *
-     * - MegaSet::CHANGE_TYPE_EXPORT  = 4
+     * - MegaSet::CHANGE_TYPE_EXPORT  = 0x10
      * Check if the Set was exported or disabled (i.e. exporting ended)
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSet::CHANGE_TYPE for
@@ -1346,7 +1470,7 @@ public:
      *
      * @return value to check bitwise position according to MegaSet::CHANGE_TYPE_* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     /**
      * @brief Returns true if this Set is exported (can be accessed via public link)
@@ -1360,15 +1484,13 @@ public:
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
 
-    enum // match Set::CH_XXX values
+    enum // 1:1 with Set::CH_XXX values
     {
-        CHANGE_TYPE_NEW,
-        CHANGE_TYPE_NAME,
-        CHANGE_TYPE_COVER,
-        CHANGE_TYPE_REMOVED,
-        CHANGE_TYPE_EXPORT,
-
-        CHANGE_TYPE_SIZE
+        CHANGE_TYPE_NEW     = 0x01,
+        CHANGE_TYPE_NAME    = 0x02,
+        CHANGE_TYPE_COVER   = 0x04,
+        CHANGE_TYPE_REMOVED = 0x08,
+        CHANGE_TYPE_EXPORT  = 0x10,
     };
 };
 
@@ -1478,21 +1600,21 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NEW     = 0x01
      * Check if the SetElement was new
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 1
+     * - MegaSetElement::CHANGE_TYPE_ELEM_NAME    = 0x02
      * Check if SetElement name has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 2
+     * - MegaSetElement::CHANGE_TYPE_ELEM_ORDER   = 0x04
      * Check if SetElement order has changed
      *
-     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 3
+     * - MegaSetElement::CHANGE_TYPE_ELEM_REMOVED = 0x08
      * Check if the SetElement was removed
      *
      * @return true if this Set has a specific change
      */
-    virtual bool hasChanged(int changeType) const { return false; }
+    virtual bool hasChanged(uint64_t changeType) const { return false; }
 
     /**
      * @brief Returns the addition / OR bit-operation of all the MegaSetElement::CHANGE_TYPE for
@@ -1503,19 +1625,17 @@ public:
      *
      * @return value to check bitwise position according to MegaSetElement::CHANGE_TYPE_ELEM* options
      */
-    virtual long long getChanges() const { return 0; }
+    virtual uint64_t getChanges() const { return 0; }
 
     virtual MegaSetElement* copy() const { return nullptr; }
     virtual ~MegaSetElement() = default;
 
-    enum // match SetElement::CH_EL_XXX values
+    enum // 1:1 with SetElement::CH_EL_XXX values
     {
-        CHANGE_TYPE_ELEM_NEW,
-        CHANGE_TYPE_ELEM_NAME,
-        CHANGE_TYPE_ELEM_ORDER,
-        CHANGE_TYPE_ELEM_REMOVED,
-
-        CHANGE_TYPE_ELEM_SIZE
+        CHANGE_TYPE_ELEM_NEW     = 0x01,
+        CHANGE_TYPE_ELEM_NAME    = 0x02,
+        CHANGE_TYPE_ELEM_ORDER   = 0x04,
+        CHANGE_TYPE_ELEM_REMOVED = 0x08,
     };
 };
 
@@ -1678,6 +1798,7 @@ class MegaUser
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
+            CHANGE_CC_PREFS                         = 0x80000000,
         };
 
         /**
@@ -1783,9 +1904,12 @@ class MegaUser
          * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
          * Check if apps prefs have changed
          *
+         * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
+         * Check if content consumption prefs have changed
+         *
          * @return true if this user has an specific change
          */
-        virtual bool hasChanged(int changeType);
+        virtual bool hasChanged(uint64_t changeType);
 
         /**
          * @brief Returns a bit field with the changes of the user
@@ -1881,8 +2005,11 @@ class MegaUser
          * - MegaUser::CHANGE_APPS_PREFS     = 0x40000000
          * Check if apps prefs have changed
          *
+         * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
+         * Check if content consumption prefs have changed
+         *
          * Check if backup names have changed         */
-        virtual int getChanges();
+        virtual uint64_t getChanges();
 
         /**
          * @brief Indicates if the user is changed by yourself or by another client.
@@ -2224,7 +2351,7 @@ public:
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
-    virtual bool hasSchedMeetingChanged(int /*changeType*/) const;
+    virtual bool hasSchedMeetingChanged(uint64_t /*changeType*/) const;
 
     /**
      * @brief Returns a MegaStringList that contains old and new title for the scheduled meeting
@@ -2736,7 +2863,7 @@ public:
      *
      * @return true if this chat has an specific change
      */
-    virtual bool hasChanged(int changeType) const;
+    virtual bool hasChanged(uint64_t changeType) const;
 
     /**
      * @brief Returns a bit field with the changes of the chatroom
@@ -2768,7 +2895,7 @@ public:
      *
      * @return The returned value is an OR combination of these flags
      */
-    virtual int getChanges() const;
+    virtual uint64_t getChanges() const;
 
     /**
      * @brief Indicates if the chat is changed by yourself or by another client.
@@ -4306,7 +4433,9 @@ class MegaRequest
             TYPE_EXPORT_SET                                                 = 166,
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
-            TOTAL_OF_REQUEST_TYPES                                          = 169,
+            TYPE_BACKUP_INFO                                                = 169,
+            TYPE_BACKUP_REMOVE_MD                                           = 170,
+            TOTAL_OF_REQUEST_TYPES                                          = 171,
         };
 
         virtual ~MegaRequest();
@@ -5157,6 +5286,8 @@ class MegaRequest
          * @return list of elements in the requested MegaSet, or null if Set not found
          */
         virtual MegaSetElementList* getMegaSetElementList() const;
+
+        virtual MegaBackupInfoList* getMegaBackupInfoList() const;
 };
 
 /**
@@ -5319,6 +5450,22 @@ class MegaTransfer
             STAGE_CREATE_TREE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
+        };
+
+        enum
+        {                                               // Collision Check for same file
+            COLLISION_CHECK_ASSUMESAME          = 1,    // assume files are the same
+            COLLISION_CHECK_ALWAYSERROR         = 2,    // treat as an error
+            COLLISION_CHECK_FINGERPRINT         = 3,    // Check fingerprint. Assume files are same if their fingerprint are same (quick)
+            COLLISION_CHECK_METAMAC             = 4,    // Check MetaMac. Assume files are same if their meta mac are same (slow, a lot of disk + CPU)
+            COLLISION_CHECK_ASSUMEDIFFERENT     = 5,    // assume files are different
+        };
+
+        enum
+        {                                               // Indicates how to save same files
+            COLLISION_RESOLUTION_OVERWRITE          = 1, // Overwrite the existing one
+            COLLISION_RESOLUTION_NEW_WITH_N         = 2, // Rename the new one with suffix (1), (2), and etc.
+            COLLISION_RESOLUTION_EXISTING_TO_OLDN   = 3, // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
@@ -9029,6 +9176,7 @@ class MegaApi
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
+            USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
         };
 
         enum {
@@ -9171,6 +9319,7 @@ class MegaApi
             OPTION_SET_NAME             = (1 << 1),
             OPTION_SET_COVER            = (1 << 2),
         };
+
         enum
         {
             CREATE_ELEMENT              = (1 << 0),
@@ -11215,21 +11364,6 @@ class MegaApi
         static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
-         * @brief
-         * Specify a reporter to receive filename anomaly messages from the SDK.
-         *
-         * @param reporter
-         * The reporter that should receive filename anomaly messages.
-         *
-         * Note that null is a valid value for this parameter and if
-         * specified, will prevent the SDK from sending messages to the
-         * reporter previously specified using this function.
-         *
-         * @see MegaFilenameAnomalyReporter
-         */
-        void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        /**
          * @brief Send a log to the logging system
          *
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
@@ -12447,7 +12581,8 @@ class MegaApi
          *  - MegaApi::ATTR_ALIAS
          *  - MegaApi::ATTR_DEVICE_NAMES
          *  - MegaApi::USER_ATTR_APPS_PREFS
-         * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+         *  - MegaApi::USER_ATTR_CC_PREFS
+         * by adding a keypair into MegaStringMap with the key to remove and an empty C-string null terminated as value.
          *
          * @param type Attribute type
          *
@@ -12471,6 +12606,8 @@ class MegaApi
          * Set the list of device names (private)
          * MegaApi::ATTR_APPS_PREFS = 38
          * Set the apps prefs (private)
+         * MegaApi::ATTR_CC_PREFS = 39
+         * Set the content consumption prefs (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -14227,9 +14364,21 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
          * This param is required to be able to cancel transfers safely.
          * App retains the ownership of this param.
+         * @param collisionCheck Indicates the collision check on same files, valid values are:
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+         *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+         *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+         *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+         *
+         * @param collisionResolution Indicates how to save same files, valid values are:
+         *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+         *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+         *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
+         *
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -20399,6 +20548,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Mark a backup already registered in Backup Centre, for removal, and
+         * move or delete its contents. Other sync types will only be stopped.
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre, and completely remove its contents, either by moving them to
+         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * destination is INVALID_HANDLE).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be removed
+         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
+         * backup contents will be deleted; for non-backup syncs it will be ignored
+         * @param listener MegaRequestListener to track this request
+        */
+        void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Fetch information about all registered backups for Backup Centre
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
+         *
+         * @param listener MegaRequestListener to track this request
+        */
+        void getBackupInfo(MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Send heartbeat associated with an existing backup

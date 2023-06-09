@@ -164,8 +164,7 @@ std::string megaApiCacheFolder(int index)
     return p;
 }
 
-template<typename Predicate>
-bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
+bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
 {
     const unsigned sleepMs = 100;
     unsigned totalMs = 0;
@@ -573,6 +572,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
             }
             else if (request->getParamType() == MegaApi::USER_ATTR_APPS_PREFS)
+            {
+                mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
+            }
+            else if (request->getParamType() == MegaApi::USER_ATTR_CC_PREFS)
             {
                 mApi[apiIndex].mStringMap.reset(request->getMegaStringMap()->copy());
             }
@@ -2579,6 +2582,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  *
  * It performs different operations related to transfers in both directions: up and down.
  *
+ * - Uploads an empty directory
  * - Starts an upload transfer and cancel it
  * - Starts an upload transfer, pause it, resume it and complete it
  * - Get node by fingerprint
@@ -2589,15 +2593,36 @@ TEST_F(SdkTest, SdkTestTransfers)
 {
     LOG_info << "___TEST Transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
     LOG_info << cwd();
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
-    string filename1 = UPFILE;
-    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
+    // --- Upload an empty folder ---
+    auto createAndUploadEmptyFolder = [this](::mega::MegaTransferListener* uploadListener1) -> fs::path
+    {
+        if (!uploadListener1)                { return fs::path{}; }
+        fs::path p = fs::current_path() / "upload_folder_mega_auto_test_sdk";
+        if (fs::exists(p) && !fs::remove(p)) { return fs::path{}; }
+        if (!fs::create_directory(p))        { return fs::path{}; }
 
+        megaApi[0]->startUpload(p.u8string().c_str(),
+                                std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                                nullptr /*fileName*/, ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/, false   /*isSourceTemporary*/,
+                                false   /*startFirst*/, nullptr /*cancelToken*/, uploadListener1);
+        return p;
+    };
+    auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
+    uploadListener1->selfDeleteOnFinalCallback = uploadListener1;
+    auto p = createAndUploadEmptyFolder(uploadListener1.get());
+    ASSERT_FALSE(p.empty()) << "Upload empty folder: error creating local empty folder";
+    ASSERT_EQ(uploadListener1->waitForResult(), API_OK) << "Upload empty folder: error uploading empty folder";
+    ASSERT_NE(uploadListener1->resultNodeHandle, ::mega::INVALID_HANDLE)
+        << "Upload empty folder: node handle received in onTransferFinish is invalid";
+    EXPECT_TRUE(fs::remove(p)) << "Upload empty folder: error cleaning empty dir resource " << p;
 
     // --- Cancel a transfer ---
+    MegaNode* rootnode = megaApi[0]->getRootNode();
+    string filename1 = UPFILE;
+    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
     TransferTracker ttc(megaApi[0].get());
     megaApi[0]->startUpload(filename1.c_str(),
                             rootnode,
@@ -2734,7 +2759,9 @@ TEST_F(SdkTest, SdkTestTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download transfer failed after " << maxTimeout << " seconds";
@@ -2780,7 +2807,9 @@ TEST_F(SdkTest, SdkTestTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download 0-byte file failed after " << maxTimeout << " seconds";
@@ -3103,12 +3132,22 @@ TEST_F(SdkTest, SdkTestContacts)
 
 TEST_F(SdkTest, SdkTestAppsPrefs)
 {
+    testPrefs("___TEST AppsPrefs___", MegaApi::USER_ATTR_APPS_PREFS);
+}
+
+TEST_F(SdkTest, SdkTestCcPrefs)
+{
+    testPrefs("___TEST CcPrefs___", MegaApi::USER_ATTR_CC_PREFS);
+}
+
+void SdkTest::testPrefs(const std::string& title, int type)
+{
     const auto comparePrefs = [](const MegaStringMap* currentMap, const MegaStringMap* testMap) -> bool
     {
         if (!currentMap || !testMap) return false;
 
-        std::unique_ptr<MegaStringList> currentKeys (currentMap->getKeys());
-        std::unique_ptr<MegaStringList> testKeys (testMap->getKeys());
+        std::unique_ptr<MegaStringList> currentKeys(currentMap->getKeys());
+        std::unique_ptr<MegaStringList> testKeys(testMap->getKeys());
         if (!currentKeys || !testKeys)
         {
             return false;
@@ -3129,54 +3168,54 @@ TEST_F(SdkTest, SdkTestAppsPrefs)
         return true;
     };
 
-    const auto isAppsPrefsUpdated = [this, &comparePrefs](const MegaStringMap* uprefs) -> bool
+    const auto isPrefsUpdated = [this, &comparePrefs, type](const MegaStringMap* uprefs) -> bool
     {
         std::unique_ptr<MegaUser> u(megaApi[0]->getMyUser());
         EXPECT_TRUE(u) << "Can't get own user";
-        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), MegaApi::USER_ATTR_APPS_PREFS, maxTimeout, 0));
+        EXPECT_NO_FATAL_FAILURE(getUserAttribute(u.get(), type, maxTimeout, 0));
         EXPECT_TRUE(comparePrefs(mApi[0].mStringMap.get(), uprefs)) << "ERR";
         return true;
     };
 
-    const auto fetchAppsPrefs = [this](const unsigned int index) -> int
+    const auto fetchPrefs = [this, type](const unsigned int index) -> int
     {
         std::unique_ptr<MegaUser> u(megaApi[index]->getMyUser());
         if (!u) { return API_ENOENT; }
         mApi[index].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
-        return synchronousGetUserAttribute(index, u.get(), MegaApi::USER_ATTR_APPS_PREFS);
+        return synchronousGetUserAttribute(index, u.get(), type);
     };
 
-    LOG_info << "___TEST AppsPrefs___";
+    LOG_info << title;
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // fetch for current attr value
     static constexpr char keyname[] = "key1";
     const unsigned int index = 0;
-    const int res = fetchAppsPrefs(index);
+    const int res = fetchPrefs(index);
     ASSERT_TRUE(res == API_ENOENT || res == API_OK);
 
     // set value for attr (overwrite any posible value that could exists for keyname)
-    std::unique_ptr <MegaStringMap> newAppPrefs(MegaStringMap::createInstance());
+    std::unique_ptr <MegaStringMap> newPrefs(MegaStringMap::createInstance());
     std::string val = std::to_string(m_time());
     unique_ptr<char[]> valB64(MegaApi::binaryToBase64(val.data(), val.size()));
-    newAppPrefs->set(keyname, valB64.get());
-    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+    newPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, type, newPrefs.get()));
 
     // logout and login
     releaseMegaApi(index);
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // check attr value is expected after logout/login
-    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+    ASSERT_TRUE(isPrefsUpdated(newPrefs.get())) << "";
 
     // set value for attr again (overwrite latest value for keyname)
     val = std::to_string(m_time());
     valB64.reset(MegaApi::binaryToBase64(val.data(), val.size()));
-    newAppPrefs->set(keyname, valB64.get());
-    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, MegaApi::USER_ATTR_APPS_PREFS, newAppPrefs.get()));
+    newPrefs->set(keyname, valB64.get());
+    ASSERT_EQ(API_OK, synchronousSetUserAttribute(index, type, newPrefs.get()));
 
     // check attr value is expected
-    ASSERT_TRUE(isAppsPrefsUpdated(newAppPrefs.get())) << "";
+    ASSERT_TRUE(isPrefsUpdated(newPrefs.get())) << "";
 }
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
@@ -3659,7 +3698,9 @@ TEST_F(SdkTest, SdkTestShares)
                                                  nullptr  /*customName*/,
                                                  nullptr  /*appData*/,
                                                  false    /*startFirst*/,
-                                                 nullptr  /*cancelToken*/);
+                                                 nullptr  /*cancelToken*/,
+                                                 MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
 
     bool hasFailed = (transferError != API_OK);
@@ -3675,7 +3716,9 @@ TEST_F(SdkTest, SdkTestShares)
                                              nullptr  /*customName*/,
                                              nullptr  /*appData*/,
                                              false    /*startFirst*/,
-                                             nullptr  /*cancelToken*/);
+                                             nullptr  /*cancelToken*/,
+                                             MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_EQ(API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
     delete nNoAuth;
@@ -5708,11 +5751,11 @@ namespace mega
             unsigned minDivisorSize = 4 * 1024 * 1024; //  raidLinesPerChunk is defined by MAX_REQ_SIZE value, which depends on the system -> division factor of 4 for different max_req_sizes
             unsigned divideBy = std::max<unsigned>(static_cast<unsigned>(TransferSlot::MAX_REQ_SIZE / minDivisorSize), static_cast<unsigned>(1));
             tbm->raidLinesPerChunk = tbm->raidLinesPerChunk / divideBy;
-            tbm->setAvoidSmallLastRequest(false);
+            tbm->disableAvoidSmallLastRequest();
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
 
-        static bool  onHttpReqPost509(HttpReq* req)
+        static bool onHttpReqPost509(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5728,7 +5771,7 @@ namespace mega
             return false;
         }
 
-        static bool  onHttpReqPost404Or403(HttpReq* req)
+        static bool onHttpReqPost404Or403(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5751,7 +5794,7 @@ namespace mega
         }
 
 
-        static bool  onHttpReqPostTimeout(HttpReq* req)
+        static bool onHttpReqPostTimeout(HttpReq* req)
         {
             if (req->type == REQ_BINARY)
             {
@@ -5841,7 +5884,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
         << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
@@ -5868,7 +5913,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         m_off_t lastprogress = 0, pausecount = 0;
         second_timer t;
@@ -5906,7 +5953,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         std::string sessionId = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
 
@@ -5933,7 +5982,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                           nullptr  /*customName*/,
                                           nullptr  /*appData*/,
                                           false    /*startFirst*/,
-                                          nullptr  /*cancelToken*/);
+                                          nullptr  /*cancelToken*/,
+                                          MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                          MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
             }
             else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
             {
@@ -5973,7 +6024,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 /**
 * @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
 *
-* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+* Download a cloudraid file but with a connection failing with http errors 404 and 403. The download should recover from the problems in 5 channel mode
 *
 */
 
@@ -6014,7 +6065,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         unsigned int transfer_timeout_in_seconds = 180;
         //unsigned int transfer_timeout_in_seconds = 15;
@@ -6093,9 +6146,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 
 
 /**
-* @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
+* @brief TEST_F SdkTestCloudraidTransferWithSingleChannelTimeouts
 *
-* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+* Download a cloudraid file but with a connection failing after a timeout. The download should recover from the problems in 5 channel mode
 *
 */
 
@@ -6116,7 +6169,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
-    // set up for 404 and 403 errors
+    // set up for timeout
     // smaller chunk sizes so we can get plenty of pauses
     DebugTestHook::countdownToTimeout = 15;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -6134,7 +6187,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6146,6 +6201,87 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 }
 #endif
 
+
+/**
+ * @brief TEST_F SdkTestCloudraidTransferResume
+ *
+ * Tests resumption for raid file download.
+ */
+#ifdef DEBUG
+TEST_F(SdkTest, SdkTestCloudraidTransferResume)
+{
+    LOG_info << "___TEST Cloudraid transfer resume___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    //  1. Download raid file, with speed limit
+    //  2. Logout / Login
+    //  3. Check download resumption
+
+    //  1. Download raided file, with speed limit
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    std::unique_ptr<MegaNode> cloudRaidNode{ megaApi[0]->getNodeByHandle(importRaidHandle) };
+
+    // prerequisite for having smaller (thus more) raid chunks, for increasing the chances of having
+    // contiguous progress to serialize - and resume - after logout+login
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
+#endif
+
+    string downloadedFile = DOTSLASH "cloudraid_downloaded_file.sdktest";
+    deleteFile(downloadedFile.c_str());
+    megaApi[0]->setMaxDownloadSpeed(2000000);
+    onTransferUpdate_progress = 0;
+    TransferTracker rdt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudRaidNode.get(),
+                              downloadedFile.c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false   /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              &rdt    /*listener*/);
+
+    second_timer timer;
+    m_off_t pauseThreshold = 9000000;
+    while (!rdt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
+    {
+        WaitMillisec(200);
+    }
+
+    ASSERT_FALSE(rdt.finished) << "Download ended too early, with " << rdt.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
+
+    //  2. Logout / Login
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ErrorCodes result = rdt.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    //  3. Check download resumption
+    timer.reset();
+    unique_ptr<MegaTransferList> transfers(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    while ((!transfers || !transfers->size()) && timer.elapsed() < 20)
+    {
+        WaitMillisec(100);
+        transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
+    }
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
+    MegaTransfer* dnl = transfers->get(0);
+    long long dnlBytes = dnl->getTransferredBytes();
+    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+
+    megaApi[0]->setMaxDownloadSpeed(-1);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+#endif
 
 
 /**
@@ -6201,7 +6337,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6275,7 +6413,9 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6545,7 +6685,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
                               nullptr  /*customName*/,
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
-                              nullptr  /*cancelToken*/);
+                              nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the initial file (error: " << mApi[0].lastError << ")";
@@ -7415,11 +7557,10 @@ TEST_F(SdkTest, SdkDeviceNames)
 
     // test setter/getter
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    auto err = synchronousSetDeviceName(0, deviceName.c_str());
-    ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
-    err = synchronousGetDeviceName(0);
-    ASSERT_EQ(API_OK, err) << "getDeviceName failed (error: " << err << ")";
-    ASSERT_EQ(mApi[0].getAttributeValue(), deviceName) << "getDeviceName returned incorrect value";
+    ASSERT_EQ(API_OK, doSetDeviceName(0, deviceName.c_str())) << "setDeviceName failed";
+    string deviceNameInCloud;
+    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud)) << "getDeviceName failed";
+    ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -7435,19 +7576,15 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
-    {
-        deviceName = mApi[0].getAttributeValue();
-    }
-    else
+    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
-        synchronousSetDeviceName(0, deviceName.c_str());
+        doSetDeviceName(0, deviceName.c_str());
 
         // make sure Device Name attr was set
-        int err = synchronousGetDeviceName(0);
-        ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
-        ASSERT_EQ(deviceName, mApi[0].getAttributeValue()) << "Getting device name attr failed (wrong value)";
+        string deviceNameInCloud;
+        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud), API_OK) << "Getting device name attr failed";
+        ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
 
@@ -7612,6 +7749,181 @@ TEST_F(SdkTest, SdkBackupFolder)
 }
 
 #ifdef ENABLE_SYNC
+TEST_F(SdkTest, SdkBackupMoveOrDelete)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST BackupMoveOrDelete___";
+
+    string timestamp = getCurrentTimestamp(true);
+
+    // Set device name if missing
+    string deviceName;
+    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    {
+        string newDeviceName = "Jenkins " + timestamp;
+        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
+        // make sure Device Name attr was set
+        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
+    }
+    // Make sure My Backups folder was created
+    syncTestMyBackupsRemoteFolder(0);
+
+    // Create local contents to back up
+    fs::path localFolderPath = fs::current_path() / "LocalBackupFolder";
+    std::error_code ec;
+    fs::remove_all(localFolderPath, ec);
+    ASSERT_FALSE(fs::exists(localFolderPath));
+    fs::create_directories(localFolderPath);
+    string bkpFile = "bkpFile";
+    ASSERT_TRUE(createLocalFile(localFolderPath, bkpFile.c_str()));
+
+    // Create a backup
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    MegaHandle backupRootNodeHandle = INVALID_HANDLE;
+    int err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
+    ASSERT_EQ(err, API_OK) << "Backup failed";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for backup";
+
+    // Get backup id
+    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
+    MegaHandle backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            ASSERT_STREQ(megaSync->getName(), backupNameStr.c_str()) << "New backup had wrong name";
+            // Make sure the sync's actually active.
+            ASSERT_EQ(megaSync->getRunState(), MegaSync::RUNSTATE_RUNNING) << "Backup found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
+
+    // Use another connection with the same credentials
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    auto& differentApi = *megaApi.back();
+    differentApi.addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(std::move(pa));
+    auto& differentApiDtls = mApi.back();
+    differentApiDtls.megaApi = &differentApi;
+    int differentApiIdx = int(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(differentApiIdx, differentApiDtls.email.c_str(), differentApiDtls.pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << differentApiIdx;
+    loginTracker = asyncRequestFetchnodes(differentApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
+
+    // Request backup removal (and delete its contents) from a different connection
+    RequestTracker removeBackupTracker(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &removeBackupTracker);
+    ASSERT_EQ(removeBackupTracker.waitForResult(), API_OK) << "Failed to remove backup and delete its contents";
+
+    // Wait for this client to receive the backup removal request
+    auto syncCfgRemoved = [this, &backupId]()
+    {
+        unique_ptr<MegaSync> s(megaApi[0]->getSyncByBackupId(backupId));
+        return !s;
+    };
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed backup after 60 seconds";
+
+    // Wait for the backup to be removed from remote storage
+    auto bkpDeleted = [this, backupRootNodeHandle]()
+    {
+        std::unique_ptr<MegaNode> deletedNode(megaApi[0]->getNodeByHandle(backupRootNodeHandle));
+        return !deletedNode;
+    };
+    ASSERT_TRUE(WaitFor(bkpDeleted, 60000)) << "Backup not removed after 60 seconds";
+
+    // Create another backup
+    backupRootNodeHandle = INVALID_HANDLE;
+    err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupNameStr.c_str(), INVALID_HANDLE, nullptr);
+    ASSERT_EQ(err, API_OK) << "Second backup failed";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for 2nd backup";
+
+    // Create move destination
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+    string moveDstName = "bkpMoveDest";
+    MegaHandle moveDest = createFolder(0, moveDstName.c_str(), rootnode);
+    ASSERT_NE(moveDest, INVALID_HANDLE);
+    std::unique_ptr<MegaNode> moveDestNode(megaApi[0]->getNodeByHandle(moveDest));
+    ASSERT_TRUE(moveDestNode) << "Node missing for remote folder " << moveDstName;
+
+    // Get 2nd backup id
+    allSyncs.reset(megaApi[0]->getSyncs());
+    backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            ASSERT_STREQ(megaSync->getName(), backupNameStr.c_str()) << "2nd backup had wrong name";
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "2nd backup found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "2nd backup could not be found";
+
+    // Request backup removal (and move its contents) from a different connection
+    RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
+    ASSERT_EQ(removeBackupTracker2.waitForResult(), API_OK) << "Failed to remove 2nd backup and move its contents";
+
+    // Wait for this client to receive the 2nd backup removal request
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the 2nd removed backup after 60 seconds";
+
+    // Wait for the contents of the 2nd backup to be moved in remote storage
+    auto bkpMoved = [this, backupRootNodeHandle, &moveDestNode]()
+    {
+        std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(moveDestNode.get()));
+        return destChildren && destChildren->size() == 1 &&
+               destChildren->get(0)->getHandle() == backupRootNodeHandle;
+    };
+    ASSERT_TRUE(WaitFor(bkpMoved, 60000)) << "2nd backup not moved after 60 seconds";
+
+    // Create a sync
+    backupRootNodeHandle = INVALID_HANDLE;
+    err = synchronousSyncFolder(0, &backupRootNodeHandle, MegaSync::TYPE_TWOWAY, localFolderPath.u8string().c_str(), nullptr, moveDest, nullptr);
+    ASSERT_EQ(err, API_OK) << "Sync failed";
+    ASSERT_NE(backupRootNodeHandle, INVALID_HANDLE) << "Invalid root handle for sync";
+
+    // Get backup id of the sync
+    allSyncs.reset(megaApi[0]->getSyncs());
+    backupId = INVALID_HANDLE;
+    for (int i = 0; allSyncs && i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_TWOWAY &&
+            megaSync->getMegaHandle() == backupRootNodeHandle)
+        {
+            // Make sure the sync's actually active.
+            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync found but not active.";
+            backupId = megaSync->getBackupId();
+            break;
+        }
+    }
+    ASSERT_NE(backupId, INVALID_HANDLE) << "Sync could not be found";
+
+    // Request sync stop from a different connection
+    RequestTracker stopSyncTracker(megaApi[differentApiIdx].get());
+    megaApi[differentApiIdx]->removeFromBC(backupId, INVALID_HANDLE, &stopSyncTracker);
+    ASSERT_EQ(stopSyncTracker.waitForResult(), API_OK) << "Failed to stop sync";
+
+    // Wait for this client to receive the sync stop request
+    ASSERT_TRUE(WaitFor(syncCfgRemoved, 60000)) << "Original API could still see the removed sync after 60 seconds";
+
+    fs::remove_all(localFolderPath, ec);
+}
+
 TEST_F(SdkTest, SdkExternalDriveFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7624,30 +7936,32 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     const string& pathToDriveStr = pathToDrive.u8string();
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
-    if (synchronousGetDeviceName(0) == API_OK && !mApi[0].getAttributeValue().empty())
+    string deviceName;
+    if (doGetDeviceName(0, &deviceName) == API_OK && !deviceName.empty())
     {
-        ASSERT_EQ(API_EEXIST, synchronousSetDriveName(0, pathToDriveStr.c_str(), mApi[0].getAttributeValue().c_str()))
-            << "Ext-drive name was set to current device name";
+        ASSERT_EQ(API_EEXIST, doSetDriveName(0, pathToDriveStr.c_str(), deviceName.c_str()))
+            << "Ext-drive name was set to current device name: " << deviceName;
     }
 
     // drive name
     string driveName = "SdkExternalDriveTest_" + getCurrentTimestamp(true);
 
     // set drive name
-    auto err = synchronousSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
+    auto err = doSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
     ASSERT_EQ(API_OK, err) << "setDriveName failed (error: " << err << ")";
 
     // attempt to set the same name to another drive
     fs::path pathToDrive2 = basePath / "ExtDrive2";
     fs::create_directory(pathToDrive2);
     const string& pathToDriveStr2 = pathToDrive2.u8string();
-    err = synchronousSetDriveName(0, pathToDriveStr2.c_str(), driveName.c_str());
-    ASSERT_EQ(API_EEXIST, err) << "setDriveName allowed duplicated name. Should not have.";
+    err = doSetDriveName(0, pathToDriveStr2.c_str(), driveName.c_str());
+    ASSERT_EQ(API_EEXIST, err) << "setDriveName allowed duplicated name " << driveName << ". Should not have.";
 
     // get drive name
-    err = synchronousGetDriveName(0, pathToDriveStr.c_str());
+    string driveNameFromCloud;
+    err = doGetDriveName(0, &driveNameFromCloud, pathToDriveStr.c_str());
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
-    ASSERT_EQ(mApi[0].getAttributeValue(), driveName) << "getDriveName returned incorrect value";
+    ASSERT_EQ(driveNameFromCloud, driveName) << "getDriveName returned incorrect value";
 
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
@@ -7681,11 +7995,11 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveBackupNodes(0, backupFolderHandle));
 
     // reset DriveName value, before a future test
-    err = synchronousSetDriveName(0, pathToDriveStr.c_str(), "");
+    err = doSetDriveName(0, pathToDriveStr.c_str(), "");
     ASSERT_EQ(API_OK, err) << "setDriveName failed when resetting (error: " << err << ")";
 
     // attempt to get drive name (after being deleted)
-    err = synchronousGetDriveName(0, pathToDriveStr.c_str());
+    err = doGetDriveName(0, nullptr, pathToDriveStr.c_str());
     ASSERT_EQ(API_ENOENT, err) << "getDriveName not failed as it should (error: " << err << ")";
 }
 #endif
@@ -8000,6 +8314,8 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                               nullptr  /*appData*/,
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                               &downloadListener);
 
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
@@ -8166,6 +8482,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*appData*/,
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
+            MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+            MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
             &downloadListener1);
 
     ASSERT_TRUE(downloadListener1.waitForResult() == API_EEXIST);
@@ -8183,6 +8501,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*appData*/,
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
+            MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+            MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
             &downloadListener2);
 
     for (int i = 1000; i-- && !downloadListener2.started; ) WaitMillisec(1);
@@ -9239,7 +9559,9 @@ TEST_F(SdkTest, SyncPaths)
                                                          nullptr  /*customName*/,
                                                          nullptr  /*appData*/,
                                                          false    /*startFirst*/,
-                                                         nullptr  /*cancelToken*/));
+                                                         nullptr  /*cancelToken*/,
+                                                         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -9285,7 +9607,9 @@ TEST_F(SdkTest, SyncPaths)
                                                          nullptr  /*customName*/,
                                                          nullptr  /*appData*/,
                                                          false    /*startFirst*/,
-                                                         nullptr  /*cancelToken*/));
+                                                         nullptr  /*cancelToken*/,
+                                                         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -11120,7 +11444,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     PerApi pa; // make a copy
     pa.email = mApi.back().email;
     pa.pwd = mApi.back().pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     auto& differentApiDtls = mApi.back();
     differentApiDtls.megaApi = &differentApi;
     int differentApiIdx = int(megaApi.size() - 1);
@@ -11592,7 +11916,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     auto& aux = mApi[userIdx];
     pa.email = aux.email;
     pa.pwd = aux.pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     differentApiDtlsPtr = &(mApi.back());
     differentApiDtlsPtr->megaApi = differentApiPtr;
     int difApiIdx = static_cast<int>(megaApi.size() - 1);
@@ -11606,10 +11930,13 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U1: Create set";
     const string name = u8"qq-001";
     MegaSet* newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
     ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> s1p(newSet);
     const MegaHandle sh = s1p->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client";
 
 
     LOG_debug << "# U1: Upload test file";
@@ -11630,6 +11957,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Add Element to Set";
     userIdx = 0;
+    differentApiDtlsPtr->setElementUpdated = false;
     const string elattrs = u8"Element name emoji: 🐧";
     MegaSetElementList* newEll = nullptr;
     ASSERT_EQ(API_OK, doCreateSetElement(userIdx, &newEll, sh, uploadedNode, elattrs.c_str()));
@@ -11638,6 +11966,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const MegaHandle eh = els->get(0)->id();
     const unique_ptr<MegaSetElement> elp(megaApi[userIdx]->getSetElement(sh, eh));
     ASSERT_NE(elp, nullptr);
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setElementUpdated))
+        << "Failed to receive add Element update AP on U1's secondary";
 
 
     LOG_debug << "# U1: Check if Set is exported";
@@ -11669,7 +11999,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Set export updated not received after " << maxTimeout << " seconds";
+        << "Failed to receive export Set update AP on U1's secondary client";
     s1pEnabledExport.reset(differentApiPtr->getSet(sh));
     LOG_debug << "\tChecking Set from MegaApi::getSet for differentApi (AKA U1 in a different client)";
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pEnabledExport.get(), isExpectedToBeExported));
@@ -11691,13 +12021,19 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const string updatedName = name + u8" 手";
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, updatedName.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Shared Set name updated not received after " << maxTimeout << " seconds in different client";
+        << "Failed to receive shared Set name updated AP on U1's secondary client";
     ASSERT_TRUE(megaApi[userIdx]->isExportedSet(sh)) << "Set should still be public after the update";
     // reset to previous name to keep using existing original cached Set for validation
     differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[userIdx];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
     ASSERT_EQ(API_OK, doUpdateSetName(userIdx, nullptr, sh, name.c_str()));
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Shared Set name reset not received after " << maxTimeout << " seconds in different client";
+        << "Failed to receive shared Set name reset updated AP on U1's secondary client";
+    // Wait for the database to be updated (note: even if commit is triggered by 1st update, the 2nd update
+    // has been applied already, so the DB will store the final value)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
+        << "Failed to receive commit to DB event related to Set name update";
 
 
     LOG_debug << "# U1: Logout / login to retrieve Set";
@@ -11709,7 +12045,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
 
     unique_ptr<MegaSet> reloadedSessionSet(megaApi[userIdx]->getSet(sh));
-    lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported);
+    ASSERT_NO_FATAL_FAILURE(lIsSameSet(reloadedSessionSet.get(), isExpectedToBeExported));
     const auto lIsSameElement = [&elp](const MegaSetElement* el)
     {
         ASSERT_EQ(el->id(), elp->id());
@@ -11819,8 +12155,18 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         ASSERT_EQ(expectedResult, doGetPreviewElementNode(1, &fNode, elp->id()));
 
         foreignNode.reset(fNode);
-        if (expectedResult == API_OK) { ASSERT_NE(foreignNode, nullptr); }
-        else                          { ASSERT_EQ(foreignNode, nullptr); }
+        if (expectedResult == API_OK)
+        {
+            ASSERT_NE(foreignNode, nullptr);
+            unique_ptr<MegaNode> sourceNode(megaApi[0]->getNodeByHandle(uploadedNode));
+            ASSERT_EQ(foreignNode->getCreationTime(), 0) << "\tAll foreign node's creation time must be 0";
+            ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
+                << "\tForeign node's mtime inconsistent";
+        }
+        else
+        {
+            ASSERT_EQ(foreignNode, nullptr);
+        }
     };
     const auto lDownloadForeignElement = [this] (int expectedResult, MegaNode* validForeignNode)
     {
@@ -11832,7 +12178,9 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/));
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
         fs::remove(downloadPath);
     };
 
@@ -11862,7 +12210,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // wait for action packets on both APIs (disable updates through APs)
     ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
-        << "Disable Set export updated not received for secondary API after " << maxTimeout << " seconds";
+        << "Failed to receive disable export Set update AP on U1's secondary client";
     s1pDisabledExport.reset(differentApiPtr->getSet(sh));
     ASSERT_NO_FATAL_FAILURE(lIsSameSet(s1pDisabledExport.get(), isExpectedToBeExported));
     // test shortcut on disable export
@@ -11892,11 +12240,14 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
     for (unsigned i = 0; i < sets->size(); ++i)
     {
+        differentApiDtlsPtr->setUpdated = false;
         handle setId = sets->get(i)->id();
         ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
 
         unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
         ASSERT_EQ(s, nullptr);
+        ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+            << "Failed to receive deleted Set AP on U1's secondary client";
     }
     sets.reset(megaApi[userIdx]->getSets());
     ASSERT_EQ(sets->size(), 0u);
@@ -11952,7 +12303,7 @@ TEST_F(SdkTest, SdkUserAlerts)
     PerApi pa; // make a copy
     pa.email = mApi.back().email;
     pa.pwd = mApi.back().pwd;
-    mApi.push_back(move(pa));
+    mApi.push_back(std::move(pa));
     auto& B2dtls = mApi.back();
     B2dtls.megaApi = &B2;
 #endif
@@ -13344,11 +13695,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was uploaded";
+
     //  3. Logout / Login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     int result = ut.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Upload interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -13360,7 +13714,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Upload was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Upload ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* upl = transfers->get(0);
     long long uplBytes = upl->getTransferredBytes();
     ASSERT_GT(uplBytes, pauseThreshold / 2) << "Upload appears to have been restarted instead of resumed";
@@ -13369,11 +13723,13 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxUploadSpeed(-1);
     timer.reset();
     unique_ptr<MegaNode> cloudNode(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
-    while (!cloudNode && timer.elapsed() < 20)
+    size_t maxAllowedToFinishUpload = 120;
+    while (!cloudNode && timer.elapsed() < maxAllowedToFinishUpload)
     {
         WaitMillisec(500);
         cloudNode.reset(megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
+    ASSERT_TRUE(cloudNode) << "Upload did not finish after " << maxAllowedToFinishUpload << " seconds";
 
     //  6. Download file, with speed limit
     string downloadedFile = DOTSLASH + DOWNFILE;
@@ -13387,6 +13743,8 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         nullptr /*appData*/,
         false   /*startFirst*/,
         nullptr /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
         &dt     /*listener*/);
 
     while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
@@ -13394,11 +13752,14 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(200);
     }
 
+    ASSERT_FALSE(dt.finished) << "Download ended too early, with " << dt.waitForResult();
+    ASSERT_GT(onTransferUpdate_progress, 0) << "Nothing was downloaded";
+
     //  7. Logout / Login
     session.reset(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     result = dt.waitForResult();
-    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -13410,7 +13771,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         WaitMillisec(100);
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
-    ASSERT_EQ(transfers->size(), 1) << "Download was not resumed after 20 seconds";
+    ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
     MegaTransfer* dnl = transfers->get(0);
     long long dnlBytes = dnl->getTransferredBytes();
     ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
@@ -13467,6 +13828,8 @@ TEST_F(SdkTest, SdkTestFilePermissions)
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
+                                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };
@@ -13575,6 +13938,8 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                                 nullptr  /*appData*/,
                                 false    /*startFirst*/,
                                 nullptr  /*cancelToken*/,
+                                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };

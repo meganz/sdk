@@ -114,6 +114,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
     public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
     public final static int USER_ATTR_APPS_PREFS = MegaApi.USER_ATTR_APPS_PREFS;
+    public final static int USER_ATTR_CC_PREFS = MegaApi.USER_ATTR_CC_PREFS;
 
     // deprecated: public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
     public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
@@ -4323,6 +4324,7 @@ public class MegaApiJava {
      *  - MegaApi::ATTR_ALIAS
      *  - MegaApi::ATTR_DEVICE_NAMES
      *  - MegaApi::USER_ATTR_APPS_PREFS
+     *  - MegaApi::USER_ATTR_CC_PREFS
      * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
      *
      * @param type Attribute type
@@ -4367,6 +4369,7 @@ public class MegaApiJava {
      *  - MegaApi::ATTR_ALIAS
      *  - MegaApi::ATTR_DEVICE_NAMES
      *  - MegaApi::USER_ATTR_APPS_PREFS
+     *  - MegaApi::USER_ATTR_CC_PREFS
      * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
      *
      * @param type Attribute type
@@ -6718,12 +6721,23 @@ public class MegaApiJava {
      * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
      *                    This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
      *                    You preserve the ownership of this param.
+     * @param collisionCheck Indicates collision check on same files, valid values are:
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+     *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+     *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+     *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+     *
+     * @param collisionResolution Indicates how to save same files, valid values are:
+     *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+     *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+     *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
      * @param listener    MegaTransferListener to track this transfer
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
-                              boolean startFirst, MegaCancelToken cancelToken,
+                              boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution,
                               MegaTransferListenerInterface listener) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken,
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
                 createDelegateTransferListener(listener));
     }
 
@@ -6757,10 +6771,21 @@ public class MegaApiJava {
      * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
      *                    This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
      *                    You preserve the ownership of this param.
+     * @param collisionCheck Indicates collision check on same files, valid values are:
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+     *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+     *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+     *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+     *
+     * @param collisionResolution Indicates how to save same files, valid values are:
+     *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+     *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+     *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
-                              boolean startFirst, MegaCancelToken cancelToken) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken);
+                              boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution) {
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution);
     }
 
     /**

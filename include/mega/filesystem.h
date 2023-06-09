@@ -210,7 +210,7 @@ public:
     // Result is undefined if this path is a "root."
     LocalPath parentPath() const;
 
-    LocalPath insertFilenameCounter(unsigned counter) const;
+    LocalPath insertFilenameSuffix(const std::string& suffix) const;
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
@@ -821,22 +821,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
 };
 
-enum FilenameAnomalyType
-{
-    FILENAME_ANOMALY_NAME_MISMATCH = 0,
-    FILENAME_ANOMALY_NAME_RESERVED = 1,
-    // This should always be last.
-    FILENAME_ANOMALY_NONE
-}; // FilenameAnomalyType
-
-class FilenameAnomalyReporter
-{
-public:
-    virtual ~FilenameAnomalyReporter() { };
-
-    virtual void anomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath) = 0;
-}; // FilenameAnomalyReporter
-
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
@@ -853,24 +837,6 @@ int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool 
 // On Windows, a reserved file name is:
 //   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
 bool isReservedName(const string& name, nodetype_t type = FILENODE);
-
-// Checks if there is a filename anomaly.
-//
-// @param localPath
-// The local path of the file in question.
-//
-// @param node
-// The remote node representing the file in question.
-//
-// @return
-// FILENAME_ANOMALY_NAME_MISMATCH
-// - If the local and remote file name differs.
-// FILENAME_ANOMALY_NAME_RESERVED
-// - If the remote file name is reserved.
-// FILENAME_ANOMALY_NONE
-// - If no anomalies were detected.
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type = FILENODE);
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node);
 
 struct MEGA_API FSNode
 {

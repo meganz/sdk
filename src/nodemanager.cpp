@@ -427,7 +427,7 @@ uint64_t NodeManager::getNodeCount()
         assert(!getRootNodeFiles().isUndef() && !getRootNodeVault().isUndef() && !getRootNodeRubbish().isUndef());
     }
 
-#ifdef DEBUG
+#ifndef NDEBUG
     if (mNodes.size())
     {
         uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
@@ -1170,7 +1170,7 @@ void NodeManager::notifyPurge()
 
                 // Try and remove the sync.
                 mClient.syncs.deregisterThenRemoveSync(us.mConfig.mBackupId,
-                                                 move(completion), true);
+                                                 std::move(completion), true);
             }
 
             //update sync root node location and trigger failing cases
@@ -1517,7 +1517,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
         }
     }
     // newest element at chain versions has been removed, the second one element is the newest now. Update node counter properly
-    else if (oldParent && oldParent->type == FILENODE && n.parent->type != FILENODE)
+    else if (oldParent && oldParent->type == FILENODE && n.parent && n.parent->type != FILENODE)
     {
         nc.files++;
         nc.storage += n.size;

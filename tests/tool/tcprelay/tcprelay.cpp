@@ -429,7 +429,7 @@ void TcpRelayAcceptor::AcceptHandler(const asio::error_code& ec)
         //LOGF("%s accepted a connection: %s", reporting_name.c_str(), nextRelay->reporting_name.c_str());
         if (bytespersec > 0) nextRelay->SetBytesPerSecond(bytespersec);
         nextRelay->StartConnecting();
-        onAccepted(move(nextRelay));
+        onAccepted(std::move(nextRelay));
         nextRelay.reset(new TcpRelay(asio_service, reporting_name + "-" + to_string(++relayCount), connect_address));
         StartAccepting();
     }

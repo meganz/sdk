@@ -988,9 +988,9 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 
         // add resolved host name to cache, or replace the previous one
         CurlDNSEntry& dnsEntry = dnscache[host];
-        dnsEntry.ipv4 = move(ips[2 * i]);
+        dnsEntry.ipv4 = std::move(ips[2 * i]);
         dnsEntry.ipv4timestamp = Waiter::ds;
-        dnsEntry.ipv6 = move(ips[2 * i + 1]);
+        dnsEntry.ipv6 = std::move(ips[2 * i + 1]);
         dnsEntry.ipv6timestamp = Waiter::ds;
         dnsEntry.mNeedsResolvingAgain = false;
     }
@@ -2298,7 +2298,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
 
-                    if (req->method == METHOD_NONE)
+                    if (req->method == METHOD_NONE && req->httpiohandle)
                     {
                         char *ip = NULL;
                         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;

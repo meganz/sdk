@@ -322,7 +322,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
     auto codecContextGuard = makeScopeGuard(avcodec_free_context, &codecContext);
-    if (codecContext && avcodec_parameters_to_context(codecContext, codecParm) < 0)
+    if (!codecContext || avcodec_parameters_to_context(codecContext, codecParm) < 0)
     {
         LOG_warn << "Could not copy codec parameters to context";
         return false;

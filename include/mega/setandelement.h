@@ -56,7 +56,7 @@ namespace mega {
 
         // set key used for encrypting attrs
         void setKey(const std::string& key) { mKey = key; }
-        void setKey(std::string&& key) { mKey = move(key); }
+        void setKey(std::string&& key) { mKey = std::move(key); }
 
         // set timestamp
         void setTs(m_time_t ts) { mTs = ts; }
@@ -71,7 +71,7 @@ namespace mega {
         bool hasEncrAttrs() const { return !!mEncryptedAttrs; }
 
         // set encrypted attrs, that will need a call to decryptAttributes()
-        void setEncryptedAttrs(std::string&& eattrs) { mEncryptedAttrs.reset(new std::string(move(eattrs))); }
+        void setEncryptedAttrs(std::string&& eattrs) { mEncryptedAttrs.reset(new std::string(std::move(eattrs))); }
 
         // decrypt attributes set with setEncryptedAttrs(), and replace internal attrs
         bool decryptAttributes(std::function<bool(const std::string&, const std::string&, string_map&)> f);
@@ -84,7 +84,7 @@ namespace mega {
 
     protected:
         CommonSE() = default;
-        CommonSE(handle id, std::string&& key, string_map&& attrs) : mId(id), mKey(move(key)), mAttrs(new string_map(move(attrs))) {}
+        CommonSE(handle id, std::string&& key, string_map&& attrs) : mId(id), mKey(std::move(key)), mAttrs(new string_map(std::move(attrs))) {}
         CommonSE(const CommonSE& src) { replaceCurrent(src); }
         CommonSE& operator=(const CommonSE& src) { replaceCurrent(src); return *this; }
         CommonSE(CommonSE&&) = default;
@@ -101,7 +101,7 @@ namespace mega {
         bool hasAttrChanged(const std::string& tag, const std::unique_ptr<string_map>& otherAttrs) const;
         void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
-        static bool validChangeType(const unsigned& typ, const unsigned& typMax) { assert(typ < typMax); return typ < typMax; }
+        static bool validChangeType(const uint64_t& typ, const uint64_t& typMax) { assert(typ < typMax); return typ < typMax; }
 
         std::unique_ptr<std::string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
@@ -126,7 +126,7 @@ namespace mega {
     public:
         SetElement() = default;
         SetElement(handle sid, handle node, handle elemId, std::string&& key, string_map&& attrs)
-            : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
+            : CommonSE(elemId, std::move(key), std::move(attrs)), mSetId(sid), mNodeHandle(node) {}
         SetElement(const SetElement& src) : CommonSE(src) { replaceCurrent(src); }
         SetElement& operator=(const SetElement& src) { CommonSE::operator=(src); replaceCurrent(src); return *this; }
         SetElement(SetElement&&) = default;
@@ -179,7 +179,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
         bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
@@ -220,7 +220,7 @@ namespace mega {
     public:
         Set() = default;
         Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs)
-            : CommonSE(id, move(key), move(attrs)), mPublicId(publicId), mUser(user) {}
+            : CommonSE(id, std::move(key), std::move(attrs)), mPublicId(publicId), mUser(user) {}
 
         // return public id of the set
         const handle& publicId() const { return mPublicId; }
@@ -262,7 +262,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
         bool isExported() const { return mPublicId != UNDEF; }
 

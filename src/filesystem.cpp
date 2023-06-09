@@ -532,7 +532,7 @@ void LocalPath::normalizeAbsolute()
         LocalPath lp;
         PosixFileSystemAccess::cwd_static(lp);
         lp.appendWithSeparator(*this, false);
-        localpath = move(lp.localpath);
+        localpath = std::move(lp.localpath);
     }
     isFromRoot = true;
 #endif
@@ -1534,7 +1534,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
+LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 {
     assert(invariant());
 
@@ -1555,10 +1555,7 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
         extension.localpath = localpath.substr(dotindex);
     }
 
-    ostringstream oss;
-    oss << " (" << counter << ")";
-
-    result.localpath += LocalPath::fromRelativePath(oss.str()).localpath + extension.localpath;
+    result.localpath += LocalPath::fromRelativePath(suffix).localpath + extension.localpath;
     assert(result.invariant());
     return result;
 }
@@ -1846,30 +1843,6 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
-{
-    // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath(true);
-
-    if (compareUtf(localName, false, remoteName, false, true))
-    {
-        return FILENAME_ANOMALY_NAME_MISMATCH;
-    }
-    else if (isReservedName(remoteName, type))
-    {
-        return FILENAME_ANOMALY_NAME_RESERVED;
-    }
-
-    return FILENAME_ANOMALY_NONE;
-}
-
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
-{
-    assert(node);
-
-    return isFilenameAnomaly(localPath, node->displayname(), node->type);
-}
-
 bool isNetworkFilesystem(FileSystemType type)
 {
     return type == FS_CIFS
@@ -1907,7 +1880,7 @@ ScanService::~ScanService()
 auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren, shared_ptr<Waiter> waiter) -> RequestPtr
 {
     // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(move(waiter), followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
+    auto request = std::make_shared<ScanRequest>(std::move(waiter), followSymlinks, targetPath, expectedFsid, std::move(priorScanChildren));
 
     // Queue request for processing.
     mWorker->queue(request);
@@ -1923,7 +1896,7 @@ ScanService::ScanRequest::ScanRequest(shared_ptr<Waiter> waiter,
     : mWaiter(waiter)
     , mScanResult(SCAN_INPROGRESS)
     , mFollowSymLinks(followSymLinks)
-    , mKnown(move(priorScanChildren))
+    , mKnown(std::move(priorScanChildren))
     , mResults()
     , mTargetPath(std::move(targetPath))
     , mExpectedFsid(expectedFsid)

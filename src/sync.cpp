@@ -1315,7 +1315,11 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool
+#ifndef NDEBUG
+                                 fromOutsideThreadAlreadyLocked
+#endif
+                                 )
 {
     assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
@@ -1926,20 +1930,6 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         // (in case of a move, this synchronously updates l->parent
                         // and l->node->parent)
                         it->second->setnameparent(parent, localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
-                    }
-
-                    // Has the move (rename) resulted in a filename anomaly?
-                    if (Node* node = it->second->node)
-                    {
-                        auto type = isFilenameAnomaly(*localpathNew, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto localPath = *localpathNew;
-                            auto remotePath = node->displaypath();
-
-                            client->filenameAnomalyDetected(type, localPath, remotePath);
-                        }
                     }
 
                     // make sure that active PUTs receive their updated filenames
@@ -3190,10 +3180,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                       << "...";
 
             // Completion chain.
-            auto completion = bind(&putComplete, move(context), _1, _2);
+            auto completion = bind(&putComplete, std::move(context), _1, _2);
 
             // Create and initiate request.
-            auto* request = new CommandBackupPut(&client, info, move(completion));
+            auto* request = new CommandBackupPut(&client, info, std::move(completion));
             client.reqs.add(request);
         }
 
@@ -4132,7 +4122,7 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
                         LOG_warn << "API error deregisterig sync " << toHandle(backupId) << ":" << e;
                     }
 
-                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(completion)); });
+                    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, std::move(completion)); });
                 }));
     }, true);
 
@@ -4227,7 +4217,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
             {
                 // this is the last one, so we'll arrange clientCompletion
                 // to run after it completes.  Earlier de-registers must finish first
-                onFinalDeregister = move(clientCompletion);
+                onFinalDeregister = std::move(clientCompletion);
                 clientCompletion = nullptr;
             }
 
@@ -4400,7 +4390,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-#ifdef DEBUG
+#ifndef NDEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 #endif
 
@@ -4579,7 +4569,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));
