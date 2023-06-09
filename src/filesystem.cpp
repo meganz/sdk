@@ -1557,7 +1557,7 @@ LocalPath LocalPath::parentPath() const
     return subpathTo(getLeafnameByteIndex());
 }
 
-LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
+LocalPath LocalPath::insertFilenameSuffix(const std::string& suffix) const
 {
     assert(invariant());
 
@@ -1578,10 +1578,7 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
         extension.localpath = localpath.substr(dotindex);
     }
 
-    ostringstream oss;
-    oss << " (" << counter << ")";
-
-    result.localpath += LocalPath::fromRelativePath(oss.str()).localpath + extension.localpath;
+    result.localpath += LocalPath::fromRelativePath(suffix).localpath + extension.localpath;
     assert(result.invariant());
     return result;
 }
@@ -1969,7 +1966,7 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
         do
         {
             num++;
-            changedName = target.insertFilenameCounter(num);
+            changedName = target.insertFilenameSuffix("(" + std::to_string(num) + ")");
         } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
 
         LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
@@ -2045,7 +2042,7 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
         do
         {
             num++;
-            changedName = target.insertFilenameCounter(num);
+            changedName = target.insertFilenameSuffix("(" + std::to_string(num) + ")");
         } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
 
         LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
