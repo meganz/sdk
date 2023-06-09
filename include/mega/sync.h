@@ -32,10 +32,13 @@
 
 namespace mega {
 
+struct MegaApp;
 class HeartBeatSyncInfo;
 class BackupInfoSync;
 class BackupMonitor;
 class MegaClient;
+struct JSON;
+class JSONWriter;
 
 // How should the sync engine detect filesystem changes?
 enum ChangeDetectionMethod
@@ -543,6 +546,7 @@ public:
     bool checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient>);
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
     void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);

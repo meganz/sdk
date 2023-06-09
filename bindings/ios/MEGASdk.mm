@@ -276,6 +276,12 @@ using namespace mega;
     }
 }
 
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addRequestListener([self createDelegateMEGARequestListener:delegate singleListener:NO queueType:queueType]);
+    }
+}
+
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->addTransferListener([self createDelegateMEGATransferListener:delegate singleListener:NO]);

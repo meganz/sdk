@@ -629,9 +629,8 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
     for(Len = 0; *Passwd && (Len < MaxLen); ++Len, ++Passwd)
     {
         uint8_t c;
-        int w, x, y, z;
+        int w, x, y;
         const uint8_t *q;
-        z = 0;
         if (!Len && Wrk->First)
         {
             c = Wrk->First;
@@ -718,7 +717,7 @@ static void DoDictMatch(const uint8_t *Passwd, int Start, int MaxLen, DictWork_t
         for(w=0; w<x; ++w)
         {
             unsigned int Cloc = ChildLocs[w+y];
-            z = EndCountSml[Cloc];
+            int z = EndCountSml[Cloc];
             if (Cloc < NumLargeCounts)
                 z += EndCountLge[Cloc]*256;
             Ord += z;

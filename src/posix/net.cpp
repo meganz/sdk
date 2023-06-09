@@ -2299,7 +2299,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
 
-                    if (req->method == METHOD_NONE)
+                    if (req->method == METHOD_NONE && req->httpiohandle)
                     {
                         char *ip = NULL;
                         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;

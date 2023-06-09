@@ -760,7 +760,7 @@ void CommandGetFile::callFailedCompletion(const Error &e)
     assert(mCompletion);
     if (mCompletion)
     {
-        mCompletion(e, -1, -1, -1, 0, nullptr, nullptr, nullptr, {}, {});
+        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {});
     }
 }
 
@@ -781,7 +781,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     m_off_t s = -1;
     dstime tl = 0;
     std::unique_ptr<byte[]> buf;
-    m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
     string fileattrstring;
@@ -825,14 +824,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
             case 's':
                 s = json.getint();
-                break;
-
-            case MAKENAMEID2('t', 's'):
-                ts = json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + json.getint();
                 break;
 
             case MAKENAMEID2('a', 't'):
@@ -910,7 +901,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
                         case EOO:
                             { //succeded, call completion function!
-                                return mCompletion ? mCompletion(e, s, ts, tm, tl,
+                                return mCompletion ? mCompletion(e, s, tl,
                                             &filenamestring, &filefingerprint, &fileattrstring,
                                             tempurls, tempips) : false;
                             }
@@ -1024,7 +1015,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 {
     byte key[FILENODEKEYLENGTH];
 
-#ifdef DEBUG
+#ifndef NDEBUG
     assert(newnodes.size() > 0);
     for (auto& n : newnodes) assert(n.canChangeVault == canChangeVault);
 #endif
@@ -3992,7 +3983,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionPushSetting;
     string contactLinkVerification;
     string versionContactLinkVerification;
+#ifndef NDEBUG
     handle me = UNDEF;
+#endif
     string chatFolder;
     string versionChatFolder;
     string cameraUploadFolder;
@@ -4024,6 +4017,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionCookieSettings;
     string appPrefs;
     string versionAppPrefs;
+    string ccPrefs;
+    string versionCcPrefs;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4101,7 +4096,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case 'u':
-            me = json.gethandle(MegaClient::USERHANDLE);
+#ifndef NDEBUG
+            me = 
+#endif
+                 json.gethandle(MegaClient::USERHANDLE);
             break;
 
         case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
@@ -4170,6 +4168,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
             parseUserAttribute(json, appPrefs, versionAppPrefs);
+            break;
+
+        case MAKENAMEID8('*', '!', 'c', 'c', 'P', 'r', 'e', 'f'):
+            parseUserAttribute(json, ccPrefs, versionCcPrefs);
             break;
 
 #ifdef ENABLE_SYNC
@@ -4537,6 +4539,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
+                }
+
+                if (!ccPrefs.empty())
+                {
+                    changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
                 }
 
                 if (aliases.size())
@@ -4943,8 +4950,10 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<Acc
 bool CommandGetUserQuota::procresult(Result r, JSON& json)
 {
     m_off_t td;
+#ifndef NDEBUG
     bool got_storage = false;
     bool got_storage_used = false;
+#endif
     int uslw = -1;
 
     if (r.wasErrorOrOK())
@@ -5027,7 +5036,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
             // Your total account storage usage
                 details->storage_used = json.getint();
+#ifndef NDEBUG
                 got_storage_used = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -5073,7 +5084,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
             // maximum storage allowance
                 details->storage_max = json.getint();
+#ifndef NDEBUG
                 got_storage = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
@@ -9111,7 +9124,7 @@ bool CommandBackupRemove::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)> f)
     : completion(std::move(f))
 {
     cmd("sf");
@@ -9739,7 +9752,7 @@ bool CommandPutSetElement::procresult(Result r, JSON& json)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
-#ifdef DEBUG
+#ifndef NDEBUG
     bool isNew = mElement->id() == UNDEF;
 #endif
     const SetElement* el = nullptr;

@@ -53,7 +53,7 @@ struct MEGA_API FileFingerprint : public Cacheable
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
 
     void serializefingerprint(string* d) const;
-    int unserializefingerprint(string* d);
+    int unserializefingerprint(const string* d);
 
     FileFingerprint() = default;
 

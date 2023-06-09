@@ -327,7 +327,11 @@ public:
     *
     *   @see DirectReadSlot::mMaxChunkSize
     */
+#if defined(__ANDROID__) || defined(USE_IOS)
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 16 * 1024 * 1024;
+#else
     static constexpr unsigned MAX_DELIVERY_CHUNK = 33 * 1024 * 1024;
+#endif
 
     /**
     *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.

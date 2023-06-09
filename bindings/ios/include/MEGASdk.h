@@ -142,6 +142,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeDrivesName              = 35, // private - byte array
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
+    MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -629,6 +630,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate that will receive all events about requests.
  */
 - (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Register a delegate with queue type to receive all events about requests.
+ *
+ * You can use [MEGASdk removeMEGARequestDelegateAsync:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about requests.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Register a delegate to receive all events about transfers.
@@ -1309,7 +1320,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 /**
  * @brief Check if the MEGASdk object is logged in.
- * @return 0 if not logged in, Otherwise, a number >= 0.
+ * @return 0 if not logged in, Otherwise, a number > 0.
  */
 - (NSInteger)isLoggedIn;
 
@@ -4969,6 +4980,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGAUserAttributeAlias
  *  - MEGAUserAttributeDeviceNames
  *  - MEGAUserAttributeAppsPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
  * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
  *
  * @param type Attribute type
@@ -4993,6 +5005,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Set the list of device names (private)
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
+ * MEGAUserAttributeContentConsumptionPreferences = 39
+ * Set the content consumption prefs (private)
  *
  * @param key Key for the new attribute in the string map
  * @param value New attribute value
@@ -5011,6 +5025,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGAUserAttributeAlias
  *  - MEGAUserAttributeDeviceNames
  *  - MEGAUserAttributeAppsPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
  * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
  *
  * @param type Attribute type
@@ -5035,6 +5050,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Set the list of device names (private)
  * MEGAUserAttributeAppsPreferences = 38
  * Set the apps prefs (private)
+ * MEGAUserAttributeContentConsumptionPreferences = 39
+ * Set the content consumption prefs (private)
  *
  * @param key Key for the new attribute in the string map
  * @param value New attribute value

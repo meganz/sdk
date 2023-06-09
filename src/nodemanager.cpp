@@ -459,7 +459,7 @@ uint64_t NodeManager::getNodeCount_internal()
         assert(!rootnodes.files.isUndef() && !rootnodes.vault.isUndef() && !rootnodes.rubbish.isUndef());
     }
 
-#ifdef DEBUG
+#ifndef NDEBUG
     if (mNodes.size())
     {
         uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
@@ -1632,7 +1632,7 @@ void NodeManager::updateCounter_internal(Node& n, Node* oldParent)
         }
     }
     // newest element at chain versions has been removed, the second one element is the newest now. Update node counter properly
-    else if (oldParent && oldParent->type == FILENODE && n.parent->type != FILENODE)
+    else if (oldParent && oldParent->type == FILENODE && n.parent && n.parent->type != FILENODE)
     {
         nc.files++;
         nc.storage += n.size;

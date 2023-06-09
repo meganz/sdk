@@ -1888,7 +1888,7 @@ void LocalNode::trimRareFields()
             !rareFields->filterChain &&
             !rareFields->badlyFormedIgnoreFilePath &&
             !rareFields->createFolderHere &&
-            rareFields->removeNodeHere.expired() &&
+            !rareFields->removeNodeHere &&
             rareFields->unlinkHere.expired() &&
             rareFields->localFSRenamedToThisName.empty())
         {
