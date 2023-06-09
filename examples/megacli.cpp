@@ -3744,90 +3744,7 @@ void exec_getmybackups(autocomplete::ACState&)
     cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
 }
 
-// if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
-void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
-{
-    vector<pair<handle, int>> sdsBkps;
-    if (backupRootNode) // also allow removing orphan syncs (with no nodes)
-    {
-        // validate node's sds attribute
-        sdsBkps = backupRootNode->getSdsBackups();
-        assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
-            {
-                return n.first == backupId && n.second == CommandBackupPut::DELETED;
-            }) == sdsBkps.end());
-    }
-
-    // prepare to update sds node attribute
-    CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
-    {
-        if (e != API_OK)
-        {
-            setattr_result(nh, e);
-            return;
-        }
-
-        if (moveOrDelete)
-        {
-            // delete or move backup files
-            if (!targetDest)
-            {
-                // ...delete target...
-                auto completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                e = client->unlink(backupRootNode, false, 0, true, std::move(completion));
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
-                }
-            }
-            else    // move to target destination
-            {
-                NodeHandle prevParent;
-                prevParent.set6byte(backupRootNode->parenthandle);
-                CommandMoveNode::Completion completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, std::move(completion), true));
-            }
-        }
-    };
-
-    // remove backup
-    client->reqs.add(new CommandBackupRemove(client, backupId,
-        [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
-        {
-            if (cbrErr != API_OK && cbrErr != API_ENOENT)
-            {
-                cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
-                return;
-            }
-
-            cout << "Backup Centre - Sync / backup removed" << endl;
-
-            if (backupRootNode)
-            {
-                sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
-                const string& sdsValue = Node::toSdsString(sdsBkps);
-
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), std::move(attrCompl), true);
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
-                }
-            }
-        }));
-}
-
+#ifdef ENABLE_SYNC
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -3840,7 +3757,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         {
             if (e)
             {
-                cout << "backupcentre failed: " << e << endl;
+                cout << "Backup Center - failed to get info about Backups: " << e << endl;
             }
             else
             {
@@ -3852,7 +3769,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         {
                             if (e)
                             {
-                                cout << "backup center failed to purge id: " << toHandle(d.backupId) << endl;
+                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
                             }
                         }));
 
@@ -3889,79 +3806,65 @@ void exec_backupcentre(autocomplete::ACState& s)
              }
         });
     }
-    else if (s.words.size() >= 2 && (delFlag || stopFlag))
+    else if ((delFlag && s.words.size() >= 2) || // remove backup && (move or delete) its contents
+             (stopFlag && s.words.size() == 2))  // stop non-backup sync
     {
-        // get backup's remote node
+        handle backupId = 0;
         const string& backupIdStr = s.words[1].s;
+        Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
-        Node *targetDest = nullptr;
-        if (s.words.size() == 3 && delFlag)    // move backup to cloud
+        // get move destination for the removed backup
+        handle hDest = 0;
+        if (delFlag && s.words.size() == 3)
         {
-            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
-            targetDest = client->nodebyhandle(hDest);
+            // validation
+            Node* targetDest = client->nodebyhandle(hDest);
             if (!targetDest)
             {
-                cout << "Backup Centre - Move destination not found" << endl;
+                cout << "Backup Centre - Move destination " << s.words[2].s << " not found" << endl;
                 return;
             }
         }
-
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        else
         {
-            if (e != API_OK)
-            {
-                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
-                return;
-            }
+            hDest = UNDEF;
+        }
 
-            handle backupId = 0;
-            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+        // determine if it's a backup or other type of sync
+        SyncConfig c;
+        bool found = client->syncs.configById(backupId, c);
+        bool isBackup = found && c.isBackup();
 
-            bool found = false;
-            for (auto& d : data)
+        // request removal
+        client->removeFromBC(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
+        {
+            if (e == API_OK)
             {
-                if (d.backupId == backupId)
+                cout << "Backup Centre - " << (isBackup ? "Backup " : "Sync ") << toHandle(backupId);
+                if (isBackup)
                 {
-                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
-                    {
-                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
-                        return;
-                    }
-                    if (stopFlag && d.backupType != BackupType::TWO_WAY)
-                    {
-                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
-                        return;
-                    }
-                    Node* remoteNode = client->nodebyhandle(d.rootNode);
-                    if (!remoteNode)
-                    {
-                        cout << "Backup Centre - Remote node not found for id: " << backupIdStr << endl;
-
-                        if (stopFlag && d.backupType == BackupType::TWO_WAY)
-                        {
-                            cout << "Backup Centre - Attempt to forcefully remove orphan sync." << endl;
-                        }
-                        else
-                        {
-                            return;
-                        }
-                    }
-
-                    backupremove(backupId, remoteNode, targetDest, delFlag);
-                    found = true;
-                    break;
+                    cout << " removed and contents " << (hDest == UNDEF ? "deleted" : "moved") << endl;
+                }
+                else
+                {
+                    cout << " stopped" << endl;
                 }
             }
-            if (!found)
+            else
             {
-                cout << "Backup Centre - id not found: " << backupIdStr << endl;
-                return;
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                if (isBackup)
+                {
+                    cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
+                }
+                cout << " (" << errorstring(e) << ')' << endl;
             }
-        }));
+        });
     }
 }
+#endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 void exec_simulatecondition(autocomplete::ACState& s)

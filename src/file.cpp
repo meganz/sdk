@@ -34,6 +34,7 @@ namespace mega {
 mutex File::localname_mutex;
 
 File::File()
+    :mCollisionResolution(CollisionResolution::RenameNewWithN)
 {
     transfer = NULL;
     chatauth = NULL;
@@ -120,6 +121,8 @@ bool File::serialize(string *d) const
     char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
+    d->append((char*)&mCollisionResolution, 1);
+
     d->append("\0\0\0\0\0\0\0", 8);
 
     if (hasChatAuth)
@@ -204,8 +207,17 @@ File *File::unserialize(string *d)
 
     unsigned short pubauthlen = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(pubauthlen);
-    if (ptr + pubauthlen + sizeof(handle) + FILENODEKEYLENGTH + sizeof(bool)
-            + sizeof(bool) + sizeof(bool) + 10 > end)
+    if (ptr + pubauthlen 
+            + sizeof(handle) 
+            + FILENODEKEYLENGTH 
+            + sizeof(bool)      //hprivate
+            + sizeof(bool)      //hforeign
+            + sizeof(bool)      //syncxfer
+            + sizeof(bool)      //temporaryfile
+            + sizeof(char)      //hasChatAuth
+            + sizeof(uint8_t)   //collisionResolution
+            + 8                 //8 '0'
+            > end)
     {
         LOG_err << "File unserialization failed - public auth too long";
         return NULL;
@@ -243,6 +255,16 @@ File *File::unserialize(string *d)
 
     char hasChatAuth = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
+
+    uint8_t collisionResolutionUint8 = MemAccess::get<uint8_t>(ptr);
+    ptr += sizeof(uint8_t);
+    if (collisionResolutionUint8 < static_cast<uint8_t>(CollisionResolution::Begin) || collisionResolutionUint8 >= static_cast<uint8_t>(CollisionResolution::End))
+    {
+        LOG_err << "File unserialization failed - collision resolution " << collisionResolutionUint8 << " not valid";
+        delete file;
+        return NULL;
+    }
+    file->setCollisionResolution(static_cast<CollisionResolution>(collisionResolutionUint8));
 
     if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {
