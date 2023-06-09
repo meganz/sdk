@@ -4434,7 +4434,8 @@ class MegaRequest
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
-            TOTAL_OF_REQUEST_TYPES                                          = 170,
+            TYPE_BACKUP_REMOVE_MD                                           = 170,
+            TOTAL_OF_REQUEST_TYPES                                          = 171,
         };
 
         virtual ~MegaRequest();
@@ -5449,6 +5450,22 @@ class MegaTransfer
             STAGE_CREATE_TREE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
+        };
+
+        enum
+        {                                               // Collision Check for same file
+            COLLISION_CHECK_ASSUMESAME          = 1,    // assume files are the same
+            COLLISION_CHECK_ALWAYSERROR         = 2,    // treat as an error
+            COLLISION_CHECK_FINGERPRINT         = 3,    // Check fingerprint. Assume files are same if their fingerprint are same (quick)
+            COLLISION_CHECK_METAMAC             = 4,    // Check MetaMac. Assume files are same if their meta mac are same (slow, a lot of disk + CPU)
+            COLLISION_CHECK_ASSUMEDIFFERENT     = 5,    // assume files are different
+        };
+
+        enum
+        {                                               // Indicates how to save same files
+            COLLISION_RESOLUTION_OVERWRITE          = 1, // Overwrite the existing one
+            COLLISION_RESOLUTION_NEW_WITH_N         = 2, // Rename the new one with suffix (1), (2), and etc.
+            COLLISION_RESOLUTION_EXISTING_TO_OLDN   = 3, // Rename the existing one with suffix .old1, old2, and etc.
         };
 
         virtual ~MegaTransfer();
@@ -9302,6 +9319,7 @@ class MegaApi
             OPTION_SET_NAME             = (1 << 1),
             OPTION_SET_COVER            = (1 << 2),
         };
+
         enum
         {
             CREATE_ELEMENT              = (1 << 0),
@@ -14346,9 +14364,21 @@ class MegaApi
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
          * This param is required to be able to cancel transfers safely.
          * App retains the ownership of this param.
+         * @param collisionCheck Indicates the collision check on same files, valid values are:
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+         *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+         *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+         *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+         *
+         * @param collisionResolution Indicates how to save same files, valid values are:
+         *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+         *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+         *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
+         *
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -20518,6 +20548,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Mark a backup already registered in Backup Centre, for removal, and
+         * move or delete its contents. Other sync types will only be stopped.
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre, and completely remove its contents, either by moving them to
+         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * destination is INVALID_HANDLE).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be removed
+         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
+         * backup contents will be deleted; for non-backup syncs it will be ignored
+         * @param listener MegaRequestListener to track this request
+        */
+        void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about all registered backups for Backup Centre

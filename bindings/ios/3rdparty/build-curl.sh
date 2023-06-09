@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.76.0"
+CURL_VERSION="8.1.2"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -71,47 +71,46 @@ export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 RUNTARGET=""
 if [[ "${ARCH}" == "arm64"  && "$PLATFORM" == "iPhoneSimulator" ]];
 then
-RUNTARGET="-target ${ARCH}-apple-ios13.0-simulator"
+RUNTARGET="-target ${ARCH}-apple-ios14.0-simulator"
 fi
 export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=13.0"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=13.0 ${RUNTARGET}"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 ${RUNTARGET}"
 export CPPFLAGS="${CFLAGS} -DNDEBUG"
 export CXXFLAGS="${CPPFLAGS}"
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=arm-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 else
-./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 fi
 
 make -j${CORES}
-cp -f lib/.libs/libcurl.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
-#make clean
+make install
+make clean
 
 popd
 
 done
 
-
 mkdir xcframework || true
 
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcurl.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-arm64.sdk/libcurl.a -output ${CURRENTPATH}/bin/libcurl.a
+echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+
+lipo -create ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libcurl.a ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libcurl.a -output ${CURRENTPATH}/bin/libcurl/libcurl.a
 
 echo "${bold}Creating xcframework ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libcurl.a -library ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcurl.a -output ${CURRENTPATH}/xcframework/libcurl.xcframework
-
-mkdir -p include/curl || true
-cp -f curl-${CURL_VERSION}/include/curl/*.h include/curl/
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libcurl/libcurl.a -headers ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library ${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libcurl.a -headers ${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libcurl.xcframework
  
 echo "${bold}Cleaning up ${normal}"
 
-rm -rf bin
 rm -rf curl-${CURL_VERSION}
 rm -rf curl-${CURL_VERSION}.tar.gz
+rm -rf bin
 
-echo "Done."
+echo "${bold}Done.${normal}"
+

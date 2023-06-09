@@ -319,6 +319,20 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
     AccountActionTypeResumeEphemeralPlusPlus = 4,
 };
 
+typedef NS_ENUM(NSInteger, CollisionCheck) {
+    CollisionCheckAssumeSame        = 1,
+    CollisionCheckAlwaysError       = 2,
+    CollisionCheckFingerprint       = 3,
+    CollisionCheckMetaMac           = 4,
+    CollisionCheckAssumeDifferent   = 5,
+};
+
+typedef NS_ENUM(NSInteger, CollisionResolution) {
+    CollisionResolutionOverwrite        = 1,
+    CollisionResolutionNewWithN         = 2,
+    CollisionResolutionExistingToOldN   = 3,
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -6777,8 +6791,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param collisionCheck Indicates the collision check on same files
+ * @param collisionResolution Indicates how to save same files
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution;
 
 /**
  * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -6810,9 +6826,11 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param collisionCheck Indicates the collision check on same files
+ * @param collisionResolution Indicates how to save same files
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download for a file in MEGA
@@ -9609,8 +9627,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGA SDK:  [99400, 99500)
  *  - MEGAsync:  [99500, 99600)
  *  - Webclient: [99600, 99800]
+ *
+ * @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate].
  */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate] instead of this function.")));
 
 /**
 * @brief Send events to the stats server
@@ -9633,8 +9653,80 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 *  - MEGA SDK:  [99400, 99500)
 *  - MEGAsync:  [99500, 99600)
 *  - Webclient: [99600, 99800]
+*
+* @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId].
 */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId] instead of this function.")));
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MEGARequest sessionKey] - Returns the ViewID
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+ * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+ *               This value should have been generated with [MEGASdk generateViewId] method.
+ * @param delegate Delegate to track this request
+ *
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAcmd:   [98900, 99000)
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MEGARequest sessionKey] - Returns the ViewID
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+ * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+ *               This value should have been generated with [MEGASdk generateViewId] method.
+ *
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAcmd:   [98900, 99000)
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId;
+
+/**
+ * Generate an unique ViewID
+ *
+ * The caller gets the ownership of the object.
+ * 
+ * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+ */
+- (nullable NSString *)generateViewId;
 
 /**
  * @brief Create a new ticket for support with attached description

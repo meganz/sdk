@@ -64,8 +64,11 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app)
         delete httpio;
     };
 
+    using namespace mega;
+    auto waiter = std::make_shared<WAIT_CLASS>();
+
     std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, nullptr, httpio, nullptr, nullptr, "XXX", "unit_test", 0
+            &app, waiter, httpio, nullptr, nullptr, "XXX", "unit_test", 0
         }, deleter};
 
     return client;
