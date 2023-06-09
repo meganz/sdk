@@ -45,7 +45,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * You can use MegaScheduledCopy::getState to get the new state.
  *
- * @param api MegaApi object that is backing up files
+ * @param api MEGASdk object that is backing up files
  * @param backup MegaScheduledCopy object that has changed the state
  */
 -(void)onBackupStateChanged:(MEGASdk *)api backup:(MEGAScheduledCopy *)backup;
@@ -59,7 +59,7 @@ NS_ASSUME_NONNULL_BEGIN
  * The api object is the one created by the application, it will be valid until
  * the application deletes it.
  *
- * @param api MegaApi object that started the backup
+ * @param api MEGASdk object that started the backup
  * @param backup Information about the backup
  */
 -(void)onBackupStart:(MEGASdk *)api backup:(MEGAScheduledCopy *)backup;
@@ -82,7 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
  * If the backup folder cannot be found, the error will be API_ENOENT.
  *
  *
- * @param api MegaApi object that started the backup
+ * @param api MEGASdk object that started the backup
  * @param backup Information about the backup
  * @param error Error information
  */
@@ -97,7 +97,7 @@ NS_ASSUME_NONNULL_BEGIN
  * The api object is the one created by the application, it will be valid until
  * the application deletes it.
  *
- * @param api MegaApi object that started the backup
+ * @param api MEGASdk object that started the backup
  * @param backup Information about the backup
  *
  * @see MegaScheduledCopy::getTransferredBytes, MegaScheduledCopy::getSpeed
@@ -107,13 +107,13 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called when there is a temporary error processing a backup
  *
- * The backup continues after this callback, so expect more MegaScheduledCopyListener::onBackupTemporaryError or
- * a MegaScheduledCopyListener::onBackupFinish callback
+ * The backup continues after this callback, so expect more MEGAScheduledCopyDelegate onBackupTemporaryError or
+ * a MEGAScheduledCopyDelegate onBackupFinish callback
  *
  * The SDK retains the ownership of the backup and error parameters.
  * Don't use them after this functions returns.
  *
- * @param api MegaApi object that started the backup
+ * @param api MEGASdk object that started the backup
  * @param backup Information about the backup
  * @param error Error information
  */

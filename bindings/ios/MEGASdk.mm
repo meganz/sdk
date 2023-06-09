@@ -435,17 +435,17 @@ using namespace mega;
     }
 }
 
-- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
-    [self addScheduledCopyDelegate:delegate queueType:ListenerQueueTypeMain];
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    [self addMEGAScheduledCopyDelegate:delegate queueType:ListenerQueueTypeMain];
 }
 
-- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
     if (self.megaApi) {
-        self.megaApi->addScheduledCopyListener([self createDelegateMegaScheduledCopyListener:delegate queueType:queueType]);
+        self.megaApi->addScheduledCopyListener([self createDelegateMEGAScheduledCopyListener:delegate queueType:queueType]);
     }
 }
 
-- (void)removeScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
     std::vector<DelegateMEGAScheduledCopyListener *> listenersToRemove;
     
     pthread_mutex_lock(&listenerMutex);
@@ -3870,7 +3870,7 @@ using namespace mega;
     return delegateListener;
 }
 
-- (MegaScheduledCopyListener *)createDelegateMegaScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+- (MegaScheduledCopyListener *)createDelegateMEGAScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
     DelegateMEGAScheduledCopyListener *delegateListener = new DelegateMEGAScheduledCopyListener(self, delegate, queueType);

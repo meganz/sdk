@@ -754,7 +754,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *
  * @param delegate Delegate implementation
  */
-- (void)addScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 /**
  * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
@@ -763,7 +763,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *
  * @param delegate Delegate implementation
  */
-- (void)removeScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -9888,14 +9888,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 /**
  * @brief Fetch information about all registered backups for Backup Centre
  * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
- * Valid data in the MegaRequest object received on callbacks:
- * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getListener] - Returns the MegaRequestListener to track this request
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MegaError::API_OK:
- * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getMegaBackupInfoList] - Returns information about all registered backups
  *
- * @param delegate MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
 */
 - (void)getBackupInfo:(id<MEGARequestDelegate>)delegate;
 

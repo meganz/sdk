@@ -71,7 +71,7 @@ using namespace mega;
 }
 
 - (MEGABackupType)type {
-    return (MEGABackupType) (self.megaBackupInfo ? self.megaBackupInfo->type() : 0);
+    return (MEGABackupType) (self.megaBackupInfo ? self.megaBackupInfo->type() : MEGABackupTypeInvalid);
 }
 
 - (uint64_t)root {
