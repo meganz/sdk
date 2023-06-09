@@ -7803,11 +7803,12 @@ void MegaClient::sc_delscheduledmeeting()
                         handle chatid = chat->id;
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        for_each(begin(deletedChildren), end(deletedChildren),
-                                 [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
 
                         if (statecurrent)
                         {
+                            for_each(begin(deletedChildren), end(deletedChildren),
+                                     [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
