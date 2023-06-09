@@ -6128,7 +6128,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
                                   nullptr  /*customName*/,
                                   nullptr  /*appData*/,
                                   false    /*startFirst*/,
-                                  nullptr  /*cancelToken*/);
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
 
         unsigned int transfer_timeout_in_seconds = 180;
         //unsigned int transfer_timeout_in_seconds = 15;
