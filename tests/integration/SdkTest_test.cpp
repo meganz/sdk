@@ -8239,7 +8239,7 @@ TEST_F(SdkTest, EscapesReservedCharactersOnDownload)
     // Download the file.
     string targetPath = fs::current_path().u8string();
     targetPath.append(1, LocalPath::localPathSeparator_utf8);
-    ASSERT_EQ(API_OK, doStartDownload(0, child, targetPath.c_str(), nullptr, nullptr, false, nullptr));
+    ASSERT_EQ(API_OK, doStartDownload(0, child, targetPath.c_str(), nullptr, nullptr, false, nullptr, MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT, MegaTransfer::COLLISION_RESOLUTION_OVERWRITE));
 
     // Was the filename correctly escaped on download?
     ASSERT_TRUE(fileexists(fileName));
