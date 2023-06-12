@@ -54,10 +54,12 @@ typedef int64_t m_off_t;
 
 namespace mega {
 
-// opaque filesystem fingerprint.  Let's make it a proper type so the compiler helps us not mix it up with other IDs
+// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
 struct fsfp_t
 {
     uint64_t id = 0;
+    fsfp_t() {}
+    fsfp_t(uint64_t i) : id(i) {}
 };
 
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
