@@ -497,9 +497,11 @@ const char* JSON::getvalue()
     return r;
 }
 
-fsfp_t JSON::getfp()
+fsfp_t JSON::getfsfp()
 {
-    return gethandle(sizeof(fsfp_t));
+    fsfp_t fsfp;
+    fsfp.id = gethandle(sizeof(fsfp_t));
+    return fsfp;
 }
 
 uint64_t JSON::getuint64()

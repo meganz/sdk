@@ -52,10 +52,14 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 // signed 64-bit generic offset
 typedef int64_t m_off_t;
 
-// opaque filesystem fingerprint
-typedef uint64_t fsfp_t;
-
 namespace mega {
+
+// opaque filesystem fingerprint.  Let's make it a proper type so the compiler helps us not mix it up with other IDs
+struct fsfp_t
+{
+    uint64_t id = 0;
+};
+
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
 using byte = CryptoPP::byte;
@@ -505,6 +509,7 @@ enum SyncError {
     FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
     MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
+    FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
 };
 
 enum SyncWarning {
